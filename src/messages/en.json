@@ -1,0 +1,177 @@
+{
+  "common": {
+    "home": "Home",
+    "loading": "Loading...",
+    "roles": {
+      "super_admin": "Super Admin",
+      "event_owner": "Event Owner",
+      "sub_user": "Sub User",
+      "participant": "Participant"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    }
+  },
+  "confirm": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "signOutTitle": "Sign out",
+    "impersonateTitle": "Impersonate user",
+    "stopImpersonateTitle": "Stop impersonating"
+  },
+  "sidebar": {
+    "groups": {
+      "workspace": "Workspace"
+    },
+    "items": {
+      "overview": "Overview",
+      "owners": "Owners",
+      "eventHome": "Overview"
+    },
+    "roles": {
+      "superAdmin": "Super Admin",
+      "systemOwner": "System owner",
+      "eventOwner": "Event Owner",
+      "subUser": "Sub User"
+    }
+  },
+  "header": {
+    "toggleSidebar": "Toggle sidebar",
+    "appName": "EventSurvey",
+    "tagline": "Event & Survey Platform",
+    "searchPlaceholder": "Search owners, events, or forms",
+    "notifications": "Notifications",
+    "adminLabel": "Admin",
+    "ranges": {
+      "last7": "Last 7 days",
+      "last30": "Last 30 days",
+      "last90": "Last 90 days"
+    }
+  },
+  "userDropdown": {
+    "language": "Language",
+    "signOut": "Sign out",
+    "stopImpersonating": "Stop impersonating",
+    "confirmSignOut": "Are you sure you want to sign out?",
+    "confirmStopImpersonating": "Stop impersonating and return to the Super Admin account?"
+  },
+  "auth": {
+    "title": "Sign in",
+    "subtitle": "Enter your email and password to access the EventSurvey workspace.",
+    "email": "Email",
+    "emailPlaceholder": "info@company.com",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "keepLoggedIn": "Keep me logged in",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "noAccount": "Don't have an account?",
+    "contactAdmin": "Contact an administrator",
+    "brandHeadline": "Build better events. Collect better feedback.",
+    "brandSubtext": "Create forms, publish surveys, and turn every response into actionable insight.",
+    "language": "Language",
+    "demoTitle": "Demo accounts",
+    "demoPassword": "Password for all accounts: password123",
+    "demoHint": "Click an account to autofill",
+    "demoAccounts": {
+      "admin": "Super Admin → /admin",
+      "owner": "Event Owner → /event",
+      "subUser": "Sub User → /event"
+    },
+    "errors": {
+      "invalidCredentials": "Invalid email or password.",
+      "unsupportedRole": "This account role cannot access the portal.",
+      "generic": "Unable to sign in. Please try again."
+    }
+  },
+  "impersonation": {
+    "banner": "Acting as {actingAs} ({role}). Signed in as {admin}.",
+    "stop": "Stop impersonating",
+    "confirmStop": "Stop impersonating and return to the Super Admin account?"
+  },
+  "adminHome": {
+    "title": "Platform Overview",
+    "description": "Monitor platform usage, response activity, and system health.",
+    "loadError": "Failed to load overview data.",
+    "noActivity": "No recent activity yet.",
+    "metrics": {
+      "owners": "Event owners",
+      "events": "Total events",
+      "forms": "Published forms",
+      "responses": "Responses"
+    },
+    "responseActivity": "Response activity",
+    "systemHealth": "System health",
+    "recentActivity": "Recent activity",
+    "governance": "Governance",
+    "manageOwners": "Manage event owners",
+    "reviewAudit": "Review audit activity",
+    "days": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "health": {
+      "coreApi": "Core API",
+      "responseQueue": "Response queue",
+      "storage": "Storage",
+      "status": {
+        "operational": "Operational",
+        "attention": "Attention"
+      }
+    },
+    "activity": {
+      "ownerInvited": "New event owner invited",
+      "formPublished": "Feedback form published",
+      "eventClosed": "Campus event closed",
+      "twoMin": "2 min ago",
+      "eighteenMin": "18 min ago",
+      "oneHour": "1 hr ago"
+    }
+  },
+  "adminUsers": {
+    "title": "Owners",
+    "description": "Impersonate event_owner or sub_user accounts to enter the /event area with their permissions.",
+    "loading": "Loading users...",
+    "empty": "No users found.",
+    "loadError": "Failed to load users from the API.",
+    "impersonate": "Impersonate",
+    "impersonating": "Switching...",
+    "impersonateError": "Unable to impersonate this user.",
+    "confirmImpersonate": "Impersonate {name} ({role}) and enter the /event area?",
+    "filters": {
+      "all": "All",
+      "super_admin": "Super Admin",
+      "event_owner": "Event Owner",
+      "sub_user": "Sub User"
+    },
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "owner": "Parent owner",
+      "events": "Event",
+      "customRoles": "Event role",
+      "status": "Status",
+      "actions": "Actions"
+    }
+  },
+  "eventHome": {
+    "title": "Event Overview",
+    "welcome": "Event workspace",
+    "description": "This area is available to event_owner and sub_user roles only. Super Admin reaches it by impersonating a user from Owners."
+  },
+  "notFound": {
+    "error": "ERROR",
+    "message": "We can't seem to find the page you are looking for!",
+    "backToHome": "Back to Home Page"
+  }
+}

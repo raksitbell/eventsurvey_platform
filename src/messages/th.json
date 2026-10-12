@@ -1,0 +1,177 @@
+{
+  "common": {
+    "home": "หน้าหลัก",
+    "loading": "กำลังโหลด...",
+    "roles": {
+      "super_admin": "ผู้ดูแลระบบ",
+      "event_owner": "เจ้าของอีเวนต์",
+      "sub_user": "ผู้ใช้ย่อย",
+      "participant": "ผู้เข้าร่วม"
+    },
+    "status": {
+      "active": "ใช้งาน",
+      "inactive": "ปิดใช้งาน"
+    }
+  },
+  "confirm": {
+    "cancel": "ยกเลิก",
+    "confirm": "ยืนยัน",
+    "signOutTitle": "ออกจากระบบ",
+    "impersonateTitle": "สวมสิทธิ์ผู้ใช้",
+    "stopImpersonateTitle": "หยุดสวมสิทธิ์"
+  },
+  "sidebar": {
+    "groups": {
+      "workspace": "พื้นที่ทำงาน"
+    },
+    "items": {
+      "overview": "ภาพรวม",
+      "owners": "เจ้าของอีเวนต์",
+      "eventHome": "ภาพรวม"
+    },
+    "roles": {
+      "superAdmin": "ผู้ดูแลระบบ",
+      "systemOwner": "เจ้าของระบบ",
+      "eventOwner": "เจ้าของอีเวนต์",
+      "subUser": "ผู้ใช้ย่อย"
+    }
+  },
+  "header": {
+    "toggleSidebar": "สลับแถบเมนู",
+    "appName": "EventSurvey",
+    "tagline": "แพลตฟอร์มอีเวนต์และแบบสอบถาม",
+    "searchPlaceholder": "ค้นหาเจ้าของอีเวนต์ อีเวนต์ หรือฟอร์ม",
+    "notifications": "การแจ้งเตือน",
+    "adminLabel": "แอดมิน",
+    "ranges": {
+      "last7": "7 วันล่าสุด",
+      "last30": "30 วันล่าสุด",
+      "last90": "90 วันล่าสุด"
+    }
+  },
+  "userDropdown": {
+    "language": "ภาษา",
+    "signOut": "ออกจากระบบ",
+    "stopImpersonating": "หยุดสวมสิทธิ์",
+    "confirmSignOut": "ต้องการออกจากระบบหรือไม่?",
+    "confirmStopImpersonating": "ต้องการหยุดสวมสิทธิ์และกลับไปบัญชีผู้ดูแลระบบหรือไม่?"
+  },
+  "auth": {
+    "title": "เข้าสู่ระบบ",
+    "subtitle": "กรอกอีเมลและรหัสผ่านเพื่อเข้าใช้งาน EventSurvey",
+    "email": "อีเมล",
+    "emailPlaceholder": "info@company.com",
+    "password": "รหัสผ่าน",
+    "passwordPlaceholder": "กรอกรหัสผ่าน",
+    "keepLoggedIn": "ให้ฉันอยู่ในระบบต่อไป",
+    "forgotPassword": "ลืมรหัสผ่าน?",
+    "signIn": "เข้าสู่ระบบ",
+    "signingIn": "กำลังเข้าสู่ระบบ...",
+    "showPassword": "แสดงรหัสผ่าน",
+    "hidePassword": "ซ่อนรหัสผ่าน",
+    "noAccount": "ยังไม่มีบัญชี?",
+    "contactAdmin": "ติดต่อผู้ดูแลระบบ",
+    "brandHeadline": "สร้างอีเวนต์ที่ดีกว่า รวบรวมคำติชมที่ดีขึ้น",
+    "brandSubtext": "สร้างฟอร์ม เผยแพร่แบบสำรวจ และเปลี่ยนทุกการตอบกลับให้เป็นข้อมูลเชิงลึกที่นำไปใช้ได้จริง",
+    "language": "ภาษา",
+    "demoTitle": "บัญชีทดลอง",
+    "demoPassword": "รหัสผ่านทุกบัญชี: password123",
+    "demoHint": "คลิกบัญชีเพื่อกรอกให้อัตโนมัติ",
+    "demoAccounts": {
+      "admin": "ผู้ดูแลระบบ → /admin",
+      "owner": "เจ้าของอีเวนต์ → /event",
+      "subUser": "ผู้ใช้ย่อย → /event"
+    },
+    "errors": {
+      "invalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+      "unsupportedRole": "บัญชีนี้ไม่มีสิทธิ์เข้าใช้งานพอร์ทัล",
+      "generic": "ไม่สามารถเข้าสู่ระบบได้ กรุณาลองอีกครั้ง"
+    }
+  },
+  "impersonation": {
+    "banner": "กำลังสวมสิทธิ์เป็น {actingAs} ({role}) โดย {admin}",
+    "stop": "หยุดสวมสิทธิ์",
+    "confirmStop": "ต้องการหยุดสวมสิทธิ์และกลับไปบัญชีผู้ดูแลระบบหรือไม่?"
+  },
+  "adminHome": {
+    "title": "ภาพรวมแพลตฟอร์ม",
+    "description": "ติดตามการใช้งาน การตอบกลับ และสถานะระบบ",
+    "loadError": "โหลดข้อมูลภาพรวมไม่สำเร็จ",
+    "noActivity": "ยังไม่มีกิจกรรมล่าสุด",
+    "metrics": {
+      "owners": "เจ้าของอีเวนต์",
+      "events": "อีเวนต์ทั้งหมด",
+      "forms": "ฟอร์มที่เผยแพร่",
+      "responses": "คำตอบ"
+    },
+    "responseActivity": "กิจกรรมการตอบกลับ",
+    "systemHealth": "สถานะระบบ",
+    "recentActivity": "กิจกรรมล่าสุด",
+    "governance": "การกำกับดูแล",
+    "manageOwners": "จัดการเจ้าของอีเวนต์",
+    "reviewAudit": "ตรวจสอบบันทึกการใช้งาน",
+    "days": {
+      "mon": "จ.",
+      "tue": "อ.",
+      "wed": "พ.",
+      "thu": "พฤ.",
+      "fri": "ศ.",
+      "sat": "ส.",
+      "sun": "อา."
+    },
+    "health": {
+      "coreApi": "Core API",
+      "responseQueue": "คิวคำตอบ",
+      "storage": "พื้นที่จัดเก็บ",
+      "status": {
+        "operational": "ปกติ",
+        "attention": "ควรตรวจสอบ"
+      }
+    },
+    "activity": {
+      "ownerInvited": "เชิญเจ้าของอีเวนต์ใหม่แล้ว",
+      "formPublished": "เผยแพร่ฟอร์มความคิดเห็นแล้ว",
+      "eventClosed": "ปิดอีเวนต์วิทยาเขตแล้ว",
+      "twoMin": "2 นาทีที่แล้ว",
+      "eighteenMin": "18 นาทีที่แล้ว",
+      "oneHour": "1 ชั่วโมงที่แล้ว"
+    }
+  },
+  "adminUsers": {
+    "title": "เจ้าของอีเวนต์",
+    "description": "สวมสิทธิ์บัญชี event_owner หรือ sub_user เพื่อเข้าพื้นที่ /event ตามสิทธิ์ของบัญชีนั้น",
+    "loading": "กำลังโหลดผู้ใช้...",
+    "empty": "ไม่พบผู้ใช้",
+    "loadError": "โหลดผู้ใช้จาก API ไม่สำเร็จ",
+    "impersonate": "สวมสิทธิ์",
+    "impersonating": "กำลังเปลี่ยน...",
+    "impersonateError": "ไม่สามารถสวมสิทธิ์ผู้ใช้นี้ได้",
+    "confirmImpersonate": "ต้องการสวมสิทธิ์เป็น {name} ({role}) เพื่อเข้าพื้นที่ /event หรือไม่?",
+    "filters": {
+      "all": "ทั้งหมด",
+      "super_admin": "ผู้ดูแลระบบ",
+      "event_owner": "เจ้าของอีเวนต์",
+      "sub_user": "ผู้ใช้ย่อย"
+    },
+    "columns": {
+      "name": "ชื่อ",
+      "email": "อีเมล",
+      "role": "บทบาท",
+      "owner": "เจ้าของต้นสังกัด",
+      "events": "อีเวนต์",
+      "customRoles": "บทบาทในอีเวนต์",
+      "status": "สถานะ",
+      "actions": "การกระทำ"
+    }
+  },
+  "eventHome": {
+    "title": "ภาพรวมอีเวนต์",
+    "welcome": "พื้นที่อีเวนต์",
+    "description": "พื้นที่นี้สำหรับบทบาท event_owner และ sub_user เท่านั้น ผู้ดูแลระบบเข้าได้โดยสวมสิทธิ์จากเมนูเจ้าของอีเวนต์"
+  },
+  "notFound": {
+    "error": "ผิดพลาด",
+    "message": "ไม่พบหน้าที่คุณกำลังมองหา",
+    "backToHome": "กลับหน้าหลัก"
+  }
+}
