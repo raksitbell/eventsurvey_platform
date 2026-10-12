@@ -2,9 +2,12 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
+import {
+  canEnterAdminArea,
+  canEnterEventArea,
+} from "@/core/auth";
 import { GridIcon, GroupIcon, HorizontaLDots } from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
-import { canAccessAdmin, canAccessEvent } from "@/core/auth";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
 
@@ -18,11 +21,19 @@ type NavItem = {
 export default function AppSidebar() {
   const t = useTranslations("sidebar");
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, realUser, isImpersonating } = useAuth();
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
 
   const isAdminArea = pathname.startsWith("/admin");
+  const isEventArea = pathname.startsWith("/event");
   const showExpanded = isExpanded || isHovered || isMobileOpen;
+
+  const allowAdmin = canEnterAdminArea(realUser?.role, isImpersonating);
+  const allowEvent = canEnterEventArea(
+    user?.role,
+    realUser?.role,
+    isImpersonating,
+  );
 
   const adminNav: NavItem[] = [
     { key: "overview", icon: <GridIcon />, path: "/admin" },
@@ -33,21 +44,21 @@ export default function AppSidebar() {
     { key: "eventHome", icon: <GridIcon />, path: "/event" },
   ];
 
-  const navItems =
-    isAdminArea && user && canAccessAdmin(user.role)
+  const navItems = isAdminArea
+    ? allowAdmin
       ? adminNav
-      : user && canAccessEvent(user.role)
+      : []
+    : isEventArea
+      ? allowEvent
         ? eventNav
-        : user && canAccessAdmin(user.role)
-          ? adminNav
-          : eventNav;
+        : []
+      : allowAdmin
+        ? adminNav
+        : allowEvent
+          ? eventNav
+          : [];
 
-  const homePath =
-    user && canAccessAdmin(user.role)
-      ? "/admin"
-      : user && canAccessEvent(user.role)
-        ? "/event"
-        : "/login";
+  const homePath = allowAdmin ? "/admin" : allowEvent ? "/event" : "/login";
 
   const isActive = (path?: string) => {
     if (!path) return false;
@@ -129,7 +140,8 @@ export default function AppSidebar() {
                 active
                   ? "bg-brand-500 text-white"
                   : "text-gray-400 hover:bg-white/5 hover:text-white",
-                item.disabled && "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-gray-400",
+                item.disabled &&
+                  "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-gray-400",
                 !showExpanded && "justify-center px-0",
               );
 
@@ -140,7 +152,9 @@ export default function AppSidebar() {
                       <span className="flex size-5 items-center justify-center [&_svg]:size-5">
                         {item.icon}
                       </span>
-                      {showExpanded ? <span>{t(`items.${item.key}`)}</span> : null}
+                      {showExpanded ? (
+                        <span>{t(`items.${item.key}`)}</span>
+                      ) : null}
                     </span>
                   </li>
                 );
@@ -152,7 +166,9 @@ export default function AppSidebar() {
                     <span className="flex size-5 items-center justify-center [&_svg]:size-5">
                       {item.icon}
                     </span>
-                    {showExpanded ? <span>{t(`items.${item.key}`)}</span> : null}
+                    {showExpanded ? (
+                      <span>{t(`items.${item.key}`)}</span>
+                    ) : null}
                   </Link>
                 </li>
               );
@@ -168,7 +184,12 @@ export default function AppSidebar() {
             !showExpanded && "flex justify-center p-2",
           )}
         >
-          <div className={cn("flex items-center gap-3", !showExpanded && "justify-center")}>
+          <div
+            className={cn(
+              "flex items-center gap-3",
+              !showExpanded && "justify-center",
+            )}
+          >
             <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-theme-sm font-semibold text-white">
               {initials}
             </span>

@@ -166,12 +166,44 @@
   },
   "eventHome": {
     "title": "Event Overview",
-    "welcome": "Event workspace",
-    "description": "This area is available to event_owner and sub_user roles only. Super Admin reaches it by impersonating a user from Owners."
+    "description": "This area is for event_owner and sub_user only. Super Admin enters by impersonating a user from Owners.",
+    "loading": "Loading event...",
+    "loadError": "Failed to load event workspace.",
+    "currentEvent": "Current event",
+    "status": "Status",
+    "yourRole": "Your role",
+    "noEvent": "No event is linked to this account yet.",
+    "eventStatus": {
+      "draft": "Draft",
+      "published": "Published",
+      "closed": "Closed"
+    }
   },
   "notFound": {
     "error": "ERROR",
     "message": "We can't seem to find the page you are looking for!",
     "backToHome": "Back to Home Page"
+  },
+  "errors": {
+    "403": {
+      "title": "Access denied",
+      "message": "You do not have permission to view this page, or you must impersonate before entering the event area.",
+      "backHome": "Back to Home Page"
+    },
+    "404": {
+      "title": "Page not found",
+      "message": "We can't seem to find the page you are looking for!",
+      "backHome": "Back to Home Page"
+    },
+    "500": {
+      "title": "Server error",
+      "message": "Something went wrong on our side. Please try again.",
+      "backHome": "Back to Home Page"
+    },
+    "503": {
+      "title": "Service unavailable",
+      "message": "The service is temporarily unavailable or under maintenance.",
+      "backHome": "Back to Home Page"
+    }
   }
 }

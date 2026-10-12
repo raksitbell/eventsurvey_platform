@@ -2,15 +2,15 @@
 
 import {
   assertCanImpersonate,
-  clearAuthStorage,
   getHomePathForRole,
-  loadAuthStorage,
+  hydrateAuthSession,
   loginWithCredentials,
   persistAuthStorage,
   sanitizeUser,
+  subscribeAuth,
+  type AuthSnapshot,
 } from "@/core/auth";
-import { useRouter } from "@/i18n/navigation";
-import type { AuthSession } from "@/types/auth";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import type { User } from "@/types/user";
 import {
   createContext,
@@ -25,6 +25,7 @@ interface AuthContextValue {
   user: User | null;
   realUser: User | null;
   isImpersonating: boolean;
+  /** True until localStorage is read, or while a soft auth navigation is in flight */
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => void;
@@ -34,80 +35,111 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const EMPTY: AuthSnapshot = { realUser: null, impersonatedUser: null };
+
+function normalizePath(path: string) {
+  return path.replace(/\/$/, "") || "/";
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [realUser, setRealUser] = useState<User | null>(null);
-  const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
+  const [snapshot, setSnapshot] = useState<AuthSnapshot>(EMPTY);
+  const [ready, setReady] = useState(false);
+  /** Soft-nav target — AuthGuard shows hold instead of 403 during role switches */
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = loadAuthStorage();
-    setRealUser(stored.realUser);
-    setImpersonatedUser(stored.impersonatedUser);
-    setIsLoading(false);
+    // Mirror localStorage → cookie so middleware can gate /admin|/event
+    setSnapshot(hydrateAuthSession());
+    setReady(true);
+    return subscribeAuth(() => {
+      setSnapshot(hydrateAuthSession());
+    });
   }, []);
 
-  const persistSession = useCallback((session: AuthSession) => {
-    setRealUser(session.user);
-    setImpersonatedUser(session.impersonatedUser);
-    persistAuthStorage(session.user, session.impersonatedUser);
-  }, []);
+  useEffect(() => {
+    if (!pendingPath) return;
+    if (normalizePath(pathname) === normalizePath(pendingPath)) {
+      setPendingPath(null);
+    }
+  }, [pathname, pendingPath]);
+
+  const softGo = useCallback(
+    (path: string) => {
+      if (normalizePath(pathname) === normalizePath(path)) {
+        setPendingPath(null);
+        return;
+      }
+      setPendingPath(path);
+      router.replace(path);
+    },
+    [pathname, router],
+  );
+
+  const realUser = snapshot.realUser;
+  const impersonatedUser = snapshot.impersonatedUser;
+  const isImpersonating = Boolean(impersonatedUser);
+  const user = impersonatedUser ?? realUser;
 
   const login = useCallback(
     async (email: string, password: string) => {
       const safeUser = await loginWithCredentials({ email, password });
-      persistSession({ user: safeUser, impersonatedUser: null });
-      router.replace(getHomePathForRole(safeUser.role));
+      persistAuthStorage(safeUser, null);
+      softGo(getHomePathForRole(safeUser.role));
       return safeUser;
     },
-    [persistSession, router],
+    [softGo],
   );
 
   const logout = useCallback(() => {
-    setRealUser(null);
-    setImpersonatedUser(null);
-    clearAuthStorage();
-    router.replace("/login");
-  }, [router]);
+    persistAuthStorage(null, null);
+    softGo("/login");
+  }, [softGo]);
 
   const impersonate = useCallback(
     (target: User) => {
       if (!realUser) throw new Error("FORBIDDEN");
       assertCanImpersonate(realUser, target);
-      const safeTarget = sanitizeUser(target);
-      persistSession({ user: realUser, impersonatedUser: safeTarget });
-      router.replace(getHomePathForRole(safeTarget.role));
+      // Hold first so /admin doesn't paint 403 after role flip
+      setPendingPath(getHomePathForRole(target.role));
+      persistAuthStorage(realUser, sanitizeUser(target));
+      router.replace(getHomePathForRole(target.role));
     },
-    [persistSession, realUser, router],
+    [realUser, router],
   );
 
   const stopImpersonating = useCallback(() => {
     if (!realUser) return;
-    persistSession({ user: realUser, impersonatedUser: null });
-    router.replace(getHomePathForRole(realUser.role));
-  }, [persistSession, realUser, router]);
+    const home = getHomePathForRole(realUser.role);
+    setPendingPath(home);
+    persistAuthStorage(realUser, null);
+    router.replace(home);
+  }, [realUser, router]);
 
-  const value = useMemo<AuthContextValue>(() => {
-    const effectiveUser = impersonatedUser ?? realUser;
-    return {
-      user: effectiveUser,
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
       realUser,
-      isImpersonating: Boolean(impersonatedUser),
-      isLoading,
+      isImpersonating,
+      isLoading: !ready || pendingPath !== null,
       login,
       logout,
       impersonate,
       stopImpersonating,
-    };
-  }, [
-    impersonatedUser,
-    realUser,
-    isLoading,
-    login,
-    logout,
-    impersonate,
-    stopImpersonating,
-  ]);
+    }),
+    [
+      user,
+      realUser,
+      isImpersonating,
+      ready,
+      pendingPath,
+      login,
+      logout,
+      impersonate,
+      stopImpersonating,
+    ],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

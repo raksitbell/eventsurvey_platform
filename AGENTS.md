@@ -22,7 +22,9 @@ src/
 │   │   ├── layout.tsx, not-found.tsx
 │   ├── api/                     # Next.js BFF route handlers only
 │   │   ├── auth/login/route.ts
-│   │   └── admin/               # users, users/[id], overview routes
+│   │   ├── admin/               # users, users/[id], overview routes
+│   │   └── event/workspace/     # current event for owner/sub_user
+│   ├── [locale]/(error)/error/  # TailAdmin-style 403/404/500/503 pages
 │   ├── favicon.ico, globals.css
 ├── components/
 │   ├── admin/                   # PlatformOverview, UsersTable, charts
@@ -36,9 +38,11 @@ src/
 │   └── auth/                    # session, permissions, client auth helpers
 ├── services/                    # data binding by area (peer of types/)
 │   ├── admin/                   # users.ts, overview.ts
-│   └── auth/                    # login.ts
+│   ├── auth/                    # login.ts
+│   └── event/                   # workspace.ts
 ├── types/                       # shared types by area (peer of services/)
 │   ├── admin/                   # users.ts, overview.ts
+│   ├── event/                   # workspace.ts
 │   └── auth.ts, user.ts, mock.ts
 ├── i18n/                        # routing.ts, request.ts, navigation.ts, languages.ts
 ├── messages/                    # th.json, en.json
@@ -166,4 +170,7 @@ src/
 - Don't hardcode hex colors or pixel values in `className` — use the `@theme` tokens.
 - Don't create a `tailwind.config` — Tailwind v4 is configured through `globals.css`.
 - Don't import `react-apexcharts` statically — always use `next/dynamic` with `ssr: false` (unless already wrapped in a client-only boundary).
-- Don't allow `event_owner` / `sub_user` into `/admin` routes; don't allow non-impersonating `super_admin` into `/event` without going through impersonation.
+- Wrong-area navigation → render `ErrorPage` 403 **in place** inside `AuthGuard` (do not soft-navigate; it hangs on Loading...).
+- Auth transitions (login / logout / impersonate / stop) use `hardRedirect()` (`window.location.replace`).
+- Keep TailAdmin error demos at `/error/403`, `/error/404`, `/error/500`, `/error/503`.
+- Unknown paths (e.g. `/asdf`) must hit `src/app/[locale]/[...rest]/page.tsx` → `notFound()` → `[locale]/not-found.tsx` (next-intl requirement).

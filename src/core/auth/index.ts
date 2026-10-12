@@ -10,18 +10,31 @@ export {
   canAccessAdmin,
   canAccessEvent,
   canAccessPortal,
+  canEnterAdminArea,
+  canEnterEventArea,
   canImpersonate,
   getHomePathForRole,
   isImpersonatableRole,
 } from "./permissions";
 
 export {
+  AUTH_SESSION_COOKIE,
+  parseAuthSessionCookie,
+  writeAuthSessionCookie,
+  type AuthSessionCookie,
+} from "./cookie";
+
+export {
   clearAuthStorage,
+  emitAuthChange,
+  hydrateAuthSession,
   loadAuthStorage,
   persistAuthStorage,
   readStoredUser,
   sanitizeUser,
+  subscribeAuth,
   writeStoredUser,
+  type AuthSnapshot,
 } from "./session";
 
 export {
