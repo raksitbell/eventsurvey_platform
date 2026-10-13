@@ -15,6 +15,28 @@ export function canAccessEvent(role: UserRole): boolean {
   return EVENT_ROLES.includes(role);
 }
 
+/** Super Admin enters /admin only when not impersonating */
+export function canEnterAdminArea(
+  realRole: UserRole | undefined,
+  isImpersonating: boolean,
+): boolean {
+  return Boolean(realRole && canAccessAdmin(realRole) && !isImpersonating);
+}
+
+/**
+ * /event is for event_owner / sub_user only.
+ * Super Admin may enter only while impersonating one of those roles.
+ */
+export function canEnterEventArea(
+  effectiveRole: UserRole | undefined,
+  realRole: UserRole | undefined,
+  isImpersonating: boolean,
+): boolean {
+  if (!effectiveRole || !canAccessEvent(effectiveRole)) return false;
+  if (realRole && canAccessAdmin(realRole)) return isImpersonating;
+  return true;
+}
+
 export function canImpersonate(role: UserRole): boolean {
   return role === "super_admin";
 }

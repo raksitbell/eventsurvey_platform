@@ -1,13 +1,14 @@
 "use client";
 
+import ErrorPage from "@/components/common/ErrorPage";
 import { useAuth } from "@/context/AuthContext";
 import {
-  canAccessAdmin,
-  canAccessEvent,
+  canEnterAdminArea,
+  canEnterEventArea,
   getHomePathForRole,
 } from "@/core/auth";
-import type { UserRole } from "@/types/user";
 import { useRouter } from "@/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 
 type GuardArea = "admin" | "event" | "guest";
@@ -17,67 +18,66 @@ interface AuthGuardProps {
   children: React.ReactNode;
 }
 
-function canAccessArea(area: GuardArea, role: UserRole | undefined) {
-  if (!role) return false;
-  if (area === "admin") return canAccessAdmin(role);
-  if (area === "event") return canAccessEvent(role);
-  return false;
+function HoldScreen() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-white dark:bg-gray-900">
+      <span className="text-sm text-gray-300 dark:text-gray-700">…</span>
+    </div>
+  );
 }
 
 export default function AuthGuard({ area, children }: AuthGuardProps) {
   const { user, realUser, isImpersonating, isLoading } = useAuth();
   const router = useRouter();
+  const t = useTranslations("errors.403");
 
   useEffect(() => {
     if (isLoading) return;
 
-    if (area === "guest") {
-      if (user) {
-        router.replace(getHomePathForRole(user.role));
-      }
-      return;
-    }
-
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-
-    if (area === "admin") {
-      const adminIdentity = isImpersonating ? realUser : user;
-      if (!adminIdentity || !canAccessAdmin(adminIdentity.role)) {
-        router.replace(user ? getHomePathForRole(user.role) : "/login");
-      }
-      return;
-    }
-
-    if (!canAccessArea(area, user.role)) {
+    if (area === "guest" && user) {
       router.replace(getHomePathForRole(user.role));
+      return;
     }
-  }, [area, isImpersonating, isLoading, realUser, router, user]);
+
+    if (area !== "guest" && !user) {
+      router.replace("/login");
+    }
+  }, [area, isLoading, router, user]);
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-        <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
-      </div>
-    );
+    return <HoldScreen />;
   }
 
   if (area === "guest") {
-    if (user) return null;
+    if (user) return <HoldScreen />;
     return <>{children}</>;
   }
 
-  if (!user) return null;
-
-  if (area === "admin") {
-    const adminIdentity = isImpersonating ? realUser : user;
-    if (!adminIdentity || !canAccessAdmin(adminIdentity.role)) return null;
-    if (isImpersonating) return null;
+  if (!user || !realUser) {
+    return <HoldScreen />;
   }
 
-  if (area === "event" && !canAccessEvent(user.role)) return null;
+  const allowAdmin = canEnterAdminArea(realUser.role, isImpersonating);
+  const allowEvent = canEnterEventArea(
+    user.role,
+    realUser.role,
+    isImpersonating,
+  );
+
+  if (
+    (area === "admin" && !allowAdmin) ||
+    (area === "event" && !allowEvent)
+  ) {
+    return (
+      <ErrorPage
+        code="403"
+        title={t("title")}
+        message={t("message")}
+        backLabel={t("backHome")}
+        homeHref={getHomePathForRole(realUser.role)}
+      />
+    );
+  }
 
   return <>{children}</>;
 }
