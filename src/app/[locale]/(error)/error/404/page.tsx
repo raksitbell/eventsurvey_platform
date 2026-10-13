@@ -1,13 +1,7 @@
 import ErrorPage from "@/components/common/ErrorPage";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 
-export default async function Error404Page({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
-  const { locale } = await params;
-  setRequestLocale(locale);
+export default async function Error404Page() {
   const t = await getTranslations("errors.404");
 
   return (

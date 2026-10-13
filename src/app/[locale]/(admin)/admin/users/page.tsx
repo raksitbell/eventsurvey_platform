@@ -1,13 +1,7 @@
 import UsersTable from "@/components/admin/UsersTable";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 
-export default async function AdminUsersPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
-  const { locale } = await params;
-  setRequestLocale(locale);
+export default async function AdminUsersPage() {
   const t = await getTranslations("adminUsers");
 
   return (
