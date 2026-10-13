@@ -117,7 +117,7 @@ src/
   - In Server Components: use `getTranslations("namespace")` from `next-intl/server`.
   - Organize translation keys by nested feature namespaces (e.g. `auth`, `adminHome`, `adminUsers`, `sidebar`).
 - **Translation Messages**: All translation dictionaries live in `src/messages/<locale>.json` (`th.json`, `en.json`). When adding or updating user-facing copy, maintain corresponding keys across **all** supported language files.
-- **Static Rendering & Server Components**: Server layouts/pages inside `[locale]` must call `setRequestLocale(locale)` to enable static rendering with `generateStaticParams()`.
+- **Static Rendering & Server Components**: Static rendering with `generateStaticParams()` works through `next/root-params` — server layouts/pages inside `[locale]` need no per-page locale call. (This previously required `setRequestLocale(locale)`, which next-intl has deprecated.)
 - **Language switcher**: `components/common/LanguageSwitcher.tsx` (used on login; user dropdown also switches locale).
 - **RTL Support**: Keep CSS logical properties so future RTL locales work; use `isRtl(locale)` in `src/i18n/languages.ts` when adding RTL languages.
 
@@ -175,6 +175,7 @@ src/
 - Keep TailAdmin error demos at `/error/403`, `/error/404`, `/error/500`, `/error/503`.
 - Unknown paths (e.g. `/asdf`, `/events`, `/administrator`) must hit `src/app/[locale]/[...rest]/page.tsx`, which renders `ErrorPage` 404 **in place** — do not call `notFound()`, it hangs with Router-before-init / CatchAll errors. The page renders with HTTP 200; only the in-app 404 screen is guaranteed.
 - Guarded areas in `src/proxy.ts` are matched with `isArea()` (exact segment), never `startsWith()` — a prefix match swallows `/events`, `/administrator` and `/eventual`, which must fall through to the catch-all instead.
+- Don't call `setRequestLocale()` in pages or layouts, and don't use `requestLocale` in `src/i18n/request.ts` — both are deprecated in next-intl. The locale comes from `next/root-params` (`locale()`), which reads the `[locale]` segment directly. next-intl's own docs and tutorials still show `setRequestLocale`; ignore them here.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
