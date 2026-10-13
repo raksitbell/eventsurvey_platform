@@ -24,9 +24,8 @@ export default function EventWorkspacePanel() {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await api.get<EventWorkspace>(
-          `/event/workspace?userId=${encodeURIComponent(user!.id)}`,
-        );
+        // No userId in the query — the route reads it from the session (BR-008)
+        const data = await api.get<EventWorkspace>("/event/workspace");
         if (!cancelled) setWorkspace(data);
       } catch {
         if (!cancelled) {

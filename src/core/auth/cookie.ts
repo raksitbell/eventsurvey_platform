@@ -1,29 +1,43 @@
 import type { UserRole } from "@/types/user";
+import { PORTAL_ROLES } from "./constants";
 
 /** Readable by Edge middleware — synced from localStorage on the client */
 export const AUTH_SESSION_COOKIE = "event_surway_session";
 
 export type AuthSessionCookie = {
+  userId: string;
   role: UserRole;
   realRole: UserRole;
   impersonating: boolean;
 };
 
 type SessionUsers = {
-  realUser: { role: UserRole } | null;
-  impersonatedUser: { role: UserRole } | null;
+  realUser: { id: string; role: UserRole } | null;
+  impersonatedUser: { id: string; role: UserRole } | null;
 };
+
+/** Only portal roles may hold a session — anything else (participant, unknown
+ *  values, tampered cookies) is treated as signed out. Without this, an
+ *  unknown role reaches getHomePathForRole(), gets "/login" back, and the
+ *  middleware redirects /login → /login forever. */
+function toPortalRole(value: unknown): UserRole | null {
+  return PORTAL_ROLES.includes(value as UserRole) ? (value as UserRole) : null;
+}
 
 export function parseAuthSessionCookie(
   raw: string | undefined | null,
 ): AuthSessionCookie | null {
   if (!raw) return null;
   try {
-    const data = JSON.parse(decodeURIComponent(raw)) as AuthSessionCookie;
-    if (!data?.role || !data?.realRole) return null;
+    const data = JSON.parse(decodeURIComponent(raw)) as Partial<AuthSessionCookie>;
+    const role = toPortalRole(data?.role);
+    const realRole = toPortalRole(data?.realRole);
+    if (!role || !realRole) return null;
+    if (typeof data?.userId !== "string" || !data.userId) return null;
     return {
-      role: data.role,
-      realRole: data.realRole,
+      userId: data.userId,
+      role,
+      realRole,
       impersonating: Boolean(data.impersonating),
     };
   } catch {
@@ -44,6 +58,7 @@ export function writeAuthSessionCookie(snapshot: SessionUsers) {
   }
 
   const payload: AuthSessionCookie = {
+    userId: effective.id,
     role: effective.role,
     realRole: realUser.role,
     impersonating: Boolean(snapshot.impersonatedUser),

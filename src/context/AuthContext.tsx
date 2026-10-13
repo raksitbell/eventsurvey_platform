@@ -37,6 +37,9 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const EMPTY: AuthSnapshot = { realUser: null, impersonatedUser: null };
 
+/** Safety net so a redirect that never reaches the target cannot strand the UI */
+const HOLD_TIMEOUT_MS = 3000;
+
 function normalizePath(path: string) {
   return path.replace(/\/$/, "") || "/";
 }
@@ -58,12 +61,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  /** Arrival is derived, not stored — reaching the target ends the hold on its
+   *  own, so nothing has to clear pendingPath synchronously inside an effect. */
+  const isHolding =
+    pendingPath !== null &&
+    normalizePath(pathname) !== normalizePath(pendingPath);
+
   useEffect(() => {
-    if (!pendingPath) return;
-    if (normalizePath(pathname) === normalizePath(pendingPath)) {
-      setPendingPath(null);
-    }
-  }, [pathname, pendingPath]);
+    if (!isHolding) return;
+    // A guard may redirect somewhere other than the target mid-flight. Without
+    // this the hold never ends and every guarded page sits on "…" until a hard
+    // refresh.
+    const timer = setTimeout(() => setPendingPath(null), HOLD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [isHolding, pathname]);
 
   const softGo = useCallback(
     (path: string) => {
@@ -122,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       realUser,
       isImpersonating,
-      isLoading: !ready || pendingPath !== null,
+      isLoading: !ready || isHolding,
       login,
       logout,
       impersonate,
@@ -133,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       realUser,
       isImpersonating,
       ready,
-      pendingPath,
+      isHolding,
       login,
       logout,
       impersonate,

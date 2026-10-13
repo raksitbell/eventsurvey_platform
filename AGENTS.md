@@ -171,6 +171,17 @@ src/
 - Don't create a `tailwind.config` — Tailwind v4 is configured through `globals.css`.
 - Don't import `react-apexcharts` statically — always use `next/dynamic` with `ssr: false` (unless already wrapped in a client-only boundary).
 - Wrong-area navigation → render `ErrorPage` 403 **in place** inside `AuthGuard` (do not soft-navigate; it hangs on Loading...).
-- Auth transitions (login / logout / impersonate / stop) use `hardRedirect()` (`window.location.replace`).
+- Auth transitions (login / logout / impersonate / stop) use `softGo()` / `router.replace()` from `AuthContext`, which holds the UI until the target renders. There is no `hardRedirect()`.
 - Keep TailAdmin error demos at `/error/403`, `/error/404`, `/error/500`, `/error/503`.
-- Unknown paths (e.g. `/asdf`) must hit `src/app/[locale]/[...rest]/page.tsx` → `notFound()` → `[locale]/not-found.tsx` (next-intl requirement).
+- Unknown paths (e.g. `/asdf`, `/events`, `/administrator`) must hit `src/app/[locale]/[...rest]/page.tsx`, which renders `ErrorPage` 404 **in place** — do not call `notFound()`, it hangs with Router-before-init / CatchAll errors. The page renders with HTTP 200; only the in-app 404 screen is guaranteed.
+- Guarded areas in `src/proxy.ts` are matched with `isArea()` (exact segment), never `startsWith()` — a prefix match swallows `/events`, `/administrator` and `/eventual`, which must fall through to the catch-all instead.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
