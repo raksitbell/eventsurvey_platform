@@ -7,6 +7,11 @@
 .pnp.js
 .yarn/install-state.gz
 
+# this project uses npm — keep other package managers' lockfiles out of the repo
+pnpm-lock.yaml
+pnpm-workspace.yaml
+yarn.lock
+
 # testing
 /coverage
 
