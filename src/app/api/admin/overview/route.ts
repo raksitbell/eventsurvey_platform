@@ -1,7 +1,11 @@
+import { denyUnlessAdmin } from "@/core/auth/api-guard";
 import { getBoundAdminOverview } from "@/services/admin/overview";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const denied = denyUnlessAdmin(request);
+  if (denied) return denied;
+
   try {
     const data = await getBoundAdminOverview();
     return NextResponse.json(data);
