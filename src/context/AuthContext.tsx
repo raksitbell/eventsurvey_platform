@@ -53,11 +53,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   useEffect(() => {
-    // Mirror localStorage → cookie so middleware can gate /admin|/event
-    setSnapshot(hydrateAuthSession());
-    setReady(true);
     return subscribeAuth(() => {
+      // Mirror localStorage → cookie so middleware can gate /admin|/event.
+      // The first notification is scheduled by the subscription after this
+      // effect completes, avoiding an effect-triggered render cascade.
       setSnapshot(hydrateAuthSession());
+      setReady(true);
     });
   }, []);
 

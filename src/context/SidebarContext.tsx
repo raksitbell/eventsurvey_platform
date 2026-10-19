@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "@/i18n/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState, useSyncExternalStore } from "react";
 
 type SidebarContextType = {
   isExpanded: boolean;
@@ -18,6 +18,15 @@ type SidebarContextType = {
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
+function subscribeToViewport(onStoreChange: () => void) {
+  window.addEventListener("resize", onStoreChange);
+  return () => window.removeEventListener("resize", onStoreChange);
+}
+
+function getIsMobileViewport() {
+  return window.innerWidth < 768;
+}
+
 export const useSidebar = () => {
   const context = useContext(SidebarContext);
   if (!context) {
@@ -30,40 +39,26 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [mobileOpenPath, setMobileOpenPath] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const pathname = usePathname();
-  // Close sidebar on route change (for mobile)
-  useEffect(() => {
-    setIsMobileOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (!mobile) {
-        setIsMobileOpen(false);
-      }
-    };
-
-    handleResize();
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
+  const isMobile = useSyncExternalStore(
+    subscribeToViewport,
+    getIsMobileViewport,
+    () => false,
+  );
+  const isMobileOpen = mobileOpenPath === pathname;
 
   const toggleSidebar = () => {
     setIsExpanded((prev) => !prev);
   };
 
   const toggleMobileSidebar = () => {
-    setIsMobileOpen((prev) => !prev);
+    setMobileOpenPath((currentPath) =>
+      currentPath === pathname ? null : pathname,
+    );
   };
 
   const toggleSubmenu = (item: string) => {

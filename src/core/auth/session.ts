@@ -80,6 +80,7 @@ export function subscribeAuth(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {};
   window.addEventListener(AUTH_CHANGE_EVENT, onStoreChange);
   window.addEventListener("storage", onStoreChange);
+  queueMicrotask(onStoreChange);
   return () => {
     window.removeEventListener(AUTH_CHANGE_EVENT, onStoreChange);
     window.removeEventListener("storage", onStoreChange);
