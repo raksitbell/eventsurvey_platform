@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "@/i18n/navigation";
+import type React from "react";
 import { createContext, useContext, useState, useSyncExternalStore } from "react";
 
 type SidebarContextType = {

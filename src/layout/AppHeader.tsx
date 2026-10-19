@@ -3,6 +3,7 @@
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
 import { useTranslations } from "next-intl";
+import type React from "react";
 import { useState } from "react";
 
 const AppHeader: React.FC = () => {

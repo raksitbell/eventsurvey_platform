@@ -10,6 +10,7 @@ import { GridIcon, GroupIcon, HorizontaLDots } from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
+import type React from "react";
 
 type NavItem = {
   key: string;

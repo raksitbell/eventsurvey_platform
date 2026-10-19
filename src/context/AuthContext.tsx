@@ -12,6 +12,7 @@ import {
 } from "@/core/auth";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { User } from "@/types/user";
+import type React from "react";
 import {
   createContext,
   useCallback,

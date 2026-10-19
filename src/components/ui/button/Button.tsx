@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 
 interface ButtonProps {
   children: ReactNode;
@@ -12,7 +12,7 @@ interface ButtonProps {
   type?: "button" | "submit" | "reset";
 }
 
-const Button: React.FC<ButtonProps> = ({
+const Button: FC<ButtonProps> = ({
   children,
   size = "md",
   variant = "primary",

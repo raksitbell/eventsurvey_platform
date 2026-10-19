@@ -9,6 +9,7 @@ import {
 } from "@/core/auth";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
+import type React from "react";
 import { useEffect } from "react";
 
 type GuardArea = "admin" | "event" | "guest";

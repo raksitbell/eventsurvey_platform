@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Link } from "@/i18n/navigation";
 import { getHomePathForRole } from "@/core/auth";
 import { useTranslations } from "next-intl";
+import type React from "react";
 
 interface BreadcrumbProps {
   pageTitle: string;

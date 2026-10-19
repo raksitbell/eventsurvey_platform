@@ -7,6 +7,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { Outfit } from "next/font/google";
 import { notFound } from "next/navigation";
+import type React from "react";
 import "sweetalert2/dist/sweetalert2.min.css";
 import "../globals.css";
 
