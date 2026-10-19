@@ -10,10 +10,15 @@ import {
 } from "@/core/auth";
 import { useConfirm } from "@/hooks/useConfirm";
 import { GroupIcon } from "@/icons";
-import type { AdminUserListItem, AdminUsersResponse } from "@/types/admin/users";
+import type {
+  AdminUserListItem,
+  AdminUsersResponse,
+} from "@/types/admin/users";
 import type { UserRole } from "@/types/user";
 import { translateRole, translateStatus } from "@/utils/i18n-labels";
 import { useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
+import type { Locale } from "@/i18n/routing";
 import { useEffect, useMemo, useState } from "react";
 
 const ROLE_FILTERS: Array<UserRole | "all"> = [
@@ -25,6 +30,7 @@ const ROLE_FILTERS: Array<UserRole | "all"> = [
 
 export default function UsersTable() {
   const t = useTranslations("adminUsers");
+  const locale = useLocale() as Locale;
   const tc = useTranslations("confirm");
   const tCommon = useTranslations("common");
   const { realUser, impersonate } = useAuth();
@@ -42,8 +48,9 @@ export default function UsersTable() {
       setIsLoading(true);
       setError(null);
       try {
-        const query =
-          roleFilter === "all" ? "" : `?role=${encodeURIComponent(roleFilter)}`;
+        const query = `?locale=${encodeURIComponent(locale)}${
+          roleFilter === "all" ? "" : `&role=${encodeURIComponent(roleFilter)}`
+        }`;
         const data = await api.get<AdminUsersResponse>(`/admin/users${query}`);
         if (!cancelled) {
           setUsers(data.users);
@@ -59,7 +66,7 @@ export default function UsersTable() {
     return () => {
       cancelled = true;
     };
-  }, [roleFilter, t]);
+  }, [locale, roleFilter, t]);
 
   const filteredUsers = useMemo(() => users, [users]);
 

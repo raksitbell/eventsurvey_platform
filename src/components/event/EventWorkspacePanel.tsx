@@ -5,10 +5,13 @@ import { api } from "@/core/api";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { translateRole } from "@/utils/i18n-labels";
 import { useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
+import type { Locale } from "@/i18n/routing";
 import { useEffect, useState } from "react";
 
 export default function EventWorkspacePanel() {
   const t = useTranslations("eventHome");
+  const locale = useLocale() as Locale;
   const tCommon = useTranslations("common");
   const { user } = useAuth();
   const [workspace, setWorkspace] = useState<EventWorkspace | null>(null);
@@ -25,7 +28,9 @@ export default function EventWorkspacePanel() {
       setError(null);
       try {
         // No userId in the query — the route reads it from the session (BR-008)
-        const data = await api.get<EventWorkspace>("/event/workspace");
+        const data = await api.get<EventWorkspace>(
+          `/event/workspace?locale=${encodeURIComponent(locale)}`,
+        );
         if (!cancelled) setWorkspace(data);
       } catch {
         if (!cancelled) {
@@ -41,7 +46,7 @@ export default function EventWorkspacePanel() {
     return () => {
       cancelled = true;
     };
-  }, [t, user]);
+  }, [locale, t, user]);
 
   return (
     <div className="space-y-4">
@@ -56,13 +61,15 @@ export default function EventWorkspacePanel() {
 
       <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
         {isLoading ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t("loading")}
+          </p>
         ) : error ? (
           <p className="text-sm text-error-600 dark:text-error-400">{error}</p>
         ) : workspace ? (
           <div className="space-y-3">
             <div>
-              <p className="text-theme-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+              <p className="text-theme-xs font-medium tracking-wide text-gray-400 uppercase dark:text-gray-500">
                 {t("currentEvent")}
               </p>
               <h2 className="mt-1 text-xl font-semibold text-gray-900 dark:text-white/90">

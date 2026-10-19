@@ -3,9 +3,11 @@
  * Domain: 1 event_owner ↔ 1 event; 1 sub_user ↔ 1 event assignment.
  */
 
+import type { LocalizedText } from "@/types/localization";
+
 export interface MockEvent {
   id: string;
-  name: string;
+  name: string | LocalizedText;
   ownerId: string;
   status: "draft" | "published" | "closed";
   isDeleted: boolean;

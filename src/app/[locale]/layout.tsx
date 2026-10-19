@@ -35,7 +35,10 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={isRtl(locale as Locale) ? "rtl" : "ltr"}>
-      <body className={`${outfit.className} dark:bg-gray-900`}>
+      <body
+        className={`${outfit.className} dark:bg-gray-900`}
+        suppressHydrationWarning
+      >
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider>
             <AuthProvider>

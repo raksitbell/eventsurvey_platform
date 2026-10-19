@@ -1,5 +1,10 @@
 import { mockApi } from "@/core/api/mock-client";
-import type { AdminUserListItem, AdminUsersResponse } from "@/types/admin/users";
+import { localizeText } from "@/core/i18n/localized-text";
+import { routing, type Locale } from "@/i18n/routing";
+import type {
+  AdminUserListItem,
+  AdminUsersResponse,
+} from "@/types/admin/users";
 import type { MockEvent, MockEventUser, MockRole } from "@/types/mock";
 import type { User, UserRole } from "@/types/user";
 
@@ -13,6 +18,7 @@ function stripPassword(user: User): Omit<User, "password"> {
 /** Bind users + events + event_users + roles for the admin users table */
 export async function getBoundAdminUsers(
   role?: string,
+  locale: Locale = routing.defaultLocale,
 ): Promise<AdminUsersResponse> {
   const [users, events, eventUsers, roles] = await Promise.all([
     mockApi.get<User[]>("/users?isDeleted=false&_sort=createdAt&_order=asc"),
@@ -51,11 +57,13 @@ export async function getBoundAdminUsers(
     let customRoleName: string | null = null;
 
     if (user.role === "event_owner") {
-      eventName = eventByOwnerId.get(user.id)?.name ?? null;
+      const event = eventByOwnerId.get(user.id);
+      eventName = event ? localizeText(event.name, locale) : null;
     } else if (user.role === "sub_user") {
       const assignment = assignmentByUserId.get(user.id);
       if (assignment) {
-        eventName = eventsById.get(assignment.eventId)?.name ?? null;
+        const event = eventsById.get(assignment.eventId);
+        eventName = event ? localizeText(event.name, locale) : null;
         customRoleName = rolesById.get(assignment.roleId)?.name ?? null;
       }
     }

@@ -3,6 +3,7 @@ import {
   parseAuthSessionCookie,
 } from "@/core/auth/cookie";
 import { canEnterEventArea } from "@/core/auth/permissions";
+import { routing, type Locale } from "@/i18n/routing";
 import { getEventWorkspace } from "@/services/event/workspace";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -25,9 +26,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const data = await getEventWorkspace(session.userId);
+    const requestedLocale = request.nextUrl.searchParams.get("locale");
+    const locale = routing.locales.includes(requestedLocale as Locale)
+      ? (requestedLocale as Locale)
+      : routing.defaultLocale;
+    const data = await getEventWorkspace(session.userId, locale);
     if (!data) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Workspace not found" },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json(data);
