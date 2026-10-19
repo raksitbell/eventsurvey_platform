@@ -13,7 +13,8 @@ export type AuthSnapshot = {
 };
 
 export function sanitizeUser(user: User): User {
-  const { password: _password, ...safeUser } = user;
+  const safeUser = { ...user };
+  delete safeUser.password;
   return safeUser;
 }
 

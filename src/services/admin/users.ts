@@ -11,8 +11,9 @@ import type { User, UserRole } from "@/types/user";
 const PORTAL_ROLES: UserRole[] = ["super_admin", "event_owner", "sub_user"];
 
 function stripPassword(user: User): Omit<User, "password"> {
-  const { password: _password, ...safe } = user;
-  return safe;
+  const safeUser = { ...user };
+  delete safeUser.password;
+  return safeUser;
 }
 
 /** Bind users + events + event_users + roles for the admin users table */
