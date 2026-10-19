@@ -1,6 +1,7 @@
 // noinspection ES6PreferShortImport
 import type { UserRole } from "@/types/user";
-import { ADMIN_ROLES, EVENT_ROLES } from "@/core";
+// noinspection ES6PreferShortImport
+import { ADMIN_ROLES, EVENT_ROLES } from "./constants";
 
 export function getHomePathForRole(role: UserRole): string {
   if (ADMIN_ROLES.includes(role)) return "/admin";

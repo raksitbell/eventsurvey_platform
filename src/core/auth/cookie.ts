@@ -1,6 +1,7 @@
 // noinspection ES6PreferShortImport
 import type { UserRole } from "@/types/user";
-import { PORTAL_ROLES } from "@/core";
+// noinspection ES6PreferShortImport
+import { PORTAL_ROLES } from "./constants";
 
 /** Readable by Edge middleware — synced from localStorage on the client */
 export const AUTH_SESSION_COOKIE = "event_surway_session";

@@ -2,7 +2,10 @@ import { api } from "@/core/api";
 import type { LoginCredentials } from "@/types/auth";
 // noinspection ES6PreferShortImport
 import type { User } from "@/types/user";
-import { canImpersonate, isImpersonatableRole, sanitizeUser } from "@/core";
+// noinspection ES6PreferShortImport
+import { canImpersonate, isImpersonatableRole } from "./permissions";
+// noinspection ES6PreferShortImport
+import { sanitizeUser } from "./session";
 
 export async function loginWithCredentials({
   email,

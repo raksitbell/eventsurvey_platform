@@ -1,10 +1,12 @@
 // noinspection ES6PreferShortImport
 import type { User } from "@/types/user";
+// noinspection ES6PreferShortImport
 import {
   AUTH_STORAGE_KEY,
   IMPERSONATE_STORAGE_KEY,
-  writeAuthSessionCookie,
-} from "@/core";
+} from "./constants";
+// noinspection ES6PreferShortImport
+import { writeAuthSessionCookie } from "./cookie";
 
 const AUTH_CHANGE_EVENT = "event-surway-auth";
 
