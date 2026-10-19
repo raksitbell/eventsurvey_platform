@@ -1,6 +1,10 @@
+// noinspection ES6PreferShortImport
 import { NextResponse, type NextRequest } from "next/server";
-import { AUTH_SESSION_COOKIE, parseAuthSessionCookie } from "./cookie";
-import { canEnterAdminArea } from "./permissions";
+import {
+  AUTH_SESSION_COOKIE,
+  canEnterAdminArea,
+  parseAuthSessionCookie,
+} from "@/core";
 
 /**
  * Authorization for /api/admin route handlers.

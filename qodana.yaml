@@ -17,12 +17,11 @@ profile:
 #include:
 #  - name: <SomeEnabledInspectionId>
 
-# Keep intra-domain auth imports direct. Importing their parent directory would
-# resolve through core/auth/index.ts and create circular barrel dependencies.
-exclude:
-  - name: ES6PreferShortImport
-    paths:
-      - src/core/auth/**
+#Disable inspections
+#exclude:
+#  - name: <SomeDisabledInspectionId>
+#    paths:
+#      - <path/where/not/run/inspection>
 
 #Execute shell command before Qodana execution (Applied in CI/CD pipeline)
 #bootstrap: sh ./prepare-qodana.sh
