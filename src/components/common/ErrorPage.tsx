@@ -7,6 +7,7 @@ import {
   readStoredUser,
 } from "@/core/auth";
 import { Link } from "@/i18n/navigation";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 type ErrorCode = "403" | "404" | "500" | "503";
@@ -49,14 +50,14 @@ export default function ErrorPage({
           {title}
         </h1>
 
-        <img
+        <Image
           src={`/images/error/${code}.svg`}
           alt={code}
           width={472}
           height={152}
           className="mx-auto h-auto w-full max-w-[472px] dark:hidden"
         />
-        <img
+        <Image
           src={`/images/error/${code}-dark.svg`}
           alt={code}
           width={472}
