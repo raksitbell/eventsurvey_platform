@@ -42,7 +42,7 @@ export default function EventWorkspacePanel() {
       }
     }
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };

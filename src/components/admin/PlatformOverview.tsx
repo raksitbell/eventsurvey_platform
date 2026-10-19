@@ -41,7 +41,7 @@ export default function PlatformOverview() {
       }
     }
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };

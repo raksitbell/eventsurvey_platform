@@ -62,7 +62,7 @@ export default function UsersTable() {
       }
     }
 
-    loadUsers();
+    void loadUsers();
     return () => {
       cancelled = true;
     };
