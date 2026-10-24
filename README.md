@@ -22,6 +22,12 @@
 > [!NOTE]
 > กฎการเขียนโค้ดของโปรเจกต์นี้อยู่ใน **[`AGENTS.md`](AGENTS.md)** — โครงสร้างโฟลเดอร์, การทำหลายภาษา, การใช้ธีมและสี, การแตกไฟล์ component และข้อห้ามที่มาจากปัญหาที่เคยเจอจริง
 
+## DATA MODEL
+
+- [Schema DBML](schema.dbml) — Logical Data Model ของระบบ
+- [Schema Guide (GitHub Wiki)](https://github.com/raksitbell/eventsurvey_platform/wiki/Schema-DBML) — หน้าที่ของแต่ละตารางและความสัมพันธ์ของข้อมูล
+- [Public Database Diagram](https://dbdiagram.io/d/eventsurvey_platform-system-diagram-6ad97841f65bbc60f6fafa5d) — ดู Diagram แบบ Interactive
+
 ## TECHNOLOGY
 
 <p align="center">
