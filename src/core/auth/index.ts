@@ -3,6 +3,7 @@ export {
   AUTH_STORAGE_KEY,
   EVENT_ROLES,
   IMPERSONATE_STORAGE_KEY,
+  MOCK_DEMO_PASSWORD,
   PORTAL_ROLES,
 } from "./constants";
 

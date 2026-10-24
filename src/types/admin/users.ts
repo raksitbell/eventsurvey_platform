@@ -1,6 +1,6 @@
 import type { User, UserRole, UserStatus } from "@/types/user";
 
-/** Bound row for /admin/users — assembled from users + events + event_users + roles */
+/** Bound row for /admin/users — assembled from users + events + event_translations + roles */
 export interface AdminUserListItem {
   id: string;
   name: string;

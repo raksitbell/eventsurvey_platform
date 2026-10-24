@@ -1,58 +1,61 @@
 import { mockApi } from "@/core/api/mock-client";
-import { localizeText } from "@/core/i18n/localized-text";
+import { resolveEventTitle } from "@/core/mock/event-title";
+import {
+  isActiveMockUser,
+  mapMockUserToUser,
+} from "@/core/mock/map-user";
 import { routing, type Locale } from "@/i18n/routing";
 import type { EventWorkspace } from "@/types/event/workspace";
-import type { MockEvent, MockEventUser, MockRole } from "@/types/mock";
-import type { User } from "@/types/user";
+import type {
+  MockEvent,
+  MockEventTranslation,
+  MockRole,
+  MockUser,
+} from "@/types/mock";
 
 /** Resolve the single event workspace for an event_owner or sub_user */
 export async function getEventWorkspace(
   userId: string,
   locale: Locale = routing.defaultLocale,
 ): Promise<EventWorkspace | null> {
-  const user = await mockApi.get<User>(`/users/${userId}`);
-  if (!user || user.isDeleted || user.status !== "active") return null;
+  const mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
+  if (!mockUser || !isActiveMockUser(mockUser)) return null;
 
-  if (user.role === "event_owner") {
-    const events = await mockApi.get<MockEvent[]>(
-      `/events?ownerId=${userId}&isDeleted=false`,
-    );
-    const event = events[0];
-    if (!event) return null;
-    return {
-      eventId: event.id,
-      eventName: localizeText(event.name, locale),
-      eventStatus: event.status,
-      userRole: user.role,
-      customRoleName: null,
-    };
+  const user = mapMockUserToUser(mockUser);
+  if (!user || (user.role !== "event_owner" && user.role !== "sub_user")) {
+    return null;
   }
 
-  if (user.role === "sub_user") {
-    const assignments = await mockApi.get<MockEventUser[]>(
-      `/event_users?userId=${userId}&isDeleted=false&status=active`,
-    );
-    const assignment = assignments[0];
-    if (!assignment) return null;
+  const eventId = mockUser.event_id;
+  if (!eventId) return null;
 
-    const [event, roles] = await Promise.all([
-      mockApi.get<MockEvent>(`/events/${assignment.eventId}`),
-      mockApi.get<MockRole[]>(`/roles?isDeleted=false`),
-    ]);
+  const [event, translations, roles] = await Promise.all([
+    mockApi.get<MockEvent>(`/events/${eventId}`),
+    mockApi.get<MockEventTranslation[]>(
+      `/event_translations?event_id=${encodeURIComponent(eventId)}`,
+    ),
+    mockUser.role_id
+      ? mockApi.get<MockRole[]>(
+          `/roles?id=${encodeURIComponent(mockUser.role_id)}`,
+        )
+      : Promise.resolve([] as MockRole[]),
+  ]);
 
-    if (!event || event.isDeleted) return null;
+  if (!event || event.deleted_at) return null;
 
-    const customRoleName =
-      roles.find((role) => role.id === assignment.roleId)?.name ?? null;
+  const eventName =
+    resolveEventTitle(translations, eventId, locale) ?? event.slug;
 
-    return {
-      eventId: event.id,
-      eventName: localizeText(event.name, locale),
-      eventStatus: event.status,
-      userRole: user.role,
-      customRoleName,
-    };
-  }
+  const customRole =
+    user.role === "sub_user" && mockUser.role_id
+      ? (roles.find((role) => role.id === mockUser.role_id) ?? null)
+      : null;
 
-  return null;
+  return {
+    eventId: event.id,
+    eventName,
+    eventStatus: event.status,
+    userRole: user.role,
+    customRoleName: customRole?.name ?? null,
+  };
 }
