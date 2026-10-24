@@ -1,9 +1,10 @@
+import type { MockEventStatus } from "@/types/mock";
 import type { UserRole } from "@/types/user";
 
 export interface EventWorkspace {
   eventId: string;
   eventName: string;
-  eventStatus: "draft" | "published" | "closed";
+  eventStatus: MockEventStatus;
   userRole: UserRole;
   customRoleName: string | null;
 }

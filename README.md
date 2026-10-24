@@ -66,9 +66,9 @@ npm run dev
 
 | อีเมล | บทบาท | เข้าไปเจอหน้า |
 |---|---|---|
-| `admin@example.com` | ผู้ดูแลระบบ | `/admin` |
-| `owner@example.com` | คนจัดงาน | `/event` |
-| `nicha@example.com` | ทีมงานของคนจัดงาน | `/event` |
+| `admin@example.com` | ผู้ดูแลระบบ (`platform_admin`) | `/admin` |
+| `thanawat@example.com` | คนจัดงาน (`event_admin`) | `/event` |
+| `kittisak@example.com` | ทีมงานของคนจัดงาน (`event_sub_user`) | `/event` |
 
 | คำสั่ง | ใช้ทำอะไร |
 |---|---|

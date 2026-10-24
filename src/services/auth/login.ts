@@ -1,7 +1,12 @@
-import { mockApi } from "@/core/api/mock-client";
 import { PORTAL_ROLES } from "@/core/auth/constants";
 import { canAccessPortal } from "@/core/auth/permissions";
 import { sanitizeUser } from "@/core/auth/session";
+import { mockApi } from "@/core/api/mock-client";
+import {
+  isActiveMockUser,
+  mapMockUserToUser,
+} from "@/core/mock/map-user";
+import type { MockUser } from "@/types/mock";
 import type { User } from "@/types/user";
 
 export type LoginResult =
@@ -16,19 +21,23 @@ export async function loginWithMockCredentials(
     email,
     password,
     status: "active",
-    isDeleted: "false",
   });
 
-  const users = await mockApi.get<User[]>(`/users?${params.toString()}`);
-  const matched = users[0];
+  const users = await mockApi.get<MockUser[]>(`/users?${params.toString()}`);
+  const matched = users.find(isActiveMockUser);
 
   if (!matched) {
     return { ok: false, error: "INVALID_CREDENTIALS" };
   }
 
-  if (!canAccessPortal(matched.role) || !PORTAL_ROLES.includes(matched.role)) {
+  const user = mapMockUserToUser(matched);
+  if (!user) {
     return { ok: false, error: "UNSUPPORTED_ROLE" };
   }
 
-  return { ok: true, user: sanitizeUser(matched) };
+  if (!canAccessPortal(user.role) || !PORTAL_ROLES.includes(user.role)) {
+    return { ok: false, error: "UNSUPPORTED_ROLE" };
+  }
+
+  return { ok: true, user: sanitizeUser(user) };
 }

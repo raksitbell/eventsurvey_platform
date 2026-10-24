@@ -69,10 +69,13 @@ src/
 
 | App route | Service | Mock resources joined | Purpose |
 |---|---|---|---|
-| `POST /api/auth/login` | `services/auth/login.ts` | `users` | Portal login |
-| `GET /api/admin/users` | `services/admin/users.ts` | `users` + `events` + `event_users` + `roles` | Admin users table |
+| `POST /api/auth/login` | `services/auth/login.ts` | `users` | Portal login (`email` + `password`) |
+| `GET /api/admin/users` | `services/admin/users.ts` | `users` + `events` + `event_translations` + `roles` | Admin users table |
 | `GET /api/admin/users/[id]` | `services/admin/users.ts` | `users` | Impersonation payload |
-| `GET /api/admin/overview` | `services/admin/overview.ts` | `users` + `events` + `forms` + `submissions` | Platform KPIs |
+| `GET /api/admin/overview` | `services/admin/overview.ts` | `users` + `events` + `forms` + `form_submissions` | Platform KPIs |
+| `GET /api/event/workspace` | `services/event/workspace.ts` | `users` + `events` + `event_translations` + `roles` | Current event for owner/sub_user |
+
+Mock → portal role map: `platform_admin` → `super_admin`; `event_role=event_admin` → `event_owner`; `event_role=event_sub_user` → `sub_user`. Custom role label comes from `users.role_id` → `roles.name`. Event title from `event_translations`; soft-delete via `deleted_at` / `removed_at`.
 
 - `services/` and `types/` are peers under `src/`, split by area/page (`admin/users`, `admin/overview`, `auth/login`).
 - Import directly from the file path (e.g. `@/services/admin/users`, `@/types/admin/users`) — do not add barrel `index.ts` files that re-export everything.

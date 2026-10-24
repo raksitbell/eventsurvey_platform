@@ -5,11 +5,10 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/AuthContext";
+import { MOCK_DEMO_PASSWORD } from "@/core/auth/constants";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import { FormEvent, useState } from "react";
-
-const DEMO_PASSWORD = "password123";
 
 const DEMO_ACCOUNTS = [
   {
@@ -18,11 +17,11 @@ const DEMO_ACCOUNTS = [
   },
   {
     key: "owner" as const,
-    email: "owner@example.com",
+    email: "thanawat@example.com",
   },
   {
     key: "subUser" as const,
-    email: "nicha@example.com",
+    email: "kittisak@example.com",
   },
 ];
 
@@ -38,7 +37,7 @@ export default function LoginForm() {
 
   const fillDemoAccount = (demoEmail: string) => {
     setEmail(demoEmail);
-    setPassword(DEMO_PASSWORD);
+    setPassword(MOCK_DEMO_PASSWORD);
     setError(null);
   };
 

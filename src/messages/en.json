@@ -175,8 +175,10 @@
     "noEvent": "No event is linked to this account yet.",
     "eventStatus": {
       "draft": "Draft",
+      "pending_approval": "Pending approval",
       "published": "Published",
-      "closed": "Closed"
+      "closed": "Closed",
+      "archived": "Archived"
     }
   },
   "notFound": {

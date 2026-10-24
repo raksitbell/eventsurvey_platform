@@ -1,11 +1,20 @@
 import { mockApi } from "@/core/api/mock-client";
-import { localizeText } from "@/core/i18n/localized-text";
+import { resolveEventTitle } from "@/core/mock/event-title";
+import {
+  isActiveMockUser,
+  mapMockUserToUser,
+} from "@/core/mock/map-user";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
 } from "@/types/admin/users";
-import type { MockEvent, MockEventUser, MockRole } from "@/types/mock";
+import type {
+  MockEvent,
+  MockEventTranslation,
+  MockRole,
+  MockUser,
+} from "@/types/mock";
 import type { User, UserRole } from "@/types/user";
 
 const PORTAL_ROLES: UserRole[] = ["super_admin", "event_owner", "sub_user"];
@@ -16,35 +25,37 @@ function stripPassword(user: User): Omit<User, "password"> {
   return safeUser;
 }
 
-/** Bind users + events + event_users + roles for the admin users table */
+/** Bind users + events + event_translations + roles for the admin users table */
 export async function getBoundAdminUsers(
   role?: string,
   locale: Locale = routing.defaultLocale,
 ): Promise<AdminUsersResponse> {
-  const [users, events, eventUsers, roles] = await Promise.all([
-    mockApi.get<User[]>("/users?isDeleted=false&_sort=createdAt&_order=asc"),
-    mockApi.get<MockEvent[]>("/events?isDeleted=false"),
-    mockApi.get<MockEventUser[]>("/event_users?isDeleted=false&status=active"),
-    mockApi.get<MockRole[]>("/roles?isDeleted=false"),
+  const [mockUsers, events, translations, roles] = await Promise.all([
+    mockApi.get<MockUser[]>("/users?_sort=created_at&_order=asc"),
+    mockApi.get<MockEvent[]>("/events"),
+    mockApi.get<MockEventTranslation[]>("/event_translations"),
+    mockApi.get<MockRole[]>("/roles"),
   ]);
 
-  const usersById = new Map(users.map((user) => [user.id, user]));
+  const liveEvents = new Set(
+    events.filter((event) => !event.deleted_at).map((event) => event.id),
+  );
   const rolesById = new Map(roles.map((item) => [item.id, item]));
-  const eventsById = new Map(events.map((event) => [event.id, event]));
 
-  /** 1 event_owner ↔ 1 event */
-  const eventByOwnerId = new Map<string, MockEvent>();
-  for (const event of events) {
-    eventByOwnerId.set(event.ownerId, event);
-  }
+  const usersById = new Map(
+    mockUsers
+      .map(mapMockUserToUser)
+      .filter((user): user is User => Boolean(user))
+      .map((user) => [user.id, user]),
+  );
 
-  /** 1 sub_user ↔ 1 event assignment */
-  const assignmentByUserId = new Map<string, MockEventUser>();
-  for (const assignment of eventUsers) {
-    assignmentByUserId.set(assignment.userId, assignment);
-  }
-
-  let portalUsers = users.filter((user) => PORTAL_ROLES.includes(user.role));
+  let portalUsers = mockUsers
+    .filter(isActiveMockUser)
+    .map(mapMockUserToUser)
+    .filter(
+      (user): user is User =>
+        user !== null && PORTAL_ROLES.includes(user.role),
+    );
 
   if (role && role !== "all" && PORTAL_ROLES.includes(role as UserRole)) {
     portalUsers = portalUsers.filter((user) => user.role === role);
@@ -53,21 +64,18 @@ export async function getBoundAdminUsers(
   const bound: AdminUserListItem[] = portalUsers.map((user) => {
     const safe = stripPassword(user);
     const owner = user.ownerId ? usersById.get(user.ownerId) : null;
+    const mock = mockUsers.find((row) => row.id === user.id);
+    const eventId = mock?.event_id;
+    const eventName =
+      eventId && liveEvents.has(eventId)
+        ? resolveEventTitle(translations, eventId, locale)
+        : null;
 
-    let eventName: string | null = null;
-    let customRoleName: string | null = null;
-
-    if (user.role === "event_owner") {
-      const event = eventByOwnerId.get(user.id);
-      eventName = event ? localizeText(event.name, locale) : null;
-    } else if (user.role === "sub_user") {
-      const assignment = assignmentByUserId.get(user.id);
-      if (assignment) {
-        const event = eventsById.get(assignment.eventId);
-        eventName = event ? localizeText(event.name, locale) : null;
-        customRoleName = rolesById.get(assignment.roleId)?.name ?? null;
-      }
-    }
+    /** Custom role name from `/roles` via `users.role_id` (sub_user / optional admin) */
+    const customRoleName =
+      mock?.role_id && user.role === "sub_user"
+        ? (rolesById.get(mock.role_id)?.name ?? null)
+        : null;
 
     return {
       id: safe.id,
@@ -103,7 +111,9 @@ export async function getBoundAdminUsers(
 export async function getUserForImpersonation(
   userId: string,
 ): Promise<User | null> {
-  const user = await mockApi.get<User>(`/users/${userId}`);
-  if (!user || user.isDeleted || user.status !== "active") return null;
+  const mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
+  if (!mockUser || !isActiveMockUser(mockUser)) return null;
+  const user = mapMockUserToUser(mockUser);
+  if (!user) return null;
   return stripPassword(user) as User;
 }
