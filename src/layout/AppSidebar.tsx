@@ -43,6 +43,7 @@ export default function AppSidebar() {
 
   const eventNav: NavItem[] = [
     { key: "eventHome", icon: <GridIcon />, path: "/event" },
+    { key: "Form", icon: <GridIcon />, path: "/form" },
   ];
 
   const navItems = isAdminArea

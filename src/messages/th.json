@@ -11,7 +11,10 @@
     "status": {
       "active": "ใช้งาน",
       "inactive": "ปิดใช้งาน"
-    }
+    },
+    "back": "ย้อนกลับ",
+    "create": "สร้าง",
+    "edit": "แก้ไข"
   },
   "confirm": {
     "cancel": "ยกเลิก",
@@ -27,7 +30,8 @@
     "items": {
       "overview": "ภาพรวม",
       "owners": "เจ้าของอีเวนต์",
-      "eventHome": "ภาพรวม"
+      "eventHome": "ภาพรวม",
+      "Form": "จัดการฟอร์ม"
     },
     "roles": {
       "superAdmin": "ผู้ดูแลระบบ",
@@ -181,6 +185,29 @@
       "archived": "เก็บถาวร"
     }
   },
+  "form": {
+    "title": "จัดการฟอร์ม",
+    "registration": "การลงทะเบียน",
+    "survey": "แบบสอบถาม",
+    "open": "เปิด",
+    "builder": {
+      "description": "คำอธิบาย",
+      "choice": {
+        "short_text": "Short Text",
+        "long_text": "Long Text",
+        "multiple_choice":"Multiple Choice",
+        "dropdown": "Dropdown",
+        "checkbox": "Checkbox",
+        "radio": "Radio",
+        "date": "Date",
+        "time": "Time",
+        "number": "Number",
+        "rating": "Rating"
+      }
+
+    }
+  },
+
   "notFound": {
     "error": "ผิดพลาด",
     "message": "ไม่พบหน้าที่คุณกำลังมองหา",
