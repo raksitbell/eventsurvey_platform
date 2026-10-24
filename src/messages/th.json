@@ -13,6 +13,8 @@
       "inactive": "ปิดใช้งาน"
     },
     "back": "ย้อนกลับ",
+    "create": "สร้าง",
+    "edit": "แก้ไข"
     "accountStatus": {
       "invited": "รอตั้งรหัสผ่าน",
       "active": "ใช้งาน",

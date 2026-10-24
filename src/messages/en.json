@@ -13,6 +13,8 @@
       "inactive": "Inactive"
     },
     "back": "Back",
+    "create": "Create",
+    "edit": "Edit"
     "accountStatus": {
       "invited": "Pending setup",
       "active": "Active",
