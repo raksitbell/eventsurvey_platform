@@ -1,61 +1,41 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
-import { useRouter } from "@/i18n/navigation";
-import { EyeIcon } from "@/icons";
+import { ArrowDownIcon, PlusIcon } from "@/icons";
+import { useState } from "react";
 import {
-  Choice,
   Form,
   FormType,
   Question,
   QUESTIONS_TYPES,
   QuestionType,
 } from "@/types/event/form";
-import FormHeaderCard from "./FormHeaderCard";
-import QuestionCard from "./QuestionCard";
-import FloatingToolbar from "./FloatingToolbar";
-import FormPreview from "./FormPreview/FormPreview";
-
-const CHOICE_QUESTION_TYPES: QuestionType[] = [
-  "multiple_choice",
-  "checkbox",
-  "dropdown",
-];
-
+import { useTranslations } from "next-intl";
 export default function FormBuilder({ type }: { type: FormType }) {
   const t = useTranslations("form");
   const tbuilder = useTranslations("form.builder");
   const tcommon = useTranslations("common");
-  const router = useRouter();
-
-  const createChoice = (order: number): Choice => ({
-    id: crypto.randomUUID(),
-    label: `Option ${order}`,
-    display_order: order,
-  });
 
   const createQuestion = (order: number): Question => ({
     question: {
       id: crypto.randomUUID(),
       type: QUESTIONS_TYPES[0] as QuestionType,
-      display_order: order,
-      min_number: 1,
-      max_number: 5,
+      display_order: 0,
+      min_number: 0,
+      max_number: 0,
       min_length: 0,
       max_length: 0,
       required: false,
       label: {
         en: [
           {
-            choices: { en: [createChoice(1)], th: [createChoice(1)] },
+            choices: { en: [], th: [] },
             label: "",
             placeholder: "",
           },
         ],
         th: [
           {
-            choices: { en: [createChoice(1)], th: [createChoice(1)] },
+            choices: { en: [], th: [] },
             label: "",
             placeholder: "",
           },
@@ -64,161 +44,51 @@ export default function FormBuilder({ type }: { type: FormType }) {
     },
   });
 
-  const [form, setForm] = useState<Form>(() => {
-    const firstQuestion = createQuestion(1);
-    return {
-      head: {
-        en: {
-          title: type === "registration" ? t("registration") : t("survey"),
-          description: tbuilder("description"),
-        },
-        th: {
-          title: type === "registration" ? t("registration") : t("survey"),
-          description: tbuilder("description"),
-        },
+  const createForm = (): Form => ({
+    head: {
+      en: {
+        title: t("registration"),
+        description: tbuilder("description"),
       },
-      type: type,
-      questions: [firstQuestion],
-    };
+      th: {
+        title: t("registration"),
+        description: tbuilder("description"),
+      },
+    },
+    type: type,
+    questions: [createQuestion(1)],
   });
 
-  const [isPreview, setIsPreview] = useState<boolean>(false);
-  const [activeSectionId, setActiveSectionId] = useState<string>(() =>
-    form.questions[0]?.question.id ?? "header",
-  );
-  const [toolbarTop, setToolbarTop] = useState<number>(0);
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [form, setForm] = useState<Form>(createForm());
 
-  const [draggedQuestionId, setDraggedQuestionId] = useState<string | null>(
-    null,
-  );
-  const [dragOverQuestionId, setDragOverQuestionId] = useState<string | null>(
-    null,
-  );
-
-  useEffect(() => {
-    const updatePosition = () => {
-      const activeEl = sectionRefs.current[activeSectionId];
-      if (activeEl) {
-        setToolbarTop(activeEl.offsetTop);
-      } else if (sectionRefs.current["header"]) {
-        setToolbarTop(sectionRefs.current["header"]!.offsetTop);
-      }
-    };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    return () => window.removeEventListener("resize", updatePosition);
-  }, [activeSectionId, form.questions]);
-
+  // add Question
   const addQuestion = () => {
-    const newQ = createQuestion(form.questions.length + 1);
-    const newId = newQ.question.id!;
-
-    setForm((prev) => {
-      const activeIdx = prev.questions.findIndex(
-        (item) => item.question.id === activeSectionId,
-      );
-      const insertAt =
-        activeIdx >= 0 ? activeIdx + 1 : prev.questions.length;
-
-      const nextQuestions = [
-        ...prev.questions.slice(0, insertAt),
-        newQ,
-        ...prev.questions.slice(insertAt),
-      ].map((item, idx) => ({
-        ...item,
-        question: {
-          ...item.question,
-          display_order: idx + 1,
-        },
-      }));
-
-      return {
-        ...prev,
-        questions: nextQuestions,
-      };
-    });
-
-    setActiveSectionId(newId);
+    setForm((prev) => ({
+      ...prev,
+      questions: [...prev.questions, createQuestion(prev.questions.length + 1)],
+    }));
   };
 
-  const duplicateQuestion = (id: string) => {
-    const targetIdx = form.questions.findIndex(
-      (item) => item.question.id === id,
-    );
-    if (targetIdx === -1) return;
-
-    const source = form.questions[targetIdx].question;
-    const newId = crypto.randomUUID();
-
-    const duplicated: Question = {
-      question: {
-        ...source,
-        id: newId,
-        label: {
-          en: source.label.en.map((l) => ({
-            ...l,
-            choices: {
-              en: l.choices.en.map((c, idx) => ({
-                ...c,
-                id: crypto.randomUUID(),
-                display_order: idx + 1,
-              })),
-              th: l.choices.th.map((c, idx) => ({
-                ...c,
-                id: crypto.randomUUID(),
-                display_order: idx + 1,
-              })),
-            },
-          })),
-          th: source.label.th.map((l) => ({
-            ...l,
-            choices: {
-              en: l.choices.en.map((c, idx) => ({
-                ...c,
-                id: crypto.randomUUID(),
-                display_order: idx + 1,
-              })),
-              th: l.choices.th.map((c, idx) => ({
-                ...c,
-                id: crypto.randomUUID(),
-                display_order: idx + 1,
-              })),
-            },
-          })),
-        },
-      },
-    };
-
-    setForm((prev) => {
-      const nextQuestions = [
-        ...prev.questions.slice(0, targetIdx + 1),
-        duplicated,
-        ...prev.questions.slice(targetIdx + 1),
-      ].map((item, idx) => ({
-        ...item,
-        question: {
-          ...item.question,
-          display_order: idx + 1,
-        },
-      }));
-
-      return {
-        ...prev,
-        questions: nextQuestions,
-      };
-    });
-
-    setActiveSectionId(newId);
+  // update Question
+  const updateQuestion = (id: string, type: QuestionType) => {
+    setForm((prev) => ({
+      ...prev,
+      questions: prev.questions.map((item) =>
+        item.question.id === id
+          ? {
+              ...item,
+              question: {
+                ...item.question,
+                type: type,
+              },
+            }
+          : item,
+      ),
+    }));
   };
 
+  // delete Question
   const deleteQuestion = (id: string) => {
-    const currentIdx = form.questions.findIndex(
-      (item) => item.question.id === id,
-    );
-    const remaining = form.questions.filter((item) => item.question.id !== id);
-
     setForm((prev) => ({
       ...prev,
       questions: prev.questions
@@ -231,281 +101,9 @@ export default function FormBuilder({ type }: { type: FormType }) {
           },
         })),
     }));
-
-    if (remaining.length > 0) {
-      const nextIdx = Math.min(currentIdx, remaining.length - 1);
-      setActiveSectionId(remaining[nextIdx].question.id!);
-    } else {
-      setActiveSectionId("header");
-    }
   };
 
-  const reorderQuestions = (sourceId: string, targetId: string) => {
-    if (sourceId === targetId) return;
-
-    setForm((prev) => {
-      const sourceIdx = prev.questions.findIndex(
-        (item) => item.question.id === sourceId,
-      );
-      const targetIdx = prev.questions.findIndex(
-        (item) => item.question.id === targetId,
-      );
-      if (sourceIdx === -1 || targetIdx === -1) return prev;
-
-      const updated = [...prev.questions];
-      const [moved] = updated.splice(sourceIdx, 1);
-      updated.splice(targetIdx, 0, moved);
-
-      return {
-        ...prev,
-        questions: updated.map((item, idx) => ({
-          ...item,
-          question: {
-            ...item.question,
-            display_order: idx + 1,
-          },
-        })),
-      };
-    });
-
-    setActiveSectionId(sourceId);
-  };
-
-  const updateQuestion = (id: string, nextType: QuestionType) => {
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) => {
-        if (item.question.id !== id) return item;
-
-        const currentEnLabel = item.question.label.en[0];
-        const needsDefaultChoice =
-          CHOICE_QUESTION_TYPES.includes(nextType) &&
-          currentEnLabel.choices.en.length === 0;
-
-        return {
-          ...item,
-          question: {
-            ...item.question,
-            type: nextType,
-            min_number: nextType === "rating" ? 1 : item.question.min_number,
-            max_number:
-              nextType === "rating"
-                ? item.question.max_number || 5
-                : item.question.max_number,
-            label: needsDefaultChoice
-              ? {
-                  ...item.question.label,
-                  en: item.question.label.en.map((q, idx) =>
-                    idx === 0
-                      ? {
-                          ...q,
-                          choices: {
-                            ...q.choices,
-                            en: [createChoice(1)],
-                          },
-                        }
-                      : q,
-                  ),
-                }
-              : item.question.label,
-          },
-        };
-      }),
-    }));
-  };
-
-  const toggleRequired = (id: string) => {
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) =>
-        item.question.id === id
-          ? {
-              ...item,
-              question: {
-                ...item.question,
-                required: !item.question.required,
-              },
-            }
-          : item,
-      ),
-    }));
-  };
-
-  const updateQuestionRange = (id: string, min: number, max: number) => {
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) =>
-        item.question.id === id
-          ? {
-              ...item,
-              question: {
-                ...item.question,
-                min_number: min,
-                max_number: max,
-              },
-            }
-          : item,
-      ),
-    }));
-  };
-
-  const addChoice = (questionId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) =>
-        item.question.id === questionId
-          ? {
-              ...item,
-              question: {
-                ...item.question,
-                label: {
-                  ...item.question.label,
-                  en: item.question.label.en.map((q, index) =>
-                    index === 0
-                      ? {
-                          ...q,
-                          choices: {
-                            ...q.choices,
-                            en: [
-                              ...q.choices.en,
-                              createChoice(q.choices.en.length + 1),
-                            ],
-                          },
-                        }
-                      : q,
-                  ),
-                },
-              },
-            }
-          : item,
-      ),
-    }));
-  };
-
-  const updateChoice = (
-    questionId: string,
-    choiceId: string,
-    newLabel: string,
-  ) => {
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) =>
-        item.question.id === questionId
-          ? {
-              ...item,
-              question: {
-                ...item.question,
-                label: {
-                  ...item.question.label,
-                  en: item.question.label.en.map((q, index) =>
-                    index === 0
-                      ? {
-                          ...q,
-                          choices: {
-                            ...q.choices,
-                            en: q.choices.en.map((choice) =>
-                              choice.id === choiceId
-                                ? { ...choice, label: newLabel }
-                                : choice,
-                            ),
-                          },
-                        }
-                      : q,
-                  ),
-                },
-              },
-            }
-          : item,
-      ),
-    }));
-  };
-
-  const deleteChoice = (questionId: string, choiceId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) =>
-        item.question.id === questionId
-          ? {
-              ...item,
-              question: {
-                ...item.question,
-                label: {
-                  ...item.question.label,
-                  en: item.question.label.en.map((q, index) =>
-                    index === 0
-                      ? {
-                          ...q,
-                          choices: {
-                            ...q.choices,
-                            en: q.choices.en
-                              .filter((choice) => choice.id !== choiceId)
-                              .map((choice, idx) => ({
-                                ...choice,
-                                display_order: idx + 1,
-                              })),
-                          },
-                        }
-                      : q,
-                  ),
-                },
-              },
-            }
-          : item,
-      ),
-    }));
-  };
-
-  const reorderChoice = (
-    questionId: string,
-    sourceChoiceId: string,
-    targetChoiceId: string,
-  ) => {
-    if (sourceChoiceId === targetChoiceId) return;
-
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) => {
-        if (item.question.id !== questionId) return item;
-
-        return {
-          ...item,
-          question: {
-            ...item.question,
-            label: {
-              ...item.question.label,
-              en: item.question.label.en.map((q, index) => {
-                if (index !== 0) return q;
-
-                const currentChoices = [...q.choices.en];
-                const sourceIdx = currentChoices.findIndex(
-                  (c) => c.id === sourceChoiceId,
-                );
-                const targetIdx = currentChoices.findIndex(
-                  (c) => c.id === targetChoiceId,
-                );
-                if (sourceIdx === -1 || targetIdx === -1) return q;
-
-                const [movedChoice] = currentChoices.splice(sourceIdx, 1);
-                currentChoices.splice(targetIdx, 0, movedChoice);
-
-                return {
-                  ...q,
-                  choices: {
-                    ...q.choices,
-                    en: currentChoices.map((c, idx) => ({
-                      ...c,
-                      display_order: idx + 1,
-                    })),
-                  },
-                };
-              }),
-            },
-          },
-        };
-      }),
-    }));
-  };
-
+  // set Title
   const setTitle = (title: string) => {
     setForm((prev) => ({
       ...prev,
@@ -519,6 +117,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
+  // set Description
   const setDescription = (description: string) => {
     setForm((prev) => ({
       ...prev,
@@ -532,6 +131,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
+  //set Question Label
   const setQuestionLabel = (id: string, label: string) => {
     setForm((prev) => ({
       ...prev,
@@ -559,118 +159,100 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
-  if (isPreview) {
-    return (
-      <FormPreview form={form} onExitPreview={() => setIsPreview(false)} />
-    );
-  }
-
   return (
-    <div className="font-sans min-h-screen bg-[#F8F9FA] px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10">
+    <div className="font-sans min-h-screen bg-[#F8F9FA] p-8 pt-10 text-gray-800">
       {/* Header Area */}
-      <div className="mx-auto mb-6 flex max-w-4xl flex-wrap items-center justify-between gap-3 md:mb-8">
-        <h1 className="text-xl font-bold text-[#202124] sm:text-2xl md:text-3xl">
-          Form Builder
-        </h1>
-        <div className="flex items-center gap-2 md:me-16">
-          <button
-            type="button"
-            onClick={() => setIsPreview(true)}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-indigo-50 hover:text-[#5C54D1]"
-          >
-            <EyeIcon className="h-4 w-4" />
-            <span>{t("preview.button")}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium transition-colors hover:bg-blue-50"
-          >
-            {tcommon("back")}
-          </button>
-        </div>
+      <div className="mx-auto mb-8 max-w-4xl">
+        <h1 className="text-3xl font-bold text-[#202124]">Form Builder</h1>
       </div>
 
-      <div className="relative mx-auto flex max-w-4xl items-start gap-4">
+      <div className="mx-auto flex max-w-4xl items-start gap-4">
         {/* Main Content Area */}
-        <div className="relative flex min-w-0 flex-1 flex-col gap-4">
+        <div className="flex flex-1 flex-col gap-4">
           {/* 1. Title & Description Box */}
-          <FormHeaderCard
-            title={form.head.en.title}
-            description={form.head.en.description}
-            isActive={activeSectionId === "header"}
-            sectionRef={(el) => {
-              sectionRefs.current["header"] = el;
-            }}
-            onSelect={() => setActiveSectionId("header")}
-            onChangeTitle={setTitle}
-            onChangeDescription={setDescription}
-          />
+          <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            {/* Top Border Line */}
+            <div className="absolute top-0 left-0 h-[8px] w-full bg-[#5C54D1]"></div>
 
-          {/* 2. Question Cards */}
+            <div className="px-6 pt-10 pb-4">
+              <input
+                type="text"
+                value={form.head.en.title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full border-b border-transparent bg-transparent pb-1 text-3xl font-semibold text-gray-800 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
+              />
+
+              <input
+                type="text"
+                value={form.head.en.description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="mt-2 w-full border-b border-transparent bg-transparent pb-1 text-sm text-gray-600 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* 2. Active Question Box */}
           {form.questions.map((item) => {
             const question = item.question;
-            const qId = question.id!;
+            const label = question.label.en[0];
 
             return (
-              <QuestionCard
-                key={qId}
-                question={question}
-                isActive={activeSectionId === qId}
-                isDragging={draggedQuestionId === qId}
-                isDragOver={
-                  dragOverQuestionId === qId && draggedQuestionId !== qId
-                }
-                sectionRef={(el) => {
-                  sectionRefs.current[qId] = el;
-                }}
-                onSelect={() => setActiveSectionId(qId)}
-                onDragStart={() => {
-                  setDraggedQuestionId(qId);
-                  setActiveSectionId(qId);
-                }}
-                onDragOver={() => {
-                  if (draggedQuestionId && draggedQuestionId !== qId) {
-                    setDragOverQuestionId(qId);
-                  }
-                }}
-                onDragLeave={() => {
-                  if (dragOverQuestionId === qId) {
-                    setDragOverQuestionId(null);
-                  }
-                }}
-                onDrop={() => {
-                  if (draggedQuestionId && draggedQuestionId !== qId) {
-                    reorderQuestions(draggedQuestionId, qId);
-                  }
-                  setDraggedQuestionId(null);
-                  setDragOverQuestionId(null);
-                }}
-                onDragEnd={() => {
-                  setDraggedQuestionId(null);
-                  setDragOverQuestionId(null);
-                }}
-                onChangeLabel={(val) => setQuestionLabel(qId, val)}
-                onChangeType={(nextType) => updateQuestion(qId, nextType)}
-                onToggleRequired={() => toggleRequired(qId)}
-                onDuplicate={() => duplicateQuestion(qId)}
-                onDelete={() => deleteQuestion(qId)}
-                onAddChoice={() => addChoice(qId)}
-                onUpdateChoice={(choiceId, val) =>
-                  updateChoice(qId, choiceId, val)
-                }
-                onDeleteChoice={(choiceId) => deleteChoice(qId, choiceId)}
-                onReorderChoice={(sourceId, targetId) =>
-                  reorderChoice(qId, sourceId, targetId)
-                }
-                onUpdateRange={(min, max) => updateQuestionRange(qId, min, max)}
-              />
+              <div
+                key={question.id}
+                className="rounded-xl border-2 border-gray-200 bg-white p-6"
+              >
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    className="min-w-0 flex-1 rounded-md bg-gray-50 p-3"
+                    value={label.label}
+                    onChange={(e) =>
+                      setQuestionLabel(question.id!, e.target.value)
+                    }
+                  />
+                  <select
+                    className="w-48 rounded-md bg-gray-50 p-3"
+                    value={question.type}
+                    onChange={(e) =>
+                      updateQuestion(
+                        question.id!,
+                        e.target.value as QuestionType,
+                      )
+                    }
+                  >
+                    {QUESTIONS_TYPES.map((type, key) => {
+                      return (
+                        <option key={type} className="" value={type}>
+                          {tbuilder("choice." + type)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div className="mt-6">
+                    {question.type === "short_text" && (
+                        <input
+                            disabled
+                            placeholder="short answer text"
+                            className="mt-2 w-full border-b border-transparent bg-transparent pb-1 text-sm text-gray-600 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
+                        />
+                    )}
+                </div>
+              </div>
             );
           })}
         </div>
 
-        {/* 3. Floating Sidebar (Right on Desktop, Bottom Bar on Mobile) */}
-        <FloatingToolbar topOffset={toolbarTop} onAddQuestion={addQuestion} />
+        {/* Floating Sidebar (Tools) */}
+        <aside className="sticky top-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
+          <button 
+          className="rounded-lg p-3 text-gray-600 transition-colors hover:bg-indigo-50 hover:text-[#5C54D1]"
+          onClick={addQuestion}
+          >
+            
+            <PlusIcon />
+          </button>
+        </aside>
       </div>
     </div>
   );
