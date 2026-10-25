@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import {
   Choice,
   Form,
@@ -14,8 +15,6 @@ import FormHeaderCard from "./FormHeaderCard";
 import QuestionCard from "./QuestionCard";
 import FloatingToolbar from "./FloatingToolbar";
 
-import { useRouter } from 'next/navigation';
-
 const CHOICE_QUESTION_TYPES: QuestionType[] = [
   "multiple_choice",
   "checkbox",
@@ -26,9 +25,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   const t = useTranslations("form");
   const tbuilder = useTranslations("form.builder");
   const tcommon = useTranslations("common");
-
-  const router = useRouter(); // Initialize hook
-
+  const router = useRouter();
 
   const createChoice = (order: number): Choice => ({
     id: crypto.randomUUID(),
@@ -70,11 +67,11 @@ export default function FormBuilder({ type }: { type: FormType }) {
     return {
       head: {
         en: {
-          title: type === "registration" ? t ("registration") : t("survey"),
+          title: type === "registration" ? t("registration") : t("survey"),
           description: tbuilder("description"),
         },
         th: {
-          title: type === "registration" ? t ("registration") : t("survey"),
+          title: type === "registration" ? t("registration") : t("survey"),
           description: tbuilder("description"),
         },
       },
@@ -97,12 +94,18 @@ export default function FormBuilder({ type }: { type: FormType }) {
   );
 
   useEffect(() => {
-    const activeEl = sectionRefs.current[activeSectionId];
-    if (activeEl) {
-      setToolbarTop(activeEl.offsetTop);
-    } else if (sectionRefs.current["header"]) {
-      setToolbarTop(sectionRefs.current["header"]!.offsetTop);
-    }
+    const updatePosition = () => {
+      const activeEl = sectionRefs.current[activeSectionId];
+      if (activeEl) {
+        setToolbarTop(activeEl.offsetTop);
+      } else if (sectionRefs.current["header"]) {
+        setToolbarTop(sectionRefs.current["header"]!.offsetTop);
+      }
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    return () => window.removeEventListener("resize", updatePosition);
   }, [activeSectionId, form.questions]);
 
   const addQuestion = () => {
@@ -554,19 +557,24 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   return (
-    <div className="font-sans min-h-screen bg-[#F8F9FA] p-8 pt-10 text-gray-800">
+    <div className="font-sans min-h-screen bg-[#F8F9FA] px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10">
       {/* Header Area */}
-      <div className="flex justify-between mx-auto mb-8 max-w-4xl">
-        <h1 className="text-3xl font-bold text-[#202124]">Form Builder</h1>
-        <button 
-        onClick={() => router.back()}
-        className="p-2 mr-17 rounded-lg border hover:bg-blue-100"
-        >{tcommon("back")}</button>
+      <div className="mx-auto mb-6 flex max-w-4xl flex-wrap items-center justify-between gap-3 md:mb-8">
+        <h1 className="text-xl font-bold text-[#202124] sm:text-2xl md:text-3xl">
+          Form Builder
+        </h1>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium transition-colors hover:bg-blue-50 md:me-16"
+        >
+          {tcommon("back")}
+        </button>
       </div>
 
       <div className="relative mx-auto flex max-w-4xl items-start gap-4">
         {/* Main Content Area */}
-        <div className="relative flex flex-1 flex-col gap-4">
+        <div className="relative flex min-w-0 flex-1 flex-col gap-4">
           {/* 1. Title & Description Box */}
           <FormHeaderCard
             title={form.head.en.title}
@@ -642,7 +650,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
           })}
         </div>
 
-        {/* 3. Floating Sidebar */}
+        {/* 3. Floating Sidebar (Right on Desktop, Bottom Bar on Mobile) */}
         <FloatingToolbar topOffset={toolbarTop} onAddQuestion={addQuestion} />
       </div>
     </div>
