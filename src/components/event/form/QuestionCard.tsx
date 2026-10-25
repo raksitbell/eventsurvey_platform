@@ -110,7 +110,7 @@ export default function QuestionCard({
         onDrop();
       }}
       onDragEnd={onDragEnd}
-      className={`group rounded-xl border bg-white px-6 pt-2 pb-6 shadow-sm transition-all ${
+      className={`group rounded-xl border bg-white px-4 pt-2 pb-4 shadow-sm transition-all sm:px-6 sm:pb-6 ${
         isActive
           ? "border-gray-300 border-s-4 border-s-[#5C54D1]"
           : "border-gray-200"
@@ -126,18 +126,18 @@ export default function QuestionCard({
         <HorizontaLDots className="h-5 w-5" />
       </div>
 
-      {/* Question Input & Type Selector */}
-      <div className="flex gap-3">
+      {/* Question Input & Type Selector (stacks on mobile, side-by-side on sm+) */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           type="text"
           placeholder="Question"
-          className="min-w-0 flex-1 rounded-md bg-gray-50 p-3 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
+          className="min-w-0 flex-1 rounded-md bg-gray-50 p-3 text-sm sm:text-base focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
           value={label.label}
           onFocus={onSelect}
           onChange={(e) => onChangeLabel(e.target.value)}
         />
         <select
-          className="w-48 rounded-md bg-gray-50 p-3"
+          className="w-full rounded-md bg-gray-50 p-3 text-sm sm:w-48 sm:text-base"
           value={question.type}
           onFocus={onSelect}
           onChange={(e) => onChangeType(e.target.value as QuestionType)}
@@ -151,7 +151,7 @@ export default function QuestionCard({
       </div>
 
       {/* Answer / Choices Area */}
-      <div className="mt-6">
+      <div className="mt-5 sm:mt-6">
         {Field && (
           <Field
             question={question}
@@ -166,7 +166,7 @@ export default function QuestionCard({
       </div>
 
       {/* Card Footer (Duplicate, Delete & Required) */}
-      <div className="mt-6 flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3 sm:mt-6 sm:pt-4">
         <button
           type="button"
           onClick={(e) => {
@@ -193,7 +193,7 @@ export default function QuestionCard({
           <TrashBinIcon className="h-5 w-5" />
         </button>
 
-        <label className="ms-2 flex cursor-pointer items-center gap-2 border-s border-gray-200 ps-4 text-sm text-gray-600">
+        <label className="ms-2 flex cursor-pointer items-center gap-2 border-s border-gray-200 ps-3 text-sm text-gray-600 sm:ps-4">
           <span>Required</span>
           <input
             type="checkbox"
@@ -206,4 +206,3 @@ export default function QuestionCard({
     </div>
   );
 }
-

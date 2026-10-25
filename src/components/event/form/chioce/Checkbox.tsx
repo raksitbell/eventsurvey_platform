@@ -63,7 +63,7 @@ export default function Checkbox({
           >
             {/* Drag Handle for Choice */}
             <span
-              className="cursor-grab text-gray-300 transition-colors group-hover:text-gray-500 active:cursor-grabbing"
+              className="shrink-0 cursor-grab text-gray-300 transition-colors group-hover:text-gray-500 active:cursor-grabbing"
               title="Drag to reorder option"
             >
               <MoreDotIcon className="h-5 w-5" />
@@ -72,20 +72,20 @@ export default function Checkbox({
             <input
               type="checkbox"
               disabled
-              className="h-5 w-5 cursor-default rounded accent-[#5C54D1]"
+              className="h-5 w-5 shrink-0 cursor-default rounded accent-[#5C54D1]"
             />
             <input
               type="text"
               value={choice.label}
               onChange={(e) => onUpdateChoice(choice.id!, e.target.value)}
               placeholder={`Option ${choice.display_order}`}
-              className="flex-1 border-b border-transparent bg-transparent py-1 text-sm text-gray-800 transition-all hover:border-gray-200 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
+              className="min-w-0 flex-1 border-b border-transparent bg-transparent py-1 text-sm text-gray-800 transition-all hover:border-gray-200 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
             />
             {choices.length > 1 && (
               <button
                 type="button"
                 onClick={() => onDeleteChoice(choice.id!)}
-                className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                className="shrink-0 rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                 aria-label="Remove option"
               >
                 <CloseLineIcon className="h-4 w-4" />
@@ -97,11 +97,11 @@ export default function Checkbox({
 
       {/* Add option row */}
       <div className="flex items-center gap-2 px-1">
-        <span className="h-5 w-5" />
+        <span className="h-5 w-5 shrink-0" />
         <input
           type="checkbox"
           disabled
-          className="h-5 w-5 cursor-default rounded opacity-50"
+          className="h-5 w-5 shrink-0 cursor-default rounded opacity-50"
         />
         <button
           type="button"

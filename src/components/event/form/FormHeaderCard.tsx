@@ -30,13 +30,13 @@ export default function FormHeaderCard({
       {/* Top Border Line */}
       <div className="absolute top-0 start-0 h-[8px] w-full bg-[#5C54D1]"></div>
 
-      <div className="px-6 pt-10 pb-4">
+      <div className="px-4 pt-8 pb-4 sm:px-6 sm:pt-10">
         <input
           type="text"
           value={title}
           onFocus={onSelect}
           onChange={(e) => onChangeTitle(e.target.value)}
-          className="w-full border-b border-transparent bg-transparent pb-1 text-3xl font-semibold text-gray-800 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
+          className="w-full border-b border-transparent bg-transparent pb-1 text-xl font-semibold text-gray-800 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none sm:text-2xl md:text-3xl"
         />
 
         <input
@@ -50,4 +50,3 @@ export default function FormHeaderCard({
     </div>
   );
 }
-
