@@ -5,10 +5,8 @@ export const QUESTIONS_TYPES = [
     "multiple_choice",
     "dropdown",
     "checkbox",
-    "radio",
     "date",
     "time",
-    "number",
     "rating",
 ] as const;
 
@@ -60,4 +58,14 @@ export interface Choice {
     id?: string;
     label: string;
     display_order: number;
+}
+
+export interface QuestionFieldProps {
+    question: Question["question"];
+    choices: Choice[];
+    onAddChoice: () => void;
+    onUpdateChoice: (choiceId: string, label: string) => void;
+    onDeleteChoice: (choiceId: string) => void;
+    onReorderChoice: (sourceChoiceId: string, targetChoiceId: string) => void;
+    onUpdateRange?: (min: number, max: number) => void;
 }
