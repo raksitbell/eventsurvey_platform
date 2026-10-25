@@ -25,14 +25,15 @@ export default function Rating({
         </select>
       </div>
 
-      <div className="grid grid-cols-5 gap-3 pt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-around sm:gap-4">
+      <div className="flex flex-wrap items-center justify-around gap-4 pt-2">
         {levels.map((level) => (
           <div key={level} className="flex flex-col items-center gap-2">
             <span className="text-xs text-gray-600">{level}</span>
-            <ShootingStarIcon className="h-5 w-5 text-gray-400 sm:h-6 sm:w-6" />
+            <ShootingStarIcon className="h-6 w-6 text-gray-400" />
           </div>
         ))}
       </div>
     </div>
   );
 }
+
