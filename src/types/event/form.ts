@@ -102,3 +102,13 @@ export interface FormStatusPatchInput {
   closesAt?: string | null;
   acceptingResponses?: boolean;
 }
+
+export interface QuestionFieldProps {
+    question: Question["question"];
+    choices: Choice[];
+    onAddChoice: () => void;
+    onUpdateChoice: (choiceId: string, label: string) => void;
+    onDeleteChoice: (choiceId: string) => void;
+    onReorderChoice: (sourceChoiceId: string, targetChoiceId: string) => void;
+    onUpdateRange?: (min: number, max: number) => void;
+}
