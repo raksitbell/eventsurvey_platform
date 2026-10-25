@@ -2,11 +2,8 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
-import {
-  canEnterAdminArea,
-  canEnterEventArea,
-} from "@/core/auth";
-import { GridIcon, GroupIcon, HorizontaLDots } from "@/icons";
+import { canEnterAdminArea, canEnterEventArea } from "@/core/auth";
+import { GridIcon, GroupIcon, HorizontaLDots, PieChartIcon } from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
@@ -43,6 +40,13 @@ export default function AppSidebar() {
 
   const eventNav: NavItem[] = [
     { key: "eventHome", icon: <GridIcon />, path: "/event" },
+    { key: "dashboard", icon: <PieChartIcon />, path: "/event/dashboard" },
+    {
+      key: "dashboardBuilder",
+      icon: <GridIcon />,
+      path: "/event/analytics/builder",
+    },
+    { key: "analytics", icon: <GridIcon />, path: "/event/analytics" },
   ];
 
   const navItems = isAdminArea
@@ -63,6 +67,8 @@ export default function AppSidebar() {
 
   const isActive = (path?: string) => {
     if (!path) return false;
+    if (path === "/event/analytics" && pathname === "/event/analytics/builder")
+      return false;
     if (path === "/admin" || path === "/event") return pathname === path;
     return pathname === path || pathname.startsWith(`${path}/`);
   };
@@ -86,9 +92,7 @@ export default function AppSidebar() {
           : user?.role;
 
   const roleHint =
-    user?.role === "super_admin"
-      ? t("roles.systemOwner")
-      : user?.email ?? "";
+    user?.role === "super_admin" ? t("roles.systemOwner") : (user?.email ?? "");
 
   return (
     <aside
@@ -126,7 +130,7 @@ export default function AppSidebar() {
         <div className="mb-3">
           <h2
             className={cn(
-              "mb-3 flex px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500",
+              "mb-3 flex px-3 text-[11px] font-semibold tracking-[0.16em] text-gray-500 uppercase",
               !showExpanded ? "xl:justify-center" : "justify-start",
             )}
           >
@@ -199,7 +203,9 @@ export default function AppSidebar() {
                 <p className="truncate text-theme-sm font-medium text-white">
                   {roleLabel}
                 </p>
-                <p className="truncate text-theme-xs text-gray-400">{roleHint}</p>
+                <p className="truncate text-theme-xs text-gray-400">
+                  {roleHint}
+                </p>
               </div>
             ) : null}
           </div>
