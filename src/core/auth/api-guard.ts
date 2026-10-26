@@ -1,12 +1,20 @@
 // noinspection ES6PreferShortImport
 import { NextResponse, type NextRequest } from "next/server";
+import { mockApi } from "@/core/api/mock-client";
+import {
+  isActiveMockUser,
+} from "@/core/mock/map-user";
+import { getRolePermissions, hasPermission } from "@/core/mock/role-permissions";
+import type { FormType } from "@/types/event/form";
+import type { MockUser } from "@/types/mock";
 // noinspection ES6PreferShortImport
 import {
   AUTH_SESSION_COOKIE,
   parseAuthSessionCookie,
+  type AuthSessionCookie,
 } from "./cookie";
 // noinspection ES6PreferShortImport
-import { canEnterAdminArea } from "./permissions";
+import { canEnterAdminArea, canEnterEventArea } from "./permissions";
 
 /**
  * Authorization for /api/admin route handlers.
@@ -33,4 +41,68 @@ export function denyUnlessAdmin(request: NextRequest): NextResponse | null {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
   return null;
+}
+
+/**
+ * Require a session that may enter the event area.
+ * Returns the session, or a 401/403 response.
+ */
+export function requireEventSession(
+  request: NextRequest,
+): AuthSessionCookie | NextResponse {
+  const session = parseAuthSessionCookie(
+    request.cookies.get(AUTH_SESSION_COOKIE)?.value,
+  );
+  if (!session) {
+    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  }
+  if (
+    !canEnterEventArea(session.role, session.realRole, session.impersonating)
+  ) {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+  return session;
+}
+
+function formPermissionCode(
+  type: FormType,
+): "manage_registration_form" | "manage_survey_form" {
+  return type === "registration"
+    ? "manage_registration_form"
+    : "manage_survey_form";
+}
+
+/**
+ * Ensure the session user belongs to `eventId` (when provided) and holds the
+ * matching form-manage permission via `role_permissions`.
+ */
+export async function denyUnlessEventFormManager(
+  userId: string,
+  formType: FormType,
+  eventId?: string,
+): Promise<NextResponse | null> {
+  let mockUser: MockUser;
+  try {
+    mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
+  } catch {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+  if (!mockUser || !isActiveMockUser(mockUser) || !mockUser.event_id) {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+  if (eventId && mockUser.event_id !== eventId) {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+
+  const permissions = await getRolePermissions(mockUser.role_id);
+  if (!hasPermission(permissions, formPermissionCode(formType))) {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+  return null;
+}
+
+export function isAuthSession(
+  value: AuthSessionCookie | NextResponse,
+): value is AuthSessionCookie {
+  return !(value instanceof NextResponse);
 }
