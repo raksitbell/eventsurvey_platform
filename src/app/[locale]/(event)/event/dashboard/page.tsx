@@ -39,14 +39,14 @@ export default function EventDashboardPage() {
             className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs transition hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
             onClick={() => alert("คลิกส่งออกรายงาน")}
           >
-            ส่งออกรายงาน
+            CSV
           </button>
           <button
             type="button"
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
             onClick={() => alert("คลิกเพิ่มแบบฟอร์ม")}
           >
-            + สร้างฟอร์มใหม่
+             สร้างฟอร์มใหม่
           </button>
         </div>
       </div>
