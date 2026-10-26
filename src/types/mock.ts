@@ -33,17 +33,17 @@ export interface MockUser {
   display_name: string;
   system_role: MockSystemRole;
   event_id: string | null;
-  /** Membership kind within the event: event_admin | event_sub_user */
-  event_role: MockEventRole | null;
+  /** Legacy API fields; current role_permissions are normalized by services/auth/access. */
+  event_role?: MockEventRole | null;
   /** Optional custom role (mainly for event_sub_user fine-grained permissions) */
   role_id: string | null;
-  can_manage_dashboard: boolean;
-  can_manage_event: boolean;
-  can_manage_registration_form: boolean;
-  can_manage_survey_form: boolean;
-  can_manage_sub_user: boolean;
-  can_approve: boolean;
-  can_view_unmasked_pii: boolean;
+  can_manage_dashboard?: boolean;
+  can_manage_event?: boolean;
+  can_manage_registration_form?: boolean;
+  can_manage_survey_form?: boolean;
+  can_manage_sub_user?: boolean;
+  can_approve?: boolean;
+  can_view_unmasked_pii?: boolean;
   permission_granted_by_user_id: string | null;
   permission_updated_at: string | null;
   status: MockAccountStatus;
@@ -62,6 +62,7 @@ export interface MockRole {
   name: string;
   description: string | null;
   is_default: boolean;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -75,7 +76,7 @@ export interface MockPermission {
   can_create: boolean;
   can_edit: boolean;
   can_delete: boolean;
-  can_approve: boolean;
+  can_approve?: boolean;
   can_publish: boolean;
 }
 

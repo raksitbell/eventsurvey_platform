@@ -2,22 +2,121 @@
 
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
-import { useTranslations } from "next-intl";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/routing";
+import { GlobeIcon } from "@/icons";
+import { useLocale, useTranslations } from "next-intl";
 import type React from "react";
 import { useState } from "react";
 
 const AppHeader: React.FC = () => {
   const t = useTranslations("header");
+  const tBrand = useTranslations("eventAnalytics.brand");
+  const locale = useLocale() as Locale;
+  const router = useRouter();
+  const pathname = usePathname();
+  const isEventArea = pathname.startsWith("/event");
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const [range, setRange] = useState("30");
 
   const handleToggle = () => {
-    if (window.innerWidth >= 1280) {
+    if (window.innerWidth >= 1024) {
       toggleSidebar();
     } else {
       toggleMobileSidebar();
     }
   };
+
+  const toggleLanguage = () => {
+    const nextLocale: Locale = locale === "th" ? "en" : "th";
+    router.replace(pathname, { locale: nextLocale });
+  };
+
+  if (isEventArea) {
+    return (
+      <header className="sticky top-0 z-99999 flex w-full border-b border-gray-200 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+        <div className="flex w-full grow items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-500 lg:hidden dark:border-gray-800 dark:text-gray-400 ${
+                isMobileOpen
+                  ? "bg-gray-100 dark:bg-white/3"
+                  : "bg-white dark:bg-gray-900"
+              }`}
+              onClick={handleToggle}
+              aria-label={t("toggleSidebar")}
+            >
+              {isMobileOpen ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.21967 7.28131C5.92678 6.98841 5.92678 6.51354 6.21967 6.22065C6.51256 5.92775 6.98744 5.92775 7.28033 6.22065L11.999 10.9393L16.7176 6.22078C17.0105 5.92789 17.4854 5.92788 17.7782 6.22078C18.0711 6.51367 18.0711 6.98855 17.7782 7.28144L13.0597 12L17.7782 16.7186C18.0711 17.0115 18.0711 17.4863 17.7782 17.7792C17.4854 18.0721 17.0105 18.0721 16.7176 17.7792L11.999 13.0607L7.28033 17.7794C6.98744 18.0722 6.51256 18.0722 6.21967 17.7794C5.92678 17.4865 5.92678 17.0116 6.21967 16.7187L10.9384 12L6.21967 7.28131Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="rtl:-scale-x-100"
+                  width="16"
+                  height="12"
+                  viewBox="0 0 16 12"
+                  fill="none"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M0.583252 1C0.583252 0.585786 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75H1.33325C0.919038 1.75 0.583252 1.41421 0.583252 1ZM0.583252 6C0.583252 5.58579 0.919038 5.25 1.33325 5.25H14.6666C15.0808 5.25 15.4166 5.58579 15.4166 6C15.4166 6.41421 15.0808 6.75 14.6666 6.75H1.33325C0.919038 6.75 0.583252 6.41421 0.583252 6ZM1.33325 10.25C0.919038 10.25 0.583252 10.5858 0.583252 11C0.583252 11.4142 0.919038 11.75 1.33325 11.75H14.6666C15.0808 11.75 15.4166 11.4142 15.4166 11C15.4166 10.5858 15.0808 10.25 14.6666 10.25H1.33325Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              )}
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-brand-500 shadow-theme-xs">
+                <svg
+                  className="size-5 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect width="18" height="18" x="3" y="3" rx="4" />
+                  <path d="M8 12h8" />
+                  <path d="M8 8h8" />
+                  <path d="M8 16h5" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-sm font-bold text-gray-900 sm:text-base dark:text-white">
+                  EventSurvey
+                </h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {tBrand("subtitle")}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-theme-xs transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              title="Switch language"
+            >
+              <GlobeIcon className="size-3.5 text-gray-500 dark:text-gray-400" />
+              <span>{locale.toUpperCase()}</span>
+            </button>
+            <UserDropdown />
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-99999 flex w-full border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-900/90">

@@ -1,11 +1,9 @@
+import { bindMockUserAccess } from "@/services/auth/access";
 import { PORTAL_ROLES } from "@/core/auth/constants";
 import { canAccessPortal } from "@/core/auth/permissions";
 import { sanitizeUser } from "@/core/auth/session";
 import { mockApi } from "@/core/api/mock-client";
-import {
-  isActiveMockUser,
-  mapMockUserToUser,
-} from "@/core/mock/map-user";
+import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import type { MockUser } from "@/types/mock";
 import type { User } from "@/types/user";
 
@@ -30,7 +28,7 @@ export async function loginWithMockCredentials(
     return { ok: false, error: "INVALID_CREDENTIALS" };
   }
 
-  const user = mapMockUserToUser(matched);
+  const user = mapMockUserToUser(await bindMockUserAccess(matched));
   if (!user) {
     return { ok: false, error: "UNSUPPORTED_ROLE" };
   }

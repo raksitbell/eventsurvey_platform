@@ -22,12 +22,20 @@
   },
   "sidebar": {
     "groups": {
-      "workspace": "Workspace"
+      "workspace": "Workspace",
+      "event": "EVENT"
     },
     "items": {
       "overview": "Overview",
       "owners": "Owners",
-      "eventHome": "Overview"
+      "eventHome": "Overview",
+      "eventWorkspace": "Event Workspace",
+      "dashboard": "Dashboard",
+      "analytics": "Analytics",
+      "builder": "Dashboard Builder",
+      "responses": "Response data",
+      "exports": "Export reports",
+      "trash": "Deleted items"
     },
     "roles": {
       "superAdmin": "Super Admin",
@@ -181,6 +189,64 @@
       "archived": "Archived"
     }
   },
+  "eventAnalytics": {
+    "brand": {
+      "title": "EventSurvey",
+      "subtitle": "Event registration and survey platform"
+    },
+    "title": "Analytics",
+    "description": "Monitor registration, attendance and response activity for this event.",
+    "metrics": {
+      "registrations": {
+        "title": "Registrations",
+        "value": "428",
+        "trend": "+12.5% this week"
+      },
+      "attendance": {
+        "title": "Attendance",
+        "value": "312",
+        "trend": "72.9% checked in"
+      },
+      "surveyResponses": {
+        "title": "Survey responses",
+        "value": "186",
+        "trend": "43.4% response rate"
+      },
+      "completion": {
+        "title": "Completion",
+        "value": "84%",
+        "trend": "+6.1% from last event"
+      }
+    },
+    "chart": {
+      "title": "Registration trend",
+      "subtitle": "Last 7 days",
+      "seriesName": "Registrations",
+      "days": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      }
+    },
+    "insights": {
+      "title": "Key insights",
+      "highlightTitle": "Strongest day: Saturday",
+      "highlightDesc": "176 registrations followed the latest campaign.",
+      "bullet1": "Registration conversion is 68%",
+      "bullet2": "54% registered on mobile",
+      "bullet3": "Survey completion is on target",
+      "exportButton": "Export report",
+      "exportSuccess": "Report exported successfully"
+    },
+    "footer": {
+      "copyright": "© EventSurvey",
+      "privacyPolicy": "Privacy Policy"
+    }
+  },
   "notFound": {
     "error": "ERROR",
     "message": "We can't seem to find the page you are looking for!",
@@ -206,6 +272,137 @@
       "title": "Service unavailable",
       "message": "The service is temporarily unavailable or under maintenance.",
       "backHome": "Back to Home Page"
+    }
+  },
+  "eventReports": {
+    "navigation": "Event tools",
+    "loading": "Loading…",
+    "loadError": "Unable to load event data. Please try again.",
+    "retry": "Try again",
+    "actionError": "The action could not be completed. Reload to check the latest state and try again.",
+    "empty": "No data to display.",
+    "id": "Response ID",
+    "respondent": "Respondent",
+    "submitted": "Submitted",
+    "score": "Score",
+    "status": "Status",
+    "complete": "Complete",
+    "partial": "Partial",
+    "search": "Search respondent or response ID",
+    "export": "Export data",
+    "showing": "Showing {count} of {total} responses",
+    "all": "View all",
+    "less": "Show less",
+    "items": "{count} items",
+    "item": "Item",
+    "deletedBy": "Deleted by",
+    "expires": "Expires",
+    "action": "Action",
+    "days": "{count} days",
+    "restore": "Restore",
+    "generate": "Generate",
+    "download": "Download",
+    "count": "Count",
+    "resource": {
+      "form": "Form",
+      "form_field": "Form field",
+      "field_option": "Field option",
+      "whitelist_entry": "Whitelist entry",
+      "submission": "Response"
+    },
+    "responses": {
+      "title": "Response data",
+      "description": "Review individual submissions and monitor response quality.",
+      "heading": "Survey responses",
+      "summary": "{count} submitted · {rate}% completion rate",
+      "latest": "Latest responses",
+      "detail": "Response details"
+    },
+    "exports": {
+      "title": "Export reports",
+      "description": "Prepare shareable event reports using the latest approved form data.",
+      "heading": "Create an export",
+      "hint": "Choose the output format and the data you want to include.",
+      "current": "Latest API data",
+      "responses": "Response spreadsheet",
+      "responsesHint": "Raw responses and fields from approved forms. CSV format.",
+      "summary": "Event summary",
+      "summaryHint": "Response totals by approved form. CSV format.",
+      "pdf": "PDF report",
+      "pdfHint": "A printable event summary. Choose Save as PDF in the print dialog.",
+      "print": "Print / Save PDF",
+      "last": "Last export in this session",
+      "noApproved": "No responses from approved forms are available for export."
+    },
+    "trash": {
+      "title": "Deleted items",
+      "description": "Recover recently deleted content before its retention period ends.",
+      "retention": "Items are kept for 30 days",
+      "hint": "Restore eligible forms before the retention period ends.",
+      "heading": "Recently deleted",
+      "footer": "Expired items cannot be restored. Deleted responses cannot be restored.",
+      "unavailable": "Restoration unavailable",
+      "confirm": "Restore this form to its event workspace?",
+      "restored": "Form restored successfully."
+    },
+    "builder": {
+      "title": "Dashboard Builder",
+      "description": "Arrange widgets and publish a dashboard using your event data.",
+      "widgets": "Widgets",
+      "drag": "Drag into canvas or click to add",
+      "number": "KPI metric",
+      "comparison": "Comparison",
+      "chart": "Chart",
+      "tip": "Use the grip to move widgets, or use the arrow buttons. Adjust width in widget settings.",
+      "settings": "Widget settings",
+      "widgetTitle": "Widget title",
+      "source": "Data source",
+      "allForms": "All forms",
+      "field": "Data field",
+      "none": "No field · response count",
+      "display": "Display",
+      "line": "Line chart",
+      "bar": "Bar chart",
+      "pie": "Pie chart",
+      "donut": "Donut chart",
+      "aggregation": "Aggregation",
+      "count": "Count",
+      "sum": "Sum",
+      "average": "Average",
+      "minimum": "Minimum",
+      "maximum": "Maximum",
+      "percentage": "Positive values (%)",
+      "target": "Target",
+      "capacity": "Capacity target",
+      "previous_period": "Previous period",
+      "range": "Date range",
+      "lastDays": "Last {count} days",
+      "allTime": "All time",
+      "width": "Widget width (columns)",
+      "remove": "Remove widget",
+      "noComparison": "No comparison data",
+      "change": "{value}% vs. previous period",
+      "progress": "{value}% of target",
+      "save": "Save draft",
+      "loadDraft": "Load draft",
+      "publish": "Publish",
+      "publishConfirm": "Replace the event dashboard configuration with these widgets?",
+      "published": "Dashboard published.",
+      "saved": "Draft saved on this device.",
+      "noDraft": "No saved draft on this device.",
+      "draftHint": "Drafts stay on this device. Publish saves the shared event configuration.",
+      "readOnly": "You can view this dashboard. Editing requires Manage Dashboard permission.",
+      "unsaved": "Unsaved changes",
+      "canvas": "Event dashboard",
+      "grid": "12-column grid · responsive layout",
+      "edit": "Configure",
+      "up": "Move widget earlier",
+      "down": "Move widget later",
+      "select": "Select a widget to configure it."
+    },
+    "dashboard": {
+      "title": "Event dashboard",
+      "description": "Latest event data from your published widgets."
     }
   }
 }

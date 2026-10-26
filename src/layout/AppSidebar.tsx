@@ -6,7 +6,13 @@ import {
   canEnterAdminArea,
   canEnterEventArea,
 } from "@/core/auth";
-import { GridIcon, GroupIcon, HorizontaLDots } from "@/icons";
+import {
+  CalenderIcon,
+  GridIcon,
+  GroupIcon,
+  HorizontaLDots,
+  PieChartIcon,
+} from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
@@ -42,7 +48,13 @@ export default function AppSidebar() {
   ];
 
   const eventNav: NavItem[] = [
-    { key: "eventHome", icon: <GridIcon />, path: "/event" },
+    { key: "eventWorkspace", icon: <GridIcon />, path: "/event" },
+    { key: "dashboard", icon: <CalenderIcon />, path: "/event/dashboard" },
+    { key: "builder", icon: <GridIcon />, path: "/event/dashboard/builder" },
+    { key: "responses", icon: <GridIcon />, path: "/event/responses" },
+    { key: "exports", icon: <GridIcon />, path: "/event/exports" },
+    { key: "trash", icon: <GridIcon />, path: "/event/trash" },
+    { key: "analytics", icon: <PieChartIcon />, path: "/event/analytics" },
   ];
 
   const navItems = isAdminArea
@@ -63,7 +75,7 @@ export default function AppSidebar() {
 
   const isActive = (path?: string) => {
     if (!path) return false;
-    if (path === "/admin" || path === "/event") return pathname === path;
+    if (path === "/admin" || path === "/event" || path === "/event/dashboard") return pathname === path;
     return pathname === path || pathname.startsWith(`${path}/`);
   };
 
@@ -93,10 +105,10 @@ export default function AppSidebar() {
   return (
     <aside
       className={cn(
-        "fixed top-0 z-99999 flex h-screen flex-col bg-gray-950 px-4 text-white transition-all duration-300 ease-in-out",
+        "fixed top-0 z-99999 flex h-screen flex-col border-e border-gray-200 bg-white px-4 text-gray-900 transition-all duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-950 dark:text-white",
         showExpanded ? "w-[280px]" : "w-[90px]",
-        isMobileOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
-        "rtl:translate-x-full xl:rtl:translate-x-0",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+        "rtl:translate-x-full lg:rtl:translate-x-0",
         isMobileOpen && "rtl:translate-x-0",
       )}
       onMouseEnter={() => {
@@ -107,15 +119,15 @@ export default function AppSidebar() {
       <div
         className={cn(
           "flex items-center gap-3 py-7",
-          !showExpanded ? "xl:justify-center" : "justify-start",
+          !showExpanded ? "lg:justify-center" : "justify-start",
         )}
       >
         <Link href={homePath} className="flex items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white shadow-theme-xs">
             E
           </span>
           {showExpanded ? (
-            <span className="text-sm font-semibold tracking-[0.18em] text-white">
+            <span className="text-sm font-semibold tracking-[0.18em] text-gray-900 dark:text-white">
               EVENTSURVEY
             </span>
           ) : null}
@@ -127,20 +139,20 @@ export default function AppSidebar() {
           <h2
             className={cn(
               "mb-3 flex px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500",
-              !showExpanded ? "xl:justify-center" : "justify-start",
+              !showExpanded ? "lg:justify-center" : "justify-start",
             )}
           >
-            {showExpanded ? t("groups.workspace") : <HorizontaLDots />}
+            {showExpanded ? (isEventArea ? "EVENT" : t("groups.workspace")) : <HorizontaLDots />}
           </h2>
 
           <ul className="flex flex-col gap-1.5">
             {navItems.map((item) => {
               const active = isActive(item.path);
               const className = cn(
-                "group flex w-full items-center gap-3 rounded-full px-3 py-2.5 text-theme-sm font-medium transition",
+                "group flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-theme-sm font-medium transition",
                 active
-                  ? "bg-brand-500 text-white"
-                  : "text-gray-400 hover:bg-white/5 hover:text-white",
+                  ? "bg-brand-50 text-brand-600 font-semibold dark:bg-brand-500/15 dark:text-brand-400"
+                  : "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white",
                 item.disabled &&
                   "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-gray-400",
                 !showExpanded && "justify-center px-0",
@@ -181,7 +193,7 @@ export default function AppSidebar() {
       {user ? (
         <div
           className={cn(
-            "mb-5 rounded-2xl border border-white/10 bg-white/5 p-3",
+            "mb-5 rounded-2xl border border-gray-200/80 bg-gray-50/80 p-3 dark:border-white/10 dark:bg-white/5",
             !showExpanded && "flex justify-center p-2",
           )}
         >
@@ -196,10 +208,10 @@ export default function AppSidebar() {
             </span>
             {showExpanded ? (
               <div className="min-w-0">
-                <p className="truncate text-theme-sm font-medium text-white">
-                  {roleLabel}
+                <p className="truncate text-theme-sm font-semibold text-gray-900 dark:text-white">
+                  {user.name || roleLabel}
                 </p>
-                <p className="truncate text-theme-xs text-gray-400">{roleHint}</p>
+                <p className="truncate text-theme-xs text-gray-500 dark:text-gray-400">{roleHint || roleLabel}</p>
               </div>
             ) : null}
           </div>
