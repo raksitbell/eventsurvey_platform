@@ -47,3 +47,6 @@ next-env.d.ts
 
 # planing
 .cursor
+
+# local working docs (not part of the app)
+/docs
