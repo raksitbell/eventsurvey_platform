@@ -172,6 +172,33 @@
       "actions": "การกระทำ"
     }
   },
+  "eventDashboard": {
+    "title": "แดชบอร์ดกิจกรรม",
+    "description": "สรุปสถิติภาพรวมและการมีส่วนร่วมของกิจกรรมแบบเรียลไทม์",
+    "kpis": {
+      "totalResponses": "ยอดคำตอบทั้งหมด",
+      "registrations": "การลงทะเบียน",
+      "surveys": "แบบสอบถาม",
+      "completionRate": "อัตราการตอบสมบูรณ์"
+    },
+    "charts": {
+      "responseTrend": "แนวโน้มการตอบรายวัน",
+      "formDistribution": "สัดส่วนคำตอบแยกตามแบบฟอร์ม"
+    },
+    "recentActivity": {
+      "title": "กิจกรรมคำตอบล่าสุด",
+      "viewAll": "ดูทั้งหมดในระบบวิเคราะห์",
+      "formName": "ชื่อแบบฟอร์ม",
+      "submittedAt": "เวลาที่ส่ง",
+      "status": "สถานะ",
+      "verified": "ยืนยันแล้ว",
+      "completed": "เสร็จสมบูรณ์"
+    },
+    "quickActions": {
+      "openAnalytics": "เปิดหน้าวิเคราะห์ผล",
+      "openBuilder": "จัดวางแดชบอร์ด"
+    }
+  },
   "eventHome": {
     "title": "ภาพรวมอีเวนต์",
     "description": "พื้นที่นี้สำหรับบทบาท event_owner และ sub_user เท่านั้น ผู้ดูแลระบบเข้าได้โดยสวมสิทธิ์จากเมนูเจ้าของอีเวนต์",

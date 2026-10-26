@@ -172,6 +172,33 @@
       "actions": "Actions"
     }
   },
+  "eventDashboard": {
+    "title": "Event Dashboard",
+    "description": "Real-time overview of event metrics, participation trends, and responses.",
+    "kpis": {
+      "totalResponses": "Total Responses",
+      "registrations": "Registrations",
+      "surveys": "Surveys",
+      "completionRate": "Completion Rate"
+    },
+    "charts": {
+      "responseTrend": "Daily Response Trend",
+      "formDistribution": "Responses by Form"
+    },
+    "recentActivity": {
+      "title": "Recent Response Activity",
+      "viewAll": "View all in Analytics",
+      "formName": "Form Name",
+      "submittedAt": "Submitted At",
+      "status": "Status",
+      "verified": "Verified",
+      "completed": "Completed"
+    },
+    "quickActions": {
+      "openAnalytics": "Open Analytics",
+      "openBuilder": "Customize Dashboard"
+    }
+  },
   "eventHome": {
     "title": "Event Overview",
     "description": "This area is for event_owner and sub_user only. Super Admin enters by impersonating a user from Owners.",

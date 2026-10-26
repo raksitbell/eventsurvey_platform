@@ -98,9 +98,7 @@ export default function AppSidebar() {
           : user?.role;
 
   const roleHint =
-    user?.role === "super_admin"
-      ? t("roles.systemOwner")
-      : user?.email ?? "";
+    user?.role === "super_admin" ? t("roles.systemOwner") : (user?.email ?? "");
 
   return (
     <aside
