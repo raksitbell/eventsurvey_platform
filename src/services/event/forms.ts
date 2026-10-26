@@ -59,12 +59,9 @@ function nullToNumber(n: number | null, fallback = 0): number {
 }
 
 async function getLiveForm(id: string): Promise<MockForm> {
+  let form: MockForm;
   try {
-    const form = await mockApi.get<MockForm>(`/forms/${id}`);
-    if (!form || form.deleted_at) {
-      throw new ServiceError("FORM_NOT_FOUND", 404);
-    }
-    return form;
+    form = await mockApi.get<MockForm>(`/forms/${id}`);
   } catch (error) {
     if (error instanceof ServiceError) throw error;
     if (error instanceof MockApiError && error.status === 404) {
@@ -72,6 +69,10 @@ async function getLiveForm(id: string): Promise<MockForm> {
     }
     throw error;
   }
+  if (!form || form.deleted_at) {
+    throw new ServiceError("FORM_NOT_FOUND", 404);
+  }
+  return form;
 }
 
 async function assertEventEditable(eventId: string): Promise<MockEvent> {
