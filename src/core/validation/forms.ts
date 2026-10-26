@@ -25,7 +25,7 @@ const questionTypeSchema = z.enum([
 ]);
 
 const choiceSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.uuid().optional(),
   label: z.string(),
   display_order: z.number().int().positive(),
 });
@@ -42,7 +42,7 @@ const labelSchema = z.object({
 const questionSchema = z
   .object({
     question: z.object({
-      id: z.string().uuid().optional(),
+      id: z.uuid().optional(),
       type: questionTypeSchema,
       display_order: z.number().int().positive(),
       min_number: z.number(),
@@ -80,7 +80,7 @@ const headLocaleSchema = z.object({
 });
 
 const formShapeSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.uuid().optional(),
   head: z.object({
     en: headLocaleSchema,
     th: headLocaleSchema,
@@ -134,21 +134,21 @@ function refineQuestions(
 /** POST /api/event/forms — builder Form + eventId */
 export const createFormBodySchema = formShapeSchema
   .extend({
-    eventId: z.string().uuid(),
+    eventId: z.uuid(),
   })
   .superRefine((body, ctx) => refineQuestions(body.questions, ctx));
 
 /** PUT /api/event/forms/[id] — builder Form (eventId/type optional) */
 export const updateFormBodySchema = formShapeSchema
   .extend({
-    eventId: z.string().uuid().optional(),
+    eventId: z.uuid().optional(),
   })
   .superRefine((body, ctx) => refineQuestions(body.questions, ctx));
 
 export const formStatusPatchSchema = z.object({
   status: formStatusSchema,
-  opensAt: z.string().datetime().nullable().optional(),
-  closesAt: z.string().datetime().nullable().optional(),
+  opensAt: z.iso.datetime().nullable().optional(),
+  closesAt: z.iso.datetime().nullable().optional(),
   acceptingResponses: z.boolean().optional(),
 });
 
