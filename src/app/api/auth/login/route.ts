@@ -1,4 +1,3 @@
-import { issueVerifiedSession } from "@/core/auth/verified-session";
 import { loginWithMockCredentials } from "@/services/auth/login";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -26,9 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status });
     }
 
-    const response = NextResponse.json({ user: result.user });
-    issueVerifiedSession(response, result.user.id);
-    return response;
+    return NextResponse.json({ user: result.user });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Login failed";
     return NextResponse.json({ error: message }, { status: 502 });
