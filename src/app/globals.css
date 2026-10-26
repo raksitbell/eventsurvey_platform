@@ -1243,3 +1243,13 @@ pre[class*="language-"].line-numbers {
 .dark .es-swal-cancel:hover {
   background: #374151 !important;
 }
+
+/* The export view supplies a text-based, bilingual printable report. */
+@media print {
+  body:has(#event-print-report) * { visibility: hidden; }
+  body:has(#event-print-report) #event-print-report,
+  body:has(#event-print-report) #event-print-report * { visibility: visible; }
+  #event-print-report { position: absolute; inset: 0; padding: 2rem; color: black; background: white; }
+  #event-print-report table { width: 100%; margin-block-start: 2rem; border-collapse: collapse; }
+  #event-print-report th, #event-print-report td { padding: 0.75rem; border-block-end: 1px solid; text-align: start; }
+}

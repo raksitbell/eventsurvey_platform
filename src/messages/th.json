@@ -22,12 +22,20 @@
   },
   "sidebar": {
     "groups": {
-      "workspace": "พื้นที่ทำงาน"
+      "workspace": "พื้นที่ทำงาน",
+      "event": "EVENT"
     },
     "items": {
       "overview": "ภาพรวม",
       "owners": "เจ้าของอีเวนต์",
-      "eventHome": "ภาพรวม"
+      "eventHome": "ภาพรวม",
+      "eventWorkspace": "Event Workspace",
+      "dashboard": "Dashboard",
+      "analytics": "Analytics",
+      "builder": "จัดการแดชบอร์ด",
+      "responses": "ข้อมูลคำตอบ",
+      "exports": "ส่งออกรายงาน",
+      "trash": "รายการที่ลบ"
     },
     "roles": {
       "superAdmin": "ผู้ดูแลระบบ",
@@ -164,6 +172,33 @@
       "actions": "การกระทำ"
     }
   },
+  "eventDashboard": {
+    "title": "แดชบอร์ดกิจกรรม",
+    "description": "สรุปสถิติภาพรวมและการมีส่วนร่วมของกิจกรรมแบบเรียลไทม์",
+    "kpis": {
+      "totalResponses": "ยอดคำตอบทั้งหมด",
+      "registrations": "การลงทะเบียน",
+      "surveys": "แบบสอบถาม",
+      "completionRate": "อัตราการตอบสมบูรณ์"
+    },
+    "charts": {
+      "responseTrend": "แนวโน้มการตอบรายวัน",
+      "formDistribution": "สัดส่วนคำตอบแยกตามแบบฟอร์ม"
+    },
+    "recentActivity": {
+      "title": "กิจกรรมคำตอบล่าสุด",
+      "viewAll": "ดูทั้งหมดในระบบวิเคราะห์",
+      "formName": "ชื่อแบบฟอร์ม",
+      "submittedAt": "เวลาที่ส่ง",
+      "status": "สถานะ",
+      "verified": "ยืนยันแล้ว",
+      "completed": "เสร็จสมบูรณ์"
+    },
+    "quickActions": {
+      "openAnalytics": "เปิดหน้าวิเคราะห์ผล",
+      "openBuilder": "จัดวางแดชบอร์ด"
+    }
+  },
   "eventHome": {
     "title": "ภาพรวมอีเวนต์",
     "description": "พื้นที่นี้สำหรับบทบาท event_owner และ sub_user เท่านั้น ผู้ดูแลระบบเข้าได้โดยสวมสิทธิ์จากเมนูเจ้าของอีเวนต์",
@@ -179,6 +214,64 @@
       "published": "เผยแพร่แล้ว",
       "closed": "ปิดแล้ว",
       "archived": "เก็บถาวร"
+    }
+  },
+  "eventAnalytics": {
+    "brand": {
+      "title": "EventSurvey",
+      "subtitle": "ลงทะเบียนและแบบสอบถามกิจกรรม"
+    },
+    "title": "Analytics",
+    "description": "Monitor registration, attendance and response activity for this event.",
+    "metrics": {
+      "registrations": {
+        "title": "Registrations",
+        "value": "428",
+        "trend": "+12.5% this week"
+      },
+      "attendance": {
+        "title": "Attendance",
+        "value": "312",
+        "trend": "72.9% checked in"
+      },
+      "surveyResponses": {
+        "title": "Survey responses",
+        "value": "186",
+        "trend": "43.4% response rate"
+      },
+      "completion": {
+        "title": "Completion",
+        "value": "84%",
+        "trend": "+6.1% from last event"
+      }
+    },
+    "chart": {
+      "title": "Registration trend",
+      "subtitle": "Last 7 days",
+      "seriesName": "Registrations",
+      "days": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      }
+    },
+    "insights": {
+      "title": "Key insights",
+      "highlightTitle": "Strongest day: Saturday",
+      "highlightDesc": "176 registrations followed the latest campaign.",
+      "bullet1": "Registration conversion is 68%",
+      "bullet2": "54% registered on mobile",
+      "bullet3": "Survey completion is on target",
+      "exportButton": "Export report",
+      "exportSuccess": "ส่งออกรายงานเรียบร้อยแล้ว"
+    },
+    "footer": {
+      "copyright": "© EventSurvey",
+      "privacyPolicy": "นโยบายความเป็นส่วนตัว"
     }
   },
   "notFound": {
@@ -206,6 +299,137 @@
       "title": "บริการไม่พร้อมใช้งาน",
       "message": "ระบบกำลังบำรุงรักษาหรือไม่พร้อมให้บริการชั่วคราว",
       "backHome": "กลับหน้าหลัก"
+    }
+  },
+  "eventReports": {
+    "navigation": "เครื่องมือกิจกรรม",
+    "loading": "กำลังโหลด…",
+    "loadError": "ไม่สามารถโหลดข้อมูลกิจกรรมได้ กรุณาลองอีกครั้ง",
+    "retry": "ลองอีกครั้ง",
+    "actionError": "ดำเนินการไม่สำเร็จ กรุณาโหลดข้อมูลล่าสุดและลองอีกครั้ง",
+    "empty": "ไม่มีข้อมูลที่จะแสดง",
+    "id": "รหัสคำตอบ",
+    "respondent": "ผู้ตอบ",
+    "submitted": "ส่งเมื่อ",
+    "score": "คะแนน",
+    "status": "สถานะ",
+    "complete": "ครบถ้วน",
+    "partial": "ไม่ครบถ้วน",
+    "search": "ค้นหาผู้ตอบหรือรหัสคำตอบ",
+    "export": "ส่งออกข้อมูล",
+    "showing": "แสดง {count} จาก {total} คำตอบ",
+    "all": "ดูทั้งหมด",
+    "less": "แสดงน้อยลง",
+    "items": "{count} รายการ",
+    "item": "รายการ",
+    "deletedBy": "ลบโดย",
+    "expires": "หมดอายุใน",
+    "action": "การดำเนินการ",
+    "days": "{count} วัน",
+    "restore": "กู้คืน",
+    "generate": "สร้างไฟล์",
+    "download": "ดาวน์โหลด",
+    "count": "จำนวน",
+    "resource": {
+      "form": "แบบฟอร์ม",
+      "form_field": "คำถาม",
+      "field_option": "ตัวเลือก",
+      "whitelist_entry": "รายชื่อที่อนุญาต",
+      "submission": "คำตอบ"
+    },
+    "responses": {
+      "title": "ข้อมูลคำตอบ",
+      "description": "ตรวจสอบคำตอบรายบุคคลและติดตามความครบถ้วนของข้อมูล",
+      "heading": "คำตอบแบบสำรวจ",
+      "summary": "ส่งแล้ว {count} คำตอบ · ครบถ้วน {rate}%",
+      "latest": "คำตอบล่าสุด",
+      "detail": "รายละเอียดคำตอบ"
+    },
+    "exports": {
+      "title": "ส่งออกรายงาน",
+      "description": "สร้างรายงานกิจกรรมจากข้อมูลล่าสุดของแบบฟอร์มที่ผ่านการอนุมัติ",
+      "heading": "สร้างไฟล์ส่งออก",
+      "hint": "เลือกรูปแบบไฟล์และข้อมูลที่ต้องการนำไปใช้งาน",
+      "current": "ข้อมูลล่าสุดจาก API",
+      "responses": "ตารางข้อมูลคำตอบ",
+      "responsesHint": "คำตอบและฟิลด์จากแบบฟอร์มที่อนุมัติ ในรูปแบบ CSV",
+      "summary": "สรุปกิจกรรม",
+      "summaryHint": "จำนวนคำตอบแยกตามแบบฟอร์มที่อนุมัติ ในรูปแบบ CSV",
+      "pdf": "รายงาน PDF",
+      "pdfHint": "สรุปกิจกรรมสำหรับพิมพ์ เลือกบันทึกเป็น PDF ในหน้าต่างพิมพ์",
+      "print": "พิมพ์ / บันทึก PDF",
+      "last": "ไฟล์ส่งออกล่าสุดในครั้งนี้",
+      "noApproved": "ยังไม่มีคำตอบจากแบบฟอร์มที่อนุมัติสำหรับส่งออก"
+    },
+    "trash": {
+      "title": "รายการที่ลบ",
+      "description": "กู้คืนเนื้อหาที่เพิ่งลบก่อนสิ้นสุดระยะเวลาเก็บรักษา",
+      "retention": "เก็บรายการที่ลบไว้ 30 วัน",
+      "hint": "กู้คืนแบบฟอร์มที่มีสิทธิ์ก่อนสิ้นสุดระยะเวลาเก็บรักษา",
+      "heading": "รายการที่เพิ่งลบ",
+      "footer": "รายการหมดอายุและคำตอบที่ลบแล้วไม่สามารถกู้คืนได้",
+      "unavailable": "ไม่สามารถกู้คืนได้",
+      "confirm": "ต้องการกู้คืนแบบฟอร์มนี้กลับไปยังกิจกรรมหรือไม่?",
+      "restored": "กู้คืนแบบฟอร์มสำเร็จ"
+    },
+    "builder": {
+      "title": "จัดการแดชบอร์ด",
+      "description": "จัดวางวิดเจ็ตและเผยแพร่แดชบอร์ดด้วยข้อมูลกิจกรรมของคุณ",
+      "widgets": "วิดเจ็ต",
+      "drag": "ลากลงพื้นที่หรือคลิกเพื่อเพิ่ม",
+      "number": "ตัวเลขสรุป",
+      "comparison": "เปรียบเทียบ",
+      "chart": "กราฟ",
+      "tip": "ใช้จุดจับลากหรือปุ่มลูกศรเพื่อย้ายวิดเจ็ต ปรับความกว้างในแผงตั้งค่า",
+      "settings": "ตั้งค่าวิดเจ็ต",
+      "widgetTitle": "ชื่อวิดเจ็ต",
+      "source": "แหล่งข้อมูล",
+      "allForms": "ทุกแบบฟอร์ม",
+      "field": "ฟิลด์ข้อมูล",
+      "none": "ไม่เลือกฟิลด์ · นับคำตอบ",
+      "display": "การแสดงผล",
+      "line": "กราฟเส้น",
+      "bar": "กราฟแท่ง",
+      "pie": "กราฟวงกลม",
+      "donut": "กราฟโดนัท",
+      "aggregation": "วิธีคำนวณ",
+      "count": "จำนวน",
+      "sum": "ผลรวม",
+      "average": "ค่าเฉลี่ย",
+      "minimum": "ค่าต่ำสุด",
+      "maximum": "ค่าสูงสุด",
+      "percentage": "ค่าที่มากกว่าศูนย์ (%)",
+      "target": "เป้าหมาย",
+      "capacity": "เป้าหมายความจุ",
+      "previous_period": "ช่วงเวลาก่อนหน้า",
+      "range": "ช่วงวันที่",
+      "lastDays": "{count} วันที่ผ่านมา",
+      "allTime": "ทุกช่วงเวลา",
+      "width": "ความกว้างวิดเจ็ต (คอลัมน์)",
+      "remove": "นำวิดเจ็ตออก",
+      "noComparison": "ไม่มีข้อมูลเปรียบเทียบ",
+      "change": "{value}% เทียบกับช่วงก่อนหน้า",
+      "progress": "{value}% ของเป้าหมาย",
+      "save": "บันทึกฉบับร่าง",
+      "loadDraft": "โหลดฉบับร่าง",
+      "publish": "เผยแพร่",
+      "publishConfirm": "แทนที่การตั้งค่าแดชบอร์ดกิจกรรมด้วยวิดเจ็ตเหล่านี้หรือไม่?",
+      "published": "เผยแพร่แดชบอร์ดสำเร็จ",
+      "saved": "บันทึกฉบับร่างในอุปกรณ์นี้แล้ว",
+      "noDraft": "ไม่มีฉบับร่างในอุปกรณ์นี้",
+      "draftHint": "ฉบับร่างเก็บในอุปกรณ์นี้ การเผยแพร่จะบันทึกการตั้งค่าร่วมของกิจกรรม",
+      "readOnly": "คุณดูแดชบอร์ดนี้ได้ การแก้ไขต้องมีสิทธิ์จัดการแดชบอร์ด",
+      "unsaved": "มีการแก้ไขที่ยังไม่บันทึก",
+      "canvas": "แดชบอร์ดกิจกรรม",
+      "grid": "กริด 12 คอลัมน์ · รองรับหลายขนาดหน้าจอ",
+      "edit": "ตั้งค่า",
+      "up": "ย้ายวิดเจ็ตไปก่อนหน้า",
+      "down": "ย้ายวิดเจ็ตไปถัดไป",
+      "select": "เลือกวิดเจ็ตเพื่อตั้งค่า"
+    },
+    "dashboard": {
+      "title": "แดชบอร์ดกิจกรรม",
+      "description": "ข้อมูลล่าสุดตามวิดเจ็ตที่เผยแพร่สำหรับกิจกรรมของคุณ"
     }
   }
 }

@@ -1,9 +1,7 @@
+import { bindMockUserAccess } from "@/services/auth/access";
 import { mockApi } from "@/core/api/mock-client";
 import { resolveEventTitle } from "@/core/mock/event-title";
-import {
-  isActiveMockUser,
-  mapMockUserToUser,
-} from "@/core/mock/map-user";
+import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
   AdminUserListItem,
@@ -30,12 +28,14 @@ export async function getBoundAdminUsers(
   role?: string,
   locale: Locale = routing.defaultLocale,
 ): Promise<AdminUsersResponse> {
-  const [mockUsers, events, translations, roles] = await Promise.all([
+  const [rawUsers, events, translations, roles] = await Promise.all([
     mockApi.get<MockUser[]>("/users?_sort=created_at&_order=asc"),
     mockApi.get<MockEvent[]>("/events"),
     mockApi.get<MockEventTranslation[]>("/event_translations"),
     mockApi.get<MockRole[]>("/roles"),
   ]);
+
+  const mockUsers = await Promise.all(rawUsers.map(bindMockUserAccess));
 
   const liveEvents = new Set(
     events.filter((event) => !event.deleted_at).map((event) => event.id),
@@ -53,8 +53,7 @@ export async function getBoundAdminUsers(
     .filter(isActiveMockUser)
     .map(mapMockUserToUser)
     .filter(
-      (user): user is User =>
-        user !== null && PORTAL_ROLES.includes(user.role),
+      (user): user is User => user !== null && PORTAL_ROLES.includes(user.role),
     );
 
   if (role && role !== "all" && PORTAL_ROLES.includes(role as UserRole)) {
@@ -113,7 +112,7 @@ export async function getUserForImpersonation(
 ): Promise<User | null> {
   const mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
   if (!mockUser || !isActiveMockUser(mockUser)) return null;
-  const user = mapMockUserToUser(mockUser);
+  const user = mapMockUserToUser(await bindMockUserAccess(mockUser));
   if (!user) return null;
   return stripPassword(user) as User;
 }

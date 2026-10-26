@@ -1,9 +1,7 @@
+import { bindMockUserAccess } from "@/services/auth/access";
 import { mockApi } from "@/core/api/mock-client";
 import { resolveEventTitle } from "@/core/mock/event-title";
-import {
-  isActiveMockUser,
-  mapMockUserToUser,
-} from "@/core/mock/map-user";
+import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import { routing, type Locale } from "@/i18n/routing";
 import type { EventWorkspace } from "@/types/event/workspace";
 import type {
@@ -18,7 +16,10 @@ export async function getEventWorkspace(
   userId: string,
   locale: Locale = routing.defaultLocale,
 ): Promise<EventWorkspace | null> {
-  const mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
+  const rawUser = await mockApi.get<MockUser>(
+    `/users/${encodeURIComponent(userId)}`,
+  );
+  const mockUser = await bindMockUserAccess(rawUser);
   if (!mockUser || !isActiveMockUser(mockUser)) return null;
 
   const user = mapMockUserToUser(mockUser);

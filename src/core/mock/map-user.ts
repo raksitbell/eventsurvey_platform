@@ -32,7 +32,7 @@ export function mapMockUserToUser(user: MockUser): User | null {
     status: mapStatus(user.status),
     ownerId:
       user.event_role === "event_sub_user" ? user.invited_by_user_id : null,
-    canViewSensitiveData: user.can_view_unmasked_pii,
+    canViewSensitiveData: Boolean(user.can_view_unmasked_pii),
     isDeleted: isRemoved,
     deletedAt: user.removed_at,
     anonymizedAt: null,
