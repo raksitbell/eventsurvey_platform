@@ -4,6 +4,7 @@ import {
   isActiveMockUser,
   mapMockUserToUser,
 } from "@/core/mock/map-user";
+import { getRolePermissions } from "@/core/mock/role-permissions";
 import { routing, type Locale } from "@/i18n/routing";
 import type { EventWorkspace } from "@/types/event/workspace";
 import type {
@@ -21,7 +22,8 @@ export async function getEventWorkspace(
   const mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
   if (!mockUser || !isActiveMockUser(mockUser)) return null;
 
-  const user = mapMockUserToUser(mockUser);
+  const permissions = await getRolePermissions(mockUser.role_id);
+  const user = mapMockUserToUser(mockUser, permissions);
   if (!user || (user.role !== "event_owner" && user.role !== "sub_user")) {
     return null;
   }

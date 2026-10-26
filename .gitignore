@@ -44,3 +44,9 @@ next-env.d.ts
 # wiki generator output
 /.wiki-build
 /.wiki-data
+
+# planing
+.cursor
+
+# local working docs (not part of the app)
+/docs
