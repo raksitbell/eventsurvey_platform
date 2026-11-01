@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { EyeIcon } from "@/icons";
 import {
   Choice,
   Form,
@@ -14,6 +15,7 @@ import {
 import FormHeaderCard from "./FormHeaderCard";
 import QuestionCard from "./QuestionCard";
 import FloatingToolbar from "./FloatingToolbar";
+import FormPreview from "./FormPreview/FormPreview";
 
 const CHOICE_QUESTION_TYPES: QuestionType[] = [
   "multiple_choice",
@@ -80,6 +82,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     };
   });
 
+  const [isPreview, setIsPreview] = useState<boolean>(false);
   const [activeSectionId, setActiveSectionId] = useState<string>(() =>
     form.questions[0]?.question.id ?? "header",
   );
@@ -556,6 +559,12 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
+  if (isPreview) {
+    return (
+      <FormPreview form={form} onExitPreview={() => setIsPreview(false)} />
+    );
+  }
+
   return (
     <div className="font-sans min-h-screen bg-[#F8F9FA] px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10">
       {/* Header Area */}
@@ -563,13 +572,23 @@ export default function FormBuilder({ type }: { type: FormType }) {
         <h1 className="text-xl font-bold text-[#202124] sm:text-2xl md:text-3xl">
           Form Builder
         </h1>
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium transition-colors hover:bg-blue-50 md:me-16"
-        >
-          {tcommon("back")}
-        </button>
+        <div className="flex items-center gap-2 md:me-16">
+          <button
+            type="button"
+            onClick={() => setIsPreview(true)}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-indigo-50 hover:text-[#5C54D1]"
+          >
+            <EyeIcon className="h-4 w-4" />
+            <span>{t("preview.button")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium transition-colors hover:bg-blue-50"
+          >
+            {tcommon("back")}
+          </button>
+        </div>
       </div>
 
       <div className="relative mx-auto flex max-w-4xl items-start gap-4">
