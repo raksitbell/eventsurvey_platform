@@ -386,6 +386,20 @@
         "mockReadOnly": "Mock API cannot save changes (read-only). Run the local mock API and point MOCK_API_BASE_URL to it.",
         "generic": "Failed to update event"
       }
+    },
+    "preview": {
+      "button": "Preview",
+      "editForm": "Back to edit",
+      "requiredNote": "* Indicates required question",
+      "requiredError": "This is a required question",
+      "yourAnswer": "Your answer",
+      "choose": "Choose",
+      "clearSelection": "Clear selection",
+      "submit": "Submit",
+      "clearForm": "Clear form",
+      "submittedDesc": "Your response has been recorded.",
+      "submitAnother": "Submit another response",
+      "untitledQuestion": "Untitled Question"
     }
   },
   "participantDisplay": {
