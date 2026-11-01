@@ -202,18 +202,31 @@
     "builder": {
       "description": "คำอธิบาย",
       "choice": {
-        "short_text": "Short Text",
-        "long_text": "Long Text",
-        "multiple_choice":"Multiple Choice",
-        "dropdown": "Dropdown",
-        "checkbox": "Checkbox",
-        "radio": "Radio",
-        "date": "Date",
-        "time": "Time",
-        "number": "Number",
-        "rating": "Rating"
+        "short_text": "คำตอบสั้นๆ",
+        "long_text": "คำตอบยาว",
+        "multiple_choice": "หลายตัวเลือก",
+        "dropdown": "รายการแบบเลื่อนลง",
+        "checkbox": "ช่องทำเครื่องหมาย",
+        "radio": "ตัวเลือกเดียว",
+        "date": "วันที่",
+        "time": "เวลา",
+        "number": "ตัวเลข",
+        "rating": "การให้คะแนน"
       }
-
+    },
+    "preview": {
+      "button": "ดูตัวอย่าง",
+      "editForm": "กลับไปแก้ไขฟอร์ม",
+      "requiredNote": "* ระบุว่าเป็นคำถามที่จำเป็น",
+      "requiredError": "คำถามนี้จำเป็นต้องตอบ",
+      "yourAnswer": "คำตอบของคุณ",
+      "choose": "เลือก",
+      "clearSelection": "ล้างการเลือก",
+      "submit": "ส่ง",
+      "clearForm": "ล้างแบบฟอร์ม",
+      "submittedDesc": "เราได้บันทึกคำตอบของคุณไว้แล้ว",
+      "submitAnother": "ส่งคำตอบเพิ่ม",
+      "untitledQuestion": "คำถามที่ไม่มีชื่อ"
     }
   },
 

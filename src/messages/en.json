@@ -204,7 +204,7 @@
       "choice": {
         "short_text": "Short Text",
         "long_text": "Long Text",
-        "multiple_choice":"Multiple Choice",
+        "multiple_choice": "Multiple Choice",
         "dropdown": "Dropdown",
         "checkbox": "Checkbox",
         "radio": "Radio",
@@ -213,6 +213,20 @@
         "number": "Number",
         "rating": "Rating"
       }
+    },
+    "preview": {
+      "button": "Preview",
+      "editForm": "Back to edit",
+      "requiredNote": "* Indicates required question",
+      "requiredError": "This is a required question",
+      "yourAnswer": "Your answer",
+      "choose": "Choose",
+      "clearSelection": "Clear selection",
+      "submit": "Submit",
+      "clearForm": "Clear form",
+      "submittedDesc": "Your response has been recorded.",
+      "submitAnother": "Submit another response",
+      "untitledQuestion": "Untitled Question"
     }
   },
 
