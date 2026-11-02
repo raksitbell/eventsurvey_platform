@@ -1,4 +1,4 @@
-import PlatformOverview from "@/components/admin/PlatformOverview";
+import PlatformOverview from "@/components/admin/overview/PlatformOverview";
 
 export default async function AdminHomePage() {
 

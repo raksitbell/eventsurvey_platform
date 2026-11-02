@@ -1,8 +1,8 @@
 "use client";
 
-import EventStatusChart from "@/components/admin/EventStatusChart";
-import PlatformGrowthChart from "@/components/admin/PlatformGrowthChart";
-import TopEventsChart from "@/components/admin/TopEventsChart";
+import EventStatusChart from "./EventStatusChart";
+import PlatformGrowthChart from "./PlatformGrowthChart";
+import TopEventsChart from "./TopEventsChart";
 import { api } from "@/core/api";
 import { formatDateTime } from "@/core/i18n/format-datetime";
 import type { Locale } from "@/i18n/routing";
