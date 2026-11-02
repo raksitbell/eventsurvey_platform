@@ -58,66 +58,7 @@ const AppHeader: React.FC = () => {
           )}
         </button>
 
-        <div className="relative hidden min-w-0 flex-1 md:block">
-          <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-gray-400">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-          <input
-            type="search"
-            placeholder={t("searchPlaceholder")}
-            className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 ps-10 pe-4 text-sm text-gray-700 outline-hidden placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/5 dark:text-gray-200 dark:placeholder:text-gray-500"
-          />
-        </div>
-
         <div className="ms-auto flex items-center gap-2 sm:gap-3">
-          <label className="relative hidden sm:block">
-            <select
-              value={range}
-              onChange={(e) => setRange(e.target.value)}
-              className="h-11 appearance-none rounded-xl border border-gray-200 bg-white pe-9 ps-3 text-theme-sm font-medium text-gray-700 outline-hidden dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
-            >
-              <option value="7">{t("ranges.last7")}</option>
-              <option value="30">{t("ranges.last30")}</option>
-              <option value="90">{t("ranges.last90")}</option>
-            </select>
-            <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-gray-400">
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M5 7.5 10 12.5 15 7.5"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-          </label>
-
-          <button
-            type="button"
-            className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400"
-            aria-label={t("notifications")}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 7H3s3 0 3-7ZM10 19a2 2 0 0 0 4 0"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className="absolute end-2.5 top-2.5 size-2 rounded-full bg-error-500" />
-          </button>
-
           <UserDropdown />
         </div>
       </div>

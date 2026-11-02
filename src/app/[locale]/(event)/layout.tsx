@@ -15,11 +15,13 @@ export default function EventLayout({
 }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
+  // Must match AppSidebar dock breakpoint (`xl`). Using `lg` left a gap
+  // between 1024–1279px where the sidebar is off-canvas but content still indented.
   const mainContentMargin = isMobileOpen
     ? "ms-0"
     : isExpanded || isHovered
-      ? "lg:ms-[280px]"
-      : "lg:ms-[90px]";
+      ? "xl:ms-[280px]"
+      : "xl:ms-[90px]";
 
   return (
     <AuthGuard area="event">

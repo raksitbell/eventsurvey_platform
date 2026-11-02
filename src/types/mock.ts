@@ -189,3 +189,57 @@ export interface MockFormSubmission {
   deleted_by_user_id: string | null;
   deleted_at: string | null;
 }
+
+export type MockApprovalTargetType =
+  | "event"
+  | "registration_form"
+  | "survey_form";
+export type MockApprovalStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+export type MockDeletionRequestStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "completed";
+
+export interface MockApprovalRequest {
+  id: string;
+  event_id: string;
+  target_type: MockApprovalTargetType;
+  target_id: string;
+  requested_by_user_id: string;
+  reviewed_by_user_id: string | null;
+  status: MockApprovalStatus;
+  reviewer_note: string | null;
+  requested_at: string;
+  reviewed_at: string | null;
+}
+
+export interface MockHardDeleteRequest {
+  id: string;
+  event_id: string;
+  resource_type: string;
+  resource_id: string;
+  reason: string;
+  requested_by_user_id: string;
+  reviewed_by_user_id: string | null;
+  status: MockDeletionRequestStatus;
+  requested_at: string;
+  reviewed_at: string | null;
+  completed_at: string | null;
+}
+
+export interface MockAuditLog {
+  id: string;
+  event_id: string | null;
+  actor_user_id: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  description: string | null;
+  includes_unmasked_pii: boolean;
+  occurred_at: string;
+}

@@ -1,28 +1,33 @@
 "use client";
 
-import ResponseActivityChart from "@/components/admin/ResponseActivityChart";
+import EventStatusChart from "@/components/admin/EventStatusChart";
+import PlatformGrowthChart from "@/components/admin/PlatformGrowthChart";
+import TopEventsChart from "@/components/admin/TopEventsChart";
 import { api } from "@/core/api";
-import { Link } from "@/i18n/navigation";
-import { ArrowRightIcon } from "@/icons";
-import type { AdminOverviewResponse } from "@/types/admin/overview";
-import { useTranslations } from "next-intl";
+import { formatDateTime } from "@/core/i18n/format-datetime";
+import type { Locale } from "@/i18n/routing";
+import type { AdminOverviewResponse, HealthStatus } from "@/types/admin/overview";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-const healthItems = [
-  { key: "coreApi", status: "operational" as const },
-  { key: "responseQueue", status: "operational" as const },
-  { key: "storage", status: "attention" as const },
-];
+const metricKeys = [
+  "events",
+  "users",
+  "registrationForms",
+  "surveys",
+] as const;
 
-function formatMetric(value: number, key: string) {
-  if (key === "responses" && value >= 1000) {
-    return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
-  }
-  return String(value);
+const healthKeys = ["coreApi", "database", "formSystem"] as const;
+
+function healthBadgeClass(status: HealthStatus) {
+  return status === "operational"
+    ? "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400"
+    : "bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400";
 }
 
 export default function PlatformOverview() {
   const t = useTranslations("adminHome");
+  const locale = useLocale() as Locale;
   const [overview, setOverview] = useState<AdminOverviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +36,9 @@ export default function PlatformOverview() {
 
     async function load() {
       try {
-        const data = await api.get<AdminOverviewResponse>("/admin/overview");
+        const data = await api.get<AdminOverviewResponse>(
+          `/admin/overview?locale=${encodeURIComponent(locale)}`,
+        );
         if (!cancelled) {
           setOverview(data);
           setError(null);
@@ -45,28 +52,7 @@ export default function PlatformOverview() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
-
-  const metrics = [
-    {
-      key: "owners" as const,
-      value: overview ? formatMetric(overview.metrics.owners, "owners") : "—",
-    },
-    {
-      key: "events" as const,
-      value: overview ? formatMetric(overview.metrics.events, "events") : "—",
-    },
-    {
-      key: "forms" as const,
-      value: overview ? formatMetric(overview.metrics.forms, "forms") : "—",
-    },
-    {
-      key: "responses" as const,
-      value: overview
-        ? formatMetric(overview.metrics.responses, "responses")
-        : "—",
-    },
-  ];
+  }, [locale, t]);
 
   return (
     <div className="space-y-6">
@@ -86,55 +72,37 @@ export default function PlatformOverview() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <div
-            key={metric.key}
-            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3"
-          >
-            <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-              {t(`metrics.${metric.key}`)}
-            </p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
-              {metric.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs xl:col-span-2 dark:border-gray-800 dark:bg-white/3">
-          <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
-            {t("responseActivity")}
-          </h2>
-          <ResponseActivityChart />
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
-          <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
-            {t("systemHealth")}
-          </h2>
-          <ul className="space-y-3">
-            {healthItems.map((item) => (
-              <li
-                key={item.key}
-                className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-3 dark:bg-white/5"
-              >
-                <span className="text-theme-sm text-gray-700 dark:text-gray-300">
-                  {t(`health.${item.key}`)}
-                </span>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-theme-xs font-medium ${
-                    item.status === "operational"
-                      ? "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400"
-                      : "bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400"
-                  }`}
-                >
-                  {t(`health.status.${item.status}`)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {metricKeys.map((key) => {
+          const pair = overview?.metrics[key];
+          return (
+            <div
+              key={key}
+              className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3"
+            >
+              <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+                {t(`metrics.${key}`)}
+              </p>
+              <p className="mt-3 text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
+                {pair ? (
+                  <>
+                    <span>{pair.active}</span>
+                    <span className="mx-1 text-xl font-medium text-gray-400 dark:text-gray-500">
+                      /
+                    </span>
+                    <span className="text-xl font-medium text-gray-500 dark:text-gray-400">
+                      {pair.total}
+                    </span>
+                  </>
+                ) : (
+                  "—"
+                )}
+              </p>
+              <p className="mt-2 text-theme-xs text-gray-400 dark:text-gray-500">
+                {t("metrics.activeLabel")} / {t("metrics.totalLabel")}
+              </p>
+            </div>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -153,14 +121,14 @@ export default function PlatformOverview() {
                   key={item.id}
                   className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="size-2.5 rounded-full bg-brand-500" />
-                    <span className="text-theme-sm text-gray-700 dark:text-gray-300">
-                      {t(`activity.${item.labelKey}`)}
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="size-2.5 shrink-0 rounded-full bg-brand-500" />
+                    <span className="truncate text-theme-sm text-gray-700 dark:text-gray-300">
+                      {item.description}
                     </span>
                   </div>
                   <span className="shrink-0 text-theme-xs text-gray-400">
-                    {new Date(item.at).toLocaleDateString()}
+                    {formatDateTime(item.at, locale)}
                   </span>
                 </li>
               ))
@@ -170,24 +138,86 @@ export default function PlatformOverview() {
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
           <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
-            {t("governance")}
+            {t("serviceStatus")}
           </h2>
-          <div className="space-y-2">
-            <Link
-              href="/admin/users"
-              className="flex items-center justify-between rounded-xl px-3 py-3 text-theme-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
-            >
-              {t("manageOwners")}
-              <ArrowRightIcon className="size-4 text-gray-400 rtl:rotate-180" />
-            </Link>
-            <button
-              type="button"
-              className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-start text-theme-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
-            >
-              {t("reviewAudit")}
-              <ArrowRightIcon className="size-4 text-gray-400 rtl:rotate-180" />
-            </button>
-          </div>
+          <ul className="space-y-3">
+            {healthKeys.map((key) => {
+              const status = overview?.health[key] ?? "operational";
+              return (
+                <li
+                  key={key}
+                  className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-3 dark:bg-white/5"
+                >
+                  <span className="text-theme-sm text-gray-700 dark:text-gray-300">
+                    {t(`health.${key}`)}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-theme-xs font-medium ${healthBadgeClass(status)}`}
+                  >
+                    {t(`health.status.${status}`)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs xl:col-span-2 dark:border-gray-800 dark:bg-white/3">
+          <h2 className="mb-1 text-base font-semibold text-gray-900 dark:text-white/90">
+            {t("growthTitle")}
+          </h2>
+          <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
+            {t("growthHint")}
+          </p>
+          <PlatformGrowthChart growth={overview?.growth ?? null} />
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
+          <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
+            {t("eventStatusTitle")}
+          </h2>
+          <EventStatusChart breakdown={overview?.eventStatusBreakdown ?? null} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
+          <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
+            {t("topEventsTitle")}
+          </h2>
+          <TopEventsChart topEvents={overview?.topEvents ?? null} />
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
+          <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
+            {t("piiActivityTitle")}
+          </h2>
+          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+            {(overview?.piiActivity ?? []).length === 0 ? (
+              <li className="py-3 text-sm text-gray-500 dark:text-gray-400">
+                {t("piiActivityEmpty")}
+              </li>
+            ) : (
+              overview?.piiActivity.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="size-2.5 shrink-0 rounded-full bg-warning-500" />
+                    <span className="truncate text-theme-sm text-gray-700 dark:text-gray-300">
+                      {item.description}
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-theme-xs text-gray-400">
+                    {formatDateTime(item.at, locale)}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
         </div>
       </div>
     </div>
