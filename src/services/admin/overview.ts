@@ -1,6 +1,11 @@
 import { mockApi } from "@/core/api/mock-client";
 import { resolveEventTitle } from "@/core/mock/event-title";
 import { routing, type Locale } from "@/i18n/routing";
+import {
+  assertCoreDataAvailable,
+  forecastSeries,
+  pickTopEvents,
+} from "@/services/admin/overview-helpers";
 import type {
   AdminOverviewResponse,
   EventStatusKey,
@@ -62,33 +67,6 @@ function countByMonth(timestamps: string[], categories: string[]): number[] {
     }
   }
   return categories.map((key) => counts.get(key) ?? 0);
-}
-
-/** Linear projection from the last 3 points; clamp at >= 0 */
-function forecastSeries(history: number[], months: number): number[] {
-  const window = history.slice(-3);
-  if (window.length === 0) return Array.from({ length: months }, () => 0);
-
-  const n = window.length;
-  let sumX = 0;
-  let sumY = 0;
-  let sumXY = 0;
-  let sumXX = 0;
-  for (let i = 0; i < n; i += 1) {
-    sumX += i;
-    sumY += window[i];
-    sumXY += i * window[i];
-    sumXX += i * i;
-  }
-  const denominator = n * sumXX - sumX * sumX;
-  const slope = denominator === 0 ? 0 : (n * sumXY - sumX * sumY) / denominator;
-  const intercept = (sumY - slope * sumX) / n;
-  const lastIndex = n - 1;
-
-  return Array.from({ length: months }, (_, offset) => {
-    const projected = intercept + slope * (lastIndex + 1 + offset);
-    return Math.max(0, Math.round(projected));
-  });
 }
 
 function formSystemStatus(
@@ -171,6 +149,9 @@ export async function getBoundAdminOverview(
     : "attention";
   const formSystem = formSystemStatus(forms, approvals);
 
+  // Any missing core table → 502 via route catch (avoid quiet 200 with zero KPIs).
+  assertCoreDataAvailable(coreTables);
+
   const liveEvents = (events ?? []).filter((event) => !event.deleted_at);
   const liveUsers = (users ?? []).filter((user) => !user.removed_at);
   const liveForms = (forms ?? []).filter((form) => !form.deleted_at);
@@ -194,15 +175,15 @@ export async function getBoundAdminOverview(
   }
 
   const translationRows = translations ?? [];
-  const topEvents = liveEvents
-    .map((event) => ({
+  const topEvents = pickTopEvents(
+    liveEvents.map((event) => ({
       eventId: event.id,
       title:
         resolveEventTitle(translationRows, event.id, locale) ?? event.slug,
       responseCount: responseCountByEvent.get(event.id) ?? 0,
-    }))
-    .sort((a, b) => b.responseCount - a.responseCount)
-    .slice(0, TOP_EVENTS_LIMIT);
+    })),
+    TOP_EVENTS_LIMIT,
+  );
 
   const statusCounts = new Map<EventStatusKey, number>(
     EVENT_STATUS_ORDER.map((status) => [status, 0]),

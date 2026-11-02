@@ -4,12 +4,10 @@ import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
 import { useTranslations } from "next-intl";
 import type React from "react";
-import { useState } from "react";
 
 const AppHeader: React.FC = () => {
   const t = useTranslations("header");
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
-  const [range, setRange] = useState("30");
 
   const handleToggle = () => {
     if (window.innerWidth >= 1280) {

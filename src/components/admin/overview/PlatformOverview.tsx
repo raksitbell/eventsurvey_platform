@@ -142,7 +142,7 @@ export default function PlatformOverview() {
           </h2>
           <ul className="space-y-3">
             {healthKeys.map((key) => {
-              const status = overview?.health[key] ?? "operational";
+              const status = overview?.health[key];
               return (
                 <li
                   key={key}
@@ -151,11 +151,18 @@ export default function PlatformOverview() {
                   <span className="text-theme-sm text-gray-700 dark:text-gray-300">
                     {t(`health.${key}`)}
                   </span>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-theme-xs font-medium ${healthBadgeClass(status)}`}
-                  >
-                    {t(`health.status.${status}`)}
-                  </span>
+                  {status ? (
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-theme-xs font-medium ${healthBadgeClass(status)}`}
+                    >
+                      {t(`health.status.${status}`)}
+                    </span>
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="inline-block h-6 w-20 animate-pulse rounded-full bg-gray-200 dark:bg-white/10"
+                    />
+                  )}
                 </li>
               );
             })}
