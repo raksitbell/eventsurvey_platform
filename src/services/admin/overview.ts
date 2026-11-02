@@ -8,30 +8,52 @@ import type {
   MockEvent,
   MockForm,
   MockFormSubmission,
+  MockPermissionCode,
+  MockRolePermission,
   MockUser,
 } from "@/types/mock";
 import type { User } from "@/types/user";
 
 const PUBLISHED_FORM_STATUSES = new Set(["approved", "published"]);
 
+function permissionsByRoleId(
+  rows: MockRolePermission[],
+): Map<string, MockPermissionCode[]> {
+  const map = new Map<string, MockPermissionCode[]>();
+  for (const row of rows) {
+    const list = map.get(row.role_id) ?? [];
+    list.push(row.permission);
+    map.set(row.role_id, list);
+  }
+  return map;
+}
+
 /** Bind users + events + forms + form_submissions for platform overview KPIs */
 export async function getBoundAdminOverview(): Promise<AdminOverviewResponse> {
-  const [mockUsers, events, forms, submissions] = await Promise.all([
-    mockApi.get<MockUser[]>("/users"),
-    mockApi.get<MockEvent[]>("/events"),
-    mockApi.get<MockForm[]>("/forms"),
-    mockApi.get<MockFormSubmission[]>("/form_submissions"),
-  ]);
+  const [mockUsers, events, forms, submissions, rolePermissions] =
+    await Promise.all([
+      mockApi.get<MockUser[]>("/users"),
+      mockApi.get<MockEvent[]>("/events"),
+      mockApi.get<MockForm[]>("/forms"),
+      mockApi.get<MockFormSubmission[]>("/form_submissions"),
+      mockApi.get<MockRolePermission[]>("/role_permissions"),
+    ]);
 
   const liveEvents = events.filter((event) => !event.deleted_at);
   const liveForms = forms.filter((form) => !form.deleted_at);
   const liveSubmissions = submissions.filter(
     (row) => row.status === "submitted" && !row.deleted_at,
   );
+  const permsByRole = permissionsByRoleId(rolePermissions);
 
   const owners = mockUsers
     .filter(isActiveMockUser)
-    .map(mapMockUserToUser)
+    .map((mock) =>
+      mapMockUserToUser(
+        mock,
+        mock.role_id ? (permsByRole.get(mock.role_id) ?? []) : [],
+      ),
+    )
     .filter((user): user is User => user?.role === "event_owner");
 
   const publishedForms = liveForms.filter((form) =>
