@@ -1,14 +1,13 @@
 import {
+  denyUnlessEventPermission,
   denyUnlessEventFormManager,
   isAuthSession,
   requireEventSession,
 } from "@/core/auth/api-guard";
 import { ServiceError } from "@/core/api/service-error";
-import {
-  formatZodError,
-  formStatusPatchSchema,
-} from "@/core/validation/forms";
+import { formatZodError, formStatusPatchSchema } from "@/core/validation/forms";
 import { getForm, updateFormStatus } from "@/services/event/forms";
+import { isApprovalDecision } from "@/core/forms/lifecycle";
 import { NextRequest, NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -35,13 +34,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  const denied = await denyUnlessEventFormManager(
-    sessionOrDeny.userId,
-    existing.type,
-    existing.eventId,
-  );
-  if (denied) return denied;
-
   let json: unknown;
   try {
     json = await request.json();
@@ -53,6 +45,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (!parsed.success) {
     return NextResponse.json(formatZodError(parsed.error), { status: 400 });
   }
+
+  const denied = isApprovalDecision(existing.status, parsed.data.status)
+    ? await denyUnlessEventPermission(
+        sessionOrDeny.userId,
+        "approve",
+        existing.eventId,
+      )
+    : await denyUnlessEventFormManager(
+        sessionOrDeny.userId,
+        existing.type,
+        existing.eventId,
+      );
+  if (denied) return denied;
 
   try {
     const data = await updateFormStatus(

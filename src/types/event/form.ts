@@ -12,6 +12,7 @@ export const QUESTIONS_TYPES = [
   "checkbox",
   "date",
   "time",
+  "number",
   "rating",
 ] as const;
 

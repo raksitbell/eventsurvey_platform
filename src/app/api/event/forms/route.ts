@@ -4,11 +4,9 @@ import {
   requireEventSession,
 } from "@/core/auth/api-guard";
 import { ServiceError } from "@/core/api/service-error";
-import {
-  createFormBodySchema,
-  formatZodError,
-} from "@/core/validation/forms";
+import { createFormBodySchema, formatZodError } from "@/core/validation/forms";
 import { createForm, listForms } from "@/services/event/forms";
+import type { FormType } from "@/types/event/form";
 import { NextRequest, NextResponse } from "next/server";
 
 /** GET /api/event/forms?eventId= — list live forms for an event */
@@ -37,12 +35,14 @@ export async function GET(request: NextRequest) {
     "survey",
     eventId,
   );
-  if (regDenied && surveyDenied) {
-    return regDenied;
-  }
+  if (regDenied && surveyDenied) return regDenied;
+
+  const allowedTypes: FormType[] = [];
+  if (!regDenied) allowedTypes.push("registration");
+  if (!surveyDenied) allowedTypes.push("survey");
 
   try {
-    const data = await listForms(eventId);
+    const data = await listForms(eventId, allowedTypes);
     return NextResponse.json(data);
   } catch (error) {
     const message =

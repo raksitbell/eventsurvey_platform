@@ -21,6 +21,7 @@ const questionTypeSchema = z.enum([
   "checkbox",
   "date",
   "time",
+  "number",
   "rating",
 ]);
 
@@ -156,11 +157,7 @@ export type CreateFormBody = z.infer<typeof createFormBodySchema>;
 export type UpdateFormBody = z.infer<typeof updateFormBodySchema>;
 export type FormStatusPatchBody = z.infer<typeof formStatusPatchSchema>;
 
-const CHOICE_TYPES = new Set([
-  "multiple_choice",
-  "checkbox",
-  "dropdown",
-]);
+const CHOICE_TYPES = new Set(["multiple_choice", "checkbox", "dropdown"]);
 
 /** Extra checks when publishing. */
 export function validatePublishReady(input: {

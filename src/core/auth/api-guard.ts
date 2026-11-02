@@ -1,12 +1,13 @@
 // noinspection ES6PreferShortImport
 import { NextResponse, type NextRequest } from "next/server";
 import { mockApi } from "@/core/api/mock-client";
+import { isActiveMockUser } from "@/core/mock/map-user";
 import {
-  isActiveMockUser,
-} from "@/core/mock/map-user";
-import { getRolePermissions, hasPermission } from "@/core/mock/role-permissions";
+  getRolePermissions,
+  hasPermission,
+} from "@/core/mock/role-permissions";
 import type { FormType } from "@/types/event/form";
-import type { MockUser } from "@/types/mock";
+import type { MockPermissionCode, MockUser } from "@/types/mock";
 // noinspection ES6PreferShortImport
 import {
   AUTH_SESSION_COOKIE,
@@ -81,6 +82,19 @@ export async function denyUnlessEventFormManager(
   formType: FormType,
   eventId?: string,
 ): Promise<NextResponse | null> {
+  return denyUnlessEventPermission(
+    userId,
+    formPermissionCode(formType),
+    eventId,
+  );
+}
+
+/** Ensure an active event user belongs to the event and has a permission. */
+export async function denyUnlessEventPermission(
+  userId: string,
+  permission: MockPermissionCode,
+  eventId?: string,
+): Promise<NextResponse | null> {
   let mockUser: MockUser;
   try {
     mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
@@ -95,7 +109,7 @@ export async function denyUnlessEventFormManager(
   }
 
   const permissions = await getRolePermissions(mockUser.role_id);
-  if (!hasPermission(permissions, formPermissionCode(formType))) {
+  if (!hasPermission(permissions, permission)) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
   return null;
