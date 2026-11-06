@@ -6,9 +6,13 @@ import {
   canEnterAdminArea,
   canEnterEventArea,
 } from "@/core/auth";
-import { GridIcon, GroupIcon, HorizontaLDots } from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils";
+import {
+  EllipsisHorizontalIcon,
+  Squares2X2Icon,
+  UsersIcon,
+} from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import type React from "react";
 
@@ -37,12 +41,12 @@ export default function AppSidebar() {
   );
 
   const adminNav: NavItem[] = [
-    { key: "overview", icon: <GridIcon />, path: "/admin" },
-    { key: "owners", icon: <GroupIcon />, path: "/admin/users" },
+    { key: "overview", icon: <Squares2X2Icon />, path: "/admin" },
+    { key: "owners", icon: <UsersIcon />, path: "/admin/users" },
   ];
 
   const eventNav: NavItem[] = [
-    { key: "eventHome", icon: <GridIcon />, path: "/event" },
+    { key: "eventHome", icon: <Squares2X2Icon />, path: "/event" },
   ];
 
   const navItems = isAdminArea
@@ -130,7 +134,7 @@ export default function AppSidebar() {
               !showExpanded ? "xl:justify-center" : "justify-start",
             )}
           >
-            {showExpanded ? t("groups.workspace") : <HorizontaLDots />}
+            {showExpanded ? t("groups.workspace") : <EllipsisHorizontalIcon />}
           </h2>
 
           <ul className="flex flex-col gap-1.5">
