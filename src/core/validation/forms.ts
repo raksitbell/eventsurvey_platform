@@ -16,6 +16,7 @@ const formStatusSchema = z.enum([
 const questionTypeSchema = z.enum([
   "short_text",
   "long_text",
+  "email",
   "multiple_choice",
   "dropdown",
   "checkbox",

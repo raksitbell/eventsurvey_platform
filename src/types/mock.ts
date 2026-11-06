@@ -26,6 +26,7 @@ export type MockFormStatus =
 export type MockFieldType =
   | "short_text"
   | "long_text"
+  | "email"
   | "radio"
   | "checkbox"
   | "dropdown"

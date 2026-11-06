@@ -204,6 +204,7 @@
       "choice": {
         "short_text": "คำตอบสั้นๆ",
         "long_text": "คำตอบยาว",
+        "email": "อีเมล",
         "multiple_choice": "หลายตัวเลือก",
         "dropdown": "รายการแบบเลื่อนลง",
         "checkbox": "ช่องทำเครื่องหมาย",
@@ -212,14 +213,35 @@
         "time": "เวลา",
         "number": "ตัวเลข",
         "rating": "การให้คะแนน"
-      }
+      },
+      "emailPlaceholder": "อีเมล (ต้องมีเครื่องหมาย @)",
+      "numberPlaceholder": "ตัวเลข (รองรับจำนวนเต็มและทศนิยม)",
+      "minNumber": "ค่าต่ำสุด",
+      "maxNumber": "ค่าสูงสุด",
+      "noLimit": "ไม่จำกัด",
+      "minGreaterThanMax": "ค่าต่ำสุดต้องน้อยกว่าหรือเท่ากับค่าสูงสุด",
+      "ratingMode": {
+        "rating": "Rating (ดาว)",
+        "linear": "Linear scale (สเกลเชิงเส้น)"
+      },
+      "maxRating": "คะแนนสูงสุด:",
+      "to": "ถึง",
+      "linearLabelPlaceholder": "ป้ายกำกับ (ไม่บังคับ)",
+      "addLinearInput": "เพิ่มช่องข้อความ"
     },
     "preview": {
       "button": "ดูตัวอย่าง",
       "editForm": "กลับไปแก้ไขฟอร์ม",
       "requiredNote": "* ระบุว่าเป็นคำถามที่จำเป็น",
       "requiredError": "คำถามนี้จำเป็นต้องตอบ",
+      "emailError": "กรุณากรอกอีเมลที่มีเครื่องหมาย @",
+      "numberInvalidError": "กรุณากรอกตัวเลขที่ถูกต้อง",
+      "numberMinError": "ค่าต้องไม่น้อยกว่า {min}",
+      "numberMaxError": "ค่าต้องไม่เกิน {max}",
+      "numberRangeError": "ค่าต้องอยู่ระหว่าง {min} ถึง {max}",
       "yourAnswer": "คำตอบของคุณ",
+      "yourEmail": "name@example.com",
+      "yourNumber": "กรอกตัวเลข",
       "choose": "เลือก",
       "clearSelection": "ล้างการเลือก",
       "submit": "ส่ง",

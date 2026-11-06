@@ -204,6 +204,7 @@
       "choice": {
         "short_text": "Short Text",
         "long_text": "Long Text",
+        "email": "Email",
         "multiple_choice": "Multiple Choice",
         "dropdown": "Dropdown",
         "checkbox": "Checkbox",
@@ -212,14 +213,35 @@
         "time": "Time",
         "number": "Number",
         "rating": "Rating"
-      }
+      },
+      "emailPlaceholder": "Email address (must contain @)",
+      "numberPlaceholder": "Number (integer or decimal)",
+      "minNumber": "Min value",
+      "maxNumber": "Max value",
+      "noLimit": "No limit",
+      "minGreaterThanMax": "Minimum value must be less than or equal to maximum value",
+      "ratingMode": {
+        "rating": "Rating",
+        "linear": "Linear scale"
+      },
+      "maxRating": "Max rating:",
+      "to": "to",
+      "linearLabelPlaceholder": "Label (optional)",
+      "addLinearInput": "Add input"
     },
     "preview": {
       "button": "Preview",
       "editForm": "Back to edit",
       "requiredNote": "* Indicates required question",
       "requiredError": "This is a required question",
+      "emailError": "Please enter a valid email address containing @",
+      "numberInvalidError": "Please enter a valid number",
+      "numberMinError": "Value must be at least {min}",
+      "numberMaxError": "Value must be at most {max}",
+      "numberRangeError": "Value must be between {min} and {max}",
       "yourAnswer": "Your answer",
+      "yourEmail": "name@example.com",
+      "yourNumber": "Enter a number",
       "choose": "Choose",
       "clearSelection": "Clear selection",
       "submit": "Submit",
