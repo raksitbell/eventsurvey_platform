@@ -1,6 +1,6 @@
 "use client";
 import { useTranslations } from "next-intl";
-import { GridIcon, TableIcon, PieChartIcon } from "@/icons";
+import { ChartPieIcon, Squares2X2Icon, TableCellsIcon } from "@/icons";
 interface Props {
   onAdd: (type: string) => void;
   disabled: boolean;
@@ -9,14 +9,14 @@ interface Props {
 export default function WidgetPalette({ onAdd, disabled, canChart }: Props) {
   const t = useTranslations("analytics");
   const types = [
-    { type: "kpi", label: "metric", hint: "metricHint", icon: GridIcon },
-    { type: "bar_chart", label: "bar", hint: "chartHint", icon: GridIcon },
-    { type: "pie_chart", label: "pie", hint: "chartHint", icon: PieChartIcon },
+    { type: "kpi", label: "metric", hint: "metricHint", icon: Squares2X2Icon },
+    { type: "bar_chart", label: "bar", hint: "chartHint", icon: Squares2X2Icon },
+    { type: "pie_chart", label: "pie", hint: "chartHint", icon: ChartPieIcon },
     {
       type: "data_table",
       label: "responses",
       hint: "tableHint",
-      icon: TableIcon,
+      icon: TableCellsIcon,
     },
   ];
   return (

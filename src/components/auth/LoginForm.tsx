@@ -6,7 +6,7 @@ import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/AuthContext";
 import { MOCK_DEMO_PASSWORD } from "@/core/auth/constants";
-import { EyeCloseIcon, EyeIcon } from "@/icons";
+import { EyeSlashIcon, EyeIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import { FormEvent, useState } from "react";
 
@@ -112,7 +112,7 @@ export default function LoginForm() {
                   {showPassword ? (
                     <EyeIcon className="size-5 text-gray-500 dark:text-gray-400" />
                   ) : (
-                    <EyeCloseIcon className="size-5 text-gray-500 dark:text-gray-400" />
+                    <EyeSlashIcon className="size-5 text-gray-500 dark:text-gray-400" />
                   )}
                 </button>
               </div>

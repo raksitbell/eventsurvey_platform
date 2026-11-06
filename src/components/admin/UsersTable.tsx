@@ -9,7 +9,7 @@ import {
   isImpersonatableRole,
 } from "@/core/auth";
 import { useConfirm } from "@/hooks/useConfirm";
-import { GroupIcon } from "@/icons";
+import { UsersIcon } from "@/icons";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
@@ -209,7 +209,7 @@ export default function UsersTable() {
                             disabled={pendingId === user.id}
                             onClick={() => handleImpersonate(user)}
                             startIcon={
-                              <GroupIcon className="size-5 text-brand-500" />
+                              <UsersIcon className="size-5 text-brand-500" />
                             }
                           >
                             {pendingId === user.id
