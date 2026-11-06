@@ -157,7 +157,7 @@ Mock → portal role map: `platform_admin` → `super_admin`; `event_role=event_
 - **TailAdmin first.** This project is built on the TailAdmin free template (vendored into `src/`, not a package). Pick a component in this order: (1) what already exists under `components/ui|form|common`, (2) **copy it in from [TailAdmin free](https://github.com/TailAdmin/free-nextjs-admin-dashboard) `src/components/`** — it has `ui/alert|badge|avatar|table`, `form/Select|MultiSelect|date-picker|switch`, `form/input/TextArea|Radio|FileInput`, `tables/`, `charts/bar|line`, `common/ComponentCard|ChartTab` that are not vendored yet, (3) compose from TailAdmin primitives, (4) a new package — **ask first**. Adapt whatever you copy to this repo's rules (logical properties, `dark:` variants, translated strings).
 - Prefer primitives from `src/components/ui/` and `src/components/form/` over raw HTML or new third-party equivalents.
 - **Charts**: `react-apexcharts` must be dynamically imported — `const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false })`.
-- **Icons**: import from `@/icons` (SVGs are compiled to React components via `@svgr/webpack`, configured for both webpack and Turbopack).
+- **Icons**: import Heroicons directly from `@heroicons/react/24/outline`. Use `@/icons` only for local SVG assets such as country flags (SVGs are compiled to React components via `@svgr/webpack`, configured for both webpack and Turbopack).
 - Modals use the `useModal` hook (`isOpen`, `openModal`, `closeModal`, `toggleModal`).
 - Confirm dialogs go through `useConfirm()` — never `import Swal from "sweetalert2"` in a component. SweetAlert2 is the one approved non-TailAdmin UI dependency (TailAdmin has no confirm-with-promise and no toast, and FR-021 requires toasts); build toasts on it rather than adding a toast library.
 - Global state goes through existing contexts (`useAuth`, `useSidebar`, `useTheme`) — don't add new providers without need.
@@ -165,6 +165,7 @@ Mock → portal role map: `platform_admin` → `super_admin`; `event_role=event_
 ## Don'ts
 
 - Call a change request a **Pull Request (PR)**, never a Merge Request or MR — MR is GitLab's term for the same thing, and this project is on GitHub. Reference one as `#12` or `owner/repo#12`.
+- When asked to commit, create a local commit only. Never run `git push` or create, update, reopen, merge, or close a PR; the user alone performs all remote Git and GitHub actions.
 - Don't install new packages without asking the user — TailAdmin usually already ships the component. Five template packages are installed but unused (`@fullcalendar/react`, `@react-jvectormap/core`, `@react-jvectormap/world`, `simplebar-react`, `react-dropzone`); don't remove them without asking either.
 - Don't hand-roll a component that TailAdmin free already ships — copy theirs in and adapt it instead.
 - Don't import `Link`, `useRouter`, `usePathname`, or `redirect` from `next/link` or `next/navigation` — always use `@/i18n/navigation`.
