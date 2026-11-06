@@ -34,7 +34,13 @@ export default function EventLayout({
           className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin}`}
         >
           <ImpersonationBanner />
-          <div className={isBuilder ? "xl:hidden" : ""}>
+          <div
+            className={
+              isBuilder
+                ? "sticky top-0 z-99999 xl:hidden"
+                : "sticky top-0 z-99999"
+            }
+          >
             <AppHeader />
           </div>
           <div

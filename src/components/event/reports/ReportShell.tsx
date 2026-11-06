@@ -5,7 +5,13 @@ import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { Link } from "@/i18n/navigation";
 interface Props {
-  section: "responses" | "exports" | "trash" | "builder" | "dashboard";
+  section:
+    | "responses"
+    | "exports"
+    | "trash"
+    | "builder"
+    | "dashboard"
+    | "analytics";
   children: ReactNode;
   loading?: boolean;
   error?: boolean;
@@ -23,34 +29,44 @@ export default function ReportShell({
   wide,
 }: Props) {
   const t = useTranslations("eventReports");
-  const tf = useTranslations("eventAnalytics.footer"); // test
+  const tf = useTranslations("eventAnalytics.footer");
+  const activeSection = section === "builder" ? "dashboard" : section;
   return (
-    <div className="space-y-7 text-gray-800 dark:text-gray-100">
-      <div>
-        <h1 className="text-title-sm font-bold">{t(`${section}.title`)}</h1>
-        <p className="mt-2 text-theme-sm text-gray-500 dark:text-gray-400">
-          {t(`${section}.description`)}
-        </p>
+    <div className="space-y-6 text-gray-800 dark:text-gray-100">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-title-sm font-bold">
+            {t(`${activeSection}.title`)}
+          </h1>
+          <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+            {t(`${activeSection}.description`)}
+          </p>
+        </div>
+        <nav
+          aria-label={t("navigation")}
+          className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-gray-100/80 p-1 text-theme-sm dark:border-gray-800 dark:bg-gray-900"
+        >
+          {(
+            ["dashboard", "responses", "exports", "trash", "analytics"] as const
+          ).map((k) => {
+            const isCurrent = k === activeSection;
+            return (
+              <Link
+                aria-current={isCurrent ? "page" : undefined}
+                className={
+                  isCurrent
+                    ? "rounded-lg bg-white px-3.5 py-2 font-semibold text-brand-600 shadow-theme-xs transition dark:bg-gray-800 dark:text-brand-400"
+                    : "rounded-lg px-3.5 py-2 font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                }
+                key={k}
+                href={k === "dashboard" ? "/event/dashboard" : `/event/${k}`}
+              >
+                {t(`${k}.title`)}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
-      <nav
-        aria-label={t("navigation")}
-        className="flex flex-wrap gap-4 text-theme-sm text-brand-600 dark:text-brand-400"
-      >
-        {(["builder", "responses", "exports", "trash"] as const).map((k) => (
-          <Link
-            aria-current={k === section ? "page" : undefined}
-            className={
-              k === section
-                ? "font-semibold underline underline-offset-8"
-                : "hover:underline"
-            }
-            key={k}
-            href={k === "builder" ? "/event/dashboard/builder" : `/event/${k}`}
-          >
-            {t(`${k}.title`)}
-          </Link>
-        ))}
-      </nav>
       <div className={wide ? "" : "max-w-4xl"}>
         {error ? (
           <div role="alert" className={panelClass}>
@@ -66,7 +82,7 @@ export default function ReportShell({
         )}
       </div>
       <footer className="pt-10 text-theme-xs text-gray-500 dark:text-gray-400">
-         {tf("copyright")} - {tf("name_oo")}
+        {tf("copyright")} - {tf("name_oo")}
       </footer>
     </div>
   );

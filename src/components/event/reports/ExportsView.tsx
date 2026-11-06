@@ -9,7 +9,7 @@ import {
   responseCsv,
 } from "@/core/event/export";
 import Button from "@/components/ui/button/Button";
-import { GridIcon } from "@/icons";
+import { Squares2X2Icon } from "@/icons";
 import ReportShell, { panelClass } from "./ReportShell";
 export default function ExportsView() {
   const { data, error, reload } = useEventReporting();
@@ -57,7 +57,7 @@ export default function ExportsView() {
           {(["responses", "summary", "pdf"] as const).map((kind) => (
             <article className={`${panelClass} flex flex-col gap-5`} key={kind}>
               <span className="flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
-                <GridIcon className="size-5" />
+                <Squares2X2Icon className="size-5" />
               </span>
               <div className="flex-1">
                 <h3 className="text-theme-sm font-semibold">

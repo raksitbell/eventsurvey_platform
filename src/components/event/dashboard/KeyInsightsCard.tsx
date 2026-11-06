@@ -24,12 +24,12 @@ export default function KeyInsightsCard() {
       [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
 
     const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
+    const link = globalThis.document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", "event-analytics-report.csv");
-    document.body.appendChild(link);
+    globalThis.document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    globalThis.document.body.removeChild(link);
 
     void showToast(t("exportSuccess"));
   };
