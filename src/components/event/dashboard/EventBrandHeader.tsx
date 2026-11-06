@@ -14,6 +14,7 @@ export default function EventBrandHeader() {
   const toggleLanguage = () => {
     const nextLocale: Locale = locale === "th" ? "en" : "th";
     router.replace(pathname, { locale: nextLocale });
+    router.refresh();
   };
 
   return (

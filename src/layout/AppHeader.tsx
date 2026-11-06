@@ -30,6 +30,7 @@ const AppHeader: React.FC = () => {
   const toggleLanguage = () => {
     const nextLocale: Locale = locale === "th" ? "en" : "th";
     router.replace(pathname, { locale: nextLocale });
+    router.refresh();
   };
 
   if (isEventArea) {

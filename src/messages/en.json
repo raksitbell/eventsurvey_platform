@@ -227,7 +227,7 @@
       "registrations": {
         "title": "Registrations",
         "value": "428",
-        "trend": "+12.5% this week"
+        "trend": "+120.5% this week"
       },
       "attendance": {
         "title": "Attendance",
@@ -249,6 +249,7 @@
       "title": "Registration trend",
       "subtitle": "Last 7 days",
       "seriesName": "Registrations",
+      "registrationsUnit": "registrations",
       "days": {
         "mon": "Mon",
         "tue": "Tue",
@@ -271,7 +272,8 @@
     },
     "footer": {
       "copyright": "© EventSurvey",
-      "privacyPolicy": "Privacy Policy"
+      "privacyPolicy": "Privacy Policy",
+      "name_oo": "Phoom"
     }
   },
   "notFound": {

@@ -43,6 +43,7 @@ export default function UserDropdown() {
 
   const handleSelectLanguage = (id: Locale) => {
     router.replace(pathname, { locale: id });
+    router.refresh();
     setIsSubDropdownOpen(false);
   };
 

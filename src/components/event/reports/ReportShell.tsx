@@ -1,4 +1,5 @@
 "use client";
+// Event dashboard
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
@@ -22,6 +23,7 @@ export default function ReportShell({
   wide,
 }: Props) {
   const t = useTranslations("eventReports");
+  const tf = useTranslations("eventAnalytics.footer"); // test
   return (
     <div className="space-y-7 text-gray-800 dark:text-gray-100">
       <div>
@@ -64,7 +66,7 @@ export default function ReportShell({
         )}
       </div>
       <footer className="pt-10 text-theme-xs text-gray-500 dark:text-gray-400">
-        © EventSurvey
+         {tf("copyright")} - {tf("name_oo")}
       </footer>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import type { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
@@ -10,6 +10,7 @@ const ReactApexChart = dynamic(() => import("react-apexcharts"), {
 
 export default function RegistrationTrendChart() {
   const t = useTranslations("eventAnalytics.chart");
+  const locale = useLocale();
 
   const series = [
     {
@@ -79,7 +80,7 @@ export default function RegistrationTrendChart() {
     tooltip: {
       theme: "light",
       y: {
-        formatter: (value: number) => `${value} registrations`,
+        formatter: (value: number) => `${value} ${t("registrationsUnit")}`,
       },
     },
     legend: { show: false },
@@ -98,6 +99,7 @@ export default function RegistrationTrendChart() {
 
       <div className="w-full pt-2">
         <ReactApexChart
+          key={locale}
           options={options}
           series={series}
           type="bar"

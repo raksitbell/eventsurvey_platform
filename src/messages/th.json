@@ -31,7 +31,7 @@
       "eventHome": "ภาพรวม",
       "eventWorkspace": "Event Workspace",
       "dashboard": "Dashboard",
-      "analytics": "Analytics",
+      "analytics": "การวิเคราะห์",
       "builder": "จัดการแดชบอร์ด",
       "responses": "ข้อมูลคำตอบ",
       "exports": "ส่งออกรายงาน",
@@ -221,57 +221,60 @@
       "title": "EventSurvey",
       "subtitle": "ลงทะเบียนและแบบสอบถามกิจกรรม"
     },
-    "title": "Analytics",
-    "description": "Monitor registration, attendance and response activity for this event.",
+    "title": "การวิเคราะห์",
+    "description": "ติดตามการลงทะเบียน การเข้าร่วม และการตอบแบบสอบถามสำหรับกิจกรรมนี้",
     "metrics": {
       "registrations": {
-        "title": "Registrations",
+        "title": "การลงทะเบียน",
         "value": "428",
-        "trend": "+12.5% this week"
+        "trend": "+12.5% สัปดาห์นี้"
       },
       "attendance": {
-        "title": "Attendance",
+        "title": "การเข้าร่วมงาน",
         "value": "312",
-        "trend": "72.9% checked in"
+        "trend": "เช็คอินแล้ว 72.9%"
       },
       "surveyResponses": {
-        "title": "Survey responses",
+        "title": "การตอบแบบสอบถาม",
         "value": "186",
-        "trend": "43.4% response rate"
+        "trend": "อัตราการตอบ 43.4%"
       },
       "completion": {
-        "title": "Completion",
+        "title": "ความสำเร็จ",
         "value": "84%",
-        "trend": "+6.1% from last event"
+        "trend": "+6.1% จากกิจกรรมที่แล้ว"
       }
     },
     "chart": {
-      "title": "Registration trend",
-      "subtitle": "Last 7 days",
-      "seriesName": "Registrations",
+      "title": "แนวโน้มการลงทะเบียน",
+      "subtitle": "7 วันล่าสุด",
+      "seriesName": "การลงทะเบียน",
+      "registrationsUnit": "รายการ",
       "days": {
-        "mon": "Mon",
-        "tue": "Tue",
-        "wed": "Wed",
-        "thu": "Thu",
-        "fri": "Fri",
-        "sat": "Sat",
-        "sun": "Sun"
+        "mon": "จันทร์",
+        "tue": "อังคาร",
+        "wed": "พุธ",
+        "thu": "พฤหัส",
+        "fri": "ศุกร์",
+        "sat": "เสาร์",
+        "sun": "อาทิตย์"
       }
     },
     "insights": {
-      "title": "Key insights",
-      "highlightTitle": "Strongest day: Saturday",
-      "highlightDesc": "176 registrations followed the latest campaign.",
-      "bullet1": "Registration conversion is 68%",
-      "bullet2": "54% registered on mobile",
-      "bullet3": "Survey completion is on target",
-      "exportButton": "Export report",
+      "title": "ข้อมูลเชิงลึกที่สำคัญ",
+      "highlightTitle": "วันที่ลงทะเบียนสูงสุด: วันเสาร์",
+      "highlightDesc": "ลงทะเบียน 176 รายการหลังจากแคมเปญล่าสุด",
+      "bullet1": "อัตราการเปลี่ยนเป็นการลงทะเบียนอยู่ที่ 68%",
+      "bullet2": "54% ลงทะเบียนผ่านโทรศัพท์มือถือ",
+      "bullet3": "การตอบแบบสอบถามเสร็จสิ้นตามเป้าหมาย",
+      "exportButton": "ส่งออกรายงาน",
       "exportSuccess": "ส่งออกรายงานเรียบร้อยแล้ว"
     },
     "footer": {
       "copyright": "© EventSurvey",
-      "privacyPolicy": "นโยบายความเป็นส่วนตัว"
+      "privacyPolicy": "นโยบายความเป็นส่วนตัว",
+      "name_oo": "ภูมิ"
+      
     }
   },
   "notFound": {
