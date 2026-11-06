@@ -1,4 +1,5 @@
 import { denyUnlessAdmin } from "@/core/auth/api-guard";
+import { routing, type Locale } from "@/i18n/routing";
 import { getBoundAdminOverview } from "@/services/admin/overview";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -7,7 +8,11 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   try {
-    const data = await getBoundAdminOverview();
+    const requestedLocale = request.nextUrl.searchParams.get("locale");
+    const locale = routing.locales.includes(requestedLocale as Locale)
+      ? (requestedLocale as Locale)
+      : routing.defaultLocale;
+    const data = await getBoundAdminOverview(locale);
     return NextResponse.json(data);
   } catch (error) {
     const message =

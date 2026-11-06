@@ -103,46 +103,55 @@
   },
   "adminHome": {
     "title": "Platform Overview",
-    "description": "Monitor platform usage, response activity, and system health.",
+    "description": "Monitor platform usage, recent activity, and system health.",
     "loadError": "Failed to load overview data.",
     "noActivity": "No recent activity yet.",
     "metrics": {
-      "owners": "Event owners",
-      "events": "Total events",
-      "forms": "Published forms",
-      "responses": "Responses"
+      "events": "Events",
+      "users": "Users",
+      "registrationForms": "Registration forms",
+      "surveys": "Surveys",
+      "activeLabel": "Active",
+      "totalLabel": "Total"
     },
-    "responseActivity": "Response activity",
-    "systemHealth": "System health",
+    "serviceStatus": "Service status",
     "recentActivity": "Recent activity",
-    "governance": "Governance",
-    "manageOwners": "Manage event owners",
-    "reviewAudit": "Review audit activity",
-    "days": {
-      "mon": "Mon",
-      "tue": "Tue",
-      "wed": "Wed",
-      "thu": "Thu",
-      "fri": "Fri",
-      "sat": "Sat",
-      "sun": "Sun"
+    "growthTitle": "Platform growth",
+    "growthHint": "Monthly new counts with a 3-month linear forecast (dashed).",
+    "growthEmpty": "Growth data is not available yet.",
+    "growth": {
+      "series": {
+        "users": "Users",
+        "events": "Events",
+        "responses": "Responses",
+        "usersForecast": "Users (forecast)",
+        "eventsForecast": "Events (forecast)",
+        "responsesForecast": "Responses (forecast)"
+      }
     },
+    "eventStatusTitle": "Event status mix",
+    "eventStatusTotal": "Total",
+    "eventStatusEmpty": "No events to chart yet.",
+    "eventStatus": {
+      "draft": "Draft",
+      "pending_approval": "Pending approval",
+      "published": "Published",
+      "closed": "Closed",
+      "archived": "Archived"
+    },
+    "topEventsTitle": "Top events by responses",
+    "topEventsSeries": "Responses",
+    "topEventsEmpty": "No event responses yet.",
+    "piiActivityTitle": "Unmasked PII access",
+    "piiActivityEmpty": "No unmasked PII access logged yet.",
     "health": {
       "coreApi": "Core API",
-      "responseQueue": "Response queue",
-      "storage": "Storage",
+      "database": "Database",
+      "formSystem": "Form system",
       "status": {
         "operational": "Operational",
         "attention": "Attention"
       }
-    },
-    "activity": {
-      "ownerInvited": "New event owner invited",
-      "formPublished": "Feedback form published",
-      "eventClosed": "Campus event closed",
-      "twoMin": "2 min ago",
-      "eighteenMin": "18 min ago",
-      "oneHour": "1 hr ago"
     }
   },
   "adminUsers": {
