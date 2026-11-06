@@ -11,6 +11,7 @@ import {
   Question,
   QUESTIONS_TYPES,
   QuestionType,
+  RatingMode,
 } from "@/types/event/form";
 import FormHeaderCard from "./FormHeaderCard";
 import QuestionCard from "./QuestionCard";
@@ -21,6 +22,7 @@ const CHOICE_QUESTION_TYPES: QuestionType[] = [
   "multiple_choice",
   "checkbox",
   "dropdown",
+  "rating",
 ];
 
 export default function FormBuilder({ type }: { type: FormType }) {
@@ -43,7 +45,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
       min_number: 1,
       max_number: 5,
       min_length: 0,
-      max_length: 0,
+      max_length: 255,
       required: false,
       label: {
         en: [
@@ -292,6 +294,12 @@ export default function FormBuilder({ type }: { type: FormType }) {
               nextType === "rating"
                 ? item.question.max_number || 5
                 : item.question.max_number,
+            max_length:
+              nextType === "short_text"
+                ? 255
+                : nextType === "long_text"
+                  ? 5000
+                  : 0,
             label: needsDefaultChoice
               ? {
                   ...item.question.label,
@@ -342,6 +350,69 @@ export default function FormBuilder({ type }: { type: FormType }) {
                 ...item.question,
                 min_number: min,
                 max_number: max,
+              },
+            }
+          : item,
+      ),
+    }));
+  };
+
+  const updateQuestionNumberBounds = (
+    id: string,
+    min: number | null,
+    max: number | null,
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      questions: prev.questions.map((item) =>
+        item.question.id === id
+          ? {
+              ...item,
+              question: {
+                ...item.question,
+                min_value: min,
+                max_value: max,
+                min_number: min ?? 0,
+                max_number: max ?? 0,
+              },
+            }
+          : item,
+      ),
+    }));
+  };
+
+  const updateQuestionRatingType = (id: string, ratingType: RatingMode) => {
+    setForm((prev) => ({
+      ...prev,
+      questions: prev.questions.map((item) =>
+        item.question.id === id
+          ? {
+              ...item,
+              question: {
+                ...item.question,
+                rating_type: ratingType,
+              },
+            }
+          : item,
+      ),
+    }));
+  };
+
+  const updateQuestionLinearLabels = (
+    id: string,
+    minLabel: string,
+    maxLabel: string,
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      questions: prev.questions.map((item) =>
+        item.question.id === id
+          ? {
+              ...item,
+              question: {
+                ...item.question,
+                min_label: minLabel,
+                max_label: maxLabel,
               },
             }
           : item,
@@ -664,6 +735,15 @@ export default function FormBuilder({ type }: { type: FormType }) {
                   reorderChoice(qId, sourceId, targetId)
                 }
                 onUpdateRange={(min, max) => updateQuestionRange(qId, min, max)}
+                onUpdateNumberBounds={(min, max) =>
+                  updateQuestionNumberBounds(qId, min, max)
+                }
+                onUpdateRatingType={(ratingType) =>
+                  updateQuestionRatingType(qId, ratingType)
+                }
+                onUpdateLinearLabels={(minLabel, maxLabel) =>
+                  updateQuestionLinearLabels(qId, minLabel, maxLabel)
+                }
               />
             );
           })}

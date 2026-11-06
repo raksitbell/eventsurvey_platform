@@ -8,9 +8,12 @@ import {
   QuestionFieldProps,
   QUESTIONS_TYPES,
   QuestionType,
+  RatingMode,
 } from "@/types/event/form";
 import ShortText from "./chioce/ShortText";
 import LongText from "./chioce/LongText";
+import Email from "./chioce/Email";
+import NumberField from "./chioce/Number";
 import MutipleChoice from "./chioce/MutipleChoice";
 import Dropdown from "./chioce/Dropdown";
 import Checkbox from "./chioce/Checkbox";
@@ -23,6 +26,8 @@ const QuestionTypeComp: Partial<
 > = {
   short_text: ShortText,
   long_text: LongText,
+  email: Email,
+  number: NumberField,
   multiple_choice: MutipleChoice,
   dropdown: Dropdown,
   checkbox: Checkbox,
@@ -53,6 +58,9 @@ interface QuestionCardProps {
   onDeleteChoice: (choiceId: string) => void;
   onReorderChoice: (sourceChoiceId: string, targetChoiceId: string) => void;
   onUpdateRange: (min: number, max: number) => void;
+  onUpdateNumberBounds: (min: number | null, max: number | null) => void;
+  onUpdateRatingType: (ratingType: RatingMode) => void;
+  onUpdateLinearLabels: (minLabel: string, maxLabel: string) => void;
 }
 
 export default function QuestionCard({
@@ -77,6 +85,9 @@ export default function QuestionCard({
   onDeleteChoice,
   onReorderChoice,
   onUpdateRange,
+  onUpdateNumberBounds,
+  onUpdateRatingType,
+  onUpdateLinearLabels,
 }: QuestionCardProps) {
   const tbuilder = useTranslations("form.builder");
   const label = question.label.en[0];
@@ -161,6 +172,9 @@ export default function QuestionCard({
             onDeleteChoice={onDeleteChoice}
             onReorderChoice={onReorderChoice}
             onUpdateRange={onUpdateRange}
+            onUpdateNumberBounds={onUpdateNumberBounds}
+            onUpdateRatingType={onUpdateRatingType}
+            onUpdateLinearLabels={onUpdateLinearLabels}
           />
         )}
       </div>
