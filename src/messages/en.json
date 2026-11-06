@@ -31,6 +31,7 @@
       "eventHome": "Overview",
       "eventWorkspace": "Event Workspace",
       "dashboard": "Dashboard",
+      "submissions": "Submissions",
       "analytics": "Analytics",
       "builder": "Dashboard Builder",
       "responses": "Response data",
@@ -432,15 +433,45 @@
       "readOnly": "You can view this dashboard. Editing requires Manage Dashboard permission.",
       "unsaved": "Unsaved changes",
       "canvas": "Event dashboard",
-      "grid": "12-column grid · responsive layout",
+      "grid": "3-column grid · flexible 2D card sizing",
       "edit": "Configure",
       "up": "Move widget earlier",
       "down": "Move widget later",
-      "select": "Select a widget to configure it."
+      "select": "Select a widget to configure it.",
+      "customize": "Customize dashboard",
+      "done": "Done editing",
+      "dragToMove": "Drag to move card",
+      "sizeSmall": "Small",
+      "sizeMedium": "Medium",
+      "sizeLarge": "Large",
+      "sizeCustom": "Custom",
+      "sizeMenu": "Resize widget",
+      "quickGrid2D": "2D Size Picker (Width × Height)",
+      "colsUnit": "{count} col",
+      "rowsUnit": "{count} row",
+      "col1": "1 Col",
+      "col2": "2 Cols",
+      "col3": "3 Cols",
+      "row1": "1 Row (Normal)",
+      "row2": "2 Rows (Tall)",
+      "row3": "3 Rows (Extra)",
+      "alignLeft": "Align left",
+      "alignCenter": "Align center",
+      "alignRight": "Align right",
+      "holdToDelete": "Hold to delete",
+      "holdingDelete": "Release to cancel...",
+      "viewSourceResponses": "View responses for this source",
+      "eventPeriod": "Event period",
+      "dateFrom": "From",
+      "dateTo": "To"
     },
     "dashboard": {
       "title": "Event dashboard",
       "description": "Latest event data from your published widgets."
+    },
+    "analytics": {
+      "title": "Analytics",
+      "description": "Monitor registration, attendance and response activity for this event."
     }
   }
 }
