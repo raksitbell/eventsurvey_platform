@@ -13,7 +13,7 @@ export default function ExportReports({ query, busy, count }: Props) {
     [pending, setPending] = useState(false),
     [error, setError] = useState("");
   async function generate(format: "csv" | "pdf") {
-    const popup = format === "pdf" ? window.open("", "_blank") : null;
+    const popup = format === "pdf" ? globalThis.open("", "_blank") : null;
     if (format === "pdf" && !popup) {
       setError(t("popupError"));
       return;
@@ -33,7 +33,7 @@ export default function ExportReports({ query, busy, count }: Props) {
         popup.opener = null;
         popup.location.href = url;
       } else {
-        const a = document.createElement("a");
+        const a = globalThis.document.createElement("a");
         a.href = url;
         a.download = result.filename;
         a.click();
