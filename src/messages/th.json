@@ -95,46 +95,55 @@
   },
   "adminHome": {
     "title": "ภาพรวมแพลตฟอร์ม",
-    "description": "ติดตามการใช้งาน การตอบกลับ และสถานะระบบ",
+    "description": "ติดตามการใช้งาน กิจกรรมล่าสุด และสถานะระบบ",
     "loadError": "โหลดข้อมูลภาพรวมไม่สำเร็จ",
     "noActivity": "ยังไม่มีกิจกรรมล่าสุด",
     "metrics": {
-      "owners": "เจ้าของอีเวนต์",
-      "events": "อีเวนต์ทั้งหมด",
-      "forms": "ฟอร์มที่เผยแพร่",
-      "responses": "คำตอบ"
+      "events": "อีเวนต์",
+      "users": "ผู้ใช้งาน",
+      "registrationForms": "แบบฟอร์มลงทะเบียน",
+      "surveys": "แบบสอบถาม",
+      "activeLabel": "เปิดใช้งาน",
+      "totalLabel": "ทั้งหมด"
     },
-    "responseActivity": "กิจกรรมการตอบกลับ",
-    "systemHealth": "สถานะระบบ",
+    "serviceStatus": "สถานะบริการ",
     "recentActivity": "กิจกรรมล่าสุด",
-    "governance": "การกำกับดูแล",
-    "manageOwners": "จัดการเจ้าของอีเวนต์",
-    "reviewAudit": "ตรวจสอบบันทึกการใช้งาน",
-    "days": {
-      "mon": "จ.",
-      "tue": "อ.",
-      "wed": "พ.",
-      "thu": "พฤ.",
-      "fri": "ศ.",
-      "sat": "ส.",
-      "sun": "อา."
+    "growthTitle": "การเติบโตของแพลตฟอร์ม",
+    "growthHint": "จำนวนรายเดือนใหม่ พร้อมคาดการณ์ 3 เดือนแบบเส้นประ",
+    "growthEmpty": "ยังไม่มีข้อมูลการเติบโต",
+    "growth": {
+      "series": {
+        "users": "ผู้ใช้",
+        "events": "อีเวนต์",
+        "responses": "คำตอบ",
+        "usersForecast": "ผู้ใช้ (คาดการณ์)",
+        "eventsForecast": "อีเวนต์ (คาดการณ์)",
+        "responsesForecast": "คำตอบ (คาดการณ์)"
+      }
     },
+    "eventStatusTitle": "สัดส่วนสถานะอีเวนต์",
+    "eventStatusTotal": "ทั้งหมด",
+    "eventStatusEmpty": "ยังไม่มีอีเวนต์ให้แสดง",
+    "eventStatus": {
+      "draft": "ฉบับร่าง",
+      "pending_approval": "รออนุมัติ",
+      "published": "เผยแพร่แล้ว",
+      "closed": "ปิดแล้ว",
+      "archived": "เก็บถาวร"
+    },
+    "topEventsTitle": "อีเวนต์ยอดนิยมตามคำตอบ",
+    "topEventsSeries": "คำตอบ",
+    "topEventsEmpty": "ยังไม่มีคำตอบจากอีเวนต์",
+    "piiActivityTitle": "การเข้าถึงข้อมูลส่วนบุคคลแบบไม่ปกปิด",
+    "piiActivityEmpty": "ยังไม่มีบันทึกการเข้าถึงข้อมูลแบบไม่ปกปิด",
     "health": {
       "coreApi": "Core API",
-      "responseQueue": "คิวคำตอบ",
-      "storage": "พื้นที่จัดเก็บ",
+      "database": "ระบบฐานข้อมูล",
+      "formSystem": "ระบบแบบฟอร์ม",
       "status": {
         "operational": "ปกติ",
         "attention": "ควรตรวจสอบ"
       }
-    },
-    "activity": {
-      "ownerInvited": "เชิญเจ้าของอีเวนต์ใหม่แล้ว",
-      "formPublished": "เผยแพร่ฟอร์มความคิดเห็นแล้ว",
-      "eventClosed": "ปิดอีเวนต์วิทยาเขตแล้ว",
-      "twoMin": "2 นาทีที่แล้ว",
-      "eighteenMin": "18 นาทีที่แล้ว",
-      "oneHour": "1 ชั่วโมงที่แล้ว"
     }
   },
   "adminUsers": {
