@@ -60,7 +60,7 @@ export default function LayoutEditor({ data }: Props) {
     if (!["kpi", "bar_chart", "pie_chart", "data_table"].includes(type)) return;
     const chart = type === "bar_chart" || type === "pie_chart";
     const w: Widget = {
-      id: crypto.randomUUID(),
+      id: globalThis.crypto.randomUUID(),
       dashboard_data_id: dashboardId,
       type,
       title_th: t(
@@ -200,7 +200,7 @@ export default function LayoutEditor({ data }: Props) {
     const width = grid.getBoundingClientRect().width,
       start = e.clientX,
       initial = w.config_json.span || 6,
-      rtl = document.documentElement.dir === "rtl";
+      rtl = globalThis.document.documentElement.dir === "rtl";
     const end = (event: PointerEvent) => {
       const delta = (event.clientX - start) * (rtl ? -1 : 1);
       const raw = initial + (delta / width) * 12;
