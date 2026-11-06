@@ -110,9 +110,9 @@ export default function LoginForm() {
                   }
                 >
                   {showPassword ? (
-                    <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
+                    <EyeIcon className="size-5 text-gray-500 dark:text-gray-400" />
                   ) : (
-                    <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
+                    <EyeCloseIcon className="size-5 text-gray-500 dark:text-gray-400" />
                   )}
                 </button>
               </div>
