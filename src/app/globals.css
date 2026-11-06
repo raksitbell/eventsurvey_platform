@@ -499,8 +499,8 @@
 .task {
   border-radius: 0.75rem;
   box-shadow:
-    0px 1px 3px 0px rgba(16, 24, 40, 0.1),
-    0px 1px 2px 0px rgba(16, 24, 40, 0.06);
+    0 1px 3px 0 rgba(16, 24, 40, 0.1),
+    0 1px 2px 0 rgba(16, 24, 40, 0.06);
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
@@ -578,13 +578,10 @@
 .flatpickr-month .flatpickr-current-month .flatpickr-monthDropdown-months {
   background: none !important;
   appearance: none;
-  background-image: none !important;
   font-weight: 500;
 }
 
-.flatpickr-month
-  .flatpickr-current-month
-  .flatpickr-monthDropdown-months:focus {
+.flatpickr-month .flatpickr-current-month .flatpickr-monthDropdown-months:focus {
   outline: none !important;
   border: 0 !important;
 }
@@ -1038,27 +1035,16 @@ pre[class*="language-"].line-numbers {
   }
 
   /* Day Header (SUN MON TUE...) sticks directly below the Month Title */
-  .custom-calendar:has(.fc-multimonth)
-    [role="grid"]
-    [role="row"]:has([role="columnheader"]),
-  .custom-calendar:has(.fc-multimonth)
-    [role="grid"]
-    .fc-multimonth-day-header-row,
+  .custom-calendar:has(.fc-multimonth) [role="grid"] [role="row"]:has([role="columnheader"]),
+  .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-multimonth-day-header-row,
   .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-daygrid-header,
-  .custom-calendar
-    .fc-multimonth
-    [role="grid"]
-    [role="row"]:has([role="columnheader"]),
+  .custom-calendar .fc-multimonth [role="grid"] [role="row"]:has([role="columnheader"]),
   .custom-calendar .fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
   .custom-calendar .fc-multimonth [role="grid"] .fc-daygrid-header,
-  .custom-calendar.fc-multimonth
-    [role="grid"]
-    [role="row"]:has([role="columnheader"]),
+  .custom-calendar.fc-multimonth [role="grid"] [role="row"]:has([role="columnheader"]),
   .custom-calendar.fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
   .custom-calendar.fc-multimonth [role="grid"] .fc-daygrid-header,
-  .custom-calendar
-    [role="grid"].fc-multimonth
-    [role="row"]:has([role="columnheader"]),
+  .custom-calendar [role="grid"].fc-multimonth [role="row"]:has([role="columnheader"]),
   .custom-calendar [role="grid"].fc-multimonth .fc-multimonth-day-header-row,
   .custom-calendar [role="grid"].fc-multimonth .fc-daygrid-header {
     position: sticky !important;
@@ -1066,43 +1052,17 @@ pre[class*="language-"].line-numbers {
     z-index: 9 !important;
     background-color: #f9fafb !important;
   }
-  .dark
-    .custom-calendar:has(.fc-multimonth)
-    [role="grid"]
-    [role="row"]:has([role="columnheader"]),
-  .dark
-    .custom-calendar:has(.fc-multimonth)
-    [role="grid"]
-    .fc-multimonth-day-header-row,
+  .dark .custom-calendar:has(.fc-multimonth) [role="grid"] [role="row"]:has([role="columnheader"]),
+  .dark .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-multimonth-day-header-row,
   .dark .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-daygrid-header,
-  .dark
-    .custom-calendar
-    .fc-multimonth
-    [role="grid"]
-    [role="row"]:has([role="columnheader"]),
-  .dark
-    .custom-calendar
-    .fc-multimonth
-    [role="grid"]
-    .fc-multimonth-day-header-row,
+  .dark .custom-calendar .fc-multimonth [role="grid"] [role="row"]:has([role="columnheader"]),
+  .dark .custom-calendar .fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
   .dark .custom-calendar .fc-multimonth [role="grid"] .fc-daygrid-header,
-  .dark
-    .custom-calendar.fc-multimonth
-    [role="grid"]
-    [role="row"]:has([role="columnheader"]),
-  .dark
-    .custom-calendar.fc-multimonth
-    [role="grid"]
-    .fc-multimonth-day-header-row,
+  .dark .custom-calendar.fc-multimonth [role="grid"] [role="row"]:has([role="columnheader"]),
+  .dark .custom-calendar.fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
   .dark .custom-calendar.fc-multimonth [role="grid"] .fc-daygrid-header,
-  .dark
-    .custom-calendar
-    [role="grid"].fc-multimonth
-    [role="row"]:has([role="columnheader"]),
-  .dark
-    .custom-calendar
-    [role="grid"].fc-multimonth
-    .fc-multimonth-day-header-row,
+  .dark .custom-calendar [role="grid"].fc-multimonth [role="row"]:has([role="columnheader"]),
+  .dark .custom-calendar [role="grid"].fc-multimonth .fc-multimonth-day-header-row,
   .dark .custom-calendar [role="grid"].fc-multimonth .fc-daygrid-header {
     background-color: #111827 !important;
   }
