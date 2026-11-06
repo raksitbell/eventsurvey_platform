@@ -89,3 +89,25 @@ npm run dev
 > [!IMPORTANT]
 > ก่อนเขียนโค้ดบรรทัดแรก อ่าน [`AGENTS.md`](AGENTS.md) ให้จบ
 > ข้อห้ามในนั้นส่วนใหญ่มาจากกรณีที่เคยทำแล้วเว็บค้างหรือพังจริงในโปรเจกต์นี้ ไม่ใช่กฎที่ตั้งขึ้นลอย ๆ
+
+## Event dashboard และรายงาน
+
+| หน้า | การทำงาน |
+|---|---|
+| `/event/dashboard` | แสดงวิดเจ็ตที่เผยแพร่ โดยคำนวณจากคำตอบ API ของกิจกรรมปัจจุบัน |
+| `/event/dashboard/builder` | เพิ่ม/ย้าย/ปรับความกว้าง/ตั้งค่าวิดเจ็ต บันทึกฉบับร่างในอุปกรณ์ หรือเผยแพร่ผ่าน API |
+| `/event/responses` | ค้นหาคำตอบแบบสำรวจ ดูรายละเอียด และส่งออก CSV |
+| `/event/exports` | CSV คำตอบและสรุปจากแบบฟอร์มที่อนุมัติ พร้อมรายงานสำหรับพิมพ์หรือบันทึก PDF |
+| `/event/trash` | แสดงถังขยะ กู้คืนแบบฟอร์มภายใน 30 วันตามสิทธิ์ (ไม่กู้คืนคำตอบ) |
+
+ทุกหน้ารองรับไทย/อังกฤษและ dark mode ใช้ BFF `/api/event/data`, `/api/event/dashboard` และ `/api/event/trash` โดย service จำกัดข้อมูลตามกิจกรรมจาก session และปกปิดฟิลด์ PII ตามสิทธิ์ ฉบับร่างเก็บเฉพาะการตั้งค่าวิดเจ็ตใน localStorage แยกตามผู้ใช้และกิจกรรม การเผยแพร่เขียน `dashboard_layouts` / `dashboard_widgets` ของ Mock API; อายุการเก็บข้อมูลขึ้นกับเซิร์ฟเวอร์ Mock ที่ตั้งค่าไว้ การเขียนหลาย resource ยังไม่มี transaction ตามข้อจำกัด JSON Server
+
+เพิ่ม `grid_span` และ `date_range_days` ใน schema วิดเจ็ตเพื่อเก็บความกว้างและช่วงวันที่ โดยข้อมูลเดิมที่ไม่มีฟิลด์เหล่านี้ใช้ค่าเริ่มต้น 6 คอลัมน์ / ทุกช่วงเวลา
+
+ทดสอบ service, permissions, การคำนวณ และ CSV ด้วย fixture ในหน่วยความจำ (ไม่เขียนข้อมูลไปยัง API ภายนอก):
+
+```bash
+node tests/event-reporting.cjs
+```
+
+รองรับ Mock API ปัจจุบันที่ใช้ `users.role_id` → `roles` + `role_permissions` ผ่าน `services/auth/access.ts` และยังรองรับ `event_role` แบบเดิม โดยใช้ตัวแปลงเดียวกันใน login, workspace และ admin impersonation

@@ -35,7 +35,10 @@ export default function LanguageSwitcher({
           <button
             key={language.id}
             type="button"
-            onClick={() => router.replace(pathname, { locale: language.id })}
+            onClick={() => {
+              router.replace(pathname, { locale: language.id });
+              router.refresh();
+            }}
             className={cn(
               "inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-theme-xs font-medium transition",
               active

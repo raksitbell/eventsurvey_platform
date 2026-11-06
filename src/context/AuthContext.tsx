@@ -10,6 +10,7 @@ import {
   subscribeAuth,
   type AuthSnapshot,
 } from "@/core/auth";
+import { api } from "@/core/api";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { User } from "@/types/user";
 import type React from "react";
@@ -105,7 +106,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [softGo],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await api.post("/auth/logout", {}).catch(() => undefined);
     persistAuthStorage(null, null);
     softGo("/login");
   }, [softGo]);

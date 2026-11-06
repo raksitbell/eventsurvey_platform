@@ -2,11 +2,10 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
+import type { Locale } from "@/i18n/routing";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { translateRole } from "@/utils/i18n-labels";
-import { useTranslations } from "next-intl";
-import { useLocale } from "next-intl";
-import type { Locale } from "@/i18n/routing";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 export default function EventWorkspacePanel() {

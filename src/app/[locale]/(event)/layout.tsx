@@ -6,6 +6,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
+import { usePathname } from "@/i18n/navigation";
 import React from "react";
 
 export default function EventLayout({
@@ -13,6 +14,7 @@ export default function EventLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const isBuilder = usePathname() === "/event/analytics/builder";
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   // Must match AppSidebar dock breakpoint (`xl`). Using `lg` left a gap
@@ -32,8 +34,22 @@ export default function EventLayout({
           className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin}`}
         >
           <ImpersonationBanner />
-          <AppHeader />
-          <div className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6">
+          <div
+            className={
+              isBuilder
+                ? "sticky top-0 z-99999 xl:hidden"
+                : "sticky top-0 z-99999"
+            }
+          >
+            <AppHeader />
+          </div>
+          <div
+            className={
+              isBuilder
+                ? "w-full min-w-0 flex-1 p-4 md:p-6"
+                : "mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6"
+            }
+          >
             {children}
           </div>
         </div>

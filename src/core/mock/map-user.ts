@@ -1,20 +1,15 @@
-import type { MockPermissionCode, MockUser } from "@/types/mock";
+import type { MockUser } from "@/types/mock";
 import type { User, UserRole, UserStatus } from "@/types/user";
 
 /**
  * Map mock membership → portal `UserRole`.
- * `system_role` + `role_permissions` decide area access (no denormalized
- * `event_role` / `can_*` on users in the current seed).
+ * `system_role` / `event_role` decide area access; `role_id` is a custom role name only.
  */
-export function resolveAppRole(
-  user: MockUser,
-  permissions: readonly MockPermissionCode[] = [],
-): UserRole | null {
+export function resolveAppRole(user: MockUser): UserRole | null {
   if (user.system_role === "platform_admin") return "super_admin";
-  if (user.system_role !== "event_user" || !user.event_id) return null;
-  // Event Admin roles grant manage_sub_user; narrower roles do not.
-  if (permissions.includes("manage_sub_user")) return "event_owner";
-  return "sub_user";
+  if (user.event_role === "event_admin") return "event_owner";
+  if (user.event_role === "event_sub_user") return "sub_user";
+  return null;
 }
 
 function mapStatus(status: MockUser["status"]): UserStatus {
@@ -22,11 +17,8 @@ function mapStatus(status: MockUser["status"]): UserStatus {
 }
 
 /** Bind a mock `/users` row into the app `User` shape (password stripped). */
-export function mapMockUserToUser(
-  user: MockUser,
-  permissions: readonly MockPermissionCode[] = [],
-): User | null {
-  const role = resolveAppRole(user, permissions);
+export function mapMockUserToUser(user: MockUser): User | null {
+  const role = resolveAppRole(user);
   if (!role) return null;
 
   const isRemoved = Boolean(user.removed_at) || user.status === "removed";
@@ -39,8 +31,8 @@ export function mapMockUserToUser(
     role,
     status: mapStatus(user.status),
     ownerId:
-      role === "sub_user" ? user.invited_by_user_id : null,
-    canViewSensitiveData: permissions.includes("view_unmasked_pii"),
+      user.event_role === "event_sub_user" ? user.invited_by_user_id : null,
+    canViewSensitiveData: Boolean(user.can_view_unmasked_pii),
     isDeleted: isRemoved,
     deletedAt: user.removed_at,
     anonymizedAt: null,

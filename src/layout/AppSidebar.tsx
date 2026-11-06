@@ -9,7 +9,9 @@ import {
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils";
 import {
+  ChartPieIcon,
   EllipsisHorizontalIcon,
+  ListBulletIcon,
   Squares2X2Icon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
@@ -47,6 +49,8 @@ export default function AppSidebar() {
 
   const eventNav: NavItem[] = [
     { key: "eventHome", icon: <Squares2X2Icon />, path: "/event" },
+    { key: "dashboard", icon: <ChartPieIcon />, path: "/event/dashboard" },
+    { key: "submissions", icon: <ListBulletIcon />, path: "/event/responses" },
   ];
 
   const navItems = isAdminArea

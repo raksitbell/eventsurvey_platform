@@ -2,10 +2,10 @@
  * Raw shapes from the mock JSON Server (`event_mock_api/db.json`).
  * Soft-delete uses `deleted_at` / `removed_at` (not `isDeleted`).
  * Event titles live in `event_translations`, not on `events`.
- * Permissions live in `role_permissions` (not denormalized on `users`).
  */
 
 export type MockSystemRole = "platform_admin" | "event_user";
+export type MockEventRole = "event_admin" | "event_sub_user";
 export type MockAccountStatus = "invited" | "active" | "suspended" | "removed";
 export type MockEventStatus =
   | "draft"
@@ -23,25 +23,7 @@ export type MockFormStatus =
   | "paused"
   | "closed"
   | "archived";
-export type MockFieldType =
-  | "short_text"
-  | "long_text"
-  | "radio"
-  | "checkbox"
-  | "dropdown"
-  | "date"
-  | "time"
-  | "number"
-  | "rating";
 export type MockSubmissionStatus = "submitted" | "soft_deleted";
-export type MockPermissionCode =
-  | "manage_dashboard"
-  | "manage_event"
-  | "manage_registration_form"
-  | "manage_survey_form"
-  | "manage_sub_user"
-  | "approve"
-  | "view_unmasked_pii";
 
 export interface MockUser {
   id: string;
@@ -51,10 +33,19 @@ export interface MockUser {
   display_name: string;
   system_role: MockSystemRole;
   event_id: string | null;
-  /** Event-scoped custom role — permissions via `role_permissions` */
+  /** Legacy API fields; current role_permissions are normalized by services/auth/access. */
+  event_role?: MockEventRole | null;
+  /** Optional custom role (mainly for event_sub_user fine-grained permissions) */
   role_id: string | null;
-  role_assigned_by_user_id: string | null;
-  role_assigned_at: string | null;
+  can_manage_dashboard?: boolean;
+  can_manage_event?: boolean;
+  can_manage_registration_form?: boolean;
+  can_manage_survey_form?: boolean;
+  can_manage_sub_user?: boolean;
+  can_approve?: boolean;
+  can_view_unmasked_pii?: boolean;
+  permission_granted_by_user_id: string | null;
+  permission_updated_at: string | null;
   status: MockAccountStatus;
   invited_by_user_id: string | null;
   joined_at: string | null;
@@ -70,15 +61,23 @@ export interface MockRole {
   owner_user_id: string;
   name: string;
   description: string | null;
+  is_default: boolean;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
-  deleted_at: string | null;
 }
 
-/** One row = role grants that permission (`/role_permissions`) */
-export interface MockRolePermission {
+export interface MockPermission {
+  id: string;
   role_id: string;
-  permission: MockPermissionCode;
+  feature: string;
+  can_access: boolean;
+  can_view: boolean;
+  can_create: boolean;
+  can_edit: boolean;
+  can_delete: boolean;
+  can_approve?: boolean;
+  can_publish: boolean;
 }
 
 export interface MockEvent {
@@ -86,11 +85,12 @@ export interface MockEvent {
   slug: string;
   status: MockEventStatus;
   default_locale: string;
-  language_rotation_seconds: number | null;
+  language_rotation_seconds: number;
   starts_at: string | null;
   ends_at: string | null;
   timezone: string;
   banner_url: string | null;
+  banner_aspect_ratio: string | null;
   created_by_user_id: string;
   published_at: string | null;
   closed_at: string | null;
@@ -104,7 +104,6 @@ export interface MockEventTranslation {
   id: string;
   event_id: string;
   locale_code: string;
-  display_order: number;
   title: string;
   summary: string | null;
   description: string | null;
@@ -130,15 +129,30 @@ export interface MockForm {
   deleted_at: string | null;
 }
 
-export interface MockFormTranslation {
+export interface MockFormSubmission {
   id: string;
   form_id: string;
-  locale_code: string;
-  title: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
+  status: MockSubmissionStatus;
+  submitted_language: string;
+  submitted_at: string;
+  deleted_by_user_id: string | null;
+  deleted_at: string | null;
 }
+
+// -----------------------------------------------------------------------
+// Form field types
+// -----------------------------------------------------------------------
+
+export type MockFieldType =
+  | "short_text"
+  | "long_text"
+  | "number"
+  | "rating"
+  | "radio"
+  | "checkbox"
+  | "dropdown"
+  | "date"
+  | "time";
 
 export interface MockFormField {
   id: string;
@@ -180,66 +194,57 @@ export interface MockFieldOptionTranslation {
   label: string;
 }
 
-export interface MockFormSubmission {
+export interface MockFormTranslation {
   id: string;
   form_id: string;
-  status: MockSubmissionStatus;
-  submitted_language: string;
-  submitted_at: string;
-  deleted_by_user_id: string | null;
-  deleted_at: string | null;
+  locale_code: string;
+  title: string;
+  description: string | null;
 }
 
-export type MockApprovalTargetType =
-  | "event"
-  | "registration_form"
-  | "survey_form";
-export type MockApprovalStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "cancelled";
-export type MockDeletionRequestStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "completed";
+// -----------------------------------------------------------------------
+// Role permissions
+// -----------------------------------------------------------------------
 
-export interface MockApprovalRequest {
+export type MockPermissionCode =
+  | "manage_dashboard"
+  | "manage_event"
+  | "manage_registration_form"
+  | "manage_survey_form"
+  | "manage_sub_user"
+  | "approve"
+  | "view_unmasked_pii";
+
+export interface MockRolePermission {
   id: string;
-  event_id: string;
-  target_type: MockApprovalTargetType;
-  target_id: string;
-  requested_by_user_id: string;
-  reviewed_by_user_id: string | null;
-  status: MockApprovalStatus;
-  reviewer_note: string | null;
-  requested_at: string;
-  reviewed_at: string | null;
+  role_id: string;
+  permission: MockPermissionCode;
+  granted_by_user_id: string | null;
+  granted_at: string;
 }
 
-export interface MockHardDeleteRequest {
-  id: string;
-  event_id: string;
-  resource_type: string;
-  resource_id: string;
-  reason: string;
-  requested_by_user_id: string;
-  reviewed_by_user_id: string | null;
-  status: MockDeletionRequestStatus;
-  requested_at: string;
-  reviewed_at: string | null;
-  completed_at: string | null;
-}
+// -----------------------------------------------------------------------
+// Audit & approvals
+// -----------------------------------------------------------------------
 
 export interface MockAuditLog {
   id: string;
-  event_id: string | null;
-  actor_user_id: string | null;
   action: string;
+  description: string | null;
   resource_type: string;
   resource_id: string | null;
-  description: string | null;
-  includes_unmasked_pii: boolean;
+  performed_by_user_id: string | null;
   occurred_at: string;
+  includes_unmasked_pii: boolean;
+}
+
+export interface MockApprovalRequest {
+  id: string;
+  target_type: string;
+  target_id: string;
+  status: "pending" | "approved" | "rejected";
+  requested_by_user_id: string;
+  requested_at: string;
+  reviewed_by_user_id: string | null;
+  reviewed_at: string | null;
 }

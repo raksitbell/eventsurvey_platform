@@ -1,10 +1,7 @@
+import { bindMockUserAccess } from "@/services/auth/access";
 import { mockApi } from "@/core/api/mock-client";
 import { resolveEventTitle } from "@/core/mock/event-title";
-import {
-  isActiveMockUser,
-  mapMockUserToUser,
-} from "@/core/mock/map-user";
-import { getRolePermissions } from "@/core/mock/role-permissions";
+import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import { routing, type Locale } from "@/i18n/routing";
 import type { EventWorkspace } from "@/types/event/workspace";
 import type {
@@ -19,11 +16,13 @@ export async function getEventWorkspace(
   userId: string,
   locale: Locale = routing.defaultLocale,
 ): Promise<EventWorkspace | null> {
-  const mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
+  const rawUser = await mockApi.get<MockUser>(
+    `/users/${encodeURIComponent(userId)}`,
+  );
+  const mockUser = await bindMockUserAccess(rawUser);
   if (!mockUser || !isActiveMockUser(mockUser)) return null;
 
-  const permissions = await getRolePermissions(mockUser.role_id);
-  const user = mapMockUserToUser(mockUser, permissions);
+  const user = mapMockUserToUser(mockUser);
   if (!user || (user.role !== "event_owner" && user.role !== "sub_user")) {
     return null;
   }
@@ -57,6 +56,8 @@ export async function getEventWorkspace(
     eventId: event.id,
     eventName,
     eventStatus: event.status,
+    eventStartsAt: event.starts_at ?? null,
+    eventEndsAt: event.ends_at ?? null,
     userRole: user.role,
     customRoleName: customRole?.name ?? null,
   };
