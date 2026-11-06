@@ -3,7 +3,7 @@
 // Adapted from TailAdmin free-nextjs-admin-dashboard/src/components/form/Select.tsx.
 // Keep native controlled props and children so labels and options remain localized by callers.
 import type { SelectHTMLAttributes } from "react";
-import { ChevronDownIcon } from "@/icons";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   className?: string;

@@ -1,6 +1,10 @@
 "use client";
 import { useTranslations } from "next-intl";
-import { ChartPieIcon, Squares2X2Icon, TableCellsIcon } from "@/icons";
+import {
+  ChartPieIcon,
+  Squares2X2Icon,
+  TableCellsIcon,
+} from "@heroicons/react/24/outline";
 interface Props {
   onAdd: (type: string) => void;
   disabled: boolean;
