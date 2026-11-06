@@ -283,10 +283,38 @@ global.fetch = async (url, init = {}) => {
       publishDashboard("owner", "en", [{ ...widget, source_field_id: "name" }]),
     (e) => e.status === 400,
   );
-  data = await publishDashboard("owner", "en", [widget]);
+  await assert.rejects(
+    () => publishDashboard("owner", "en", [{ ...widget, row_span: 99 }]),
+    (e) => e.status === 400,
+  );
+  await assert.rejects(
+    () =>
+      publishDashboard("owner", "en", [{ ...widget, text_align: "invalid" }]),
+    (e) => e.status === 400,
+  );
+  const todayStr = now.slice(0, 10);
+  data = await publishDashboard("owner", "en", [
+    {
+      ...widget,
+      grid_span: 2,
+      row_span: 2,
+      text_align: "center",
+      date_from: todayStr,
+      date_to: todayStr,
+    },
+  ]);
   assert.equal(data.widgets.length, 1);
   assert.notEqual(data.widgets[0].id, "new-widget");
+  assert.equal(data.widgets[0].grid_span, 2);
+  assert.equal(data.widgets[0].row_span, 2);
+  assert.equal(data.widgets[0].text_align, "center");
+  assert.equal(data.widgets[0].date_from, todayStr);
+  assert.equal(data.widgets[0].date_to, todayStr);
   assert.equal(widgetData(data.widgets[0], data).value, 1);
+  assert.equal(
+    widgetData({ ...data.widgets[0], date_from: "2099-01-01" }, data).value,
+    0,
+  );
   const rating = {
     ...data.widgets[0],
     source_field_id: "rating",

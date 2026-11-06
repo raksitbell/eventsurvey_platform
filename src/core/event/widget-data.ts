@@ -5,11 +5,18 @@ export function widgetData(
   now = Date.now(),
 ) {
   const days = widget.date_range_days ?? 0;
-  const rows = data.responses.filter(
-    (r) =>
-      (!widget.source_form_id || r.formId === widget.source_form_id) &&
-      (!days || Date.parse(r.submittedAt) >= now - days * 86400000),
-  );
+  const fromDate = widget.date_from ?? null;
+  const toDate = widget.date_to ?? null;
+  const rows = data.responses.filter((r) => {
+    if (widget.source_form_id && r.formId !== widget.source_form_id) {
+      return false;
+    }
+    const dayStr = r.submittedAt.slice(0, 10);
+    if (fromDate && dayStr < fromDate) return false;
+    if (toDate && dayStr > toDate) return false;
+    if (days && Date.parse(r.submittedAt) < now - days * 86400000) return false;
+    return true;
+  });
   const values = rows.flatMap((r) => {
     const value = r.answers.find(
       (a) => a.fieldId === widget.source_field_id,

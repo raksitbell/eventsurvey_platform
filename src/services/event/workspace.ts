@@ -56,6 +56,8 @@ export async function getEventWorkspace(
     eventId: event.id,
     eventName,
     eventStatus: event.status,
+    eventStartsAt: event.starts_at ?? null,
+    eventEndsAt: event.ends_at ?? null,
     userRole: user.role,
     customRoleName: customRole?.name ?? null,
   };

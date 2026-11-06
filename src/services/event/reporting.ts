@@ -188,9 +188,13 @@ export async function getReportingData(
         `/dashboard_widgets?layout_id=${encodeURIComponent(layout.id)}`,
       )
     : [];
+  const earliestResponse = responses.at(-1)?.submittedAt ?? null;
+  const latestResponse = responses[0]?.submittedAt ?? null;
   return {
     eventId: ctx.eventId,
     eventName: ctx.eventName,
+    eventStartsAt: ctx.eventStartsAt ?? earliestResponse,
+    eventEndsAt: ctx.eventEndsAt ?? latestResponse,
     canManage: ctx.canManage,
     forms: forms.map((f) => ({
       id: f.id,

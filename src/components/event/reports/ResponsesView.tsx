@@ -1,33 +1,40 @@
 "use client";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useEventReporting } from "@/hooks/useEventReporting";
 import { useModal } from "@/hooks/useModal";
 import { Modal } from "@/components/ui/modal";
 import Input from "@/components/form/input/InputField";
+import Select from "@/components/form/Select";
 import Button from "@/components/ui/button/Button";
 import ReportShell, { panelClass } from "./ReportShell";
 import { download, responseCsv } from "@/core/event/export";
 import type { ResponseRow } from "@/types/event/reporting";
 export default function ResponsesView() {
   const { data, error, reload } = useEventReporting();
+  const searchParams = useSearchParams();
+  const initialFormId = searchParams.get("formId") ?? "";
   const t = useTranslations("eventReports");
   const locale = useLocale();
+  const [formFilter, setFormFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [all, setAll] = useState(false);
   const [selected, setSelected] = useState<ResponseRow | null>(null);
   const { isOpen, openModal, closeModal } = useModal();
-  const rows =
-    data?.responses.filter(
-      (r) =>
-        data.forms.some((f) => f.id === r.formId && f.type === "survey") &&
-        `${r.respondent} ${r.id}`.toLowerCase().includes(search.toLowerCase()),
-    ) ?? [];
-  const visible = all ? rows : rows.slice(0, 3);
-  const total =
+  const activeFormId = formFilter ?? initialFormId;
+  const activeForm = data?.forms.find((f) => f.id === activeFormId);
+  const baseRows =
     data?.responses.filter((r) =>
-      data.forms.some((f) => f.id === r.formId && f.type === "survey"),
+      activeFormId
+        ? r.formId === activeFormId
+        : data.forms.some((f) => f.id === r.formId && f.type === "survey"),
     ) ?? [];
+  const rows = baseRows.filter((r) =>
+    `${r.respondent} ${r.id}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  const visible = all ? rows : rows.slice(0, 3);
+  const total = baseRows;
   return (
     <ReportShell
       section="responses"
@@ -38,7 +45,9 @@ export default function ResponsesView() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gray-900 p-6 text-white dark:bg-gray-800">
           <div>
-            <h2 className="font-semibold">{t("responses.heading")}</h2>
+            <h2 className="font-semibold">
+              {activeForm ? activeForm.title : t("responses.heading")}
+            </h2>
             <p className="mt-2 text-theme-xs text-gray-300 dark:text-gray-400">
               {t("responses.summary", {
                 count: total.length,
@@ -67,12 +76,30 @@ export default function ResponsesView() {
         <section className={panelClass}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h2 className="font-semibold">{t("responses.latest")}</h2>
-            <Input
-              aria-label={t("search")}
-              placeholder={t("search")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              {data && data.forms.length > 0 && (
+                <div className="min-w-48">
+                  <Select
+                    aria-label={t("builder.source")}
+                    value={activeFormId}
+                    onChange={(e) => setFormFilter(e.target.value)}
+                  >
+                    <option value="">{t("builder.allForms")}</option>
+                    {data.forms.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.title}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+              <Input
+                aria-label={t("search")}
+                placeholder={t("search")}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="w-full text-start text-theme-sm">

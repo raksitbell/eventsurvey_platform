@@ -30,9 +30,19 @@ export async function publishDashboard(
       throw new ReportingError(400, "Invalid widget");
     ids.add(w.id);
     if (
-      (w.grid_span !== undefined && ![4, 6, 8, 10, 12].includes(w.grid_span)) ||
+      (w.grid_span !== undefined &&
+        ![1, 2, 3, 4, 6, 8, 10, 12].includes(w.grid_span)) ||
+      (w.row_span !== undefined && ![1, 2, 3].includes(w.row_span)) ||
+      (w.text_align !== undefined &&
+        !["left", "center", "right"].includes(w.text_align)) ||
       (w.date_range_days !== undefined &&
-        ![0, 7, 30, 90].includes(w.date_range_days))
+        ![0, 7, 30, 90].includes(w.date_range_days)) ||
+      (w.date_from !== undefined &&
+        w.date_from !== null &&
+        !/^\d{4}-\d{2}-\d{2}$/.test(w.date_from)) ||
+      (w.date_to !== undefined &&
+        w.date_to !== null &&
+        !/^\d{4}-\d{2}-\d{2}$/.test(w.date_to))
     )
       throw new ReportingError(400, "Invalid display settings");
     if (
@@ -69,8 +79,12 @@ export async function publishDashboard(
     )
       throw new ReportingError(400, "Invalid target");
     return {
-      grid_span: w.grid_span ?? 6,
+      grid_span: w.grid_span ?? 1,
+      row_span: w.row_span ?? 1,
+      text_align: w.text_align ?? "left",
       date_range_days: w.date_range_days ?? 0,
+      date_from: w.date_from ?? null,
+      date_to: w.date_to ?? null,
       id: w.id,
       layout_id: "",
       widget_type: w.widget_type,

@@ -5,6 +5,8 @@ export interface EventWorkspace {
   eventId: string;
   eventName: string;
   eventStatus: MockEventStatus;
+  eventStartsAt?: string | null;
+  eventEndsAt?: string | null;
   userRole: UserRole;
   customRoleName: string | null;
 }

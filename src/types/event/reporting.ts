@@ -23,7 +23,11 @@ export interface TrashRow {
 }
 export interface DashboardWidget {
   grid_span?: number;
+  row_span?: number;
+  text_align?: "left" | "center" | "right";
   date_range_days?: number;
+  date_from?: string | null;
+  date_to?: string | null;
   id: string;
   layout_id: string;
   widget_type: "number" | "comparison" | "chart";
@@ -31,7 +35,12 @@ export interface DashboardWidget {
   source_form_id: string | null;
   source_field_id: string | null;
   aggregation:
-    "count" | "sum" | "average" | "minimum" | "maximum" | "percentage";
+    | "count"
+    | "sum"
+    | "average"
+    | "minimum"
+    | "maximum"
+    | "percentage";
   chart_type: "bar" | "line" | "pie" | "donut" | null;
   comparison_mode: "previous_period" | "target" | "capacity" | null;
   target_value: number | null;
@@ -41,6 +50,8 @@ export interface DashboardWidget {
 export interface ReportingData {
   eventId: string;
   eventName: string;
+  eventStartsAt?: string | null;
+  eventEndsAt?: string | null;
   canManage: boolean;
   forms: ReportForm[];
   responses: ResponseRow[];
