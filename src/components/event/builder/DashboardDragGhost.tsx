@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { HandRaisedIcon } from "@/icons";
+import { HandRaisedIcon } from "@heroicons/react/24/outline";
 import WidgetPreview from "./WidgetPreview";
 import type { FreeDragSession } from "./useDashboardPointerDrag";
 import type { DashboardWidget, ReportingData } from "@/types/event/reporting";

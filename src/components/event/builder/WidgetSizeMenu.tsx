@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronUpIcon, SquaresPlusIcon, StopIcon } from "@/icons";
+import { ChevronUpIcon, SquaresPlusIcon, StopIcon } from "@heroicons/react/24/outline";
 
 export type ColSpan = 1 | 2 | 3;
 export type RowSpan = 1 | 2 | 3;

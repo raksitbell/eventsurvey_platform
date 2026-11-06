@@ -15,7 +15,7 @@ import {
   CircleStackIcon,
   PresentationChartLineIcon,
   SparklesIcon,
-} from "@/icons";
+} from "@heroicons/react/24/outline";
 import type { DashboardWidget, ReportingData } from "@/types/event/reporting";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });

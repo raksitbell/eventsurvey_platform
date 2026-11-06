@@ -13,7 +13,7 @@ import {
   ChartBarIcon,
   ChartPieIcon,
   PresentationChartLineIcon,
-} from "@/icons";
+} from "@heroicons/react/24/outline";
 import { WidgetTypeIcon } from "./WidgetPreview";
 import type { DashboardWidget, ReportingData } from "@/types/event/reporting";
 

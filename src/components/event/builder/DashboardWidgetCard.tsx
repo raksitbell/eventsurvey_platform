@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { ChevronLeftIcon, HandRaisedIcon, PencilSquareIcon } from "@/icons";
+import { ChevronLeftIcon, HandRaisedIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import HoldToDeleteButton from "./HoldToDeleteButton";
 import WidgetPreview from "./WidgetPreview";
 import WidgetSettings from "./WidgetSettings";

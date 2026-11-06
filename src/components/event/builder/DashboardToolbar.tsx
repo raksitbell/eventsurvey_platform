@@ -2,7 +2,7 @@
 
 import Button from "@/components/ui/button/Button";
 import { panelClass } from "@/components/event/reports/ReportShell";
-import { HandRaisedIcon } from "@/icons";
+import { HandRaisedIcon } from "@heroicons/react/24/outline";
 import type { DashboardWidget } from "@/types/event/reporting";
 import { useTranslations } from "next-intl";
 import React from "react";

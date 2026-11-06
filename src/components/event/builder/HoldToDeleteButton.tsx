@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { TrashIcon } from "@/icons";
+import { TrashIcon } from "@heroicons/react/24/outline";
 
 interface HoldToDeleteButtonProps {
   disabled?: boolean;
