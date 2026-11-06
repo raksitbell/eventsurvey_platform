@@ -234,7 +234,7 @@ export async function getAnalytics(
     return entry?.label || entry?.title || fallback;
   };
   const answerValue = (answer: Answer, field: Field) => {
-    if (field.contains_pii !== false && !filters.raw) return "••••";
+    if (field.contains_pii && !filters.raw) return "••••";
     const chosen = selectionGroups
       .flat()
       .filter((s) => s.answer_id === answer.id)
@@ -302,7 +302,7 @@ export async function getAnalytics(
             (f) =>
               f.id === w.field_id &&
               f.form_id === w.form_id &&
-              f.contains_pii === false,
+              !f.contains_pii,
           )),
     )
     .sort((a, b) => a.display_order - b.display_order)
@@ -392,7 +392,7 @@ export async function getAnalytics(
         fieldTranslationGroups.flat().filter((t) => t.field_id === f.id),
         f.id,
       ),
-      pii: f.contains_pii !== false,
+      pii: f.contains_pii,
       type: f.type,
     })),
     rows,
@@ -458,7 +458,7 @@ export async function saveAnalyticsLayout(request: NextRequest) {
           f.id === w.field_id &&
           f.form_id === w.form_id &&
           !f.deleted_at &&
-          f.contains_pii === false,
+          !f.contains_pii,
       ));
   if (originals.some((w) => !validSource(w)))
     throw new AnalyticsError(403, "FORBIDDEN");

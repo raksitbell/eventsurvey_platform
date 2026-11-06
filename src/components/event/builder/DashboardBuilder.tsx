@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useEventReporting } from "@/hooks/useEventReporting";
 import { useAuth } from "@/context/AuthContext";
@@ -129,8 +129,10 @@ function BuilderEditor({ initial }: { initial: ReportingData }) {
             typeof w.id !== "string" ||
             !["number", "chart", "comparison"].includes(w.widget_type),
         )
-      )
-        throw new Error();
+      ) {
+        void showToast(t("actionError"), "error");
+        return;
+      }
       update(draft);
       setSelected(draft[0]?.id ?? "");
     } catch {

@@ -162,8 +162,10 @@ export default function LayoutEditor({ data }: Props) {
             !w.config_json ||
             !["kpi", "bar_chart", "pie_chart", "data_table"].includes(w.type),
         )
-      )
-        throw Error();
+      ) {
+        setMessage(t("saveError"));
+        return;
+      }
       setAllWidgets(draft.widgets);
       setSelectedId("");
       setDirty(true);
@@ -204,9 +206,9 @@ export default function LayoutEditor({ data }: Props) {
       const raw = initial + (delta / width) * 12;
       const span = raw < 5 ? 4 : raw < 9 ? 6 : 12;
       update({ ...w, config_json: { ...w.config_json, span } });
-      window.removeEventListener("pointerup", end);
+      globalThis.removeEventListener("pointerup", end);
     };
-    window.addEventListener("pointerup", end, { once: true });
+    globalThis.addEventListener("pointerup", end, { once: true });
   }
   if (!dashboard) return <p>{t("empty")}</p>;
   return (
