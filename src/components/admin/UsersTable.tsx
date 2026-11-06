@@ -9,13 +9,13 @@ import {
   isImpersonatableRole,
 } from "@/core/auth";
 import { useConfirm } from "@/hooks/useConfirm";
-import { UsersIcon } from "@/icons";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
 } from "@/types/admin/users";
 import type { UserRole } from "@/types/user";
 import { translateRole, translateStatus } from "@/utils/i18n-labels";
+import { UsersIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import { useLocale } from "next-intl";
 import type { Locale } from "@/i18n/routing";

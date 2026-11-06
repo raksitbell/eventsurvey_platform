@@ -6,7 +6,7 @@ import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/AuthContext";
 import { MOCK_DEMO_PASSWORD } from "@/core/auth/constants";
-import { EyeSlashIcon, EyeIcon } from "@/icons";
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import { FormEvent, useState } from "react";
 

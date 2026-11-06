@@ -8,8 +8,12 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { languages } from "@/i18n/languages";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { CheckIcon, ChevronDownIcon, GlobeAltIcon } from "@/icons";
 import { translateRole } from "@/utils/i18n-labels";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  GlobeAltIcon,
+} from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
@@ -43,7 +47,6 @@ export default function UserDropdown() {
 
   const handleSelectLanguage = (id: Locale) => {
     router.replace(pathname, { locale: id });
-    router.refresh();
     setIsSubDropdownOpen(false);
   };
 
