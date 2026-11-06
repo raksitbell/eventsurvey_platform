@@ -1,11 +1,17 @@
-export default function LongText() {
+const LONG_TEXT_MAX_LENGTH = 5000;
 
+export default function LongText() {
   return (
-    <textarea
-      disabled
-      placeholder="Long answer text"
-      className="mt-2 w-full border-b border-transparent bg-transparent pb-1 text-sm text-gray-600 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
-    >
-    </textarea>   
+    <div className="flex flex-col gap-1">
+      <textarea
+        disabled
+        maxLength={LONG_TEXT_MAX_LENGTH}
+        placeholder="Long answer text"
+        className="mt-2 w-full border-b border-gray-300 bg-transparent pb-1 text-sm text-gray-600 transition-all placeholder:text-gray-400"
+      />
+      <div className="flex justify-end text-xs text-gray-400">
+        0 / {LONG_TEXT_MAX_LENGTH}
+      </div>
+    </div>
   );
 }

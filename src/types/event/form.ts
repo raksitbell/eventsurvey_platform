@@ -7,17 +7,19 @@ export const FORM_TYPES = ["registration", "survey"] as const;
 export const QUESTIONS_TYPES = [
   "short_text",
   "long_text",
+  "email",
+  "number",
   "multiple_choice",
   "dropdown",
   "checkbox",
   "date",
   "time",
-  "number",
   "rating",
 ] as const;
 
 export type FormType = (typeof FORM_TYPES)[number];
 export type QuestionType = (typeof QUESTIONS_TYPES)[number];
+export type RatingMode = "rating" | "linear";
 
 export type FormStatus =
   | "draft"
@@ -48,9 +50,14 @@ export interface Question {
   question: {
     id?: string;
     type: QuestionType;
+    rating_type?: RatingMode;
+    min_label?: string;
+    max_label?: string;
     display_order: number;
     min_number: number;
     max_number: number;
+    min_value?: number | null;
+    max_value?: number | null;
     min_length: number;
     max_length: number;
     required: boolean;
@@ -104,11 +111,14 @@ export interface FormStatusPatchInput {
 }
 
 export interface QuestionFieldProps {
-    question: Question["question"];
-    choices: Choice[];
-    onAddChoice: () => void;
-    onUpdateChoice: (choiceId: string, label: string) => void;
-    onDeleteChoice: (choiceId: string) => void;
-    onReorderChoice: (sourceChoiceId: string, targetChoiceId: string) => void;
-    onUpdateRange?: (min: number, max: number) => void;
+  question: Question["question"];
+  choices: Choice[];
+  onAddChoice: () => void;
+  onUpdateChoice: (choiceId: string, label: string) => void;
+  onDeleteChoice: (choiceId: string) => void;
+  onReorderChoice: (sourceChoiceId: string, targetChoiceId: string) => void;
+  onUpdateRange?: (min: number, max: number) => void;
+  onUpdateNumberBounds?: (min: number | null, max: number | null) => void;
+  onUpdateRatingType?: (ratingType: RatingMode) => void;
+  onUpdateLinearLabels?: (minLabel: string, maxLabel: string) => void;
 }
