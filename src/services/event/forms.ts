@@ -1,16 +1,17 @@
 import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import {
-  assertFormStatusTransition,
+  assertManualFormStatusTransition,
   formMutationFlags,
+  nextCronFormStatus,
   resolveEffectiveFormStatus,
-  statusFromScheduleInput,
 } from "@/core/forms/lifecycle";
 import { validatePublishReady } from "@/core/validation/forms";
 import type {
   Choice,
   Form,
   FormCreateBody,
+  FormCronResult,
   FormListResponse,
   FormRecord,
   FormStatus,
@@ -149,14 +150,13 @@ async function loadEvent(eventId: string): Promise<MockEvent> {
 }
 
 function assertCanEdit(status: FormStatus): void {
-  const flags = formMutationFlags(status);
-  if (!flags.canEdit) {
+  if (!formMutationFlags(status).canEdit) {
     throw new ServiceError(
       "FORM_NOT_EDITABLE",
       409,
-      status === "open"
-        ? "Open forms cannot be edited"
-        : "Closed forms cannot be modified",
+      status === "draft"
+        ? "Form cannot be edited"
+        : "Only draft forms can be edited — revert from scheduled first",
     );
   }
 }
@@ -166,7 +166,7 @@ function assertCanDelete(status: FormStatus): void {
     throw new ServiceError(
       "FORM_NOT_DELETABLE",
       409,
-      "This form can no longer be deleted",
+      "Only draft forms can be deleted — revert from scheduled first",
     );
   }
 }
@@ -176,7 +176,7 @@ function assertCanChangeStatus(status: FormStatus): void {
     throw new ServiceError(
       "FORM_STATUS_LOCKED",
       409,
-      "Closed forms cannot change status",
+      "open/closed forms cannot be changed manually — cron owns those transitions",
     );
   }
 }
@@ -911,7 +911,6 @@ export async function createForm(
   const id = newId();
   const opensAt = input.opens_at?.trim() || null;
   const closesAt = input.closes_at?.trim() || null;
-  const status = statusFromScheduleInput(opensAt, closesAt, "draft");
   const form: MockForm = {
     id,
     event_id: input.eventId,
@@ -944,8 +943,7 @@ export async function updateForm(
   userId: string,
 ): Promise<FormRecord> {
   const form = await getLiveForm(id);
-  const event = await loadEvent(form.event_id);
-  const effective = resolveEffectiveFormStatus(form, event);
+  const effective = resolveEffectiveFormStatus(form);
   assertCanEdit(effective);
 
   const fields = await assertQuestionTreeOwnership(id, input.questions);
@@ -960,7 +958,6 @@ export async function updateForm(
     input.closes_at !== undefined
       ? input.closes_at?.trim() || null
       : form.closes_at;
-  const nextStatus = statusFromScheduleInput(opensAt, closesAt, effective);
 
   try {
     await mockApi.put(`/forms/${id}`, {
@@ -983,13 +980,27 @@ export async function updateFormStatus(
 ): Promise<FormRecord> {
   const form = await getLiveForm(id);
   const event = await loadEvent(form.event_id);
-  const current = resolveEffectiveFormStatus(form, event);
+  const current = resolveEffectiveFormStatus(form);
   assertCanChangeStatus(current);
   const stamp = nowIso();
   const currentUiStatus = toUiFormStatus(form.status);
   assertFormStatusTransition(currentUiStatus, patch.status);
 
-  if (patch.status === "open" || patch.status === "scheduled") {
+  const opensAt =
+    patch.opensAt !== undefined ? patch.opensAt?.trim() || null : form.opens_at;
+  const closesAt =
+    patch.closesAt !== undefined
+      ? patch.closesAt?.trim() || null
+      : form.closes_at;
+
+  if (patch.status === "scheduled") {
+    if (!opensAt && !closesAt) {
+      throw new ServiceError(
+        "FORM_SCHEDULE_REQUIRED",
+        400,
+        "Scheduling requires opensAt and/or closesAt",
+      );
+    }
     const record = await toFormRecord(form, event);
     const publishError = validatePublishReady({
       head: record.head,
@@ -1018,10 +1029,56 @@ export async function updateFormStatus(
   return getForm(id);
 }
 
+/**
+ * Cron tick: persist scheduled→open and open→closed from schedule windows.
+ * Call via `POST /api/event/forms/cron` with `CRON_SECRET`.
+ */
+export async function runFormsCron(
+  nowMs: number = Date.now(),
+): Promise<FormCronResult> {
+  const forms = await mockApi.get<MockForm[]>("/forms");
+  const live = forms.filter((form) => !form.deleted_at);
+  const stamp = new Date(nowMs).toISOString();
+  const eventCache = new Map<string, MockEvent>();
+  const opened: string[] = [];
+  const closed: string[] = [];
+
+  for (const form of live) {
+    let event = eventCache.get(form.event_id);
+    if (!event) {
+      try {
+        event = await loadEvent(form.event_id);
+      } catch {
+        continue;
+      }
+      eventCache.set(form.event_id, event);
+    }
+
+    const next = nextCronFormStatus(form, event, nowMs);
+    if (!next || next === form.status) continue;
+
+    await mockApi.put(`/forms/${form.id}`, {
+      ...form,
+      status: next,
+      updated_at: stamp,
+      updated_by: form.updated_by,
+    });
+
+    if (next === "open") opened.push(form.id);
+    if (next === "closed") closed.push(form.id);
+  }
+
+  return {
+    checked: live.length,
+    opened,
+    closed,
+    ranAt: stamp,
+  };
+}
+
 export async function deleteForm(id: string, userId: string): Promise<void> {
   const form = await getLiveForm(id);
-  const event = await loadEvent(form.event_id);
-  const effective = resolveEffectiveFormStatus(form, event);
+  const effective = resolveEffectiveFormStatus(form);
   assertCanDelete(effective);
 
   const snapshot = await captureFormTree(form);
