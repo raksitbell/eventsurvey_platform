@@ -34,15 +34,8 @@ export type FormType = (typeof FORM_TYPES)[number];
 export type FormLocale = (typeof FORM_LOCALES)[number];
 export type QuestionType = (typeof QUESTIONS_TYPES)[number];
 
-export type FormStatus =
-  | "draft"
-  | "pending_approval"
-  | "approved"
-  | "rejected"
-  | "published"
-  | "paused"
-  | "closed"
-  | "archived";
+/** Aligns with `form_status` in mock db / database-schema.dbml */
+export type FormStatus = "draft" | "scheduled" | "open" | "closed";
 
 export interface Choice {
   id?: string;
@@ -105,17 +98,28 @@ export interface Form {
   questions: Question[];
 }
 
-/** Persisted form returned by BFF (Form + server metadata) */
+/** Persisted form returned by BFF (FormBuilder shape + server metadata) */
 export interface FormRecord extends Form {
   id: string;
   eventId: string;
   status: FormStatus;
+  /** Effective schedule windows (same as opens_at / closes_at) */
   opensAt: string | null;
   closesAt: string | null;
-  acceptingResponses: boolean;
-  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Mutation guards for the builder UI */
+  canEdit: boolean;
+  canDelete: boolean;
+  canChangeStatus: boolean;
+}
+
+/** GET /api/event/forms?eventId= — list + event form capability flags */
+export interface FormListResponse {
+  eventId: string;
+  hasRegistration: boolean;
+  hasSurvey: boolean;
+  forms: FormRecord[];
 }
 
 /** POST body = builder Form + eventId (workspace supplies event) */
@@ -127,7 +131,6 @@ export interface FormStatusPatchInput {
   status: FormStatus;
   opensAt?: string | null;
   closesAt?: string | null;
-  acceptingResponses?: boolean;
 }
 
 export interface QuestionFieldProps {

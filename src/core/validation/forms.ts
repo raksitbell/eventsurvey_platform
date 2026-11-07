@@ -2,16 +2,7 @@ import { z } from "zod";
 
 const formTypeSchema = z.enum(["registration", "survey"]);
 
-const formStatusSchema = z.enum([
-  "draft",
-  "pending_approval",
-  "approved",
-  "rejected",
-  "published",
-  "paused",
-  "closed",
-  "archived",
-]);
+const formStatusSchema = z.enum(["draft", "scheduled", "open", "closed"]);
 
 const questionTypeSchema = z.enum([
   "short_text",
@@ -92,17 +83,45 @@ const headLocaleSchema = z.object({
   description: z.string().max(5000),
 });
 
-const formShapeSchema = z.object({
-  id: z.uuid().optional(),
-  head: z.object({
-    en: headLocaleSchema,
-    th: headLocaleSchema,
-  }),
-  type: formTypeSchema,
-  opens_at: z.string().nullable().optional(),
-  closes_at: z.string().nullable().optional(),
-  questions: z.array(questionSchema),
-});
+const scheduleRefine = (
+  data: { opens_at?: string | null; closes_at?: string | null },
+  ctx: z.RefinementCtx,
+) => {
+  const opens = data.opens_at?.trim() || null;
+  const closes = data.closes_at?.trim() || null;
+  if (!opens || !closes) return;
+  const openMs = Date.parse(opens);
+  const closeMs = Date.parse(closes);
+  if (Number.isNaN(openMs) || Number.isNaN(closeMs)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Invalid opens_at or closes_at",
+      path: ["opens_at"],
+    });
+    return;
+  }
+  if (closeMs <= openMs) {
+    ctx.addIssue({
+      code: "custom",
+      message: "closes_at must be after opens_at",
+      path: ["closes_at"],
+    });
+  }
+};
+
+const formShapeSchema = z
+  .object({
+    id: z.uuid().optional(),
+    head: z.object({
+      en: headLocaleSchema,
+      th: headLocaleSchema,
+    }),
+    type: formTypeSchema,
+    opens_at: z.string().nullable().optional(),
+    closes_at: z.string().nullable().optional(),
+    questions: z.array(questionSchema),
+  })
+  .superRefine(scheduleRefine);
 
 function refineQuestions(
   questions: z.infer<typeof questionSchema>[],
@@ -162,9 +181,8 @@ export const updateFormBodySchema = formShapeSchema
 
 export const formStatusPatchSchema = z.object({
   status: formStatusSchema,
-  opensAt: z.iso.datetime().nullable().optional(),
-  closesAt: z.iso.datetime().nullable().optional(),
-  acceptingResponses: z.boolean().optional(),
+  opensAt: z.string().nullable().optional(),
+  closesAt: z.string().nullable().optional(),
 });
 
 export type CreateFormBody = z.infer<typeof createFormBodySchema>;
@@ -173,7 +191,7 @@ export type FormStatusPatchBody = z.infer<typeof formStatusPatchSchema>;
 
 const CHOICE_TYPES = new Set(["multiple_choice", "checkbox", "dropdown"]);
 
-/** Extra checks when publishing. */
+/** Extra checks when opening / scheduling a form. */
 export function validatePublishReady(input: {
   head: { en: { title: string }; th: { title: string } };
   questions: {
@@ -184,10 +202,10 @@ export function validatePublishReady(input: {
   }[];
 }): string | null {
   if (input.questions.length < 1) {
-    return "Published form requires at least one question";
+    return "Form requires at least one question";
   }
   if (!input.head.en.title.trim() || !input.head.th.title.trim()) {
-    return "Published form requires th and en titles";
+    return "Form requires th and en titles";
   }
   for (const item of input.questions) {
     const type = item.question.type;

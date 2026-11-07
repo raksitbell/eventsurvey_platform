@@ -45,6 +45,12 @@ export async function GET(request: NextRequest) {
     const data = await listForms(eventId, allowedTypes);
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof ServiceError) {
+      return NextResponse.json(
+        { error: error.code, message: error.message },
+        { status: error.status },
+      );
+    }
     const message =
       error instanceof Error ? error.message : "Failed to list forms";
     return NextResponse.json({ error: message }, { status: 502 });
