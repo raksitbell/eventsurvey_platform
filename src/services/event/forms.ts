@@ -255,7 +255,11 @@ async function loadQuestions(formId: string): Promise<Question[]> {
         max_number: nullToNumber(field.max_number, type === "rating" ? 5 : 0),
         min_length: nullToNumber(field.min_length),
         max_length: nullToNumber(field.max_length),
-        required: field.is_required,
+        is_required: field.is_required,
+        is_unique: false,
+        rating_display: "icon",
+        rating_icon: "star",
+        rating_max: nullToNumber(field.max_number, 5),
         label: buildLabelPair(
           enT?.label ?? "",
           thT?.label ?? "",

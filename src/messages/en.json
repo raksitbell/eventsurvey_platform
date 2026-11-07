@@ -390,6 +390,8 @@
     "preview": {
       "button": "Preview",
       "editForm": "Back to edit",
+      "langThai": "ภาษาไทย",
+      "langEnglish": "English",
       "requiredNote": "* Indicates required question",
       "requiredError": "This is a required question",
       "yourAnswer": "Your answer",

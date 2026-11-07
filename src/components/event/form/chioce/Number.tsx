@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { AlertIcon } from "@/icons";
+import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import { QuestionFieldProps } from "@/types/event/form";
 
 export default function NumberField({
@@ -86,7 +86,7 @@ export default function NumberField({
 
       {isRangeInvalid && (
         <div className="flex items-center gap-1.5 text-xs font-medium text-red-600">
-          <AlertIcon className="h-4 w-4 shrink-0" />
+          <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
           <span>{tbuilder("minGreaterThanMax")}</span>
         </div>
       )}

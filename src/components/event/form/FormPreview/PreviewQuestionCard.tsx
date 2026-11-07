@@ -1,8 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { AlertIcon } from "@/icons";
-import { Question } from "@/types/event/form";
+import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
+import { FormLocale, Question } from "@/types/event/form";
 import PreviewShortText from "./fields/PreviewShortText";
 import PreviewLongText from "./fields/PreviewLongText";
 import PreviewEmail from "./fields/PreviewEmail";
@@ -18,8 +18,10 @@ export type AnswerValue = string | string[] | number;
 
 interface PreviewQuestionCardProps {
   question: Question["question"];
+  locale?: FormLocale;
   answer?: AnswerValue;
   errorMessage?: string;
+  mockUniqueSample?: string;
   onChangeAnswer: (value: AnswerValue) => void;
   onToggleCheckbox: (choiceId: string) => void;
   onClearAnswer: () => void;
@@ -27,8 +29,10 @@ interface PreviewQuestionCardProps {
 
 export default function PreviewQuestionCard({
   question,
+  locale = "th",
   answer,
   errorMessage,
+  mockUniqueSample,
   onChangeAnswer,
   onToggleCheckbox,
   onClearAnswer,
@@ -36,10 +40,19 @@ export default function PreviewQuestionCard({
   const tPreview = useTranslations("form.preview");
 
   const qId = question.id!;
-  const labelObj = question.label.en[0];
+  const labelObj = question.label[locale]?.[0] ?? question.label.th[0];
   const questionTitle = labelObj.label.trim() || tPreview("untitledQuestion");
-  const choices = labelObj.choices.en;
+  const choices = labelObj.choices[locale];
+  const scaleMinLabel =
+    labelObj.scale_min_label ?? choices[0]?.scale_min_label ?? "";
+  const scaleMaxLabel =
+    labelObj.scale_max_label ?? choices[0]?.scale_max_label ?? "";
   const hasError = !!errorMessage;
+
+  const ratingMax =
+    question.rating_display === "linear_scale"
+      ? question.max_number || question.rating_max || 5
+      : question.rating_max || question.max_number || 5;
 
   return (
     <div
@@ -49,9 +62,17 @@ export default function PreviewQuestionCard({
       }`}
     >
       {/* Question Title */}
-      <div className="mb-4 text-base font-medium text-gray-900">
-        <span>{questionTitle}</span>
-        {question.required && <span className="ms-1 text-red-600">*</span>}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-base font-medium text-gray-900">
+          <span>{questionTitle}</span>
+          {question.is_required && <span className="ms-1 text-red-600">*</span>}
+        </div>
+
+        {question.is_unique && (
+          <span className="rounded-full bg-[#5C54D1]/10 px-2.5 py-0.5 text-xs font-medium text-[#5C54D1]">
+            {tPreview("uniqueBadge")}
+          </span>
+        )}
       </div>
 
       {/* Answer Input by Question Type */}
@@ -89,7 +110,7 @@ export default function PreviewQuestionCard({
         <PreviewMultipleChoice
           questionId={qId}
           choices={choices}
-          required={question.required}
+          required={question.is_required}
           value={answer as string | undefined}
           onChange={(choiceId) => onChangeAnswer(choiceId)}
           onClear={onClearAnswer}
@@ -129,21 +150,29 @@ export default function PreviewQuestionCard({
       {question.type === "rating" && (
         <PreviewRating
           minNumber={question.min_number}
-          maxNumber={question.max_number || 5}
-          ratingMode={question.rating_type || "rating"}
-          minLabel={question.min_label}
-          maxLabel={question.max_label}
-          required={question.required}
+          maxNumber={ratingMax}
+          ratingDisplay={question.rating_display || "icon"}
+          ratingIcon={question.rating_icon || "star"}
+          scaleMinLabel={scaleMinLabel}
+          scaleMaxLabel={scaleMaxLabel}
+          required={question.is_required}
           value={answer as number | undefined}
           onChange={(level) => onChangeAnswer(level)}
           onClear={onClearAnswer}
         />
       )}
 
+      {/* Mock Unique Value Hint for Testing */}
+      {question.is_unique && mockUniqueSample && (
+        <div className="mt-2.5 text-xs text-gray-500">
+          {tPreview("uniqueMockHint", { value: mockUniqueSample })}
+        </div>
+      )}
+
       {/* Validation Error Message */}
       {hasError && (
         <div className="mt-4 flex items-center gap-2 text-xs font-medium text-red-600">
-          <AlertIcon className="h-4 w-4 shrink-0" />
+          <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
