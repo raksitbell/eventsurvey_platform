@@ -2,8 +2,6 @@ import { z } from "zod";
 
 const formTypeSchema = z.enum(["registration", "survey"]);
 
-const formStatusSchema = z.enum(["draft", "scheduled", "open", "closed"]);
-
 const questionTypeSchema = z.enum([
   "short_text",
   "long_text",
@@ -179,8 +177,9 @@ export const updateFormBodySchema = formShapeSchema
   })
   .superRefine((body, ctx) => refineQuestions(body.questions, ctx));
 
+/** Manual lifecycle only — open/closed are cron-owned. */
 export const formStatusPatchSchema = z.object({
-  status: formStatusSchema,
+  status: z.enum(["draft", "scheduled"]),
   opensAt: z.string().nullable().optional(),
   closesAt: z.string().nullable().optional(),
 });

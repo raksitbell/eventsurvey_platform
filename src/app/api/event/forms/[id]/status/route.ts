@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-/** PATCH /api/event/forms/[id]/status — draft|scheduled|open|closed */
+/** PATCH /api/event/forms/[id]/status — draft ↔ scheduled (open/closed via cron) */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const sessionOrDeny = requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;

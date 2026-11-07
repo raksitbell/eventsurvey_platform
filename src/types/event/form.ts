@@ -127,10 +127,21 @@ export interface FormCreateBody extends Form {
   eventId: string;
 }
 
+/** Manual status API — only draft ↔ scheduled (open/closed via cron). */
+export type FormManualStatus = "draft" | "scheduled";
+
 export interface FormStatusPatchInput {
-  status: FormStatus;
+  status: FormManualStatus;
   opensAt?: string | null;
   closesAt?: string | null;
+}
+
+/** POST /api/event/forms/cron result */
+export interface FormCronResult {
+  checked: number;
+  opened: string[];
+  closed: string[];
+  ranAt: string;
 }
 
 export interface QuestionFieldProps {

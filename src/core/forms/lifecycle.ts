@@ -2,22 +2,31 @@ import { ServiceError } from "@/core/api/service-error";
 import type { FormStatus } from "@/types/event/form";
 import type { MockEvent, MockForm } from "@/types/mock";
 
-const ALLOWED_TRANSITIONS: Record<FormStatus, readonly FormStatus[]> = {
-  draft: ["scheduled", "open"],
-  scheduled: ["draft", "open", "closed"],
-  open: ["closed"],
+/** Manual status API: draft ↔ scheduled only. open/closed come from cron. */
+const MANUAL_TRANSITIONS: Record<FormStatus, readonly FormStatus[]> = {
+  draft: ["scheduled"],
+  scheduled: ["draft"],
+  open: [],
   closed: [],
 };
 
 /**
  * Same-status patches are allowed so schedule windows can be adjusted
- * without inventing a lifecycle transition.
+ * while staying on `scheduled` (without inventing a lifecycle transition).
  */
-export function assertFormStatusTransition(
+export function assertManualFormStatusTransition(
   current: FormStatus,
   next: FormStatus,
 ): void {
-  if (current === next || ALLOWED_TRANSITIONS[current].includes(next)) return;
+  if (next === "open" || next === "closed") {
+    throw new ServiceError(
+      "FORM_STATUS_CRON_ONLY",
+      409,
+      "open and closed statuses are updated by the forms cron job only",
+    );
+  }
+
+  if (current === next || MANUAL_TRANSITIONS[current].includes(next)) return;
 
   throw new ServiceError(
     "INVALID_FORM_STATUS_TRANSITION",
@@ -31,14 +40,15 @@ export function formMutationFlags(status: FormStatus): {
   canDelete: boolean;
   canChangeStatus: boolean;
 } {
-  if (status === "closed") {
-    return { canEdit: false, canDelete: false, canChangeStatus: false };
+  if (status === "draft") {
+    return { canEdit: true, canDelete: true, canChangeStatus: true };
   }
-  if (status === "open") {
+  if (status === "scheduled") {
+    // Revert to draft only — content is locked until back in draft
     return { canEdit: false, canDelete: false, canChangeStatus: true };
   }
-  // draft | scheduled
-  return { canEdit: true, canDelete: true, canChangeStatus: true };
+  // open | closed — cron owns further transitions
+  return { canEdit: false, canDelete: false, canChangeStatus: false };
 }
 
 function parseTime(value: string | null | undefined): number | null {
@@ -48,56 +58,62 @@ function parseTime(value: string | null | undefined): number | null {
 }
 
 /**
- * Resolve the effective form status for API responses.
- *
- * - `draft` / `closed` stored statuses are respected.
- * - With `opens_at` / `closes_at`, time windows drive scheduled → open → closed.
- * - Without a form schedule, inherit open/closed from the parent event.
+ * Stored status is the source of truth.
+ * Time-based open/closed promotion is persisted by the forms cron job.
  */
 export function resolveEffectiveFormStatus(
-  form: Pick<MockForm, "status" | "opens_at" | "closes_at">,
-  event: Pick<MockEvent, "status" | "start_at" | "end_at" | "opens_at" | "closes_at">,
-  nowMs: number = Date.now(),
+  form: Pick<MockForm, "status">,
 ): FormStatus {
-  if (form.status === "draft") return "draft";
-  if (form.status === "closed") return "closed";
+  return form.status;
+}
 
+export function resolveFormWindows(
+  form: Pick<MockForm, "opens_at" | "closes_at">,
+  event: Pick<
+    MockEvent,
+    "opens_at" | "closes_at" | "start_at" | "end_at" | "status"
+  >,
+): { opensAt: number | null; closesAt: number | null } {
   const formOpens = parseTime(form.opens_at);
   const formCloses = parseTime(form.closes_at);
   const hasFormSchedule = formOpens !== null || formCloses !== null;
 
   if (hasFormSchedule) {
-    if (formCloses !== null && nowMs >= formCloses) return "closed";
-    if (formOpens !== null && nowMs < formOpens) return "scheduled";
-    if (formOpens !== null && nowMs >= formOpens) return "open";
-    // only closes_at set and not yet reached → scheduled until close
-    return "scheduled";
+    return { opensAt: formOpens, closesAt: formCloses };
   }
 
-  // No form-level schedule — inherit from event timing / status
-  if (event.status === "closed") return "closed";
-  if (event.status === "open") return "open";
-
-  const eventOpens =
-    parseTime(event.opens_at) ?? parseTime(event.start_at);
-  const eventCloses =
-    parseTime(event.closes_at) ?? parseTime(event.end_at);
-
-  if (eventCloses !== null && nowMs >= eventCloses) return "closed";
-  if (eventOpens !== null && nowMs >= eventOpens) return "open";
-  if (eventOpens !== null && nowMs < eventOpens) return "scheduled";
-
-  // Event still draft/scheduled without usable times
-  return form.status === "open" ? "open" : "scheduled";
+  return {
+    opensAt: parseTime(event.opens_at) ?? parseTime(event.start_at),
+    closesAt: parseTime(event.closes_at) ?? parseTime(event.end_at),
+  };
 }
 
-/** Status to persist when saving a builder payload with optional schedule. */
-export function statusFromScheduleInput(
-  opensAt: string | null | undefined,
-  closesAt: string | null | undefined,
-  current: FormStatus = "draft",
-): FormStatus {
-  if (current === "open" || current === "closed") return current;
-  const hasSchedule = Boolean(opensAt?.trim()) || Boolean(closesAt?.trim());
-  return hasSchedule ? "scheduled" : "draft";
+/**
+ * Next persisted status for cron, based on schedule windows / event status.
+ * Returns null when no change is needed.
+ */
+export function nextCronFormStatus(
+  form: Pick<MockForm, "status" | "opens_at" | "closes_at">,
+  event: Pick<
+    MockEvent,
+    "status" | "opens_at" | "closes_at" | "start_at" | "end_at"
+  >,
+  nowMs: number = Date.now(),
+): FormStatus | null {
+  if (form.status === "draft" || form.status === "closed") return null;
+
+  const { opensAt, closesAt } = resolveFormWindows(form, event);
+  const eventClosed = event.status === "closed";
+
+  if (form.status === "scheduled") {
+    if (eventClosed) return "closed";
+    if (closesAt !== null && nowMs >= closesAt) return "closed";
+    if (opensAt !== null && nowMs >= opensAt) return "open";
+    return null;
+  }
+
+  // open
+  if (eventClosed) return "closed";
+  if (closesAt !== null && nowMs >= closesAt) return "closed";
+  return null;
 }
