@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
+import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { FORM_TYPES } from "@/types/event/form";
-import { PageIcon } from "@/icons";
 import { Link } from "@/i18n/navigation";
 
 export default function FormHomePage() {
@@ -25,7 +25,7 @@ export default function FormHomePage() {
               >
                 <div className="flex items-center gap-3">
                   <div className="shrink-0 rounded-lg bg-blue-100 p-2 text-blue-500">
-                    <PageIcon className="h-6 w-6" />
+                    <DocumentTextIcon className="h-6 w-6" />
                   </div>
                   <h3 className="font-medium text-gray-800 dark:text-white/90">
                     {t(type)}

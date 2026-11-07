@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import flatpickr from "flatpickr";
 import type { Instance } from "flatpickr/dist/types/instance";
 import "flatpickr/dist/flatpickr.min.css";
-import { CalenderIcon } from "@/icons";
+import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 
 interface PreviewDateProps {
   value: string;
@@ -70,7 +70,7 @@ export default function PreviewDate({ value, onChange }: PreviewDateProps) {
         aria-label="Open calendar"
         className="pointer-events-none absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500"
       >
-        <CalenderIcon className="h-5 w-5" />
+        <CalendarDaysIcon className="h-5 w-5" />
       </button>
     </div>
   );
