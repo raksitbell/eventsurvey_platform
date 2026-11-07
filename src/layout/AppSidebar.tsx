@@ -42,6 +42,7 @@ export default function AppSidebar() {
 
   const adminNav: NavItem[] = [
     { key: "overview", icon: <Squares2X2Icon />, path: "/admin" },
+    { key: "events", icon: <Squares2X2Icon />, path: "/admin/events" },
     { key: "owners", icon: <UsersIcon />, path: "/admin/users" },
   ];
 

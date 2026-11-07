@@ -11,11 +11,19 @@
     "status": {
       "active": "Active",
       "inactive": "Inactive"
+    },
+    "back": "Back",
+    "accountStatus": {
+      "invited": "Pending setup",
+      "active": "Active",
+      "suspended": "Suspended",
+      "removed": "Removed"
     }
   },
   "confirm": {
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "ok": "OK",
     "signOutTitle": "Sign out",
     "impersonateTitle": "Impersonate user",
     "stopImpersonateTitle": "Stop impersonating"
@@ -25,8 +33,9 @@
       "workspace": "Workspace"
     },
     "items": {
-      "overview": "Overview",
-      "owners": "Owners",
+      "overview": "System Overview",
+      "events": "Event Management",
+      "owners": "User Management",
       "eventHome": "Overview"
     },
     "roles": {
@@ -126,10 +135,9 @@
     "eventStatusEmpty": "No events to chart yet.",
     "eventStatus": {
       "draft": "Draft",
-      "pending_approval": "Pending approval",
-      "published": "Published",
-      "closed": "Closed",
-      "archived": "Archived"
+      "scheduled": "Scheduled",
+      "open": "Active",
+      "closed": "Inactive"
     },
     "topEventsTitle": "Top events by responses",
     "topEventsSeries": "Responses",
@@ -184,10 +192,198 @@
     "noEvent": "No event is linked to this account yet.",
     "eventStatus": {
       "draft": "Draft",
-      "pending_approval": "Pending approval",
-      "published": "Published",
-      "closed": "Closed",
-      "archived": "Archived"
+      "scheduled": "Scheduled",
+      "open": "Active",
+      "closed": "Inactive"
+    },
+    "scheduleEvent": {
+      "title": "Schedule the event",
+      "description": "Fill in the remaining details. Status becomes Scheduled — the platform can start the event when the start time arrives.",
+      "startsAt": "Starts at",
+      "endsAt": "Ends at",
+      "descriptionField": "Description",
+      "locationName": "Location",
+      "addressText": "Address",
+      "submit": "Save & schedule",
+      "submitting": "Saving...",
+      "success": "Scheduled. The event can be started when the start time arrives.",
+      "error": "Failed to schedule the event"
+    }
+  },
+  "setupPassword": {
+    "eyebrow": "Event Admin invite",
+    "title": "Set your password",
+    "description": "Choose a password to open your event workspace. You will sign in with this email after saving.",
+    "accountLabel": "Invited account",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "passwordPlaceholder": "At least 8 characters",
+    "confirmPlaceholder": "Re-enter your password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "submit": "Save password & continue",
+    "saving": "Saving...",
+    "loading": "Loading...",
+    "alreadySet": "Already set your password?",
+    "backToLogin": "Back to sign in",
+    "unavailableTitle": "Invite unavailable",
+    "brandHeadline": "One password. Full event control.",
+    "brandSubtext": "After you save, sign in to manage registration, surveys, and your event team.",
+    "rules": {
+      "minLength": "At least 8 characters",
+      "match": "Both passwords match"
+    },
+    "errors": {
+      "unavailable": "This link is unavailable or already used",
+      "tooShort": "Password must be at least 8 characters",
+      "mismatch": "Passwords do not match",
+      "saveFailed": "Failed to save password"
+    }
+  },
+  "adminEvents": {
+    "title": "Event Management",
+    "description": "Create and manage all platform events, including Event Admin assignment.",
+    "breadcrumb": "System / Events",
+    "createNew": "Create new event",
+    "loading": "Loading events...",
+    "empty": "No events yet",
+    "loadError": "Failed to load events",
+    "searchPlaceholder": "Search event name or slug",
+    "allStatuses": "All statuses",
+    "dateRange": "Date range",
+    "dateRangePlaceholder": "Select start — end date",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "manage": "Manage",
+    "view": "View details",
+    "edit": "Edit",
+    "start": "Start event",
+    "startWaiting": "Waiting for start time",
+    "close": "Close",
+    "forceClose": "Confirm close",
+    "actionError": "Failed to update status",
+    "confirmStart": "Start “{title}” now and open the event?",
+    "confirmClose": "Do you want to close “{title}”?\nThis action cannot be undone.",
+    "confirmCloseWithWarnings": "Close “{title}”?\nThese forms are still active or not expired:",
+    "formTypes": {
+      "registration": "Registration",
+      "survey": "Survey"
+    },
+    "closeReasons": {
+      "still_open": "still open",
+      "not_expired": "window not finished",
+      "post_event": "post-event survey"
+    },
+    "columns": {
+      "title": "Event name",
+      "slug": "Slug",
+      "admin": "Event Admin",
+      "status": "Status",
+      "updatedAt": "Last updated",
+      "actions": "Actions"
+    },
+    "roleNames": {
+      "eventAdmin": "Event Admin"
+    },
+    "status": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "open": "Active",
+      "closed": "Inactive"
+    },
+    "preview": {
+      "back": "Back",
+      "tabDetails": "Event details",
+      "tabUsers": "Users ({count})",
+      "eventInfo": "Event information",
+      "schedule": "Schedule",
+      "bannerGallery": "Banner gallery",
+      "statusCard": "Event status",
+      "noBanner": "No banner images yet",
+      "bannerCount": "{count} images",
+      "noTranslations": "No translations yet",
+      "localeBlock": "Locale {locale}",
+      "contentByLocale": "Content by language",
+      "field": "Field",
+      "description": "Description",
+      "venue": "Venue",
+      "address": "Address",
+      "accessMode": "Access",
+      "privateEvent": "Private",
+      "publicEvent": "Public",
+      "flows": "Participant flows",
+      "hasRegistration": "Registration",
+      "hasSurvey": "Survey",
+      "defaultLocale": "Default locale",
+      "createdAt": "Created at",
+      "opensAt": "Opens at",
+      "closesAt": "Closes at",
+      "userSearch": "Search users",
+      "userSearchPlaceholder": "Name, email, or role",
+      "allUserStatuses": "All statuses",
+      "userName": "Name",
+      "userEmail": "Email",
+      "userRole": "Role",
+      "memberCount": "Members",
+      "usersEmpty": "No users found"
+    },
+    "create": {
+      "title": "Create event and assign Event Admin",
+      "cardTitle": "Event details and admin account",
+      "eventName": "Event name",
+      "eventNameTh": "Event name (Thai)",
+      "eventNameEn": "Event name (English)",
+      "eventNameThPlaceholder": "งานสัมมนา CSI 2028",
+      "eventNameEnPlaceholder": "CSI EventSurvey 2028",
+      "eventNameHint": "Enter at least one language — both Thai and English recommended",
+      "slug": "Event slug",
+      "slugHint": "Auto-generated from the English name; you can edit before saving",
+      "modeExisting": "Existing user",
+      "modeNew": "New user",
+      "selectUser": "Select Event Admin",
+      "selectUserPlaceholder": "Choose a user not yet linked to an event",
+      "adminName": "Event Admin name",
+      "adminEmail": "Event Admin email",
+      "cancel": "Cancel",
+      "submit": "Create draft + go to Event Workspace",
+      "submitNew": "Create draft + send setup email",
+      "submitting": "Creating...",
+      "inviteSent": "Event created. Setup email sent to {email}",
+      "successTitle": "Event created",
+      "successCreated": "Draft event created successfully.",
+      "errorTitle": "Could not create event",
+      "errors": {
+        "required": "Please fill in all required fields",
+        "slugExists": "This slug is already taken",
+        "emailExists": "This email is already in use",
+        "mailFailed": "Account created but email failed to send",
+        "generic": "Failed to create event"
+      }
+    },
+    "editForm": {
+      "title": "Edit draft event",
+      "description": "Platform can update titles and slug while the event is still a draft.",
+      "cardTitle": "Event details",
+      "eventNameTh": "Event name (Thai)",
+      "eventNameEn": "Event name (English)",
+      "eventNameThPlaceholder": "งานสัมมนา CSI 2028",
+      "eventNameEnPlaceholder": "CSI EventSurvey 2028",
+      "eventNameHint": "Enter at least one language — both Thai and English recommended",
+      "slug": "Event slug",
+      "slugHint": "Changing the slug updates the public event path",
+      "cancel": "Cancel",
+      "submit": "Save changes",
+      "submitting": "Saving...",
+      "successTitle": "Saved",
+      "successSaved": "Draft event updated successfully.",
+      "errorTitle": "Could not save",
+      "errors": {
+        "required": "Please fill in all required fields",
+        "slugExists": "This slug is already taken",
+        "notDraft": "Only draft events can be edited",
+        "mockReadOnly": "Mock API cannot save changes (read-only). Run the local mock API and point MOCK_API_BASE_URL to it.",
+        "generic": "Failed to update event"
+      }
     }
   },
   "notFound": {
