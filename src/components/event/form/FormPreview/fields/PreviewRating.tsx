@@ -2,27 +2,75 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ShootingStarIcon } from "@/icons";
-import { RatingMode } from "@/types/event/form";
+import {
+  HandThumbUpIcon,
+  HeartIcon,
+  StarIcon,
+} from "@heroicons/react/24/outline";
+import { ICON, RATING_DISPLAY } from "@/types/event/form";
 
 interface PreviewRatingProps {
   minNumber?: number;
   maxNumber: number;
-  ratingMode?: RatingMode;
-  minLabel?: string;
-  maxLabel?: string;
+  ratingDisplay?: RATING_DISPLAY;
+  ratingIcon?: ICON;
+  scaleMinLabel?: string;
+  scaleMaxLabel?: string;
   required: boolean;
   value?: number;
   onChange: (level: number) => void;
   onClear: () => void;
 }
 
+function PreviewIconGlyph({
+  icon,
+  isHighlighted,
+}: {
+  icon: ICON;
+  isHighlighted: boolean;
+}) {
+  if (icon === "heart") {
+    return (
+      <HeartIcon
+        className={`h-6 w-6 transition-colors sm:h-7 sm:w-7 ${
+          isHighlighted
+            ? "fill-rose-500 text-rose-500"
+            : "text-gray-300 group-hover:text-rose-300"
+        }`}
+      />
+    );
+  }
+
+  if (icon === "like") {
+    return (
+      <HandThumbUpIcon
+        className={`h-6 w-6 transition-colors sm:h-7 sm:w-7 ${
+          isHighlighted
+            ? "fill-[#5C54D1] text-[#5C54D1]"
+            : "text-gray-300 group-hover:text-indigo-300"
+        }`}
+      />
+    );
+  }
+
+  return (
+    <StarIcon
+      className={`h-6 w-6 transition-colors sm:h-7 sm:w-7 ${
+        isHighlighted
+          ? "fill-amber-400 text-amber-400"
+          : "text-gray-300 group-hover:text-amber-300"
+      }`}
+    />
+  );
+}
+
 export default function PreviewRating({
   minNumber = 1,
   maxNumber,
-  ratingMode = "rating",
-  minLabel,
-  maxLabel,
+  ratingDisplay = "icon",
+  ratingIcon = "star",
+  scaleMinLabel,
+  scaleMaxLabel,
   required,
   value,
   onChange,
@@ -32,7 +80,7 @@ export default function PreviewRating({
   const [hoveredLevel, setHoveredLevel] = useState<number | null>(null);
 
   const start =
-    ratingMode === "linear" && (minNumber === 0 || minNumber === 1)
+    ratingDisplay === "linear_scale" && (minNumber === 0 || minNumber === 1)
       ? minNumber
       : 1;
   const end = maxNumber || 5;
@@ -44,13 +92,13 @@ export default function PreviewRating({
   const hasSelection = value !== undefined && value !== null;
   const activeRating = hoveredLevel ?? (value ?? -1);
 
-  if (ratingMode === "linear") {
+  if (ratingDisplay === "linear_scale") {
     return (
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-          {minLabel?.trim() ? (
+          {scaleMinLabel?.trim() ? (
             <span className="text-sm text-gray-800 sm:pb-2.5">
-              {minLabel.trim()}
+              {scaleMinLabel.trim()}
             </span>
           ) : (
             <span className="hidden sm:block" />
@@ -89,9 +137,9 @@ export default function PreviewRating({
             })}
           </div>
 
-          {maxLabel?.trim() ? (
+          {scaleMaxLabel?.trim() ? (
             <span className="text-end text-sm text-gray-800 sm:pb-2.5">
-              {maxLabel.trim()}
+              {scaleMaxLabel.trim()}
             </span>
           ) : (
             <span className="hidden sm:block" />
@@ -137,12 +185,9 @@ export default function PreviewRating({
                 {level}
               </span>
 
-              <ShootingStarIcon
-                className={`h-6 w-6 transition-colors sm:h-7 sm:w-7 ${
-                  isHighlighted
-                    ? "text-amber-400"
-                    : "text-gray-300 group-hover:text-amber-200"
-                }`}
+              <PreviewIconGlyph
+                icon={ratingIcon}
+                isHighlighted={isHighlighted}
               />
             </button>
           );

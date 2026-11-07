@@ -4,6 +4,7 @@
  */
 
 export const FORM_TYPES = ["registration", "survey"] as const;
+export const FORM_LOCALES = ["th", "en"] as const;
 export const QUESTIONS_TYPES = [
   "short_text",
   "long_text",
@@ -17,9 +18,21 @@ export const QUESTIONS_TYPES = [
   "rating",
 ] as const;
 
+export const UNIQUE_QUESTION_TYPES = [
+  "short_text",
+  "email",
+  "number",
+] as const;
+
+export const RATING_DISPLAYS = ["icon", "linear_scale"] as const;
+export const RATING_ICONS = ["star", "heart", "like"] as const;
+
+export type RATING_DISPLAY = (typeof RATING_DISPLAYS)[number];
+export type ICON = (typeof RATING_ICONS)[number];
+
 export type FormType = (typeof FORM_TYPES)[number];
+export type FormLocale = (typeof FORM_LOCALES)[number];
 export type QuestionType = (typeof QUESTIONS_TYPES)[number];
-export type RatingMode = "rating" | "linear";
 
 export type FormStatus =
   | "draft"
@@ -35,11 +48,15 @@ export interface Choice {
   id?: string;
   label: string;
   display_order: number;
+  scale_min_label?: string;
+  scale_max_label?: string;
 }
 
 export interface Label {
   label: string;
   placeholder: string;
+  scale_min_label?: string;
+  scale_max_label?: string;
   choices: {
     en: Choice[];
     th: Choice[];
@@ -50,9 +67,6 @@ export interface Question {
   question: {
     id?: string;
     type: QuestionType;
-    rating_type?: RatingMode;
-    min_label?: string;
-    max_label?: string;
     display_order: number;
     min_number: number;
     max_number: number;
@@ -60,7 +74,11 @@ export interface Question {
     max_value?: number | null;
     min_length: number;
     max_length: number;
-    required: boolean;
+    is_required: boolean;
+    is_unique: boolean;
+    rating_display: RATING_DISPLAY;
+    rating_icon: ICON;
+    rating_max: number;
     label: {
       en: Label[];
       th: Label[];
@@ -82,6 +100,8 @@ export interface Form {
     };
   };
   type: FormType;
+  opens_at?: string | null;
+  closes_at?: string | null;
   questions: Question[];
 }
 
@@ -112,13 +132,21 @@ export interface FormStatusPatchInput {
 
 export interface QuestionFieldProps {
   question: Question["question"];
+  locale?: FormLocale;
   choices: Choice[];
+  draggedChoiceId?: string | null;
+  dragOverChoiceId?: string | null;
+  onChoiceDragStart?: (choiceId: string) => void;
+  onChoiceDragOver?: (choiceId: string) => void;
+  onChoiceDragLeave?: (choiceId: string) => void;
+  onChoiceDragEnd?: () => void;
   onAddChoice: () => void;
   onUpdateChoice: (choiceId: string, label: string) => void;
   onDeleteChoice: (choiceId: string) => void;
   onReorderChoice: (sourceChoiceId: string, targetChoiceId: string) => void;
   onUpdateRange?: (min: number, max: number) => void;
   onUpdateNumberBounds?: (min: number | null, max: number | null) => void;
-  onUpdateRatingType?: (ratingType: RatingMode) => void;
+  onUpdateRatingDisplay?: (display: RATING_DISPLAY) => void;
+  onUpdateRatingIcon?: (icon: ICON) => void;
   onUpdateLinearLabels?: (minLabel: string, maxLabel: string) => void;
 }

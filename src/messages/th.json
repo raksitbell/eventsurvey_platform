@@ -220,20 +220,44 @@
       "maxNumber": "ค่าสูงสุด",
       "noLimit": "ไม่จำกัด",
       "minGreaterThanMax": "ค่าต่ำสุดต้องน้อยกว่าหรือเท่ากับค่าสูงสุด",
-      "ratingMode": {
-        "rating": "Rating (ดาว)",
-        "linear": "Linear scale (สเกลเชิงเส้น)"
+      "ratingDisplay": {
+        "icon": "ไอคอน (Icon)",
+        "linear_scale": "สเกลเชิงเส้น (Linear scale)"
+      },
+      "ratingIcon": {
+        "star": "ดาว (Star)",
+        "heart": "หัวใจ (Heart)",
+        "like": "ถูกใจ (Like)"
       },
       "maxRating": "คะแนนสูงสุด:",
       "to": "ถึง",
       "linearLabelPlaceholder": "ป้ายกำกับ (ไม่บังคับ)",
-      "addLinearInput": "เพิ่มช่องข้อความ"
+      "opensAt": "เวลาเปิดรับคำตอบ",
+      "closesAt": "เวลาปิดรับคำตอบ",
+      "selectDateTime": "เลือกวันและเวลา",
+      "dateRangeInvalid": "เวลาเปิดต้องมาก่อนหรือเท่ากับเวลาปิด",
+      "unique": "ห้ามซ้ำ (Unique)",
+      "required": "จำเป็น",
+      "questionPlaceholder": "คำถาม",
+      "addOption": "เพิ่มตัวเลือก",
+      "addQuestion": "เพิ่มคำถาม",
+      "addEnglish": "เพิ่มภาษาอังกฤษ",
+      "removeEnglish": "ลบภาษาอังกฤษ",
+      "langThai": "ภาษาไทย (ค่าเริ่มต้น)",
+      "langEnglish": "ภาษาอังกฤษ (English)"
     },
     "preview": {
       "button": "ดูตัวอย่าง",
       "editForm": "กลับไปแก้ไขฟอร์ม",
+      "langThai": "ภาษาไทย",
+      "langEnglish": "English",
       "requiredNote": "* ระบุว่าเป็นคำถามที่จำเป็น",
       "requiredError": "คำถามนี้จำเป็นต้องตอบ",
+      "uniqueBadge": "Unique",
+      "uniqueMockHint": "ค่าจำลองที่มีในระบบแล้ว (ลองกรอกเพื่อทดสอบค่าซ้ำ): {value}",
+      "uniqueError": "ค่านี้ถูกใช้งานไปแล้ว กรุณากรอกค่าที่ไม่ซ้ำ",
+      "opensAt": "เปิดรับคำตอบ",
+      "closesAt": "ปิดรับคำตอบ",
       "emailError": "กรุณากรอกอีเมลที่มีเครื่องหมาย @",
       "numberInvalidError": "กรุณากรอกตัวเลขที่ถูกต้อง",
       "numberMinError": "ค่าต้องไม่น้อยกว่า {min}",

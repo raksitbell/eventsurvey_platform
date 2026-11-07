@@ -30,16 +30,23 @@ const choiceSchema = z.object({
   id: z.uuid().optional(),
   label: z.string(),
   display_order: z.number().int().positive(),
+  scale_min_label: z.string().optional(),
+  scale_max_label: z.string().optional(),
 });
 
 const labelSchema = z.object({
   label: z.string(),
   placeholder: z.string(),
+  scale_min_label: z.string().optional(),
+  scale_max_label: z.string().optional(),
   choices: z.object({
     en: z.array(choiceSchema),
     th: z.array(choiceSchema),
   }),
 });
+
+const ratingDisplaySchema = z.enum(["icon", "linear_scale"]);
+const ratingIconSchema = z.enum(["star", "heart", "like"]);
 
 const questionSchema = z
   .object({
@@ -51,7 +58,11 @@ const questionSchema = z
       max_number: z.number(),
       min_length: z.number().int().nonnegative(),
       max_length: z.number().int().nonnegative(),
-      required: z.boolean(),
+      is_required: z.boolean(),
+      is_unique: z.boolean().default(false),
+      rating_display: ratingDisplaySchema.default("icon"),
+      rating_icon: ratingIconSchema.default("star"),
+      rating_max: z.number().default(5),
       label: z.object({
         en: z.array(labelSchema).min(1),
         th: z.array(labelSchema).min(1),
@@ -88,6 +99,8 @@ const formShapeSchema = z.object({
     th: headLocaleSchema,
   }),
   type: formTypeSchema,
+  opens_at: z.string().nullable().optional(),
+  closes_at: z.string().nullable().optional(),
   questions: z.array(questionSchema),
 });
 

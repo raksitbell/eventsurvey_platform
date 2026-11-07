@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Form, Question } from "@/types/event/form";
+import { Form, FormLocale, Question, QuestionType } from "@/types/event/form";
 import PreviewTopBar from "./PreviewTopBar";
 import PreviewHeaderCard from "./PreviewHeaderCard";
 import PreviewQuestionCard, { AnswerValue } from "./PreviewQuestionCard";
@@ -11,19 +11,71 @@ import PreviewSubmittedCard from "./PreviewSubmittedCard";
 
 interface FormPreviewProps {
   form: Form;
+  hasEnglish?: boolean;
   onExitPreview: () => void;
 }
 
-export default function FormPreview({ form, onExitPreview }: FormPreviewProps) {
+/**
+ * Built-in mock existing values so testers can immediately verify `is_unique`
+ * duplicate detection in Preview (plus any values submitted during this session).
+ */
+const MOCK_EXISTING_UNIQUE_BY_TYPE: Partial<Record<QuestionType, string>> = {
+  short_text: "admin",
+  email: "test@example.com",
+  number: "100",
+};
+
+function normalizeUniqueValue(raw: string, type: QuestionType): string {
+  const trimmed = raw.trim();
+  if (type === "number") {
+    const num = Number(trimmed);
+    return Number.isNaN(num) ? trimmed : String(num);
+  }
+  return trimmed.toLowerCase();
+}
+
+export default function FormPreview({
+  form,
+  hasEnglish = false,
+  onExitPreview,
+}: FormPreviewProps) {
   const tPreview = useTranslations("form.preview");
+
+  const [previewLocale, setPreviewLocale] = useState<FormLocale>("th");
+  const activeLocale: FormLocale = hasEnglish ? previewLocale : "th";
+  const currentHead = form.head[activeLocale];
 
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedUniqueValues, setSubmittedUniqueValues] = useState<
+    Record<string, string[]>
+  >({});
 
   const hasRequiredQuestion = form.questions.some(
-    (item) => item.question.required,
+    (item) => item.question.is_required,
   );
+
+  const isDuplicateUniqueValue = (
+    q: Question["question"],
+    rawVal: string,
+  ): boolean => {
+    if (!q.is_unique) return false;
+    const normalized = normalizeUniqueValue(rawVal, q.type);
+    if (!normalized) return false;
+
+    const mockDefault = MOCK_EXISTING_UNIQUE_BY_TYPE[q.type];
+    if (
+      mockDefault &&
+      normalizeUniqueValue(mockDefault, q.type) === normalized
+    ) {
+      return true;
+    }
+
+    const qId = q.id!;
+    const sessionSubmitted = submittedUniqueValues[qId] ?? [];
+    return sessionSubmitted.includes(normalized);
+  };
 
   const validateQuestion = (
     q: Question["question"],
@@ -38,18 +90,18 @@ export default function FormPreview({ form, onExitPreview }: FormPreviewProps) {
     })();
 
     if (!isAnswered) {
-      return q.required ? tPreview("requiredError") : null;
+      return q.is_required ? tPreview("requiredError") : null;
     }
 
+    const strVal = String(val).trim();
+
     if (q.type === "email") {
-      const strVal = String(val).trim();
       if (!strVal.includes("@")) {
         return tPreview("emailError");
       }
     }
 
     if (q.type === "number") {
-      const strVal = String(val).trim();
       const num = Number(strVal);
       if (Number.isNaN(num)) {
         return tPreview("numberInvalidError");
@@ -72,6 +124,10 @@ export default function FormPreview({ form, onExitPreview }: FormPreviewProps) {
       }
     }
 
+    if (q.is_unique && isDuplicateUniqueValue(q, strVal)) {
+      return tPreview("uniqueError");
+    }
+
     return null;
   };
 
@@ -86,15 +142,10 @@ export default function FormPreview({ form, onExitPreview }: FormPreviewProps) {
       const q = item.question;
       const strVal = typeof value === "string" ? value.trim() : "";
 
-      if (q.type === "email" && strVal.length > 0 && !strVal.includes("@")) {
-        setErrors((prev) => ({
-          ...prev,
-          [questionId]: tPreview("emailError"),
-        }));
-        return;
-      }
-
-      if (q.type === "number" && strVal.length > 0) {
+      if (
+        (q.type === "email" || q.type === "number" || q.is_unique) &&
+        strVal.length > 0
+      ) {
         const err = validateQuestion(q, value);
         if (err) {
           setErrors((prev) => ({
@@ -163,6 +214,25 @@ export default function FormPreview({ form, onExitPreview }: FormPreviewProps) {
       return;
     }
 
+    // Record submitted unique values in session so "Submit another response" also catches duplicates
+    setSubmittedUniqueValues((prev) => {
+      const next = { ...prev };
+      form.questions.forEach((item) => {
+        const q = item.question;
+        const qId = q.id!;
+        if (!q.is_unique) return;
+        const raw = answers[qId];
+        if (raw === undefined || raw === null) return;
+        const normalized = normalizeUniqueValue(String(raw), q.type);
+        if (!normalized) return;
+        const existing = next[qId] ?? [];
+        if (!existing.includes(normalized)) {
+          next[qId] = [...existing, normalized];
+        }
+      });
+      return next;
+    });
+
     setIsSubmitted(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -170,7 +240,10 @@ export default function FormPreview({ form, onExitPreview }: FormPreviewProps) {
   if (isSubmitted) {
     return (
       <PreviewSubmittedCard
-        title={form.head.en.title}
+        title={currentHead.title}
+        hasEnglish={hasEnglish}
+        previewLocale={activeLocale}
+        onChangeLocale={setPreviewLocale}
         onResetForm={clearForm}
         onExitPreview={onExitPreview}
       />
@@ -178,16 +251,23 @@ export default function FormPreview({ form, onExitPreview }: FormPreviewProps) {
   }
 
   return (
-    <div className="font-sans min-h-screen px-3 pt-4 pb-20 text-gray-800 sm:px-6 sm:pt-8">
+    <div className="font-sans min-h-screen px-3 pt-4 pb-20 text-gray-800 sm:px-6 sm:pt-8 dark:text-gray-100">
       <div className="mx-auto max-w-2xl">
         {/* Top bar to return to editor */}
-        <PreviewTopBar onExitPreview={onExitPreview} />
+        <PreviewTopBar
+          onExitPreview={onExitPreview}
+          hasEnglish={hasEnglish}
+          previewLocale={activeLocale}
+          onChangeLocale={setPreviewLocale}
+        />
 
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
           {/* 1. Header Card */}
           <PreviewHeaderCard
-            title={form.head.en.title}
-            description={form.head.en.description}
+            title={currentHead.title}
+            description={currentHead.description}
+            opensAt={form.opens_at}
+            closesAt={form.closes_at}
             hasRequiredQuestion={hasRequiredQuestion}
           />
 
@@ -200,8 +280,14 @@ export default function FormPreview({ form, onExitPreview }: FormPreviewProps) {
               <PreviewQuestionCard
                 key={qId}
                 question={question}
+                locale={activeLocale}
                 answer={answers[qId]}
                 errorMessage={errors[qId]}
+                mockUniqueSample={
+                  question.is_unique
+                    ? MOCK_EXISTING_UNIQUE_BY_TYPE[question.type]
+                    : undefined
+                }
                 onChangeAnswer={(val) => setAnswer(qId, val)}
                 onToggleCheckbox={(choiceId) =>
                   toggleCheckboxAnswer(qId, choiceId)
