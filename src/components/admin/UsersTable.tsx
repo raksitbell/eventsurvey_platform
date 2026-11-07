@@ -1,6 +1,7 @@
 "use client";
 
 import Button from "@/components/ui/button/Button";
+import { TableBodySkeleton } from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
 import {
@@ -153,14 +154,7 @@ export default function UsersTable() {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
               {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-                  >
-                    {t("loading")}
-                  </td>
-                </tr>
+                <TableBodySkeleton columns={8} rows={6} />
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td

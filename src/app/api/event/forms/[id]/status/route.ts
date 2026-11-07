@@ -49,7 +49,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const denied = isApprovalDecision(existing.status, parsed.data.status)
     ? await denyUnlessEventPermission(
         sessionOrDeny.userId,
-        "approve",
+        "manage_event",
         existing.eventId,
       )
     : await denyUnlessEventFormManager(

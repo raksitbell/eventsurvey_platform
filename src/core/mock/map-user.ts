@@ -40,7 +40,7 @@ export function mapMockUserToUser(
     status: mapStatus(user.status),
     ownerId:
       role === "sub_user" ? user.invited_by_user_id : null,
-    canViewSensitiveData: permissions.includes("view_unmasked_pii"),
+    canViewSensitiveData: false,
     isDeleted: isRemoved,
     deletedAt: user.removed_at,
     anonymizedAt: null,

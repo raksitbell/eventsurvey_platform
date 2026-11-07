@@ -1,12 +1,13 @@
 "use client";
 
+import SubmitApprovalForm from "@/components/event/SubmitApprovalForm";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
+import type { Locale } from "@/i18n/routing";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { translateRole } from "@/utils/i18n-labels";
-import { useTranslations } from "next-intl";
-import { useLocale } from "next-intl";
-import type { Locale } from "@/i18n/routing";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 export default function EventWorkspacePanel() {
@@ -61,9 +62,7 @@ export default function EventWorkspacePanel() {
 
       <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
         {isLoading ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t("loading")}
-          </p>
+          <WorkspaceSkeleton />
         ) : error ? (
           <p className="text-sm text-error-600 dark:text-error-400">{error}</p>
         ) : workspace ? (
@@ -96,12 +95,49 @@ export default function EventWorkspacePanel() {
                 </dd>
               </div>
             </dl>
+            {workspace.eventStatus === "draft" &&
+            workspace.userRole === "event_owner" ? (
+              <SubmitApprovalForm
+                onSubmitted={(event) =>
+                  setWorkspace((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          eventStatus: event.status,
+                          eventName: event.title,
+                        }
+                      : prev,
+                  )
+                }
+              />
+            ) : null}
           </div>
         ) : (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {t("noEvent")}
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true">
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-7 w-64 max-w-full" />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-5 w-28" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-5 w-32" />
+        </div>
       </div>
     </div>
   );

@@ -11,11 +11,19 @@
     "status": {
       "active": "ใช้งาน",
       "inactive": "ปิดใช้งาน"
+    },
+    "back": "ย้อนกลับ",
+    "accountStatus": {
+      "invited": "รอตั้งรหัสผ่าน",
+      "active": "ใช้งาน",
+      "suspended": "ระงับ",
+      "removed": "ลบแล้ว"
     }
   },
   "confirm": {
     "cancel": "ยกเลิก",
     "confirm": "ยืนยัน",
+    "ok": "ตกลง",
     "signOutTitle": "ออกจากระบบ",
     "impersonateTitle": "สวมสิทธิ์ผู้ใช้",
     "stopImpersonateTitle": "หยุดสวมสิทธิ์"
@@ -25,8 +33,9 @@
       "workspace": "พื้นที่ทำงาน"
     },
     "items": {
-      "overview": "ภาพรวม",
-      "owners": "เจ้าของอีเวนต์",
+      "overview": "ภาพรวมระบบ",
+      "events": "จัดการอีเวนต์",
+      "owners": "จัดการผู้ใช้",
       "eventHome": "ภาพรวม"
     },
     "roles": {
@@ -126,10 +135,9 @@
     "eventStatusEmpty": "ยังไม่มีอีเวนต์ให้แสดง",
     "eventStatus": {
       "draft": "ฉบับร่าง",
-      "pending_approval": "รออนุมัติ",
-      "published": "เผยแพร่แล้ว",
-      "closed": "ปิดแล้ว",
-      "archived": "เก็บถาวร"
+      "scheduled": "ตั้งเวลาแล้ว",
+      "open": "เปิดใช้งาน",
+      "closed": "ปิดใช้งาน"
     },
     "topEventsTitle": "อีเวนต์ยอดนิยมตามคำตอบ",
     "topEventsSeries": "คำตอบ",
@@ -184,10 +192,198 @@
     "noEvent": "ยังไม่มีอีเวนต์ที่ผูกกับบัญชีนี้",
     "eventStatus": {
       "draft": "แบบร่าง",
-      "pending_approval": "รออนุมัติ",
-      "published": "เผยแพร่แล้ว",
-      "closed": "ปิดแล้ว",
-      "archived": "เก็บถาวร"
+      "scheduled": "ตั้งเวลาแล้ว",
+      "open": "เปิดใช้งาน",
+      "closed": "ปิดใช้งาน"
+    },
+    "scheduleEvent": {
+      "title": "ตั้งเวลาอีเวนต์",
+      "description": "กรอกรายละเอียดที่เหลือ สถานะจะเป็น Scheduled — แพลตฟอร์มเปิดงานได้เมื่อถึงเวลาเริ่ม",
+      "startsAt": "วันเริ่ม",
+      "endsAt": "วันสิ้นสุด",
+      "descriptionField": "รายละเอียด",
+      "locationName": "สถานที่",
+      "addressText": "ที่อยู่",
+      "submit": "บันทึกและตั้งเวลา",
+      "submitting": "กำลังบันทึก...",
+      "success": "ตั้งเวลาแล้ว เมื่อถึงเวลาเริ่มสามารถเปิดงานได้",
+      "error": "ตั้งเวลาไม่สำเร็จ"
+    }
+  },
+  "setupPassword": {
+    "eyebrow": "คำเชิญผู้ดูแลอีเวนต์",
+    "title": "ตั้งรหัสผ่าน",
+    "description": "เลือกรหัสผ่านเพื่อเข้าพื้นที่จัดการอีเวนต์ หลังจากบันทึกแล้วจะเข้าสู่ระบบด้วยอีเมลนี้",
+    "accountLabel": "บัญชีที่ได้รับเชิญ",
+    "password": "รหัสผ่าน",
+    "confirmPassword": "ยืนยันรหัสผ่าน",
+    "passwordPlaceholder": "อย่างน้อย 8 ตัวอักษร",
+    "confirmPlaceholder": "พิมพ์รหัสผ่านอีกครั้ง",
+    "showPassword": "แสดงรหัสผ่าน",
+    "hidePassword": "ซ่อนรหัสผ่าน",
+    "submit": "บันทึกรหัสผ่านแล้วไปต่อ",
+    "saving": "กำลังบันทึก...",
+    "loading": "กำลังโหลด...",
+    "alreadySet": "ตั้งรหัสผ่านแล้ว?",
+    "backToLogin": "กลับไปหน้าเข้าสู่ระบบ",
+    "unavailableTitle": "ลิงก์เชิญไม่พร้อมใช้งาน",
+    "brandHeadline": "รหัสผ่านเดียว คุมทั้งอีเวนต์",
+    "brandSubtext": "หลังบันทึกแล้ว เข้าสู่ระบบเพื่อจัดการลงทะเบียน แบบสำรวจ และทีมงานอีเวนต์",
+    "rules": {
+      "minLength": "อย่างน้อย 8 ตัวอักษร",
+      "match": "รหัสผ่านทั้งสองช่องตรงกัน"
+    },
+    "errors": {
+      "unavailable": "ลิงก์นี้ไม่พร้อมใช้งานหรือถูกใช้ไปแล้ว",
+      "tooShort": "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร",
+      "mismatch": "รหัสผ่านไม่ตรงกัน",
+      "saveFailed": "บันทึกรหัสผ่านไม่สำเร็จ"
+    }
+  },
+  "adminEvents": {
+    "title": "จัดการอีเวนต์",
+    "description": "สร้างและจัดการอีเวนต์ทั้งหมดบนแพลตฟอร์ม รวมถึงมอบหมายผู้ดูแลอีเวนต์",
+    "breadcrumb": "การจัดการระบบ / อีเวนต์",
+    "createNew": "สร้างอีเวนต์ใหม่",
+    "loading": "กำลังโหลดอีเวนต์...",
+    "empty": "ยังไม่มีอีเวนต์",
+    "loadError": "โหลดอีเวนต์ไม่สำเร็จ",
+    "searchPlaceholder": "ค้นหาชื่ออีเวนต์หรือ slug",
+    "allStatuses": "ทุกสถานะ",
+    "dateRange": "ช่วงวันที่",
+    "dateRangePlaceholder": "เลือกวันเริ่ม — วันสิ้นสุด",
+    "startDate": "วันเริ่ม",
+    "endDate": "วันสิ้นสุด",
+    "manage": "จัดการ",
+    "view": "ดูรายละเอียด",
+    "edit": "แก้ไข",
+    "start": "เริ่มงาน",
+    "startWaiting": "รอถึงเวลาเริ่ม",
+    "close": "ปิดงาน",
+    "forceClose": "ยืนยันปิดงาน",
+    "actionError": "อัปเดตสถานะไม่สำเร็จ",
+    "confirmStart": "เริ่มอีเวนต์ “{title}” ตอนนี้หรือไม่?",
+    "confirmClose": "คุณต้องการปิดอีเวนต์ “{title}” หรือไม่?\nระบบไม่สามารถย้อนกลับได้",
+    "confirmCloseWithWarnings": "ปิดอีเวนต์ “{title}” หรือไม่?\nฟอร์มเหล่านี้ยังเปิดอยู่หรือยังไม่หมดเวลา:",
+    "formTypes": {
+      "registration": "ลงทะเบียน",
+      "survey": "แบบสอบถาม"
+    },
+    "closeReasons": {
+      "still_open": "ยังเปิดรับอยู่",
+      "not_expired": "ยังไม่หมดเวลา",
+      "post_event": "แบบสอบถามหลังงาน"
+    },
+    "columns": {
+      "title": "ชื่ออีเวนต์",
+      "slug": "Slug",
+      "admin": "ผู้ดูแลอีเวนต์",
+      "status": "สถานะ",
+      "updatedAt": "อัปเดตล่าสุด",
+      "actions": "การจัดการ"
+    },
+    "roleNames": {
+      "eventAdmin": "ผู้ดูแลอีเวนต์"
+    },
+    "status": {
+      "draft": "ร่าง",
+      "scheduled": "ตั้งเวลาแล้ว",
+      "open": "เปิดใช้งาน",
+      "closed": "ปิดใช้งาน"
+    },
+    "preview": {
+      "back": "กลับ",
+      "tabDetails": "รายละเอียดอีเวนต์",
+      "tabUsers": "ผู้ใช้ ({count})",
+      "eventInfo": "ข้อมูลอีเวนต์",
+      "schedule": "กำหนดการ",
+      "bannerGallery": "แกลเลอรีแบนเนอร์",
+      "statusCard": "สถานะอีเวนต์",
+      "noBanner": "ยังไม่มีรูปแบนเนอร์",
+      "bannerCount": "{count} รูป",
+      "noTranslations": "ยังไม่มีข้อมูลคำแปล",
+      "localeBlock": "ภาษา {locale}",
+      "contentByLocale": "เนื้อหาตามภาษา",
+      "field": "ฟิลด์",
+      "description": "รายละเอียด",
+      "venue": "สถานที่",
+      "address": "ที่อยู่",
+      "defaultLocale": "ภาษาเริ่มต้น",
+      "createdAt": "สร้างเมื่อ",
+      "userSearch": "ค้นหาผู้ใช้",
+      "userSearchPlaceholder": "ชื่อ อีเมล หรือบทบาท",
+      "allUserStatuses": "ทุกสถานะ",
+      "userName": "ชื่อ",
+      "userEmail": "อีเมล",
+      "userRole": "บทบาท",
+      "memberCount": "จำนวนผู้ใช้",
+      "usersEmpty": "ไม่พบผู้ใช้",
+      "accessMode": "การเข้าถึง",
+      "privateEvent": "ส่วนตัว",
+      "publicEvent": "สาธารณะ",
+      "flows": "โฟลว์ผู้เข้าร่วม",
+      "hasRegistration": "ลงทะเบียน",
+      "hasSurvey": "แบบสอบถาม",
+      "opensAt": "เปิดรับเมื่อ",
+      "closesAt": "ปิดรับเมื่อ"
+    },
+    "create": {
+      "title": "สร้างอีเวนต์และกำหนดผู้ดูแลอีเวนต์",
+      "cardTitle": "ข้อมูลอีเวนต์และบัญชีผู้ดูแล",
+      "eventName": "ชื่ออีเวนต์",
+      "eventNameTh": "ชื่ออีเวนต์ (ไทย)",
+      "eventNameEn": "ชื่ออีเวนต์ (อังกฤษ)",
+      "eventNameThPlaceholder": "งานสัมมนา CSI 2028",
+      "eventNameEnPlaceholder": "CSI EventSurvey 2028",
+      "eventNameHint": "กรอกอย่างน้อยหนึ่งภาษา — แนะนำให้กรอกทั้งไทยและอังกฤษ",
+      "slug": "Slug อีเวนต์",
+      "slugHint": "สร้างอัตโนมัติจากชื่อภาษาอังกฤษ สามารถแก้ได้ก่อนบันทึก",
+      "modeExisting": "มีผู้ใช้อยู่แล้ว",
+      "modeNew": "ยังไม่มีผู้ใช้",
+      "selectUser": "เลือกผู้ดูแลอีเวนต์",
+      "selectUserPlaceholder": "เลือกผู้ใช้ที่ยังไม่ผูกอีเวนต์",
+      "adminName": "ชื่อผู้ดูแลอีเวนต์",
+      "adminEmail": "อีเมลผู้ดูแลอีเวนต์",
+      "cancel": "ยกเลิก",
+      "submit": "สร้าง Draft + ไป Event Workspace",
+      "submitNew": "สร้าง Draft + ส่งอีเมลตั้งรหัสผ่าน",
+      "submitting": "กำลังสร้าง...",
+      "inviteSent": "สร้างอีเวนต์แล้ว และส่งอีเมลตั้งรหัสผ่านไปที่ {email}",
+      "successTitle": "สร้างอีเวนต์แล้ว",
+      "successCreated": "สร้างอีเวนต์แบบร่างสำเร็จ",
+      "errorTitle": "สร้างอีเวนต์ไม่สำเร็จ",
+      "errors": {
+        "required": "กรุณากรอกข้อมูลให้ครบ",
+        "slugExists": "Slug นี้ถูกใช้แล้ว",
+        "emailExists": "อีเมลนี้ถูกใช้แล้ว",
+        "mailFailed": "สร้างบัญชีแล้ว แต่ส่งอีเมลไม่สำเร็จ",
+        "generic": "สร้างอีเวนต์ไม่สำเร็จ"
+      }
+    },
+    "editForm": {
+      "title": "แก้ไขอีเวนต์แบบร่าง",
+      "description": "แพลตฟอร์มแก้ไขชื่อและ slug ได้ขณะสถานะยังเป็น draft",
+      "cardTitle": "รายละเอียดอีเวนต์",
+      "eventNameTh": "ชื่ออีเวนต์ (ไทย)",
+      "eventNameEn": "ชื่ออีเวนต์ (อังกฤษ)",
+      "eventNameThPlaceholder": "งานสัมมนา CSI 2028",
+      "eventNameEnPlaceholder": "CSI EventSurvey 2028",
+      "eventNameHint": "กรอกอย่างน้อยหนึ่งภาษา — แนะนำให้กรอกทั้งไทยและอังกฤษ",
+      "slug": "Slug อีเวนต์",
+      "slugHint": "การเปลี่ยน slug จะอัปเดตพาธสาธารณะของอีเวนต์",
+      "cancel": "ยกเลิก",
+      "submit": "บันทึกการแก้ไข",
+      "submitting": "กำลังบันทึก...",
+      "successTitle": "บันทึกแล้ว",
+      "successSaved": "อัปเดตอีเวนต์แบบร่างสำเร็จ",
+      "errorTitle": "บันทึกไม่สำเร็จ",
+      "errors": {
+        "required": "กรุณากรอกข้อมูลให้ครบ",
+        "slugExists": "Slug นี้ถูกใช้แล้ว",
+        "notDraft": "แก้ไขได้เฉพาะอีเวนต์สถานะ draft",
+        "mockReadOnly": "Mock API บันทึกไม่ได้ (read-only) — รัน mock แบบ local แล้วตั้ง MOCK_API_BASE_URL ชี้ไปที่นั้น",
+        "generic": "แก้ไขอีเวนต์ไม่สำเร็จ"
+      }
     }
   },
   "notFound": {
