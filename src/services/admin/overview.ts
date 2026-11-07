@@ -29,11 +29,10 @@ const PII_ACTIVITY_LIMIT = 8;
 const FORM_APPROVAL_TARGETS = new Set(["registration_form", "survey_form"]);
 
 const EVENT_STATUS_ORDER: EventStatusKey[] = [
-  "published",
+  "open",
+  "scheduled",
   "draft",
   "closed",
-  "pending_approval",
-  "archived",
 ];
 
 function monthKey(date: Date): string {
@@ -76,18 +75,13 @@ function formSystemStatus(
   if (!forms || !approvals) return "attention";
 
   const liveForms = forms.filter((form) => !form.deleted_at);
-  const stuckPublished = liveForms.some(
-    (form) => form.status === "published" && !form.accepting_responses,
-  );
-  const paused = liveForms.some((form) => form.status === "paused");
+  const hasOpenForms = liveForms.some((form) => form.status === "open");
   const pendingFormApproval = approvals.some(
     (row) =>
       row.status === "pending" && FORM_APPROVAL_TARGETS.has(row.target_type),
   );
 
-  return stuckPublished || paused || pendingFormApproval
-    ? "attention"
-    : "operational";
+  return !hasOpenForms && pendingFormApproval ? "attention" : "operational";
 }
 
 function mapAuditRow(row: MockAuditLog) {
@@ -198,7 +192,7 @@ export async function getBoundAdminOverview(
   })).filter(
     (row) =>
       row.count > 0 ||
-      row.status === "published" ||
+      row.status === "open" ||
       row.status === "draft" ||
       row.status === "closed",
   );
@@ -244,8 +238,7 @@ export async function getBoundAdminOverview(
   return {
     metrics: {
       events: {
-        active: liveEvents.filter((event) => event.status === "published")
-          .length,
+        active: liveEvents.filter((event) => event.status === "open").length,
         total: liveEvents.length,
       },
       users: {
@@ -253,14 +246,12 @@ export async function getBoundAdminOverview(
         total: liveUsers.length,
       },
       registrationForms: {
-        active: liveRegistrationForms.filter(
-          (form) => form.status === "published",
-        ).length,
+        active: liveRegistrationForms.filter((form) => form.status === "open")
+          .length,
         total: liveRegistrationForms.length,
       },
       surveys: {
-        active: liveSurveys.filter((form) => form.status === "published")
-          .length,
+        active: liveSurveys.filter((form) => form.status === "open").length,
         total: liveSurveys.length,
       },
     },

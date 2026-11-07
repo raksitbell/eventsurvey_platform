@@ -130,10 +130,9 @@
     "eventStatusEmpty": "ยังไม่มีอีเวนต์ให้แสดง",
     "eventStatus": {
       "draft": "ฉบับร่าง",
-      "pending_approval": "รออนุมัติ",
-      "published": "เผยแพร่แล้ว",
-      "closed": "ปิดแล้ว",
-      "archived": "เก็บถาวร"
+      "scheduled": "กำหนดเวลา",
+      "open": "เปิด",
+      "closed": "ปิดแล้ว"
     },
     "topEventsTitle": "อีเวนต์ยอดนิยมตามคำตอบ",
     "topEventsSeries": "คำตอบ",
@@ -188,10 +187,9 @@
     "noEvent": "ยังไม่มีอีเวนต์ที่ผูกกับบัญชีนี้",
     "eventStatus": {
       "draft": "แบบร่าง",
-      "pending_approval": "รออนุมัติ",
-      "published": "เผยแพร่แล้ว",
-      "closed": "ปิดแล้ว",
-      "archived": "เก็บถาวร"
+      "scheduled": "กำหนดเวลา",
+      "open": "เปิด",
+      "closed": "ปิดแล้ว"
     }
   },
   "form": {

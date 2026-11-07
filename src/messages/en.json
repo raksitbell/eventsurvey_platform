@@ -130,10 +130,9 @@
     "eventStatusEmpty": "No events to chart yet.",
     "eventStatus": {
       "draft": "Draft",
-      "pending_approval": "Pending approval",
-      "published": "Published",
-      "closed": "Closed",
-      "archived": "Archived"
+      "scheduled": "Scheduled",
+      "open": "Open",
+      "closed": "Closed"
     },
     "topEventsTitle": "Top events by responses",
     "topEventsSeries": "Responses",
@@ -188,10 +187,9 @@
     "noEvent": "No event is linked to this account yet.",
     "eventStatus": {
       "draft": "Draft",
-      "pending_approval": "Pending approval",
-      "published": "Published",
-      "closed": "Closed",
-      "archived": "Archived"
+      "scheduled": "Scheduled",
+      "open": "Open",
+      "closed": "Closed"
     }
   },
   "form": {
