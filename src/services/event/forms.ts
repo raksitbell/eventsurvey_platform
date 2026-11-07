@@ -2,20 +2,25 @@ import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import {
   assertFormStatusTransition,
-  resolveAcceptingResponses,
+  formMutationFlags,
+  resolveEffectiveFormStatus,
+  statusFromScheduleInput,
 } from "@/core/forms/lifecycle";
 import { validatePublishReady } from "@/core/validation/forms";
 import type {
   Choice,
   Form,
   FormCreateBody,
+  FormListResponse,
   FormRecord,
   FormStatus,
   FormStatusPatchInput,
   FormType,
+  ICON,
   Label,
   Question,
   QuestionType,
+  RATING_DISPLAY,
 } from "@/types/event/form";
 import type {
   MockEvent,
@@ -27,6 +32,8 @@ import type {
   MockFormField,
   MockFormStatus,
   MockFormTranslation,
+  MockRatingDisplay,
+  MockRatingIcon,
 } from "@/types/mock";
 
 const CHOICE_TYPES = new Set<QuestionType>([
@@ -112,7 +119,7 @@ async function getLiveForm(id: string): Promise<MockForm> {
   return form;
 }
 
-async function assertEventEditable(eventId: string): Promise<MockEvent> {
+async function loadEvent(eventId: string): Promise<MockEvent> {
   let event: MockEvent;
   try {
     event = await mockApi.get<MockEvent>(`/events/${eventId}`);
@@ -127,12 +134,51 @@ async function assertEventEditable(eventId: string): Promise<MockEvent> {
   }
   if (event.start_at && new Date(event.start_at).getTime() <= Date.now()) {
     throw new ServiceError(
-      "EVENT_ALREADY_STARTED",
+      "FORM_TYPE_NOT_ENABLED",
       409,
-      "Form definition cannot change after the event has started",
+      "Event does not enable registration forms",
     );
   }
-  return event;
+  if (type === "survey" && !event.has_survey) {
+    throw new ServiceError(
+      "FORM_TYPE_NOT_ENABLED",
+      409,
+      "Event does not enable survey forms",
+    );
+  }
+}
+
+function assertCanEdit(status: FormStatus): void {
+  const flags = formMutationFlags(status);
+  if (!flags.canEdit) {
+    throw new ServiceError(
+      "FORM_NOT_EDITABLE",
+      409,
+      status === "open"
+        ? "Open forms cannot be edited"
+        : "Closed forms cannot be modified",
+    );
+  }
+}
+
+function assertCanDelete(status: FormStatus): void {
+  if (!formMutationFlags(status).canDelete) {
+    throw new ServiceError(
+      "FORM_NOT_DELETABLE",
+      409,
+      "This form can no longer be deleted",
+    );
+  }
+}
+
+function assertCanChangeStatus(status: FormStatus): void {
+  if (!formMutationFlags(status).canChangeStatus) {
+    throw new ServiceError(
+      "FORM_STATUS_LOCKED",
+      409,
+      "Closed forms cannot change status",
+    );
+  }
 }
 
 async function assertUniqueLiveType(
@@ -256,10 +302,13 @@ async function loadQuestions(formId: string): Promise<Question[]> {
         min_length: nullToNumber(field.min_length),
         max_length: nullToNumber(field.max_length),
         is_required: field.is_required,
-        is_unique: false,
-        rating_display: "icon",
-        rating_icon: "star",
-        rating_max: nullToNumber(field.max_number, 5),
+        is_unique: Boolean(field.is_unique),
+        rating_display: (field.rating_display ?? "icon") as RATING_DISPLAY,
+        rating_icon: (field.rating_icon ?? "star") as ICON,
+        rating_max: nullToNumber(
+          field.rating_max ?? field.max_number,
+          type === "rating" ? 5 : 0,
+        ),
         label: buildLabelPair(
           enT?.label ?? "",
           thT?.label ?? "",
@@ -289,7 +338,11 @@ function headFromTranslations(rows: MockFormTranslation[]): Form["head"] {
   };
 }
 
-async function toFormRecord(form: MockForm): Promise<FormRecord> {
+async function toFormRecord(
+  form: MockForm,
+  event?: MockEvent,
+): Promise<FormRecord> {
+  const parent = event ?? (await loadEvent(form.event_id));
   const [translationRows, questions] = await Promise.all([
     loadFormTranslations(form.id),
     loadQuestions(form.id),
@@ -308,6 +361,9 @@ async function toFormRecord(form: MockForm): Promise<FormRecord> {
     updatedAt: form.updated_at,
     head: headFromTranslations(translationRows),
     questions,
+    canEdit: flags.canEdit,
+    canDelete: flags.canDelete,
+    canChangeStatus: flags.canChangeStatus,
   };
 }
 
@@ -818,7 +874,8 @@ async function compensateOrThrow(
 export async function listForms(
   eventId: string,
   allowedTypes: readonly FormType[],
-): Promise<FormRecord[]> {
+): Promise<FormListResponse> {
+  const event = await loadEvent(eventId);
   const forms = await mockApi.get<MockForm[]>(
     `/forms?event_id=${encodeURIComponent(eventId)}`,
   );
@@ -826,9 +883,14 @@ export async function listForms(
   const live = forms.filter((f) => !f.deleted_at && allowed.has(f.type));
   const items: FormRecord[] = [];
   for (const form of live) {
-    items.push(await toFormRecord(form));
+    items.push(await toFormRecord(form, event));
   }
-  return items;
+  return {
+    eventId: event.id,
+    hasRegistration: Boolean(event.has_registration),
+    hasSurvey: Boolean(event.has_survey),
+    forms: items,
+  };
 }
 
 export async function getForm(id: string): Promise<FormRecord> {
@@ -840,12 +902,16 @@ export async function createForm(
   input: FormCreateBody,
   userId: string,
 ): Promise<FormRecord> {
-  await assertEventEditable(input.eventId);
+  const event = await loadEvent(input.eventId);
+  assertFormTypeAllowed(event, input.type);
   await assertUniqueLiveType(input.eventId, input.type);
   assertNewQuestionTreeHasNoIds(input.questions);
 
   const stamp = nowIso();
   const id = newId();
+  const opensAt = input.opens_at?.trim() || null;
+  const closesAt = input.closes_at?.trim() || null;
+  const status = statusFromScheduleInput(opensAt, closesAt, "draft");
   const form: MockForm = {
     id,
     event_id: input.eventId,
@@ -878,18 +944,24 @@ export async function updateForm(
   userId: string,
 ): Promise<FormRecord> {
   const form = await getLiveForm(id);
-  if (form.status !== "draft") {
-    throw new ServiceError(
-      "FORM_NOT_DRAFT",
-      409,
-      "Only draft forms can update their definition",
-    );
-  }
-  await assertEventEditable(form.event_id);
+  const event = await loadEvent(form.event_id);
+  const effective = resolveEffectiveFormStatus(form, event);
+  assertCanEdit(effective);
+
   const fields = await assertQuestionTreeOwnership(id, input.questions);
   const snapshot = await captureFormTree(form);
 
   const stamp = nowIso();
+  const opensAt =
+    input.opens_at !== undefined
+      ? input.opens_at?.trim() || null
+      : form.opens_at;
+  const closesAt =
+    input.closes_at !== undefined
+      ? input.closes_at?.trim() || null
+      : form.closes_at;
+  const nextStatus = statusFromScheduleInput(opensAt, closesAt, effective);
+
   try {
     await mockApi.put(`/forms/${id}`, {
       ...form,
@@ -910,18 +982,21 @@ export async function updateFormStatus(
   userId: string,
 ): Promise<FormRecord> {
   const form = await getLiveForm(id);
+  const event = await loadEvent(form.event_id);
+  const current = resolveEffectiveFormStatus(form, event);
+  assertCanChangeStatus(current);
   const stamp = nowIso();
   const currentUiStatus = toUiFormStatus(form.status);
   assertFormStatusTransition(currentUiStatus, patch.status);
 
-  if (patch.status === "published") {
-    const record = await toFormRecord(form);
+  if (patch.status === "open" || patch.status === "scheduled") {
+    const record = await toFormRecord(form, event);
     const publishError = validatePublishReady({
       head: record.head,
       questions: record.questions,
     });
     if (publishError) {
-      throw new ServiceError("FORM_NOT_PUBLISHABLE", 400, publishError);
+      throw new ServiceError("FORM_NOT_READY", 400, publishError);
     }
   }
 
@@ -945,6 +1020,10 @@ export async function updateFormStatus(
 
 export async function deleteForm(id: string, userId: string): Promise<void> {
   const form = await getLiveForm(id);
+  const event = await loadEvent(form.event_id);
+  const effective = resolveEffectiveFormStatus(form, event);
+  assertCanDelete(effective);
+
   const snapshot = await captureFormTree(form);
   const stamp = nowIso();
 

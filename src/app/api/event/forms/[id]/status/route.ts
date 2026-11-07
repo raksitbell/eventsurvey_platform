@@ -1,5 +1,4 @@
 import {
-  denyUnlessEventPermission,
   denyUnlessEventFormManager,
   isAuthSession,
   requireEventSession,
@@ -7,12 +6,11 @@ import {
 import { ServiceError } from "@/core/api/service-error";
 import { formatZodError, formStatusPatchSchema } from "@/core/validation/forms";
 import { getForm, updateFormStatus } from "@/services/event/forms";
-import { isApprovalDecision } from "@/core/forms/lifecycle";
 import { NextRequest, NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-/** PATCH /api/event/forms/[id]/status */
+/** PATCH /api/event/forms/[id]/status — draft|scheduled|open|closed */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const sessionOrDeny = requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
@@ -66,7 +64,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         status: parsed.data.status,
         opensAt: parsed.data.opensAt,
         closesAt: parsed.data.closesAt,
-        acceptingResponses: parsed.data.acceptingResponses,
       },
       sessionOrDeny.userId,
     );
