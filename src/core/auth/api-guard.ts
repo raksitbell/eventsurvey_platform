@@ -31,6 +31,18 @@ import { canEnterAdminArea, canEnterEventArea } from "./permissions";
  * Returns a 401/403 response to send back, or null when the caller may proceed.
  */
 export function denyUnlessAdmin(request: NextRequest): NextResponse | null {
+  const sessionOrDeny = requireAdminSession(request);
+  if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
+  return null;
+}
+
+/**
+ * Require a session that may enter the admin area.
+ * Returns the session, or a 401/403 response.
+ */
+export function requireAdminSession(
+  request: NextRequest,
+): AuthSessionCookie | NextResponse {
   const session = parseAuthSessionCookie(
     request.cookies.get(AUTH_SESSION_COOKIE)?.value,
   );
@@ -41,7 +53,7 @@ export function denyUnlessAdmin(request: NextRequest): NextResponse | null {
   if (!canEnterAdminArea(session.realRole, session.impersonating)) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
-  return null;
+  return session;
 }
 
 /**

@@ -5,11 +5,13 @@
 
 export class ApiError extends Error {
   status: number;
+  body?: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, body?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -24,13 +26,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let message = response.statusText;
+    let body: unknown;
     try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
+      body = await response.json();
+      if (
+        body &&
+        typeof body === "object" &&
+        "error" in body &&
+        typeof (body as { error: unknown }).error === "string"
+      ) {
+        message = (body as { error: string }).error;
+      }
     } catch {
       // ignore parse errors
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, body);
   }
 
   if (response.status === 204) {
