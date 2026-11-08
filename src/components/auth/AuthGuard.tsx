@@ -1,6 +1,7 @@
 "use client";
 
 import ErrorPage from "@/components/common/ErrorPage";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import {
   canEnterAdminArea,
@@ -21,8 +22,16 @@ interface AuthGuardProps {
 
 function HoldScreen() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-white dark:bg-gray-900">
-      <span className="text-sm text-gray-300 dark:text-gray-700">…</span>
+    <div
+      className="flex min-h-dvh items-center justify-center bg-white dark:bg-gray-900"
+      aria-busy="true"
+    >
+      <div className="w-full max-w-sm space-y-4 px-6">
+        <Skeleton className="mx-auto h-8 w-40" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-11 w-full rounded-lg" />
+      </div>
     </div>
   );
 }

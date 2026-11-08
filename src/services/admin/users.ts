@@ -54,9 +54,7 @@ export async function getBoundAdminUsers(
       mockApi.get<MockRolePermission[]>("/role_permissions"),
     ]);
 
-  const liveEvents = new Set(
-    events.filter((event) => !event.deleted_at).map((event) => event.id),
-  );
+  const liveEvents = new Set(events.map((event) => event.id));
   const rolesById = new Map(roles.map((item) => [item.id, item]));
   const permsByRole = permissionsByRoleId(rolePermissions);
 

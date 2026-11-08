@@ -30,8 +30,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      detail = (await response.text()) || detail;
+    } catch {
+      // keep statusText
+    }
     throw new MockApiError(
-      `Mock API failed: ${response.statusText}`,
+      `Mock API failed: ${detail.slice(0, 500)}`,
       response.status,
     );
   }

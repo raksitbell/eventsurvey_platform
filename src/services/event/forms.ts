@@ -10,6 +10,7 @@ import type {
   Form,
   FormCreateBody,
   FormRecord,
+  FormStatus,
   FormStatusPatchInput,
   FormType,
   Label,
@@ -24,6 +25,7 @@ import type {
   MockFieldType,
   MockForm,
   MockFormField,
+  MockFormStatus,
   MockFormTranslation,
 } from "@/types/mock";
 
@@ -41,15 +43,48 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
-/** UI `multiple_choice` → mock `radio`. */
+/** UI choice types → mock `single_choice` / `multiple_choice`. */
 export function toMockFieldType(type: QuestionType): MockFieldType {
-  if (type === "multiple_choice") return "radio";
+  if (type === "multiple_choice") return "single_choice";
+  if (type === "checkbox") return "multiple_choice";
   return type;
 }
 
 export function toQuestionType(type: MockFieldType): QuestionType {
-  if (type === "radio") return "multiple_choice";
+  if (type === "single_choice") return "multiple_choice";
+  if (type === "multiple_choice") return "checkbox";
+  if (type === "email") return "short_text";
   return type;
+}
+
+function toUiFormStatus(status: MockFormStatus): FormStatus {
+  switch (status) {
+    case "open":
+      return "published";
+    case "scheduled":
+      return "pending_approval";
+    case "closed":
+      return "closed";
+    default:
+      return "draft";
+  }
+}
+
+function toMockFormStatus(status: FormStatus): MockFormStatus {
+  switch (status) {
+    case "published":
+    case "paused":
+      return "open";
+    case "pending_approval":
+    case "approved":
+      return "scheduled";
+    case "closed":
+    case "archived":
+    case "rejected":
+      return "closed";
+    default:
+      return "draft";
+  }
 }
 
 function unsetToNull(n: number): number | null {
@@ -87,10 +122,10 @@ async function assertEventEditable(eventId: string): Promise<MockEvent> {
     }
     throw error;
   }
-  if (!event || event.deleted_at) {
+  if (!event) {
     throw new ServiceError("EVENT_NOT_FOUND", 404);
   }
-  if (event.starts_at && new Date(event.starts_at).getTime() <= Date.now()) {
+  if (event.start_at && new Date(event.start_at).getTime() <= Date.now()) {
     throw new ServiceError(
       "EVENT_ALREADY_STARTED",
       409,
@@ -255,15 +290,16 @@ async function toFormRecord(form: MockForm): Promise<FormRecord> {
     loadFormTranslations(form.id),
     loadQuestions(form.id),
   ]);
+  const uiStatus = toUiFormStatus(form.status);
   return {
     id: form.id,
     eventId: form.event_id,
     type: form.type,
-    status: form.status,
+    status: uiStatus,
     opensAt: form.opens_at,
     closesAt: form.closes_at,
-    acceptingResponses: form.accepting_responses,
-    publishedAt: form.published_at,
+    acceptingResponses: form.status === "open",
+    publishedAt: form.status === "open" ? form.updated_at : null,
     createdAt: form.created_at,
     updatedAt: form.updated_at,
     head: headFromTranslations(translationRows),
@@ -480,18 +516,21 @@ async function replaceQuestionTree(
     const enLabel = q.label.en[0] ?? emptyLabel();
     const thLabel = q.label.th[0] ?? emptyLabel();
 
+    const isRating = mockType === "rating";
     const fieldBody: MockFormField = {
       id: fieldId,
       form_id: formId,
       type: mockType,
       display_order: q.display_order,
       is_required: q.required,
-      contains_pii: false,
-      min_number: unsetToNull(q.min_number),
-      max_number: unsetToNull(q.max_number),
+      min_number: isRating ? null : unsetToNull(q.min_number),
+      max_number: isRating ? null : unsetToNull(q.max_number),
       min_length: unsetToNull(q.min_length),
       max_length: unsetToNull(q.max_length),
       validation_pattern: null,
+      rating_display: isRating ? "icon" : null,
+      rating_icon: isRating ? "star" : null,
+      rating_max: isRating ? (unsetToNull(q.max_number) ?? 5) : null,
       created_at: stamp,
       updated_at: stamp,
       deleted_at: null,
@@ -502,7 +541,9 @@ async function replaceQuestionTree(
       await mockApi.put(`/form_fields/${fieldId}`, {
         ...fieldBody,
         created_at: prev.created_at,
-        contains_pii: prev.contains_pii,
+        rating_display: prev.rating_display ?? fieldBody.rating_display,
+        rating_icon: prev.rating_icon ?? fieldBody.rating_icon,
+        rating_max: prev.rating_max ?? fieldBody.rating_max,
         validation_pattern: prev.validation_pattern,
       });
       const oldTranslations = await mockApi.get<MockFieldTranslation[]>(
@@ -808,12 +849,10 @@ export async function createForm(
     status: "draft",
     opens_at: null,
     closes_at: null,
-    accepting_responses: false,
-    created_by_user_id: userId,
-    updated_by_user_id: userId,
-    published_at: null,
     created_at: stamp,
+    created_by: userId,
     updated_at: stamp,
+    updated_by: userId,
     deleted_at: null,
   };
 
@@ -850,7 +889,7 @@ export async function updateForm(
   try {
     await mockApi.put(`/forms/${id}`, {
       ...form,
-      updated_by_user_id: userId,
+      updated_by: userId,
       updated_at: stamp,
     });
     await writeFormTranslations(id, input.head, stamp);
@@ -868,7 +907,8 @@ export async function updateFormStatus(
 ): Promise<FormRecord> {
   const form = await getLiveForm(id);
   const stamp = nowIso();
-  assertFormStatusTransition(form.status, patch.status);
+  const currentUiStatus = toUiFormStatus(form.status);
+  assertFormStatusTransition(currentUiStatus, patch.status);
 
   if (patch.status === "published") {
     const record = await toFormRecord(form);
@@ -881,23 +921,19 @@ export async function updateFormStatus(
     }
   }
 
-  const accepting = resolveAcceptingResponses(
-    form.status,
+  resolveAcceptingResponses(
+    currentUiStatus,
     patch.status,
-    form.accepting_responses,
+    form.status === "open",
     patch.acceptingResponses,
   );
+  const nextMockStatus = toMockFormStatus(patch.status);
   await mockApi.put(`/forms/${id}`, {
     ...form,
-    status: patch.status,
+    status: nextMockStatus,
     opens_at: patch.opensAt !== undefined ? patch.opensAt : form.opens_at,
     closes_at: patch.closesAt !== undefined ? patch.closesAt : form.closes_at,
-    accepting_responses: accepting,
-    published_at:
-      patch.status === "published"
-        ? (form.published_at ?? stamp)
-        : form.published_at,
-    updated_by_user_id: userId,
+    updated_by: userId,
     updated_at: stamp,
   });
   return getForm(id);
@@ -918,9 +954,8 @@ export async function deleteForm(id: string, userId: string): Promise<void> {
     await mockApi.put(`/forms/${id}`, {
       ...form,
       deleted_at: stamp,
-      updated_by_user_id: userId,
+      updated_by: userId,
       updated_at: stamp,
-      accepting_responses: false,
     });
   } catch (error) {
     await compensateOrThrow(() => restoreFormTree(snapshot), error);

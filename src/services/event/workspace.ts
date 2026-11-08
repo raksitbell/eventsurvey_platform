@@ -43,7 +43,7 @@ export async function getEventWorkspace(
       : Promise.resolve([] as MockRole[]),
   ]);
 
-  if (!event || event.deleted_at) return null;
+  if (!event) return null;
 
   const eventName =
     resolveEventTitle(translations, eventId, locale) ?? event.slug;

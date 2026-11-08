@@ -29,9 +29,16 @@ export async function showConfirm({
   cancelLabel = "Cancel",
   variant = "primary",
 }: ConfirmOptions): Promise<boolean> {
+  const escaped = message
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/\n/g, "<br/>");
+
   const result = await Swal.fire({
     title,
-    text: message,
+    html: escaped,
     icon: variant === "danger" ? "warning" : variant === "warning" ? "question" : "question",
     iconColor: variantIconColor[variant],
     showCancelButton: true,
