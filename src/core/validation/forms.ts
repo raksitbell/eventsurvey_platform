@@ -2,20 +2,10 @@ import { z } from "zod";
 
 const formTypeSchema = z.enum(["registration", "survey"]);
 
-const formStatusSchema = z.enum([
-  "draft",
-  "pending_approval",
-  "approved",
-  "rejected",
-  "published",
-  "paused",
-  "closed",
-  "archived",
-]);
-
 const questionTypeSchema = z.enum([
   "short_text",
   "long_text",
+  "email",
   "multiple_choice",
   "dropdown",
   "checkbox",
@@ -29,16 +19,23 @@ const choiceSchema = z.object({
   id: z.uuid().optional(),
   label: z.string(),
   display_order: z.number().int().positive(),
+  scale_min_label: z.string().optional(),
+  scale_max_label: z.string().optional(),
 });
 
 const labelSchema = z.object({
   label: z.string(),
   placeholder: z.string(),
+  scale_min_label: z.string().optional(),
+  scale_max_label: z.string().optional(),
   choices: z.object({
     en: z.array(choiceSchema),
     th: z.array(choiceSchema),
   }),
 });
+
+const ratingDisplaySchema = z.enum(["icon", "linear_scale"]);
+const ratingIconSchema = z.enum(["star", "heart", "like"]);
 
 const questionSchema = z
   .object({
@@ -50,7 +47,11 @@ const questionSchema = z
       max_number: z.number(),
       min_length: z.number().int().nonnegative(),
       max_length: z.number().int().nonnegative(),
-      required: z.boolean(),
+      is_required: z.boolean(),
+      is_unique: z.boolean().default(false),
+      rating_display: ratingDisplaySchema.default("icon"),
+      rating_icon: ratingIconSchema.default("star"),
+      rating_max: z.number().default(5),
       label: z.object({
         en: z.array(labelSchema).min(1),
         th: z.array(labelSchema).min(1),
@@ -80,15 +81,45 @@ const headLocaleSchema = z.object({
   description: z.string().max(5000),
 });
 
-const formShapeSchema = z.object({
-  id: z.uuid().optional(),
-  head: z.object({
-    en: headLocaleSchema,
-    th: headLocaleSchema,
-  }),
-  type: formTypeSchema,
-  questions: z.array(questionSchema),
-});
+const scheduleRefine = (
+  data: { opens_at?: string | null; closes_at?: string | null },
+  ctx: z.RefinementCtx,
+) => {
+  const opens = data.opens_at?.trim() || null;
+  const closes = data.closes_at?.trim() || null;
+  if (!opens || !closes) return;
+  const openMs = Date.parse(opens);
+  const closeMs = Date.parse(closes);
+  if (Number.isNaN(openMs) || Number.isNaN(closeMs)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Invalid opens_at or closes_at",
+      path: ["opens_at"],
+    });
+    return;
+  }
+  if (closeMs <= openMs) {
+    ctx.addIssue({
+      code: "custom",
+      message: "closes_at must be after opens_at",
+      path: ["closes_at"],
+    });
+  }
+};
+
+const formShapeSchema = z
+  .object({
+    id: z.uuid().optional(),
+    head: z.object({
+      en: headLocaleSchema,
+      th: headLocaleSchema,
+    }),
+    type: formTypeSchema,
+    opens_at: z.string().nullable().optional(),
+    closes_at: z.string().nullable().optional(),
+    questions: z.array(questionSchema),
+  })
+  .superRefine(scheduleRefine);
 
 function refineQuestions(
   questions: z.infer<typeof questionSchema>[],
@@ -146,11 +177,11 @@ export const updateFormBodySchema = formShapeSchema
   })
   .superRefine((body, ctx) => refineQuestions(body.questions, ctx));
 
+/** Manual lifecycle only — open/closed are cron-owned. */
 export const formStatusPatchSchema = z.object({
-  status: formStatusSchema,
-  opensAt: z.iso.datetime().nullable().optional(),
-  closesAt: z.iso.datetime().nullable().optional(),
-  acceptingResponses: z.boolean().optional(),
+  status: z.enum(["draft", "scheduled"]),
+  opensAt: z.string().nullable().optional(),
+  closesAt: z.string().nullable().optional(),
 });
 
 export type CreateFormBody = z.infer<typeof createFormBodySchema>;
@@ -159,7 +190,7 @@ export type FormStatusPatchBody = z.infer<typeof formStatusPatchSchema>;
 
 const CHOICE_TYPES = new Set(["multiple_choice", "checkbox", "dropdown"]);
 
-/** Extra checks when publishing. */
+/** Extra checks when opening / scheduling a form. */
 export function validatePublishReady(input: {
   head: { en: { title: string }; th: { title: string } };
   questions: {
@@ -170,10 +201,10 @@ export function validatePublishReady(input: {
   }[];
 }): string | null {
   if (input.questions.length < 1) {
-    return "Published form requires at least one question";
+    return "Form requires at least one question";
   }
   if (!input.head.en.title.trim() || !input.head.th.title.trim()) {
-    return "Published form requires th and en titles";
+    return "Form requires th and en titles";
   }
   for (const item of input.questions) {
     const type = item.question.type;

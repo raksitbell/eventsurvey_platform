@@ -9,13 +9,13 @@ import {
   isImpersonatableRole,
 } from "@/core/auth";
 import { useConfirm } from "@/hooks/useConfirm";
-import { GroupIcon } from "@/icons";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
 } from "@/types/admin/users";
 import type { UserRole } from "@/types/user";
 import { translateRole, translateStatus } from "@/utils/i18n-labels";
+import { UsersIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import { useLocale } from "next-intl";
 import type { Locale } from "@/i18n/routing";
@@ -209,7 +209,7 @@ export default function UsersTable() {
                             disabled={pendingId === user.id}
                             onClick={() => handleImpersonate(user)}
                             startIcon={
-                              <GroupIcon className="size-5 text-brand-500" />
+                              <UsersIcon className="size-5 text-brand-500" />
                             }
                           >
                             {pendingId === user.id

@@ -2,15 +2,26 @@
 
 import type { ComponentType } from "react";
 import { useTranslations } from "next-intl";
-import { CopyIcon, HorizontaLDots, TrashBinIcon } from "@/icons";
 import {
+  DocumentDuplicateIcon,
+  EllipsisHorizontalIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
+import { ThFlagIcon, UsFlagIcon } from "@/icons";
+import {
+  FormLocale,
+  ICON,
   Question,
   QuestionFieldProps,
   QUESTIONS_TYPES,
   QuestionType,
+  RATING_DISPLAY,
+  UNIQUE_QUESTION_TYPES,
 } from "@/types/event/form";
 import ShortText from "./chioce/ShortText";
 import LongText from "./chioce/LongText";
+import Email from "./chioce/Email";
+import NumberField from "./chioce/Number";
 import MutipleChoice from "./chioce/MutipleChoice";
 import Dropdown from "./chioce/Dropdown";
 import Checkbox from "./chioce/Checkbox";
@@ -23,6 +34,8 @@ const QuestionTypeComp: Partial<
 > = {
   short_text: ShortText,
   long_text: LongText,
+  email: Email,
+  number: NumberField,
   multiple_choice: MutipleChoice,
   dropdown: Dropdown,
   checkbox: Checkbox,
@@ -33,19 +46,28 @@ const QuestionTypeComp: Partial<
 
 interface QuestionCardProps {
   question: Question["question"];
+  locale?: FormLocale;
+  showLocaleBadge?: boolean;
   isActive: boolean;
   isDragging: boolean;
   isDragOver: boolean;
-  sectionRef: (el: HTMLDivElement | null) => void;
+  draggedChoiceId?: string | null;
+  dragOverChoiceId?: string | null;
+  sectionRef?: (el: HTMLDivElement | null) => void;
   onSelect: () => void;
-  onDragStart: () => void;
-  onDragOver: () => void;
-  onDragLeave: () => void;
-  onDrop: () => void;
-  onDragEnd: () => void;
+  onDragStart?: () => void;
+  onDragOver?: () => void;
+  onDragLeave?: () => void;
+  onDrop?: () => void;
+  onDragEnd?: () => void;
+  onChoiceDragStart?: (choiceId: string) => void;
+  onChoiceDragOver?: (choiceId: string) => void;
+  onChoiceDragLeave?: (choiceId: string) => void;
+  onChoiceDragEnd?: () => void;
   onChangeLabel: (label: string) => void;
   onChangeType: (type: QuestionType) => void;
   onToggleRequired: () => void;
+  onToggleUnique: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onAddChoice: () => void;
@@ -53,13 +75,21 @@ interface QuestionCardProps {
   onDeleteChoice: (choiceId: string) => void;
   onReorderChoice: (sourceChoiceId: string, targetChoiceId: string) => void;
   onUpdateRange: (min: number, max: number) => void;
+  onUpdateNumberBounds: (min: number | null, max: number | null) => void;
+  onUpdateRatingDisplay: (display: RATING_DISPLAY) => void;
+  onUpdateRatingIcon: (icon: ICON) => void;
+  onUpdateLinearLabels: (minLabel: string, maxLabel: string) => void;
 }
 
 export default function QuestionCard({
   question,
+  locale = "th",
+  showLocaleBadge = false,
   isActive,
   isDragging,
   isDragOver,
+  draggedChoiceId,
+  dragOverChoiceId,
   sectionRef,
   onSelect,
   onDragStart,
@@ -67,9 +97,14 @@ export default function QuestionCard({
   onDragLeave,
   onDrop,
   onDragEnd,
+  onChoiceDragStart,
+  onChoiceDragOver,
+  onChoiceDragLeave,
+  onChoiceDragEnd,
   onChangeLabel,
   onChangeType,
   onToggleRequired,
+  onToggleUnique,
   onDuplicate,
   onDelete,
   onAddChoice,
@@ -77,67 +112,90 @@ export default function QuestionCard({
   onDeleteChoice,
   onReorderChoice,
   onUpdateRange,
+  onUpdateNumberBounds,
+  onUpdateRatingDisplay,
+  onUpdateRatingIcon,
+  onUpdateLinearLabels,
 }: QuestionCardProps) {
   const tbuilder = useTranslations("form.builder");
-  const label = question.label.en[0];
+  const label = question.label[locale]?.[0] ?? question.label.th[0];
   const Field = QuestionTypeComp[question.type];
+  const FlagIcon = locale === "th" ? ThFlagIcon : UsFlagIcon;
+  const canBeUnique = (
+    UNIQUE_QUESTION_TYPES as readonly QuestionType[]
+  ).includes(question.type);
+  const isStandaloneDraggable = Boolean(onDragStart);
 
   return (
     <div
       ref={sectionRef}
       onClick={onSelect}
-      draggable
-      onDragStart={(e) => {
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT"
-        ) {
-          e.preventDefault();
-          return;
-        }
-        onDragStart();
-        e.dataTransfer.effectAllowed = "move";
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        onDragOver();
-      }}
-      onDragLeave={onDragLeave}
-      onDrop={(e) => {
-        e.preventDefault();
-        onDrop();
-      }}
-      onDragEnd={onDragEnd}
-      className={`group rounded-xl border bg-white px-4 pt-2 pb-4 shadow-sm transition-all sm:px-6 sm:pb-6 ${
+      draggable={isStandaloneDraggable || undefined}
+      onDragStart={
+        isStandaloneDraggable
+          ? (e) => {
+              const target = e.target as HTMLElement;
+              if (target.closest("input, textarea, select, button, label")) {
+                e.preventDefault();
+                return;
+              }
+              onDragStart?.();
+              e.dataTransfer.effectAllowed = "move";
+            }
+          : undefined
+      }
+      onDragOver={
+        isStandaloneDraggable
+          ? (e) => {
+              e.preventDefault();
+              onDragOver?.();
+            }
+          : undefined
+      }
+      onDragLeave={isStandaloneDraggable ? onDragLeave : undefined}
+      onDrop={
+        isStandaloneDraggable
+          ? (e) => {
+              e.preventDefault();
+              onDrop?.();
+            }
+          : undefined
+      }
+      onDragEnd={isStandaloneDraggable ? onDragEnd : undefined}
+      className={`group flex h-full flex-col rounded-xl border bg-white px-4 pt-2 pb-4 shadow-theme-xs transition-all sm:px-6 sm:pb-6 dark:bg-gray-900 ${
         isActive
-          ? "border-gray-300 border-s-4 border-s-[#5C54D1]"
-          : "border-gray-200"
+          ? "border-gray-300 border-s-4 border-s-brand-500 dark:border-gray-700 dark:border-s-brand-500"
+          : "border-gray-200 dark:border-gray-800"
       } ${isDragging ? "opacity-40" : ""} ${
-        isDragOver ? "border-t-4 border-t-[#5C54D1]" : ""
+        isDragOver ? "border-t-4 border-t-brand-500" : ""
       }`}
     >
       {/* Top Drag Handle Bar */}
       <div
-        className="mb-2 flex cursor-grab justify-center py-1 text-gray-300 transition-colors group-hover:text-gray-400 active:cursor-grabbing"
+        className="relative mb-2 flex cursor-grab items-center justify-center py-1 text-gray-300 transition-colors group-hover:text-gray-400 active:cursor-grabbing dark:text-gray-600 dark:group-hover:text-gray-400"
         title="Drag to reorder question"
       >
-        <HorizontaLDots className="h-5 w-5" />
+        {showLocaleBadge && (
+          <span className="absolute start-0 inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-theme-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+            <FlagIcon className="size-3 rounded-sm" />
+            <span>{locale.toUpperCase()}</span>
+          </span>
+        )}
+        <EllipsisHorizontalIcon className="h-5 w-5" />
       </div>
 
-      {/* Question Input & Type Selector (stacks on mobile, side-by-side on sm+) */}
+      {/* Question Input & Type Selector */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           type="text"
-          placeholder="Question"
-          className="min-w-0 flex-1 rounded-md bg-gray-50 p-3 text-sm sm:text-base focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
+          placeholder={tbuilder("questionPlaceholder")}
+          className="min-w-0 flex-1 rounded-md bg-gray-50 p-3 text-sm text-gray-800 focus:border-b-2 focus:border-brand-500 focus:outline-none sm:text-base dark:bg-gray-800 dark:text-gray-100"
           value={label.label}
           onFocus={onSelect}
           onChange={(e) => onChangeLabel(e.target.value)}
         />
         <select
-          className="w-full rounded-md bg-gray-50 p-3 text-sm sm:w-48 sm:text-base"
+          className="w-full rounded-md bg-gray-50 p-3 text-sm text-gray-800 sm:w-48 sm:text-base dark:bg-gray-800 dark:text-gray-100"
           value={question.type}
           onFocus={onSelect}
           onChange={(e) => onChangeType(e.target.value as QuestionType)}
@@ -151,22 +209,33 @@ export default function QuestionCard({
       </div>
 
       {/* Answer / Choices Area */}
-      <div className="mt-5 sm:mt-6">
+      <div className="mt-5 flex-1 sm:mt-6">
         {Field && (
           <Field
             question={question}
-            choices={label.choices.en}
+            locale={locale}
+            choices={label.choices[locale]}
+            draggedChoiceId={draggedChoiceId}
+            dragOverChoiceId={dragOverChoiceId}
+            onChoiceDragStart={onChoiceDragStart}
+            onChoiceDragOver={onChoiceDragOver}
+            onChoiceDragLeave={onChoiceDragLeave}
+            onChoiceDragEnd={onChoiceDragEnd}
             onAddChoice={onAddChoice}
             onUpdateChoice={onUpdateChoice}
             onDeleteChoice={onDeleteChoice}
             onReorderChoice={onReorderChoice}
             onUpdateRange={onUpdateRange}
+            onUpdateNumberBounds={onUpdateNumberBounds}
+            onUpdateRatingDisplay={onUpdateRatingDisplay}
+            onUpdateRatingIcon={onUpdateRatingIcon}
+            onUpdateLinearLabels={onUpdateLinearLabels}
           />
         )}
       </div>
 
-      {/* Card Footer (Duplicate, Delete & Required) */}
-      <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3 sm:mt-6 sm:pt-4">
+      {/* Card Footer (Duplicate, Delete, Unique & Required) */}
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3 sm:mt-6 sm:pt-4 dark:border-gray-800">
         <button
           type="button"
           onClick={(e) => {
@@ -174,10 +243,10 @@ export default function QuestionCard({
             onDuplicate();
           }}
           title="Duplicate question"
-          className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+          className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
           aria-label="Duplicate question"
         >
-          <CopyIcon className="h-5 w-5" />
+          <DocumentDuplicateIcon className="h-5 w-5" />
         </button>
 
         <button
@@ -187,19 +256,31 @@ export default function QuestionCard({
             onDelete();
           }}
           title="Delete question"
-          className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600"
+          className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-500/15 dark:hover:text-error-400"
           aria-label="Delete question"
         >
-          <TrashBinIcon className="h-5 w-5" />
+          <TrashIcon className="h-5 w-5" />
         </button>
 
-        <label className="ms-2 flex cursor-pointer items-center gap-2 border-s border-gray-200 ps-3 text-sm text-gray-600 sm:ps-4">
-          <span>Required</span>
+        {canBeUnique && (
+          <label className="ms-2 flex cursor-pointer items-center gap-2 border-s border-gray-200 ps-3 text-sm text-gray-600 sm:ps-4 dark:border-gray-700 dark:text-gray-300">
+            <span>{tbuilder("unique")}</span>
+            <input
+              type="checkbox"
+              checked={question.is_unique}
+              onChange={onToggleUnique}
+              className="h-4 w-4 accent-brand-500"
+            />
+          </label>
+        )}
+
+        <label className="ms-2 flex cursor-pointer items-center gap-2 border-s border-gray-200 ps-3 text-sm text-gray-600 sm:ps-4 dark:border-gray-700 dark:text-gray-300">
+          <span>{tbuilder("required")}</span>
           <input
             type="checkbox"
-            checked={question.required}
+            checked={question.is_required}
             onChange={onToggleRequired}
-            className="h-4 w-4 accent-[#5C54D1]"
+            className="h-4 w-4 accent-brand-500"
           />
         </label>
       </div>

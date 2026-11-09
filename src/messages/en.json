@@ -99,46 +99,54 @@
   },
   "adminHome": {
     "title": "Platform Overview",
-    "description": "Monitor platform usage, response activity, and system health.",
+    "description": "Monitor platform usage, recent activity, and system health.",
     "loadError": "Failed to load overview data.",
     "noActivity": "No recent activity yet.",
     "metrics": {
-      "owners": "Event owners",
-      "events": "Total events",
-      "forms": "Published forms",
-      "responses": "Responses"
+      "events": "Events",
+      "users": "Users",
+      "registrationForms": "Registration forms",
+      "surveys": "Surveys",
+      "activeLabel": "Active",
+      "totalLabel": "Total"
     },
-    "responseActivity": "Response activity",
-    "systemHealth": "System health",
+    "serviceStatus": "Service status",
     "recentActivity": "Recent activity",
-    "governance": "Governance",
-    "manageOwners": "Manage event owners",
-    "reviewAudit": "Review audit activity",
-    "days": {
-      "mon": "Mon",
-      "tue": "Tue",
-      "wed": "Wed",
-      "thu": "Thu",
-      "fri": "Fri",
-      "sat": "Sat",
-      "sun": "Sun"
+    "growthTitle": "Platform growth",
+    "growthHint": "Monthly new counts with a 3-month linear forecast (dashed).",
+    "growthEmpty": "Growth data is not available yet.",
+    "growth": {
+      "series": {
+        "users": "Users",
+        "events": "Events",
+        "responses": "Responses",
+        "usersForecast": "Users (forecast)",
+        "eventsForecast": "Events (forecast)",
+        "responsesForecast": "Responses (forecast)"
+      }
     },
+    "eventStatusTitle": "Event status mix",
+    "eventStatusTotal": "Total",
+    "eventStatusEmpty": "No events to chart yet.",
+    "eventStatus": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "topEventsTitle": "Top events by responses",
+    "topEventsSeries": "Responses",
+    "topEventsEmpty": "No event responses yet.",
+    "piiActivityTitle": "Unmasked PII access",
+    "piiActivityEmpty": "No unmasked PII access logged yet.",
     "health": {
       "coreApi": "Core API",
-      "responseQueue": "Response queue",
-      "storage": "Storage",
+      "database": "Database",
+      "formSystem": "Form system",
       "status": {
         "operational": "Operational",
         "attention": "Attention"
       }
-    },
-    "activity": {
-      "ownerInvited": "New event owner invited",
-      "formPublished": "Feedback form published",
-      "eventClosed": "Campus event closed",
-      "twoMin": "2 min ago",
-      "eighteenMin": "18 min ago",
-      "oneHour": "1 hr ago"
     }
   },
   "adminUsers": {
@@ -179,14 +187,13 @@
     "noEvent": "No event is linked to this account yet.",
     "eventStatus": {
       "draft": "Draft",
-      "pending_approval": "Pending approval",
-      "published": "Published",
-      "closed": "Closed",
-      "archived": "Archived"
+      "scheduled": "Scheduled",
+      "open": "Open",
+      "closed": "Closed"
     }
   },
   "form": {
-    "title": "Form",
+    "title": "Form Builder",
     "registration": "Registration",
     "survey": "Survey",
     "open": "Open",
@@ -195,6 +202,7 @@
       "choice": {
         "short_text": "Short Text",
         "long_text": "Long Text",
+        "email": "Email",
         "multiple_choice": "Multiple Choice",
         "dropdown": "Dropdown",
         "checkbox": "Checkbox",
@@ -203,14 +211,59 @@
         "time": "Time",
         "number": "Number",
         "rating": "Rating"
-      }
+      },
+      "emailPlaceholder": "Email address (must contain @)",
+      "numberPlaceholder": "Number (integer or decimal)",
+      "minNumber": "Min value",
+      "maxNumber": "Max value",
+      "noLimit": "No limit",
+      "minGreaterThanMax": "Minimum value must be less than or equal to maximum value",
+      "ratingDisplay": {
+        "icon": "Icon",
+        "linear_scale": "Linear scale"
+      },
+      "ratingIcon": {
+        "star": "Star",
+        "heart": "Heart",
+        "like": "Like"
+      },
+      "maxRating": "Max rating:",
+      "to": "to",
+      "linearLabelPlaceholder": "Label (optional)",
+      "opensAt": "Opens at",
+      "closesAt": "Closes at",
+      "selectDateTime": "Select date & time",
+      "dateRangeInvalid": "Opens at must be earlier than or equal to Closes at",
+      "unique": "Unique",
+      "required": "Required",
+      "questionPlaceholder": "Question",
+      "addOption": "Add option",
+      "addQuestion": "Add question",
+      "addEnglish": "Add English",
+      "removeEnglish": "Remove English",
+      "langThai": "Thai (Default)",
+      "langEnglish": "English"
     },
     "preview": {
       "button": "Preview",
       "editForm": "Back to edit",
+      "langThai": "ภาษาไทย",
+      "langEnglish": "English",
       "requiredNote": "* Indicates required question",
       "requiredError": "This is a required question",
+      "uniqueBadge": "Unique",
+      "uniqueMockHint": "Mock existing value to test duplicate: {value}",
+      "uniqueError": "This value has already been used (must be unique)",
+      "opensAt": "Opens",
+      "closesAt": "Closes",
+      "emailError": "Please enter a valid email address containing @",
+      "numberInvalidError": "Please enter a valid number",
+      "numberMinError": "Value must be at least {min}",
+      "numberMaxError": "Value must be at most {max}",
+      "numberRangeError": "Value must be between {min} and {max}",
       "yourAnswer": "Your answer",
+      "yourEmail": "name@example.com",
+      "yourNumber": "Enter a number",
       "choose": "Choose",
       "clearSelection": "Clear selection",
       "submit": "Submit",

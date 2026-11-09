@@ -99,46 +99,54 @@
   },
   "adminHome": {
     "title": "ภาพรวมแพลตฟอร์ม",
-    "description": "ติดตามการใช้งาน การตอบกลับ และสถานะระบบ",
+    "description": "ติดตามการใช้งาน กิจกรรมล่าสุด และสถานะระบบ",
     "loadError": "โหลดข้อมูลภาพรวมไม่สำเร็จ",
     "noActivity": "ยังไม่มีกิจกรรมล่าสุด",
     "metrics": {
-      "owners": "เจ้าของอีเวนต์",
-      "events": "อีเวนต์ทั้งหมด",
-      "forms": "ฟอร์มที่เผยแพร่",
-      "responses": "คำตอบ"
+      "events": "อีเวนต์",
+      "users": "ผู้ใช้งาน",
+      "registrationForms": "แบบฟอร์มลงทะเบียน",
+      "surveys": "แบบสอบถาม",
+      "activeLabel": "เปิดใช้งาน",
+      "totalLabel": "ทั้งหมด"
     },
-    "responseActivity": "กิจกรรมการตอบกลับ",
-    "systemHealth": "สถานะระบบ",
+    "serviceStatus": "สถานะบริการ",
     "recentActivity": "กิจกรรมล่าสุด",
-    "governance": "การกำกับดูแล",
-    "manageOwners": "จัดการเจ้าของอีเวนต์",
-    "reviewAudit": "ตรวจสอบบันทึกการใช้งาน",
-    "days": {
-      "mon": "จ.",
-      "tue": "อ.",
-      "wed": "พ.",
-      "thu": "พฤ.",
-      "fri": "ศ.",
-      "sat": "ส.",
-      "sun": "อา."
+    "growthTitle": "การเติบโตของแพลตฟอร์ม",
+    "growthHint": "จำนวนรายเดือนใหม่ พร้อมคาดการณ์ 3 เดือนแบบเส้นประ",
+    "growthEmpty": "ยังไม่มีข้อมูลการเติบโต",
+    "growth": {
+      "series": {
+        "users": "ผู้ใช้",
+        "events": "อีเวนต์",
+        "responses": "คำตอบ",
+        "usersForecast": "ผู้ใช้ (คาดการณ์)",
+        "eventsForecast": "อีเวนต์ (คาดการณ์)",
+        "responsesForecast": "คำตอบ (คาดการณ์)"
+      }
     },
+    "eventStatusTitle": "สัดส่วนสถานะอีเวนต์",
+    "eventStatusTotal": "ทั้งหมด",
+    "eventStatusEmpty": "ยังไม่มีอีเวนต์ให้แสดง",
+    "eventStatus": {
+      "draft": "ฉบับร่าง",
+      "scheduled": "กำหนดเวลา",
+      "open": "เปิด",
+      "closed": "ปิดแล้ว"
+    },
+    "topEventsTitle": "อีเวนต์ยอดนิยมตามคำตอบ",
+    "topEventsSeries": "คำตอบ",
+    "topEventsEmpty": "ยังไม่มีคำตอบจากอีเวนต์",
+    "piiActivityTitle": "การเข้าถึงข้อมูลส่วนบุคคลแบบไม่ปกปิด",
+    "piiActivityEmpty": "ยังไม่มีบันทึกการเข้าถึงข้อมูลแบบไม่ปกปิด",
     "health": {
       "coreApi": "Core API",
-      "responseQueue": "คิวคำตอบ",
-      "storage": "พื้นที่จัดเก็บ",
+      "database": "ระบบฐานข้อมูล",
+      "formSystem": "ระบบแบบฟอร์ม",
       "status": {
         "operational": "ปกติ",
         "attention": "ควรตรวจสอบ"
       }
-    },
-    "activity": {
-      "ownerInvited": "เชิญเจ้าของอีเวนต์ใหม่แล้ว",
-      "formPublished": "เผยแพร่ฟอร์มความคิดเห็นแล้ว",
-      "eventClosed": "ปิดอีเวนต์วิทยาเขตแล้ว",
-      "twoMin": "2 นาทีที่แล้ว",
-      "eighteenMin": "18 นาทีที่แล้ว",
-      "oneHour": "1 ชั่วโมงที่แล้ว"
     }
   },
   "adminUsers": {
@@ -179,10 +187,9 @@
     "noEvent": "ยังไม่มีอีเวนต์ที่ผูกกับบัญชีนี้",
     "eventStatus": {
       "draft": "แบบร่าง",
-      "pending_approval": "รออนุมัติ",
-      "published": "เผยแพร่แล้ว",
-      "closed": "ปิดแล้ว",
-      "archived": "เก็บถาวร"
+      "scheduled": "กำหนดเวลา",
+      "open": "เปิด",
+      "closed": "ปิดแล้ว"
     }
   },
   "form": {
@@ -195,6 +202,7 @@
       "choice": {
         "short_text": "คำตอบสั้นๆ",
         "long_text": "คำตอบยาว",
+        "email": "อีเมล",
         "multiple_choice": "หลายตัวเลือก",
         "dropdown": "รายการแบบเลื่อนลง",
         "checkbox": "ช่องทำเครื่องหมาย",
@@ -203,14 +211,59 @@
         "time": "เวลา",
         "number": "ตัวเลข",
         "rating": "การให้คะแนน"
-      }
+      },
+      "emailPlaceholder": "อีเมล (ต้องมีเครื่องหมาย @)",
+      "numberPlaceholder": "ตัวเลข (รองรับจำนวนเต็มและทศนิยม)",
+      "minNumber": "ค่าต่ำสุด",
+      "maxNumber": "ค่าสูงสุด",
+      "noLimit": "ไม่จำกัด",
+      "minGreaterThanMax": "ค่าต่ำสุดต้องน้อยกว่าหรือเท่ากับค่าสูงสุด",
+      "ratingDisplay": {
+        "icon": "ไอคอน (Icon)",
+        "linear_scale": "สเกลเชิงเส้น (Linear scale)"
+      },
+      "ratingIcon": {
+        "star": "ดาว (Star)",
+        "heart": "หัวใจ (Heart)",
+        "like": "ถูกใจ (Like)"
+      },
+      "maxRating": "คะแนนสูงสุด:",
+      "to": "ถึง",
+      "linearLabelPlaceholder": "ป้ายกำกับ (ไม่บังคับ)",
+      "opensAt": "เวลาเปิดรับคำตอบ",
+      "closesAt": "เวลาปิดรับคำตอบ",
+      "selectDateTime": "เลือกวันและเวลา",
+      "dateRangeInvalid": "เวลาเปิดต้องมาก่อนหรือเท่ากับเวลาปิด",
+      "unique": "ห้ามซ้ำ (Unique)",
+      "required": "จำเป็น",
+      "questionPlaceholder": "คำถาม",
+      "addOption": "เพิ่มตัวเลือก",
+      "addQuestion": "เพิ่มคำถาม",
+      "addEnglish": "เพิ่มภาษาอังกฤษ",
+      "removeEnglish": "ลบภาษาอังกฤษ",
+      "langThai": "ภาษาไทย (ค่าเริ่มต้น)",
+      "langEnglish": "ภาษาอังกฤษ (English)"
     },
     "preview": {
       "button": "ดูตัวอย่าง",
       "editForm": "กลับไปแก้ไขฟอร์ม",
+      "langThai": "ภาษาไทย",
+      "langEnglish": "English",
       "requiredNote": "* ระบุว่าเป็นคำถามที่จำเป็น",
       "requiredError": "คำถามนี้จำเป็นต้องตอบ",
+      "uniqueBadge": "Unique",
+      "uniqueMockHint": "ค่าจำลองที่มีในระบบแล้ว (ลองกรอกเพื่อทดสอบค่าซ้ำ): {value}",
+      "uniqueError": "ค่านี้ถูกใช้งานไปแล้ว กรุณากรอกค่าที่ไม่ซ้ำ",
+      "opensAt": "เปิดรับคำตอบ",
+      "closesAt": "ปิดรับคำตอบ",
+      "emailError": "กรุณากรอกอีเมลที่มีเครื่องหมาย @",
+      "numberInvalidError": "กรุณากรอกตัวเลขที่ถูกต้อง",
+      "numberMinError": "ค่าต้องไม่น้อยกว่า {min}",
+      "numberMaxError": "ค่าต้องไม่เกิน {max}",
+      "numberRangeError": "ค่าต้องอยู่ระหว่าง {min} ถึง {max}",
       "yourAnswer": "คำตอบของคุณ",
+      "yourEmail": "name@example.com",
+      "yourNumber": "กรอกตัวเลข",
       "choose": "เลือก",
       "clearSelection": "ล้างการเลือก",
       "submit": "ส่ง",

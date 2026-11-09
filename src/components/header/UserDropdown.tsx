@@ -8,8 +8,12 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { languages } from "@/i18n/languages";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { CheckLineIcon, ChevronDownIcon, GlobeIcon } from "@/icons";
 import { translateRole } from "@/utils/i18n-labels";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  GlobeAltIcon,
+} from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
@@ -124,7 +128,7 @@ export default function UserDropdown() {
               onClick={() => setIsSubDropdownOpen((prev) => !prev)}
               className="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-theme-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
             >
-              <GlobeIcon className="size-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200" />
+              <GlobeAltIcon className="size-5 shrink-0 text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200" />
               <span>{t("language")}</span>
               <ChevronDownIcon
                 className={`ms-auto size-4 transition-transform ${isSubDropdownOpen ? "rotate-180" : ""
@@ -151,7 +155,7 @@ export default function UserDropdown() {
                         <FlagIcon className="size-4 shrink-0 rounded-xs" />
                         <span className="flex-1">{language.name}</span>
                         {isSelected && (
-                          <CheckLineIcon className="ms-auto size-4 text-brand-500 dark:text-brand-400" />
+                          <CheckIcon className="ms-auto size-4 text-brand-500 dark:text-brand-400" />
                         )}
                       </button>
                     </li>

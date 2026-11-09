@@ -342,6 +342,14 @@
   @apply font-medium!;
 }
 
+/* Donut hover tooltip: series group uses the slice color as background */
+.event-status-chart .apexcharts-tooltip-series-group {
+  @apply px-2.5! py-1.5!;
+}
+.event-status-chart .apexcharts-tooltip-y-group {
+  @apply px-0.5!;
+}
+
 .apexcharts-gridline {
   @apply stroke-gray-100! dark:stroke-gray-800!;
 }
