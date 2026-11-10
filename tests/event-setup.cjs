@@ -1294,6 +1294,140 @@ test("Overview follows the immutable local publication after save and ignores la
   assert.deepEqual(restoreLocalEventWorkspace(seed, "owner", "th"), overview);
 });
 
+/** Exercise real setup action handlers with injected hook results, without a test UI package. */
+function compileSetupComponent(relative, mocks = {}) {
+  const mod = { exports: {} };
+  const source = ts.transpileModule(
+    fs.readFileSync(path.join(root, relative), "utf8"),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        jsx: ts.JsxEmit.ReactJSX,
+      },
+    },
+  ).outputText;
+  new Function("require", "exports", source)(
+    (name) => (name in mocks ? mocks[name] : require(name)),
+    mod.exports,
+  );
+  return mod.exports.default;
+}
+const setupButton = compileSetupComponent(
+  "src/components/ui/button/Button.tsx",
+);
+const setupActions = compileSetupComponent(
+  "src/components/event/setup/EventSetupActions.tsx",
+  {
+    "@/components/ui/button/Button": { default: setupButton },
+  },
+);
+function findSetupElement(node, predicate) {
+  if (!node || typeof node !== "object") return null;
+  if (predicate(node)) return node;
+  for (const child of [node.props?.children].flat(Infinity)) {
+    const found = findSetupElement(child, predicate);
+    if (found) return found;
+  }
+  return null;
+}
+function setupActionButtons(form) {
+  const element = findSetupElement(form, (node) => node.type === setupActions);
+  const footer = setupActions(element.props);
+  const actions = footer.props.children.at(-1);
+  const [back, next] = actions.props.children.map((node) =>
+    node.type(node.props),
+  );
+  return { back, next, feedback: element.props.error };
+}
+function detailsActions(save) {
+  const navigation = [];
+  const noop = { default: () => null };
+  const messages = JSON.parse(
+    fs.readFileSync(path.join(root, "src/messages/th.json")),
+  ).eventHome.details;
+  const Details = compileSetupComponent(
+    "src/components/event/setup/EventDetailsForm.tsx",
+    {
+      "@/components/event/setup/EventSetupSteps": noop,
+      "@/components/event/setup/EventAccessSettings": noop,
+      "@/components/event/setup/EventInformationFields": noop,
+      "@/components/event/setup/EventSetupActions": { default: setupActions },
+      "@/hooks/useEventDraft": {
+        default: () => ({
+          draft: seed,
+          status: "idle",
+          readOnly: false,
+          change() {},
+          save,
+        }),
+      },
+      "@/i18n/navigation": {
+        useRouter: () => ({ push: (href) => navigation.push(href) }),
+      },
+      "next-intl": { useTranslations: () => (key) => messages[key] ?? key },
+    },
+  );
+  const form = Details({ workspace: seed, userId: "owner", locale: "th" });
+  return { form, ...setupActionButtons(form), navigation };
+}
+test("Details Back and Next save edited form choices before navigation; native submit follows Next", (t) => {
+  storage(t);
+  const key = eventDraftKey("owner", seed.eventId, "th");
+  const draft = { ...seed, eventName: "Latest edit", hasRegistration: false };
+  for (const direction of ["back", "next"]) {
+    let saves = 0;
+    const ui = detailsActions(() => {
+      assert.equal(ui.navigation.length, 0);
+      saves++;
+      return saveEventDraft(key, draft) === "saved";
+    });
+    assert.equal(ui.back.props.type, "button");
+    assert.equal(ui.next.props.type, "submit");
+    assert.equal(ui.back.props.children[1], "ย้อนกลับ");
+    assert.equal(ui.next.props.children[1], "ถัดไป · Branding");
+    if (direction === "back") ui.back.props.onClick();
+    else {
+      let prevented = false;
+      ui.form.props.onSubmit({
+        preventDefault() {
+          prevented = true;
+        },
+      });
+      assert.equal(prevented, true);
+    }
+    assert.equal(saves, 1);
+    assert.deepEqual(ui.navigation, [
+      direction === "back" ? "/event" : "/event/branding",
+    ]);
+    const saved = restoreEventDraft(seed, "owner", "th");
+    assert.equal(saved.eventName, "Latest edit");
+    assert.equal(saved.hasRegistration, false);
+    assert.equal(saved.surveyAccess, "public");
+  }
+});
+test("Details Back and Next stay on the current page when validation or LocalStorage fails", (t) => {
+  const values = storage(t);
+  const key = eventDraftKey("owner", seed.eventId, "th");
+  saveEventDraft(key, seed);
+  const previous = values.get(key);
+  const ui = detailsActions(
+    () => saveEventDraft(key, { ...seed, startsAt: "invalid" }) === "saved",
+  );
+  ui.back.props.onClick();
+  ui.form.props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(ui.navigation, []);
+  const quota = detailsActions(
+    () => saveEventDraft(key, { ...seed, hasSurvey: false }) === "saved",
+  );
+  globalThis.localStorage.setItem = () => {
+    throw Error("QuotaExceededError");
+  };
+  quota.back.props.onClick();
+  quota.form.props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(quota.navigation, []);
+  assert.equal(values.get(key), previous);
+});
+
 test("Overview shows Draft for saved unpublished local setup without overwriting the server event lifecycle", (t) => {
   const values = storage(t);
   const original = {
