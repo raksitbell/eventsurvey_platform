@@ -1483,3 +1483,200 @@ test("Overview shows Draft for saved unpublished local setup without overwriting
   assert.equal(th.eventHome.eventStatus.draft, "Draft");
   assert.equal(en.eventHome.eventStatus.draft, "Draft");
 });
+
+function setupStep(kind, options = {}) {
+  const navigation = [];
+  const workspace = {
+    ...publishDraft,
+    userRole: "event_owner",
+    hasRegistration: false,
+    hasSurvey: false,
+    surveyAccess: null,
+    ...options.workspace,
+  };
+  const draft = { ...workspace, ...options.draft };
+  const branding = { ...defaultEventBranding, primary: "#123456" };
+  const draftKey = eventDraftKey("owner", seed.eventId, "th");
+  const brandingKey = eventBrandingKey("owner", seed.eventId, "th");
+  const saves = [];
+  const confirmations = [];
+  const states = [];
+  const messages = JSON.parse(
+    fs.readFileSync(path.join(root, "src/messages/th.json")),
+  );
+  const noop = { default: () => null };
+  const mocks = {
+    "@/components/event/setup/EventSetupBoundary": noop,
+    "@/components/event/setup/EventSetupSteps": noop,
+    "@/components/event/setup/EventSetupActions": { default: setupActions },
+    "@/components/ui/button/Button": { default: setupButton },
+    "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
+    "@/core/event/publication": load("src/core/event/publication.ts"),
+    "@/hooks/useEventDraft": {
+      default: () => ({
+        draft,
+        readOnly: options.readOnly ?? false,
+        status: options.detailsStatus ?? "idle",
+        save: () => {
+          saves.push("draft");
+          return saveEventDraft(draftKey, draft) === "saved";
+        },
+      }),
+    },
+    "@/hooks/useEventBranding": {
+      default: () => ({
+        branding,
+        readOnly: options.readOnly ?? false,
+        status: options.brandingStatus ?? "idle",
+        change() {},
+        save: () => {
+          saves.push("branding");
+          return saveEventBranding(brandingKey, branding) === "saved";
+        },
+      }),
+    },
+    "@/hooks/useEventFormSummaries": {
+      default: () => ({
+        forms: [],
+        loading: false,
+        error: options.formsError ?? false,
+        retry() {},
+      }),
+    },
+    "@/hooks/useConfirm": {
+      useConfirm: () => ({
+        confirm: async (value) => {
+          confirmations.push(value);
+          assert.ok(globalThis.localStorage.getItem(brandingKey));
+          assert.ok(restoreEventDraft(workspace, "owner", "th").hasLocalDraft);
+          return options.confirm ?? true;
+        },
+      }),
+    },
+    "@/i18n/navigation": {
+      useRouter: () => ({ push: (href) => navigation.push(href) }),
+    },
+    "@heroicons/react/24/outline": { ArrowRightIcon: () => null },
+    "next-intl": {
+      useTranslations: (namespace) => {
+        const dictionary = namespace
+          .split(".")
+          .reduce((value, key) => value[key], messages);
+        return (key) =>
+          key.split(".").reduce((value, part) => value?.[part], dictionary) ??
+          key;
+      },
+    },
+    react: {
+      ...require("react"),
+      useState: (initial) => [
+        typeof initial === "function" ? initial() : initial,
+        (value) => states.push(value),
+      ],
+    },
+  };
+  for (const component of [
+    "BrandingAppearance",
+    "BrandingPreview",
+    "SetupFormCard",
+    "PublishFormSummary",
+    "PublishParticipantPreview",
+  ])
+    mocks[`@/components/event/setup/${component}`] = noop;
+  const filename = {
+    branding: "EventBrandingForm",
+    forms: "EventFormsSetup",
+    publish: "EventPublishPanel",
+  }[kind];
+  const Component = compileSetupComponent(
+    `src/components/event/setup/${filename}.tsx`,
+    mocks,
+  );
+  const props = { workspace, userId: "owner", locale: "th" };
+  const entry = Component(props);
+  const form = kind === "branding" ? entry : entry.props.component(props);
+  const submit = async () => {
+    let prevented = false;
+    form.props.onSubmit({
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    assert.equal(prevented, true);
+    await new Promise((resolve) => setImmediate(resolve));
+  };
+  return {
+    form,
+    ...setupActionButtons(form),
+    navigation,
+    saves,
+    confirmations,
+    states,
+    submit,
+    draftKey,
+    brandingKey,
+    branding,
+    workspace,
+  };
+}
+test("Branding and Forms Back/Next actions save current local data before following their bounded routes", async (t) => {
+  storage(t);
+  for (const [kind, back, next] of [
+    ["branding", "/event/details", "/event/forms"],
+    ["forms", "/event/branding", "/event/publish"],
+  ]) {
+    for (const direction of ["back", "next"]) {
+      const ui = setupStep(kind);
+      assert.equal(ui.back.props.type, "button");
+      assert.equal(ui.next.props.type, "submit");
+      if (direction === "back") ui.back.props.onClick();
+      else await ui.submit();
+      assert.deepEqual(ui.navigation, [direction === "back" ? back : next]);
+      assert.deepEqual(
+        ui.saves,
+        kind === "branding" ? ["draft", "branding"] : ["draft"],
+      );
+      assert.equal(
+        restoreEventDraft(ui.workspace, "owner", "th").hasLocalDraft,
+        true,
+      );
+      if (kind === "branding")
+        assert.deepEqual(loadEventBranding(ui.brandingKey), ui.branding);
+    }
+  }
+});
+test("Branding and Forms block both directions on validation/quota failures and Branding exposes either save error", async (t) => {
+  storage(t);
+  for (const kind of ["branding", "forms"]) {
+    const invalid = setupStep(kind, {
+      draft: { startsAt: "bad date" },
+      detailsStatus: "invalid",
+    });
+    invalid.back.props.onClick();
+    await invalid.submit();
+    assert.deepEqual(invalid.navigation, []);
+    assert.ok(invalid.feedback);
+    assert.ok(!invalid.saves.includes("branding"));
+  }
+  const previous = { ...defaultEventBranding };
+  const key = eventBrandingKey("owner", seed.eventId, "th");
+  saveEventBranding(key, previous);
+  const setItem = globalThis.localStorage.setItem;
+  globalThis.localStorage.setItem = (key, value) => {
+    if (key.includes("event-branding")) throw Error("QuotaExceededError");
+    setItem(key, value);
+  };
+  const ui = setupStep("branding", { brandingStatus: "error" });
+  ui.back.props.onClick();
+  await ui.submit();
+  assert.deepEqual(ui.navigation, []);
+  assert.ok(ui.feedback);
+  assert.deepEqual(loadEventBranding(key), previous);
+  globalThis.localStorage.setItem = () => {
+    throw Error("QuotaExceededError");
+  };
+  const forms = setupStep("forms");
+  forms.back.props.onClick();
+  await forms.submit();
+  assert.deepEqual(forms.navigation, []);
+});
