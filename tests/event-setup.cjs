@@ -1680,3 +1680,100 @@ test("Branding and Forms block both directions on validation/quota failures and 
   await forms.submit();
   assert.deepEqual(forms.navigation, []);
 });
+test("Publish Back and Preview save current data, while submit validates and confirms before a local receipt", async (t) => {
+  storage(t);
+  const ui = setupStep("publish");
+  ui.back.props.onClick();
+  assert.deepEqual(ui.navigation, ["/event/forms"]);
+  assert.deepEqual(ui.saves, ["draft", "branding"]);
+  const preview = findSetupElement(
+    ui.form,
+    (node) => typeof node.props?.onOpen === "function",
+  );
+  assert.equal(preview.props.onOpen(), true);
+  assert.deepEqual(ui.saves, ["draft", "branding", "draft", "branding"]);
+  assert.equal(
+    loadPublication(publicationKey("owner", seed.eventId, "th")),
+    null,
+  );
+  await ui.submit();
+  assert.equal(ui.confirmations.length, 2);
+  const receipt = loadPublication(publicationKey("owner", seed.eventId, "th"));
+  assert.equal(receipt.branding.primary, ui.branding.primary);
+  assert.equal(receipt.draft.hasRegistration, false);
+  assert.equal(receipt.draft.hasSurvey, false);
+  assert.equal(ui.workspace.eventStatus, "draft");
+  assert.deepEqual(ui.navigation, ["/event/forms"]); // No out-of-scope Dashboard route.
+});
+test("Publish does not create a receipt or report success after cancellation, storage/validation failures or denied access", async (t) => {
+  storage(t);
+  const key = publicationKey("owner", seed.eventId, "th");
+  for (const options of [
+    { confirm: false },
+    { draft: { eventName: " " } },
+    { formsError: true },
+    { readOnly: true },
+    { workspace: { userRole: "sub_user" } },
+  ]) {
+    const ui = setupStep("publish", options);
+    await ui.submit();
+    assert.equal(loadPublication(key), null);
+    assert.ok(
+      ui.confirmations.every(
+        (value) => value.showCancel !== false || value.variant === "danger",
+      ),
+    );
+    assert.deepEqual(ui.navigation, []);
+  }
+  globalThis.localStorage.setItem = () => {
+    throw Error("QuotaExceededError");
+  };
+  const failed = setupStep("publish");
+  failed.back.props.onClick();
+  const preview = findSetupElement(
+    failed.form,
+    (node) => typeof node.props?.onOpen === "function",
+  );
+  assert.equal(preview.props.onOpen(), false);
+  await failed.submit();
+  assert.deepEqual(failed.navigation, []);
+  assert.deepEqual(failed.confirmations, []);
+  assert.equal(loadPublication(key), null);
+});
+
+test("Publish Full Preview link only navigates after its local save succeeds", () => {
+  const Preview = compileSetupComponent(
+    "src/components/event/setup/PublishParticipantPreview.tsx",
+    {
+      "@/components/event/participant/ParticipantPreviewViewport": {
+        default: () => null,
+      },
+      "@/i18n/navigation": { Link: () => null },
+      "next-intl": { useTranslations: () => (key) => key },
+      react: { useState: (initial) => [initial, () => {}] },
+    },
+  );
+  for (const saved of [false, true]) {
+    let saves = 0;
+    let prevented = false;
+    const screen = Preview({
+      draft: seed,
+      branding: defaultEventBranding,
+      onOpen: () => {
+        saves++;
+        return saved;
+      },
+    });
+    const link = findSetupElement(screen, (node) =>
+      node.props?.href?.startsWith("/preview/event"),
+    );
+    assert.equal(link.props.href, "/preview/event?device=desktop&from=publish");
+    link.props.onClick({
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    assert.equal(saves, 1);
+    assert.equal(prevented, !saved);
+  }
+});
