@@ -2,7 +2,7 @@
 
 import Radio from "@/components/form/input/Radio";
 import Switch from "@/components/form/switch/Switch";
-import Button from "@/components/ui/button/Button";
+import { Link } from "@/i18n/navigation";
 import EventCapacitySettings from "@/components/event/setup/EventCapacitySettings";
 import type { EventDraft } from "@/types/event/setup";
 import {
@@ -14,16 +14,17 @@ import {
 import { useTranslations } from "next-intl";
 
 interface EventAccessSettingsProps {
-  onNavigate?: () => boolean;
   draft: EventDraft;
   readOnly: boolean;
   onChange: (changes: Partial<EventDraft>) => void;
+  onNavigate: () => boolean;
 }
 
 export default function EventAccessSettings({
   draft,
   readOnly,
   onChange,
+  onNavigate,
 }: EventAccessSettingsProps) {
   const t = useTranslations("eventHome.details");
   return (
@@ -88,14 +89,15 @@ export default function EventAccessSettings({
                 )}
               </p>
               {draft.hasRegistration && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled
-                  className="h-11 w-full rounded-preview-control border border-event-action bg-event-subtle! py-0! text-participant-text ring-0! dark:border-gray-600 dark:bg-gray-800! dark:text-gray-300"
+                <Link
+                  href="/event/whitelist"
+                  onClick={(event) => {
+                    if (!onNavigate()) event.preventDefault();
+                  }}
+                  className="flex h-11 w-full items-center justify-center rounded-preview-control border border-event-action bg-event-subtle text-theme-sm text-participant-text focus-visible:outline-2 focus-visible:outline-event-action dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
                 >
                   {t("manageWhitelist")}
-                </Button>
+                </Link>
               )}
             </div>
           )}
