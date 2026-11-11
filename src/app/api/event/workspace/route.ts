@@ -31,13 +31,6 @@ export async function GET(request: NextRequest) {
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
     const data = await getEventWorkspace(session.userId, locale);
-    if (!data) {
-      return NextResponse.json(
-        { error: "Workspace not found" },
-        { status: 404 },
-      );
-    }
-
     return NextResponse.json(data);
   } catch (error) {
     const message =

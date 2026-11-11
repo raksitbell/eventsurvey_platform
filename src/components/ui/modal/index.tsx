@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useEffect, useRef } from "react";
+import { twMerge } from "tailwind-merge";
 
 interface ModalProps {
   isOpen: boolean;
@@ -9,6 +10,9 @@ interface ModalProps {
   className?: string;
   children: React.ReactNode;
   showCloseButton?: boolean;
+  labelledBy?: string;
+  backdropClassName?: string;
+  closeOnBackdropClick?: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -17,6 +21,9 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   className = "",
   showCloseButton = true,
+  labelledBy,
+  closeOnBackdropClick = true,
+  backdropClassName = "bg-gray-900/50 backdrop-blur-[1px]",
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -41,15 +48,19 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <div className="fixed inset-0 z-99999 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-gray-900/50 backdrop-blur-[1px]"
-        onClick={onClose}
+        className={`absolute inset-0 ${backdropClassName}`}
+        onClick={closeOnBackdropClick ? onClose : undefined}
         aria-hidden
       />
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
-        className={`relative w-full max-w-md rounded-2xl bg-white p-6 shadow-theme-xl dark:bg-gray-900 ${className}`}
+        aria-labelledby={labelledBy}
+        className={twMerge(
+          "relative w-full max-w-md rounded-2xl bg-white p-6 shadow-theme-xl dark:bg-gray-900",
+          className,
+        )}
       >
         {showCloseButton ? (
           <button
