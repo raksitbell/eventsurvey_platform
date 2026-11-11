@@ -1,5 +1,5 @@
-import EventBrandingPanel from "@/components/event/setup/EventBrandingPanel";
+import EventBrandingForm from "@/components/event/setup/EventBrandingForm";
 
 export default function EventBrandingPage() {
-  return <EventBrandingPanel />;
+  return <EventBrandingForm />;
 }

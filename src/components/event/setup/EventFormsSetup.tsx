@@ -1,13 +1,15 @@
 "use client";
 import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
-import SetupFormCard from "@/components/event/setup/SetupFormCard";
+import SetupFormCard from "@/components/event/setup/forms/SetupFormCard";
 import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import Button from "@/components/ui/button/Button";
 import useEventDraft from "@/hooks/useEventDraft";
 import { useRouter } from "@/i18n/navigation";
+import { createSavedNavigation } from "@/core/event/draft";
+import { selectSetupForms } from "@/core/event/form-summary";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
@@ -18,9 +20,8 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
     workspace.eventId,
     workspace.hasRegistration || workspace.hasSurvey,
   );
-  const navigate = (href: "/event/branding" | "/event/publish") => {
-    if (save()) router.push(href);
-  };
+  const navigate = createSavedNavigation(save, router.push);
+  const { registration, survey } = selectSetupForms(forms);
   return (
     <form
       onSubmit={(event) => {
@@ -40,11 +41,8 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
         <SetupFormCard
           type="registration"
           enabled={draft.hasRegistration}
-          status={forms.find((form) => form.type === "registration")?.status}
-          count={
-            forms.find((form) => form.type === "registration")?.questions
-              .length ?? 0
-          }
+          status={registration?.status}
+          count={registration?.questions.length ?? 0}
         />
         <div className="flex w-full items-center justify-center lg:w-20">
           {draft.hasRegistration &&
@@ -59,10 +57,8 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
         <SetupFormCard
           type="survey"
           enabled={draft.hasSurvey}
-          status={forms.find((form) => form.type === "survey")?.status}
-          count={
-            forms.find((form) => form.type === "survey")?.questions.length ?? 0
-          }
+          status={survey?.status}
+          count={survey?.questions.length ?? 0}
         />
       </div>
       {error && (

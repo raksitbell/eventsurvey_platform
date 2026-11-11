@@ -1,26 +1,18 @@
 "use client";
 
 import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
-import EventAccessSettings from "@/components/event/setup/EventAccessSettings";
+import EventAccessSettings from "@/components/event/setup/details/EventAccessSettings";
 import useEventDraft from "@/hooks/useEventDraft";
-import EventInformationFields from "@/components/event/setup/EventInformationFields";
+import EventInformationFields from "@/components/event/setup/details/EventInformationFields";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
+import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
+import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
+import { createSavedNavigation } from "@/core/event/draft";
 import { useRouter } from "@/i18n/navigation";
-import type { EventWorkspace } from "@/types/event/workspace";
 import { useTranslations } from "next-intl";
 import type { FormEvent } from "react";
 
-interface EventDetailsFormProps {
-  workspace: EventWorkspace;
-  userId: string;
-  locale: string;
-}
-
-export default function EventDetailsForm({
-  workspace,
-  userId,
-  locale,
-}: EventDetailsFormProps) {
+function DetailsForm({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventHome.details");
   const router = useRouter();
   const { draft, status, readOnly, change, save } = useEventDraft(
@@ -28,9 +20,7 @@ export default function EventDetailsForm({
     userId,
     locale,
   );
-  const navigate = (href: "/event" | "/event/branding") => {
-    if (save()) router.push(href);
-  };
+  const navigate = createSavedNavigation(save, router.push);
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     navigate("/event/branding");
@@ -76,4 +66,8 @@ export default function EventDetailsForm({
       />
     </form>
   );
+}
+
+export default function EventDetailsForm() {
+  return <EventSetupBoundary component={DetailsForm} />;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import BrandingUploadDialog from "@/components/event/setup/BrandingUploadDialog";
-import BrandingThemeCustomization from "@/components/event/setup/BrandingThemeCustomization";
+import BrandingUploadDialog from "@/components/event/setup/branding/BrandingUploadDialog";
+import BrandingThemeCustomization from "@/components/event/setup/branding/BrandingThemeCustomization";
 import { useModal } from "@/hooks/useModal";
 import type { BrandingMediaKind, EventBranding } from "@/types/event/branding";
 import { ArrowUpTrayIcon, TrashIcon } from "@heroicons/react/24/outline";

@@ -3,10 +3,11 @@ import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
-import PublishFormSummary from "@/components/event/setup/PublishFormSummary";
-import PublishParticipantPreview from "@/components/event/setup/PublishParticipantPreview";
+import PublishFormSummary from "@/components/event/setup/publish/PublishFormSummary";
+import PublishParticipantPreview from "@/components/event/setup/publish/PublishParticipantPreview";
 import Button from "@/components/ui/button/Button";
 import { selectSetupForms } from "@/core/event/form-summary";
+import { createSavedNavigation } from "@/core/event/draft";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import {
   loadPublication,
@@ -39,6 +40,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     workspace.hasRegistration || workspace.hasSurvey,
   );
   const key = publicationKey(userId, workspace.eventId, locale);
+  const forms = selectSetupForms(formState.forms);
   const [published, setPublished] = useState(() => !!loadPublication(key));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -48,6 +50,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     return ok;
   };
   const saveBeforeNavigation = () => !busy && save();
+  const navigate = createSavedNavigation(saveBeforeNavigation, router.push);
   const publish = async () => {
     if (readOnly || published || busy || workspace.userRole !== "event_owner")
       return;
@@ -58,7 +61,6 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         setError(true);
         return;
       }
-      const forms = selectSetupForms(formState.forms);
       const issues = publicationIssues(draft, forms);
       if (issues.length) {
         await confirm({
@@ -135,21 +137,12 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         <PublishFormSummary
           type="registration"
           enabled={draft.hasRegistration}
-          status={
-            published
-              ? "pending_approval"
-              : formState.forms.find((form) => form.type === "registration")
-                  ?.status
-          }
+          status={published ? "pending_approval" : forms.registration?.status}
         />
         <PublishFormSummary
           type="survey"
           enabled={draft.hasSurvey}
-          status={
-            published
-              ? "pending_approval"
-              : formState.forms.find((form) => form.type === "survey")?.status
-          }
+          status={published ? "pending_approval" : forms.survey?.status}
         />
       </div>
       <PublishParticipantPreview
@@ -162,9 +155,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         back={{
           label: t("back"),
           disabled: busy,
-          onClick: () => {
-            if (saveBeforeNavigation()) router.push("/event/forms");
-          },
+          onClick: () => navigate("/event/forms"),
         }}
         primary={{
           label: t("publish"),

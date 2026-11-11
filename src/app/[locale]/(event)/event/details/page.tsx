@@ -1,5 +1,5 @@
-import EventDetailsPanel from "@/components/event/setup/EventDetailsPanel";
+import EventDetailsForm from "@/components/event/setup/EventDetailsForm";
 
 export default function EventDetailsPage() {
-  return <EventDetailsPanel />;
+  return <EventDetailsForm />;
 }

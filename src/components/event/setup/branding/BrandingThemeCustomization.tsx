@@ -1,7 +1,7 @@
 "use client";
 
 import { eventColorForeground } from "@/core/event/participant-colors";
-import BrandingColorPicker from "@/components/event/setup/BrandingColorPicker";
+import BrandingColorPicker from "@/components/event/setup/branding/BrandingColorPicker";
 import { useModal } from "@/hooks/useModal";
 import type { BrandingColorKey, EventBranding } from "@/types/event/branding";
 import { useTranslations } from "next-intl";

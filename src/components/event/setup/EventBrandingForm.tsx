@@ -1,25 +1,18 @@
 "use client";
 
-import BrandingAppearance from "@/components/event/setup/BrandingAppearance";
-import BrandingPreview from "@/components/event/setup/BrandingPreview";
+import BrandingAppearance from "@/components/event/setup/branding/BrandingAppearance";
+import BrandingPreview from "@/components/event/setup/branding/BrandingPreview";
 import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
+import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
+import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
+import { createSavedNavigation } from "@/core/event/draft";
 import useEventBranding from "@/hooks/useEventBranding";
 import useEventDraft from "@/hooks/useEventDraft";
 import { useRouter } from "@/i18n/navigation";
-import type { EventWorkspace } from "@/types/event/workspace";
 import { useTranslations } from "next-intl";
 
-interface EventBrandingFormProps {
-  workspace: EventWorkspace;
-  userId: string;
-  locale: string;
-}
-export default function EventBrandingForm({
-  workspace,
-  userId,
-  locale,
-}: EventBrandingFormProps) {
+function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventBranding");
   const detailsText = useTranslations("eventHome.details");
   const router = useRouter();
@@ -34,9 +27,7 @@ export default function EventBrandingForm({
     locale,
   );
   const saveAll = () => saveDetails() && save();
-  const navigate = (href: "/event/details" | "/event/forms") => {
-    if (saveAll()) router.push(href);
-  };
+  const navigate = createSavedNavigation(saveAll, router.push);
   const error =
     detailsStatus === "error" || detailsStatus === "invalid"
       ? detailsText(detailsStatus)
@@ -85,4 +76,8 @@ export default function EventBrandingForm({
       />
     </form>
   );
+}
+
+export default function EventBrandingForm() {
+  return <EventSetupBoundary component={BrandingForm} />;
 }
