@@ -1349,9 +1349,11 @@ function detailsActions(save) {
     "src/components/event/setup/EventDetailsForm.tsx",
     {
       "@/components/event/setup/EventSetupSteps": noop,
-      "@/components/event/setup/EventAccessSettings": noop,
-      "@/components/event/setup/EventInformationFields": noop,
+      "@/components/event/setup/EventSetupBoundary": noop,
+      "@/components/event/setup/details/EventAccessSettings": noop,
+      "@/components/event/setup/details/EventInformationFields": noop,
       "@/components/event/setup/EventSetupActions": { default: setupActions },
+      "@/core/event/draft": load("src/core/event/draft.ts"),
       "@/hooks/useEventDraft": {
         default: () => ({
           draft: seed,
@@ -1367,7 +1369,12 @@ function detailsActions(save) {
       "next-intl": { useTranslations: () => (key) => messages[key] ?? key },
     },
   );
-  const form = Details({ workspace: seed, userId: "owner", locale: "th" });
+  const entry = Details();
+  const form = entry.props.component({
+    workspace: seed,
+    userId: "owner",
+    locale: "th",
+  });
   return { form, ...setupActionButtons(form), navigation };
 }
 test("Details Back and Next save edited form choices before navigation; native submit follows Next", (t) => {
@@ -1511,6 +1518,7 @@ function setupStep(kind, options = {}) {
     "@/components/event/setup/EventSetupActions": { default: setupActions },
     "@/components/ui/button/Button": { default: setupButton },
     "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
+    "@/core/event/draft": load("src/core/event/draft.ts"),
     "@/core/event/publication": load("src/core/event/publication.ts"),
     "@/hooks/useEventDraft": {
       default: () => ({
@@ -1576,11 +1584,11 @@ function setupStep(kind, options = {}) {
     },
   };
   for (const component of [
-    "BrandingAppearance",
-    "BrandingPreview",
-    "SetupFormCard",
-    "PublishFormSummary",
-    "PublishParticipantPreview",
+    "branding/BrandingAppearance",
+    "branding/BrandingPreview",
+    "forms/SetupFormCard",
+    "publish/PublishFormSummary",
+    "publish/PublishParticipantPreview",
   ])
     mocks[`@/components/event/setup/${component}`] = noop;
   const filename = {
@@ -1594,7 +1602,7 @@ function setupStep(kind, options = {}) {
   );
   const props = { workspace, userId: "owner", locale: "th" };
   const entry = Component(props);
-  const form = kind === "branding" ? entry : entry.props.component(props);
+  const form = entry.props.component(props);
   const submit = async () => {
     let prevented = false;
     form.props.onSubmit({
@@ -1743,7 +1751,7 @@ test("Publish does not create a receipt or report success after cancellation, st
 
 test("Publish Full Preview link only navigates after its local save succeeds", () => {
   const Preview = compileSetupComponent(
-    "src/components/event/setup/PublishParticipantPreview.tsx",
+    "src/components/event/setup/publish/PublishParticipantPreview.tsx",
     {
       "@/components/event/participant/ParticipantPreviewViewport": {
         default: () => null,
@@ -1775,5 +1783,51 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
     });
     assert.equal(saves, 1);
     assert.equal(prevented, !saved);
+  }
+});
+
+test("Event information configuration preserves field bindings, limits, labels, null values and read-only state", () => {
+  const placeholder = () => null;
+  const Fields = compileSetupComponent(
+    "src/components/event/setup/details/EventInformationFields.tsx",
+    {
+      "@/components/form/DateTimePicker": { default: placeholder },
+      "@/components/form/Label": { default: placeholder },
+      "@/components/form/input/InputField": { default: placeholder },
+      "next-intl": { useTranslations: () => (key) => key },
+    },
+  );
+  for (const readOnly of [false, true]) {
+    const changes = [];
+    const screen = Fields({
+      draft: seed,
+      readOnly,
+      onChange: (value) => changes.push(value),
+    });
+    for (const [field, id, maxLength] of [
+      ["eventName", "event-name", 255],
+      ["description", "event-description", 5000],
+      ["locationName", "event-location", 500],
+      ["startsAt", "event-start"],
+      ["endsAt", "event-end"],
+    ]) {
+      const input = findSetupElement(screen, (node) => node.props?.id === id);
+      assert.equal(input.props.readOnly, readOnly);
+      if (maxLength) {
+        assert.equal(input.props.maxLength, maxLength);
+        assert.equal(input.props.value, seed[field] ?? "");
+        assert.ok(
+          findSetupElement(screen, (node) => node.props?.htmlFor === id),
+        );
+        input.props.onChange({ target: { value: "Updated" } });
+        assert.deepEqual(changes.at(-1), { [field]: "Updated" });
+      } else {
+        assert.equal(input.props.value, null);
+        input.props.onChange("2027-01-01T03:00:00.000Z");
+        assert.deepEqual(changes.at(-1), {
+          [field]: "2027-01-01T03:00:00.000Z",
+        });
+      }
+    }
   }
 });

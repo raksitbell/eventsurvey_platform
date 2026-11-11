@@ -3,7 +3,7 @@
 import Radio from "@/components/form/input/Radio";
 import Switch from "@/components/form/switch/Switch";
 import { Link } from "@/i18n/navigation";
-import EventCapacitySettings from "@/components/event/setup/EventCapacitySettings";
+import EventCapacitySettings from "@/components/event/setup/details/EventCapacitySettings";
 import type { EventDraft } from "@/types/event/setup";
 import {
   ClipboardDocumentListIcon,

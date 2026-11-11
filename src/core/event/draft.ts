@@ -4,6 +4,16 @@ import { notifyEventSetupSaved } from "@/core/event/local-events";
 import type { EventDraft, DraftSaveStatus } from "@/types/event/setup";
 import type { EventWorkspace } from "@/types/event/workspace";
 
+/** Create a navigation action that proceeds only after a successful synchronous local save. */
+export function createSavedNavigation<Path extends string>(
+  save: () => boolean,
+  navigate: (href: Path) => void,
+) {
+  return (href: Path) => {
+    if (save()) navigate(href);
+  };
+}
+
 export const eventDraftSchema = z
   .object({
     eventName: z.string().max(255),

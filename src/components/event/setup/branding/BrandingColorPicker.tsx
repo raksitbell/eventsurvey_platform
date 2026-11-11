@@ -1,6 +1,6 @@
 "use client";
 
-import BrandingColorSpectrum from "@/components/event/setup/BrandingColorSpectrum";
+import BrandingColorSpectrum from "@/components/event/setup/branding/BrandingColorSpectrum";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import { Modal } from "@/components/ui/modal";
