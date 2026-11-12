@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventSubUserItem } from "@/types/event/permissions";
-import { showConfirm } from "@/utils/confirm";
+import { useConfirm } from "@/hooks/useConfirm";
 import { KeyIcon, TrashIcon, UserPlusIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import React from "react";
@@ -9,6 +9,7 @@ import React from "react";
 interface SubUsersTableProps {
   subUsers: EventSubUserItem[];
   canManage: boolean;
+  currentUserId?: string;
   onEditPermissions: (subUser: EventSubUserItem) => void;
   onInviteClick: () => void;
   onRemove: (subUserId: string) => Promise<void>;
@@ -17,15 +18,18 @@ interface SubUsersTableProps {
 export default function SubUsersTable({
   subUsers,
   canManage,
+  currentUserId,
   onEditPermissions,
   onInviteClick,
   onRemove,
 }: SubUsersTableProps) {
   const t = useTranslations("team");
   const tCommon = useTranslations("common");
+  const { confirm } = useConfirm();
 
   const handleRemove = async (subUser: EventSubUserItem) => {
-    const confirmed = await showConfirm({
+    const confirmed = await confirm({
+      appearance: "event",
       title: t("confirmRemoveTitle"),
       message: t("confirmRemoveMessage", { name: subUser.name }),
       confirmLabel: t("removeButton"),
@@ -39,9 +43,9 @@ export default function SubUsersTable({
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
+    <div className="overflow-hidden rounded-2xl border border-event-border bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
       {/* Table Header / Action Bar */}
-      <div className="flex flex-col gap-3 border-b border-gray-100 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+      <div className="flex flex-col gap-3 border-b border-event-border p-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">
             {t("teamMembersTitle")}
@@ -54,7 +58,7 @@ export default function SubUsersTable({
           <button
             type="button"
             onClick={onInviteClick}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#7F56D9] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#6941C6]"
+            className="inline-flex items-center gap-2 rounded-xl bg-event-action px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-event-action/90"
           >
             <UserPlusIcon className="size-4" />
             {t("inviteButton")}
@@ -66,7 +70,7 @@ export default function SubUsersTable({
       <div className="overflow-x-auto">
         <table className="w-full text-start text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50 text-theme-xs text-gray-500 uppercase dark:border-gray-800 dark:bg-white/2 dark:text-gray-400">
+            <tr className="border-b border-event-border bg-event-subtle text-theme-xs text-gray-500 uppercase dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
               <th className="px-5 py-3.5 text-start font-medium">
                 {t("colMember")}
               </th>
@@ -84,7 +88,7 @@ export default function SubUsersTable({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          <tbody className="divide-y divide-event-border dark:divide-gray-800">
             {subUsers.length === 0 ? (
               <tr>
                 <td
@@ -96,14 +100,17 @@ export default function SubUsersTable({
               </tr>
             ) : (
               subUsers.map((user) => {
+                const isAdmin = user.rawPermissions.includes("manage_sub_user");
+                const isSelf = user.id === currentUserId;
+
                 return (
                   <tr
                     key={user.id}
-                    className="transition hover:bg-gray-50/60 dark:hover:bg-white/2"
+                    className="transition hover:bg-event-subtle/50 dark:hover:bg-white/2"
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex size-9 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-600 dark:bg-brand-950/50 dark:text-brand-400">
+                        <div className="flex size-9 items-center justify-center rounded-full bg-event-banner text-xs font-semibold text-white dark:bg-brand-800">
                           {user.name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
@@ -118,8 +125,8 @@ export default function SubUsersTable({
                     </td>
 
                     <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                      <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-300">
-                        {user.customRoleName || t("defaultRoleName")}
+                      <span className="inline-flex items-center rounded-md bg-event-tile px-2 py-0.5 text-xs font-medium text-event-action dark:bg-gray-800 dark:text-gray-300">
+                        {user.customRoleName || (isAdmin ? "Event Admin" : t("defaultRoleName"))}
                       </span>
                     </td>
 
@@ -204,19 +211,21 @@ export default function SubUsersTable({
                           <button
                             type="button"
                             onClick={() => onEditPermissions(user)}
-                            className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-brand-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-brand-400"
+                            className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-event-tile hover:text-event-action dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-brand-400"
                             title={t("editPermissionsTooltip")}
                           >
                             <KeyIcon className="size-4" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemove(user)}
-                            className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-950/40 dark:hover:text-error-400"
-                            title={t("removeTooltip")}
-                          >
-                            <TrashIcon className="size-4" />
-                          </button>
+                          {!isAdmin && !isSelf && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemove(user)}
+                              className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-950/40 dark:hover:text-error-400"
+                              title={t("removeTooltip")}
+                            >
+                              <TrashIcon className="size-4" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>

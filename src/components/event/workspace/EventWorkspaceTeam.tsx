@@ -1,8 +1,9 @@
 "use client";
 
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
+import { Link } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
-import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
@@ -102,6 +103,15 @@ export default function EventWorkspaceTeam({
                   {t("noTeam")}
                 </p>
               )}
+              <div className="mt-4 border-t border-event-border pt-3 dark:border-gray-800">
+                <Link
+                  href="/event/team"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-event-action px-3 py-2 text-theme-xs font-semibold text-white transition hover:bg-event-action/90"
+                >
+                  <UserGroupIcon className="size-4" aria-hidden="true" />
+                  {t("manageTeamPermissions")}
+                </Link>
+              </div>
             </section>
           </Dropdown>
         </div>

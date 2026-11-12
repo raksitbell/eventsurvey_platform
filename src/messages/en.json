@@ -231,6 +231,7 @@
     "teamTitle": "Event assistants",
     "memberCount": "{count} members",
     "manageTeam": "Manage assistants",
+    "manageTeamPermissions": "Manage Team & Permissions",
     "noTeam": "No event assistants yet.",
     "locationSummary": "Location: {location}",
     "locationUnspecified": "Not specified",
@@ -490,32 +491,43 @@
     "roleNameLabel": "Custom Role Title",
     "roleNamePlaceholder": "e.g. Registration Team, Event Staff",
     "defaultRoleName": "Staff",
-    "editPermissionsTitle": "Edit Permissions",
-    "editPermissionsDesc": "Configure access levels for {name} ({email})",
+    "editPermissionsTitle": "Configure Event Assistant Permissions",
+    "editPermissionsDesc": "{eventName} · {name}",
     "editPermissionsTooltip": "Edit permissions",
+    "eventAdminOnly": "Event Admin Only",
+    "eventScopedNotice": "These permissions apply to this event only • Design prototype status",
     "modulePermissionsHeader": "Core Module Permissions",
     "actionPermissionsHeader": "Special Action Permissions",
+    "submissionsSectionTitle": "Submissions & Export Permissions",
+    "submissionsSectionDesc": "Configured independently from Dashboard and form access levels",
     "levels": {
       "restricted": "Restricted",
       "view_only": "View Only",
       "can_edit": "Can Edit"
     },
     "modules": {
-      "event": "Event Management",
-      "eventDesc": "Access and manage event configuration and details",
+      "event": "Event",
+      "eventDesc": "Event Details",
       "registrationForm": "Registration Form",
-      "registrationFormDesc": "Access and manage registration forms and whitelists",
+      "registrationFormDesc": "Registration Form",
       "surveyForm": "Survey Form",
-      "surveyFormDesc": "Access and manage surveys and schedules",
+      "surveyFormDesc": "Survey Form",
       "dashboard": "Dashboard",
-      "dashboardDesc": "Access and configure metric summary widgets"
+      "dashboardDesc": "Dashboard"
     },
     "toggles": {
-      "viewSubmissions": "View Submissions",
-      "viewSubmissionsDesc": "Allow viewing participant responses and submission list",
-      "exportData": "Export Data",
-      "exportDataDesc": "Allow exporting raw reports in CSV, Excel, and PDF formats"
+      "viewSubmissions": "View Submission",
+      "viewSubmissionsDesc": "View successfully submitted responses",
+      "manageSubmissions": "Manage Submission",
+      "manageSubmissionsDesc": "Manage / delete responses (Requires View)",
+      "exportData": "Export",
+      "exportDataDesc": "Export data / reports"
     },
+    "rules": {
+      "rule1": "Manage Submission → Automatically enables View Submission",
+      "rule2": "Disabling View Submission → Also disables Manage Submission • Export is independent"
+    },
+    "savePermissions": "Save Permissions",
     "colMember": "Member",
     "colRole": "Role",
     "colStatus": "Status",
