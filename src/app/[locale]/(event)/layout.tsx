@@ -29,7 +29,7 @@ export default function EventLayout({
         <AppSidebar />
         <Backdrop />
         <div
-          className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin}`}
+          className={`flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin}`}
         >
           <ImpersonationBanner />
           <AppHeader />

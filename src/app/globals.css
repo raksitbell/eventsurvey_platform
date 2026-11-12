@@ -33,6 +33,53 @@
   --text-theme-xs: 12px;
   --text-theme-xs--line-height: 18px;
 
+  /* Event workspace palette from the current Figma design. */
+  --container-event-confirm: 600px;
+  --container-whitelist-entry: 540px;
+  --text-event-confirm-title: 23px;
+  --text-event-confirm-title--line-height: 35px;
+  --color-event-page: #f7f6fa;
+  --radius-preview-control: 10px;
+  --color-picker-border: #e7dfed;
+  --color-picker-text: #242033;
+  --color-picker-close: #f3eff6;
+  --color-picker-muted: #71677b;
+  --color-picker-label: #51465a;
+  --color-picker-swatch-border: #ded7e5;
+  --color-picker-divider: #ede7f1;
+  --color-picker-black: #000000;
+  --container-branding-picker: 380px;
+  --spacing-picker-plane: 174px;
+  --spacing-picker-swatch: 43px;
+  --radius-picker: 9px;
+  --text-picker-heading: 17px;
+  --text-picker-heading--line-height: 20px;
+  --text-picker-small: 11px;
+  --text-picker-small--line-height: 13px;
+  --text-picker-label: 10px;
+  --text-picker-label--line-height: 12px;
+  --text-picker-code: 9px;
+  --text-picker-code--line-height: 11px;
+  --color-preview-page: #f7f3fa;
+  --color-preview-border: #b5b3b7;
+  --text-preview-title: 15px;
+  --text-preview-title--line-height: 18px;
+  --text-preview-control: 13px;
+  --text-preview-control--line-height: 16px;
+  --text-preview-compact: 11px;
+  --text-preview-compact--line-height: 13px;
+  --color-participant-page: #f3f1f1;
+  --color-participant-text: #242333;
+  --color-participant-muted: #676474;
+  --container-participant-mobile: 390px;
+  --container-participant-desktop: 1440px;
+  --container-participant-banner: 450px;
+  --color-event-banner: #ae85d1;
+  --color-event-action: #8263a2;
+  --color-event-subtle: #f8f5fc;
+  --color-event-tile: #eee6f7;
+  --color-event-border: #e6e0eb;
+
   --color-current: currentColor;
   --color-transparent: transparent;
   --color-white: #ffffff;
@@ -1250,4 +1297,69 @@ pre[class*="language-"].line-numbers {
 
 .dark .es-swal-cancel:hover {
   background: #374151 !important;
+}
+
+/* TailAdmin date/time input: Flatpickr's time controls share the app theme. */
+.event-datetime-calendar .flatpickr-time {
+  @apply border-gray-200 dark:border-gray-700;
+}
+.event-datetime-calendar .flatpickr-time input,
+.event-datetime-calendar .flatpickr-time .flatpickr-time-separator {
+  @apply text-gray-800 dark:text-gray-200;
+}
+.event-datetime-calendar .flatpickr-time input:hover,
+.event-datetime-calendar .flatpickr-time input:focus {
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+/* Continuous HSV picker: horizontal saturation and vertical brightness. */
+.branding-color-plane::before,
+.branding-color-plane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.branding-color-plane::before {
+  background: linear-gradient(90deg, var(--color-white), transparent);
+}
+.branding-color-plane::after {
+  background: linear-gradient(180deg, transparent, var(--color-picker-black));
+}
+
+/* Event lifecycle dialogs share useConfirm; existing dialogs retain their defaults. */
+.es-swal-event.swal2-popup {
+  @apply max-w-full rounded-2xl! border border-preview-border p-8! text-start shadow-none! dark:border-gray-700 dark:bg-gray-900;
+}
+.es-swal-event .es-swal-title {
+  @apply p-0! text-start text-event-confirm-title! font-bold! text-participant-text! dark:text-gray-100!;
+}
+.es-swal-event .es-swal-text {
+  @apply mx-0! mt-2! text-start text-theme-sm! leading-normal! text-participant-text! dark:text-gray-200!;
+}
+.es-event-confirm-subtitle { @apply mb-4 text-theme-xs font-semibold text-participant-muted dark:text-gray-400; }
+.es-event-confirm-note { @apply mt-4 text-theme-xs text-participant-muted dark:text-gray-400; }
+.es-event-confirm-error { @apply font-semibold text-error-600 dark:text-error-400; }
+.es-swal-event .es-swal-actions {
+  @apply mt-5! flex w-full! flex-nowrap justify-end! gap-3!;
+}
+.es-swal-event .es-swal-btn {
+  @apply min-h-11 min-w-0 rounded-preview-control! px-5! py-2! text-theme-sm! font-semibold!;
+}
+.es-swal-event .es-swal-confirm-primary, .es-swal-event .es-swal-confirm-danger {
+  @apply flex-1 bg-event-action! text-white! hover:bg-event-action/90! dark:bg-event-action!;
+}
+.es-swal-event .es-swal-cancel {
+  @apply w-1/3 border! border-preview-border! bg-white! text-participant-text! shadow-none! dark:border-gray-700! dark:bg-gray-900! dark:text-gray-200!;
+}
+
+/* Native range semantics with the Theme Customization hue spectrum. */
+.branding-hue {
+  background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+.branding-hue::-webkit-slider-thumb {
+  @apply h-5.5 w-2 cursor-grab appearance-none rounded-xs border border-picker-label bg-white dark:border-picker-label dark:bg-white;
+}
+.branding-hue::-moz-range-thumb {
+  @apply h-5.5 w-2 cursor-grab appearance-none rounded-xs border border-picker-label bg-white dark:border-picker-label dark:bg-white;
 }
