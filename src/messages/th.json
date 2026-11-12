@@ -2,6 +2,8 @@
   "common": {
     "home": "หน้าหลัก",
     "loading": "กำลังโหลด...",
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
     "roles": {
       "super_admin": "ผู้ดูแลระบบ",
       "event_owner": "เจ้าของอีเวนต์",
@@ -36,7 +38,8 @@
       "overview": "ภาพรวมระบบ",
       "events": "จัดการอีเวนต์",
       "owners": "จัดการผู้ใช้",
-      "eventHome": "ภาพรวม"
+      "eventHome": "ภาพรวม",
+      "eventTeam": "ทีมงานและสิทธิ์"
     },
     "roles": {
       "superAdmin": "ผู้ดูแลระบบ",
@@ -385,6 +388,69 @@
         "generic": "แก้ไขอีเวนต์ไม่สำเร็จ"
       }
     }
+  },
+  "team": {
+    "pageTitle": "ทีมงานและสิทธิ์",
+    "loading": "กำลังโหลดข้อมูลทีมงาน...",
+    "loadError": "โหลดข้อมูลทีมงานไม่สำเร็จ",
+    "teamMembersTitle": "สมาชิกทีมงานในอีเวนต์",
+    "teamMembersDesc": "กำหนดระดับสิทธิ์การเข้าถึงสำหรับ Event Sub-User แต่ละคนตามข้อกำหนดระบบ",
+    "inviteButton": "เพิ่ม Sub-User",
+    "inviting": "กำลังเชิญ...",
+    "inviteError": "ไม่สามารถเชิญสมาชิกได้ กรุณาลองใหม่อีกครั้ง",
+    "inviteSubUserTitle": "เพิ่ม Sub-User",
+    "inviteSubUserDesc": "เพิ่มผู้ร่วมดูแลเพื่อช่วยจัดการอีเวนต์และกำหนดระดับสิทธิ์",
+    "fullNameLabel": "ชื่อ-นามสกุล",
+    "fullNamePlaceholder": "กรอกชื่อ-นามสกุล",
+    "emailLabel": "อีเมล",
+    "nameEmailRequired": "กรุณากรอกชื่อและอีเมลให้ครบถ้วน",
+    "roleNameLabel": "ชื่อบทบาทที่แสดง",
+    "roleNamePlaceholder": "เช่น ฝ่ายประสานงาน, ทีมทะเบียน",
+    "defaultRoleName": "ทีมงาน",
+    "editPermissionsTitle": "กำหนดสิทธิ์การใช้งาน",
+    "editPermissionsDesc": "กำหนดสิทธิ์สำหรับ {name} ({email})",
+    "editPermissionsTooltip": "แก้ไขสิทธิ์",
+    "modulePermissionsHeader": "สิทธิ์การเข้าถึงโมดูลหลัก",
+    "actionPermissionsHeader": "สิทธิ์การดำเนินการพิเศษ",
+    "levels": {
+      "restricted": "Restricted",
+      "view_only": "View Only",
+      "can_edit": "Can Edit"
+    },
+    "modules": {
+      "event": "ข้อมูลอีเวนต์ (Event)",
+      "eventDesc": "เข้าถึงและจัดการรายละเอียดของงานอีเวนต์",
+      "registrationForm": "ฟอร์มลงทะเบียน (Registration Form)",
+      "registrationFormDesc": "เข้าถึงและจัดการแบบฟอร์มลงทะเบียนและ Whitelist",
+      "surveyForm": "แบบสอบถาม (Survey Form)",
+      "surveyFormDesc": "เข้าถึงและจัดการแบบสอบถามและเวลาเปิด-ปิด",
+      "dashboard": "แดชบอร์ด (Dashboard)",
+      "dashboardDesc": "เข้าถึงและปรับแต่งวิดเจ็ตสรุปผลข้อมูล"
+    },
+    "toggles": {
+      "viewSubmissions": "ดูรายการคำตอบ (Submissions)",
+      "viewSubmissionsDesc": "อนุญาตให้เปิดดูข้อมูลคำตอบของผู้เข้าร่วม",
+      "exportData": "ส่งออกข้อมูล (Export Data)",
+      "exportDataDesc": "อนุญาตให้ดาวน์โหลดไฟล์รายงาน CSV, Excel และ PDF"
+    },
+    "colMember": "สมาชิก",
+    "colRole": "บทบาท",
+    "colStatus": "สถานะ",
+    "colPermissions": "สิทธิ์ที่ได้รับ",
+    "colActions": "จัดการ",
+    "noMembers": "ยังไม่มีสมาชิกทีมงานในอีเวนต์นี้",
+    "statuses": {
+      "active": "เปิดใช้งาน",
+      "invited": "รอตอบรับ",
+      "suspended": "ระงับการใช้งาน",
+      "removed": "นำออกแล้ว"
+    },
+    "confirmRemoveTitle": "ยืนยันการนำสมาชิกออก",
+    "confirmRemoveMessage": "คุณต้องการนำ {name} ออกจากทีมงานของอีเวนต์นี้ใช่หรือไม่?",
+    "removeButton": "นำออก",
+    "removeTooltip": "นำออกจากอีเวนต์",
+    "saving": "กำลังบันทึก...",
+    "updateError": "ไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง"
   },
   "notFound": {
     "error": "ผิดพลาด",

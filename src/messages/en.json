@@ -2,6 +2,8 @@
   "common": {
     "home": "Home",
     "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
     "roles": {
       "super_admin": "Super Admin",
       "event_owner": "Event Owner",
@@ -36,7 +38,8 @@
       "overview": "System Overview",
       "events": "Event Management",
       "owners": "User Management",
-      "eventHome": "Overview"
+      "eventHome": "Overview",
+      "eventTeam": "Team & Permissions"
     },
     "roles": {
       "superAdmin": "Super Admin",
@@ -385,6 +388,69 @@
         "generic": "Failed to update event"
       }
     }
+  },
+  "team": {
+    "pageTitle": "Team & Permissions",
+    "loading": "Loading team members...",
+    "loadError": "Failed to load team members",
+    "teamMembersTitle": "Event Team Members",
+    "teamMembersDesc": "Manage access levels for Event Sub-Users according to system specifications.",
+    "inviteButton": "Add Sub-User",
+    "inviting": "Inviting...",
+    "inviteError": "Failed to invite member. Please try again.",
+    "inviteSubUserTitle": "Add Sub-User",
+    "inviteSubUserDesc": "Add event co-organizers and assign module access permissions.",
+    "fullNameLabel": "Full Name",
+    "fullNamePlaceholder": "Enter full name",
+    "emailLabel": "Email",
+    "nameEmailRequired": "Please enter both name and email.",
+    "roleNameLabel": "Custom Role Title",
+    "roleNamePlaceholder": "e.g. Registration Team, Event Staff",
+    "defaultRoleName": "Staff",
+    "editPermissionsTitle": "Edit Permissions",
+    "editPermissionsDesc": "Configure access levels for {name} ({email})",
+    "editPermissionsTooltip": "Edit permissions",
+    "modulePermissionsHeader": "Core Module Permissions",
+    "actionPermissionsHeader": "Special Action Permissions",
+    "levels": {
+      "restricted": "Restricted",
+      "view_only": "View Only",
+      "can_edit": "Can Edit"
+    },
+    "modules": {
+      "event": "Event Management",
+      "eventDesc": "Access and manage event configuration and details",
+      "registrationForm": "Registration Form",
+      "registrationFormDesc": "Access and manage registration forms and whitelists",
+      "surveyForm": "Survey Form",
+      "surveyFormDesc": "Access and manage surveys and schedules",
+      "dashboard": "Dashboard",
+      "dashboardDesc": "Access and configure metric summary widgets"
+    },
+    "toggles": {
+      "viewSubmissions": "View Submissions",
+      "viewSubmissionsDesc": "Allow viewing participant responses and submission list",
+      "exportData": "Export Data",
+      "exportDataDesc": "Allow exporting raw reports in CSV, Excel, and PDF formats"
+    },
+    "colMember": "Member",
+    "colRole": "Role",
+    "colStatus": "Status",
+    "colPermissions": "Assigned Permissions",
+    "colActions": "Actions",
+    "noMembers": "No team members found in this event.",
+    "statuses": {
+      "active": "Active",
+      "invited": "Invited",
+      "suspended": "Suspended",
+      "removed": "Removed"
+    },
+    "confirmRemoveTitle": "Confirm Removal",
+    "confirmRemoveMessage": "Are you sure you want to remove {name} from this event team?",
+    "removeButton": "Remove",
+    "removeTooltip": "Remove from event",
+    "saving": "Saving...",
+    "updateError": "Failed to update permissions. Please try again."
   },
   "notFound": {
     "error": "ERROR",
