@@ -126,6 +126,7 @@ Mock → portal role map: `platform_admin` → `super_admin`; `event_role=event_
 
 ## Styling rules
 
+- **Figma handoff**: Read [DESIGN.md](DESIGN.md) when working on participant-facing EventDisplay. It records the scoped Figma typography, layout, localization, and QA guidance; its suggested CSS tokens and components are not evidence of existing implementation. Check live Figma and approved SRS requirements before implementation, and do not apply EventDisplay typography globally to Admin or mobile views.
 - Tailwind CSS **v4** — the theme lives in `src/app/globals.css` under `@theme`; there is no `tailwind.config`.
 - Always use theme tokens instead of hardcoded values:
   - Colors: `brand`, `gray`, `blue-light`, `orange`, `success`, `error`, `warning` scales (`25`–`950`), plus `theme-pink-500` / `theme-purple-500`.
