@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Form, FormLocale, Question, QuestionType } from "@/types/event/form";
 import PreviewTopBar from "./PreviewTopBar";
@@ -188,7 +188,7 @@ export default function FormPreview({
     setIsSubmitted(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
 
     const newErrors: Record<string, string> = {};

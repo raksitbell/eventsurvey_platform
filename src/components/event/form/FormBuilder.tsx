@@ -585,7 +585,11 @@ export default function FormBuilder({ type }: { type: FormType }) {
               eventId,
             });
           } else {
-            throw putErr;
+            showToast({
+              title: resolveErrorMessage(putErr, tbuilder("saveError")),
+              variant: "error",
+            });
+            return null;
           }
         }
       }
