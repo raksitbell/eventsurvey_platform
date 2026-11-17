@@ -1,5 +1,6 @@
 "use client";
 
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import type { AdminOverviewResponse } from "@/types/admin/overview";
 import type { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
@@ -7,14 +8,35 @@ import { useTranslations } from "next-intl";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
+  loading: () => <Skeleton className="h-[280px] w-full rounded-xl" />,
 });
 
 type EventStatusChartProps = {
   breakdown: AdminOverviewResponse["eventStatusBreakdown"] | null;
+  isLoading?: boolean;
 };
 
-export default function EventStatusChart({ breakdown }: EventStatusChartProps) {
+export default function EventStatusChart({
+  breakdown,
+  isLoading = false,
+}: EventStatusChartProps) {
   const t = useTranslations("adminHome");
+
+  if (isLoading) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center gap-4 py-4"
+        aria-busy="true"
+      >
+        <Skeleton className="size-48 rounded-full" />
+        <div className="flex flex-wrap justify-center gap-3">
+          <Skeleton className="h-3.5 w-16" />
+          <Skeleton className="h-3.5 w-16" />
+          <Skeleton className="h-3.5 w-16" />
+        </div>
+      </div>
+    );
+  }
 
   if (!breakdown || breakdown.every((row) => row.count === 0)) {
     return (

@@ -82,3 +82,31 @@ export function showError(
 ) {
   return showAlert({ title, message, confirmLabel, variant: "error" });
 }
+
+export type ToastOptions = {
+  title: string;
+  variant?: AlertVariant;
+  timer?: number;
+};
+
+/** Non-blocking top-end toast notification built on SweetAlert2 (FR-021). */
+export function showToast({
+  title,
+  variant = "success",
+  timer = 3000,
+}: ToastOptions): void {
+  void Swal.fire({
+    toast: true,
+    position: "top-end",
+    icon: variantIcon[variant],
+    iconColor: variantIconColor[variant],
+    title,
+    showConfirmButton: false,
+    timer,
+    timerProgressBar: true,
+    customClass: {
+      popup: "es-swal-popup",
+      title: "es-swal-title",
+    },
+  });
+}

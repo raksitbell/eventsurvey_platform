@@ -114,7 +114,8 @@ export interface MockEvent {
   created_at: string;
   created_by: string;
   updated_at: string;
-  updated_by: string;
+  updated_by: string | null;
+  deleted_at?: string | null;
 }
 
 export interface MockEventTranslation {
@@ -180,6 +181,7 @@ export interface MockFormField {
   type: MockFieldType;
   display_order: number;
   is_required: boolean;
+  is_unique?: boolean;
   min_number: number | null;
   max_number: number | null;
   min_length: number | null;
