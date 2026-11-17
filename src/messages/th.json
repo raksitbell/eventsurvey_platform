@@ -386,6 +386,23 @@
       }
     }
   },
+  "participantDisplay": {
+    "title": "ชื่องานตัวอย่าง",
+    "organizer": "ทีมงาน",
+    "organizerInitial": "ต",
+    "startsAt": "เริ่ม 1 ธ.ค. 2569 · 10:00 น.",
+    "endsAt": "สิ้นสุด 2 ธ.ค. 2569 · 18:00 น.",
+    "location": "สถานที่จัดงานตัวอย่าง",
+    "locationDetail": "ฮอลล์ A",
+    "description": "รายละเอียดงานจะแสดงที่นี่ สามารถใช้พื้นที่นี้แนะนำงาน กิจกรรม และข้อมูลที่เป็นประโยชน์สำหรับผู้เข้าร่วมงาน",
+    "socialHandle": "@username",
+    "hostedBy": "ผู้จัด",
+    "about": "เกี่ยวกับอีเวนต์",
+    "registration": "ลงทะเบียน",
+    "survey": "แบบสอบถาม",
+    "bannerPlaceholder": "พื้นที่แบนเนอร์งาน",
+    "qrPlaceholder": "พื้นที่ QR"
+  },
   "notFound": {
     "error": "ผิดพลาด",
     "message": "ไม่พบหน้าที่คุณกำลังมองหา",
