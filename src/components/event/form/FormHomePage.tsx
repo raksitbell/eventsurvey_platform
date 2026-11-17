@@ -5,11 +5,10 @@ import { useLocale, useTranslations } from "next-intl";
 import {
   ArrowPathIcon,
   CalendarDaysIcon,
-  CheckCircleIcon,
   DocumentTextIcon,
-  ExclamationCircleIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -23,6 +22,7 @@ import {
   FormType,
 } from "@/types/event/form";
 import type { EventWorkspace } from "@/types/event/workspace";
+import { showToast } from "@/utils/alert";
 
 function statusBadgeClass(status?: FormStatus, enabled = true): string {
   if (!enabled) {
@@ -42,20 +42,57 @@ function statusBadgeClass(status?: FormStatus, enabled = true): string {
   }
 }
 
+const KNOWN_FORM_ERROR_CODES = new Set([
+  "FORM_SCHEDULE_REQUIRED",
+  "FORM_NOT_READY",
+  "FORM_NOT_EDITABLE",
+  "FORM_NOT_DELETABLE",
+  "FORM_STATUS_LOCKED",
+  "FORM_STATUS_CRON_ONLY",
+  "INVALID_FORM_STATUS_TRANSITION",
+  "FORM_TYPE_EXISTS",
+  "FORM_TYPE_NOT_ENABLED",
+  "FORM_NOT_FOUND",
+  "EVENT_NOT_FOUND",
+  "FORBIDDEN",
+  "UNAUTHORIZED",
+  "VALIDATION_ERROR",
+  "INVALID_QUESTION_ID",
+  "INVALID_OPTION_ID",
+  "DUPLICATE_QUESTION_ID",
+  "QUESTION_NOT_OWNED_BY_FORM",
+  "OPTION_NOT_OWNED_BY_QUESTION",
+  "FORM_WRITE_INCOMPLETE",
+  "MOCK_READ_ONLY",
+  "MOCK_API_ERROR",
+]);
+
 export default function FormHomePage() {
   const t = useTranslations("form");
   const tbuilder = useTranslations("form.builder");
+  const terrors = useTranslations("form.errors");
   const locale = (useLocale() === "en" ? "en" : "th") as FormLocale;
   const { user } = useAuth();
   const { confirm } = useConfirm();
 
+  const resolveErrorMessage = useCallback(
+    (err: unknown, fallback: string): string => {
+      if (err instanceof ApiError) {
+        if (err.code && KNOWN_FORM_ERROR_CODES.has(err.code)) {
+          return terrors(err.code);
+        }
+        if (err.status === 401) return terrors("UNAUTHORIZED");
+        if (err.status === 403) return terrors("FORBIDDEN");
+        if (err.status === 502) return terrors("MOCK_API_ERROR");
+      }
+      return fallback;
+    },
+    [terrors],
+  );
+
   const [listData, setListData] = useState<FormListResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [busyType, setBusyType] = useState<FormType | null>(null);
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
 
   const loadForms = useCallback(async () => {
     if (!user) return;
@@ -69,12 +106,14 @@ export default function FormHomePage() {
       );
       setListData(res);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : t("loadError");
-      setFeedback({ type: "error", message: msg });
+      showToast({
+        title: resolveErrorMessage(err, t("loadError")),
+        variant: "error",
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [locale, t, user]);
+  }, [locale, resolveErrorMessage, t, user]);
 
   useEffect(() => {
     void loadForms();
@@ -83,7 +122,6 @@ export default function FormHomePage() {
   const handleToggleStatus = async (record: FormRecord) => {
     const nextStatus = record.status === "draft" ? "scheduled" : "draft";
     setBusyType(record.type);
-    setFeedback(null);
     try {
       await api.patch<FormRecord>(`/event/forms/${record.id}/status`, {
         status: nextStatus,
@@ -91,16 +129,18 @@ export default function FormHomePage() {
         closesAt: record.closesAt,
       });
       await loadForms();
-      setFeedback({
-        type: "success",
-        message:
+      showToast({
+        title:
           nextStatus === "scheduled"
             ? tbuilder("scheduleSuccess")
             : tbuilder("revertSuccess"),
+        variant: "success",
       });
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : tbuilder("saveError");
-      setFeedback({ type: "error", message: msg });
+      showToast({
+        title: resolveErrorMessage(err, tbuilder("saveError")),
+        variant: "error",
+      });
     } finally {
       setBusyType(null);
     }
@@ -116,14 +156,15 @@ export default function FormHomePage() {
     if (!ok) return;
 
     setBusyType(record.type);
-    setFeedback(null);
     try {
       await api.delete<void>(`/event/forms/${record.id}`);
       await loadForms();
-      setFeedback({ type: "success", message: t("deleteSuccess") });
+      showToast({ title: t("deleteSuccess"), variant: "success" });
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : tbuilder("saveError");
-      setFeedback({ type: "error", message: msg });
+      showToast({
+        title: resolveErrorMessage(err, tbuilder("saveError")),
+        variant: "error",
+      });
     } finally {
       setBusyType(null);
     }
@@ -137,46 +178,12 @@ export default function FormHomePage() {
         </h1>
       </div>
 
-      {feedback && (
-        <div
-          className={`flex items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm font-medium ${
-            feedback.type === "success"
-              ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-300"
-              : "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-300"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {feedback.type === "success" ? (
-              <CheckCircleIcon className="h-5 w-5 shrink-0" />
-            ) : (
-              <ExclamationCircleIcon className="h-5 w-5 shrink-0" />
-            )}
-            <span>{feedback.message}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            className="text-xs underline opacity-80 hover:opacity-100"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
       <div className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4 dark:border-gray-800 dark:bg-gray-900">
         {isLoading ? (
-          <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            {t("loading")}
-          </p>
+          <FormHomeSkeleton />
         ) : (
           <div className="flex flex-col gap-3 sm:gap-4">
             {FORM_TYPES.map((type) => {
-              const isEnabled =
-                listData === null
-                  ? true
-                  : type === "registration"
-                    ? listData.hasRegistration
-                    : listData.hasSurvey;
               const record = listData?.forms.find((f) => f.type === type);
               const isBusy = busyType === type;
               const localizedTitle =
@@ -184,11 +191,9 @@ export default function FormHomePage() {
                 record?.head.th.title?.trim() ||
                 t(type);
 
-              const statusLabel = !isEnabled
-                ? t("status.disabled")
-                : record
-                  ? t(`status.${record.status}`)
-                  : t("status.notCreated");
+              const statusLabel = record
+                ? t(`status.${record.status}`)
+                : t("status.notCreated");
 
               return (
                 <div
@@ -232,7 +237,6 @@ export default function FormHomePage() {
                     <span
                       className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusBadgeClass(
                         record?.status,
-                        isEnabled,
                       )}`}
                     >
                       {statusLabel}
@@ -267,14 +271,12 @@ export default function FormHomePage() {
                       </button>
                     )}
 
-                    {isEnabled && (
-                      <Link
-                        href={`/form/${type}`}
-                        className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
-                      >
-                        {record ? t("edit") : t("create")}
-                      </Link>
-                    )}
+                    <Link
+                      href={`/form/${type}`}
+                      className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+                    >
+                      {record ? t("edit") : t("create")}
+                    </Link>
                   </div>
                 </div>
               );
@@ -282,6 +284,35 @@ export default function FormHomePage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function FormHomeSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 sm:gap-4" aria-busy="true">
+      {FORM_TYPES.map((type) => (
+        <div
+          key={type}
+          className="flex flex-col gap-3 rounded-xl border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-4 dark:border-gray-800"
+        >
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-10 shrink-0 rounded-lg" />
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Skeleton className="h-5 w-40 sm:w-48" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-3.5 w-52 max-w-full" />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-8 w-24 rounded-lg" />
+            <Skeleton className="h-8 w-20 rounded-lg" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

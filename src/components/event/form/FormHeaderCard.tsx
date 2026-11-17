@@ -17,6 +17,7 @@ interface DateTimeFieldProps {
   label: string;
   value: string;
   placeholder: string;
+  clearLabel: string;
   onChange: (value: string) => void;
   onFocus?: () => void;
 }
@@ -25,6 +26,7 @@ function DateTimeField({
   label,
   value,
   placeholder,
+  clearLabel,
   onChange,
   onFocus,
 }: DateTimeFieldProps) {
@@ -93,7 +95,7 @@ function DateTimeField({
                 fpRef.current?.clear(false);
                 onChange("");
               }}
-              aria-label="Clear date"
+              aria-label={clearLabel}
               className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
             >
               <XMarkIcon className="h-4 w-4" />
@@ -173,6 +175,7 @@ export default function FormHeaderCard({
           value={title}
           onFocus={onSelect}
           onChange={(e) => onChangeTitle(e.target.value)}
+          placeholder={tbuilder("formTitlePlaceholder")}
           className="w-full border-b border-transparent bg-transparent pb-1 text-xl font-semibold text-gray-800 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-brand-500 focus:outline-none sm:text-2xl md:text-3xl dark:text-gray-100 dark:hover:border-gray-700"
         />
 
@@ -181,6 +184,7 @@ export default function FormHeaderCard({
           value={description}
           onFocus={onSelect}
           onChange={(e) => onChangeDescription(e.target.value)}
+          placeholder={tbuilder("description")}
           className="mt-2 w-full border-b border-transparent bg-transparent pb-1 text-sm text-gray-600 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-brand-500 focus:outline-none dark:text-gray-300 dark:hover:border-gray-700"
         />
 
@@ -190,6 +194,7 @@ export default function FormHeaderCard({
             label={tbuilder("opensAt")}
             value={opensAt}
             placeholder={tbuilder("selectDateTime")}
+            clearLabel={tbuilder("clearDate")}
             onChange={onChangeOpensAt}
             onFocus={onSelect}
           />
@@ -197,6 +202,7 @@ export default function FormHeaderCard({
             label={tbuilder("closesAt")}
             value={closesAt}
             placeholder={tbuilder("selectDateTime")}
+            clearLabel={tbuilder("clearDate")}
             onChange={onChangeClosesAt}
             onFocus={onSelect}
           />

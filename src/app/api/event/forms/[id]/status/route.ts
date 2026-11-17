@@ -44,17 +44,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json(formatZodError(parsed.error), { status: 400 });
   }
 
-  const denied = isApprovalDecision(existing.status, parsed.data.status)
-    ? await denyUnlessEventPermission(
-        sessionOrDeny.userId,
-        "manage_event",
-        existing.eventId,
-      )
-    : await denyUnlessEventFormManager(
-        sessionOrDeny.userId,
-        existing.type,
-        existing.eventId,
-      );
+  const denied = await denyUnlessEventFormManager(
+    sessionOrDeny.userId,
+    existing.type,
+    existing.eventId,
+  );
   if (denied) return denied;
 
   try {
@@ -77,6 +71,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
     const message =
       error instanceof Error ? error.message : "Failed to update form status";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const readOnly = /EROFS|read-only file system/i.test(message);
+    return NextResponse.json(
+      { error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR", message },
+      { status: readOnly ? 503 : 502 },
+    );
   }
 }

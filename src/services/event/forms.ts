@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import {
@@ -31,7 +34,6 @@ import type {
   MockFieldType,
   MockForm,
   MockFormField,
-  MockFormStatus,
   MockFormTranslation,
   MockRatingDisplay,
   MockRatingIcon,
@@ -42,6 +44,160 @@ const CHOICE_TYPES = new Set<QuestionType>([
   "checkbox",
   "dropdown",
 ]);
+
+interface FormCacheStore {
+  records: Map<string, FormRecord>;
+  deletedIds: Set<string>;
+}
+
+const CACHE_FILE_PATH = path.join(
+  os.tmpdir(),
+  "eventsurvey-forms-cache-v1.json",
+);
+
+const globalForForms = globalThis as unknown as {
+  __esFormCacheStore?: FormCacheStore;
+};
+
+function getCacheStore(): FormCacheStore {
+  if (!globalForForms.__esFormCacheStore) {
+    globalForForms.__esFormCacheStore = {
+      records: new Map<string, FormRecord>(),
+      deletedIds: new Set<string>(),
+    };
+  }
+  const store = globalForForms.__esFormCacheStore;
+  try {
+    if (fs.existsSync(CACHE_FILE_PATH)) {
+      const raw = JSON.parse(fs.readFileSync(CACHE_FILE_PATH, "utf8")) as {
+        records?: Record<string, FormRecord>;
+        deletedIds?: string[];
+      };
+      if (Array.isArray(raw.deletedIds)) {
+        for (const id of raw.deletedIds) {
+          store.deletedIds.add(id);
+          store.records.delete(id);
+        }
+      }
+      if (raw.records) {
+        for (const [k, v] of Object.entries(raw.records)) {
+          if (!store.deletedIds.has(k)) {
+            store.records.set(k, v);
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore disk cache read errors
+  }
+  return store;
+}
+
+function persistCacheStore(store: FormCacheStore): void {
+  try {
+    const payload = {
+      records: Object.fromEntries(store.records.entries()),
+      deletedIds: Array.from(store.deletedIds.values()),
+    };
+    fs.writeFileSync(CACHE_FILE_PATH, JSON.stringify(payload), "utf8");
+  } catch {
+    // Ignore disk cache write errors
+  }
+}
+
+function saveCachedFormRecord(record: FormRecord): void {
+  const store = getCacheStore();
+  store.deletedIds.delete(record.id);
+  store.records.set(record.id, record);
+  persistCacheStore(store);
+}
+
+function markCachedFormDeleted(id: string): void {
+  const store = getCacheStore();
+  store.records.delete(id);
+  store.deletedIds.add(id);
+  persistCacheStore(store);
+}
+
+function isCachedFormDeleted(id: string): boolean {
+  return getCacheStore().deletedIds.has(id);
+}
+
+function getCachedFormRecord(
+  id: string,
+  eventId?: string,
+  type?: FormType,
+): FormRecord | undefined {
+  const store = getCacheStore();
+  if (store.deletedIds.has(id)) return undefined;
+  const direct = store.records.get(id);
+  if (direct) return direct;
+  if (eventId && type) {
+    for (const rec of store.records.values()) {
+      if (
+        rec.eventId === eventId &&
+        rec.type === type &&
+        !store.deletedIds.has(rec.id)
+      ) {
+        return rec;
+      }
+    }
+  }
+  return undefined;
+}
+
+function getCachedFormsForEvent(
+  eventId: string,
+  allowed: Set<FormType>,
+): FormRecord[] {
+  const store = getCacheStore();
+  const list: FormRecord[] = [];
+  for (const rec of store.records.values()) {
+    if (
+      rec.eventId === eventId &&
+      allowed.has(rec.type) &&
+      !store.deletedIds.has(rec.id)
+    ) {
+      list.push(rec);
+    }
+  }
+  return list;
+}
+
+async function putOrPost<T>(
+  collectionPath: string,
+  itemPath: string,
+  body: unknown,
+): Promise<T> {
+  try {
+    return await mockApi.put<T>(itemPath, body);
+  } catch (error) {
+    if (error instanceof MockApiError && error.status === 404) {
+      return mockApi.post<T>(collectionPath, body);
+    }
+    throw error;
+  }
+}
+
+async function patchIgnore404(itemPath: string, body: unknown): Promise<void> {
+  try {
+    await mockApi.patch(itemPath, body);
+  } catch (error) {
+    if (!(error instanceof MockApiError && error.status === 404)) {
+      throw error;
+    }
+  }
+}
+
+async function deleteIgnore404(itemPath: string): Promise<void> {
+  try {
+    await mockApi.delete(itemPath);
+  } catch (error) {
+    if (!(error instanceof MockApiError && error.status === 404)) {
+      throw error;
+    }
+  }
+}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -61,38 +217,7 @@ export function toMockFieldType(type: QuestionType): MockFieldType {
 export function toQuestionType(type: MockFieldType): QuestionType {
   if (type === "single_choice") return "multiple_choice";
   if (type === "multiple_choice") return "checkbox";
-  if (type === "email") return "short_text";
   return type;
-}
-
-function toUiFormStatus(status: MockFormStatus): FormStatus {
-  switch (status) {
-    case "open":
-      return "published";
-    case "scheduled":
-      return "pending_approval";
-    case "closed":
-      return "closed";
-    default:
-      return "draft";
-  }
-}
-
-function toMockFormStatus(status: FormStatus): MockFormStatus {
-  switch (status) {
-    case "published":
-    case "paused":
-      return "open";
-    case "pending_approval":
-    case "approved":
-      return "scheduled";
-    case "closed":
-    case "archived":
-    case "rejected":
-      return "closed";
-    default:
-      return "draft";
-  }
 }
 
 function unsetToNull(n: number): number | null {
@@ -104,17 +229,38 @@ function nullToNumber(n: number | null, fallback = 0): number {
 }
 
 async function getLiveForm(id: string): Promise<MockForm> {
-  let form: MockForm;
+  if (isCachedFormDeleted(id)) {
+    throw new ServiceError("FORM_NOT_FOUND", 404);
+  }
+  let form: MockForm | undefined;
   try {
     form = await mockApi.get<MockForm>(`/forms/${id}`);
   } catch (error) {
     if (error instanceof ServiceError) throw error;
-    if (error instanceof MockApiError && error.status === 404) {
-      throw new ServiceError("FORM_NOT_FOUND", 404);
+    if (!(error instanceof MockApiError && error.status === 404)) {
+      throw error;
     }
-    throw error;
   }
-  if (!form || form.deleted_at) {
+  if (!form) {
+    const cached = getCachedFormRecord(id);
+    if (cached) {
+      return {
+        id: cached.id,
+        event_id: cached.eventId,
+        type: cached.type,
+        status: cached.status,
+        opens_at: cached.opensAt ?? cached.opens_at ?? null,
+        closes_at: cached.closesAt ?? cached.closes_at ?? null,
+        created_at: cached.createdAt,
+        created_by: "system",
+        updated_at: cached.updatedAt,
+        updated_by: "system",
+        deleted_at: null,
+      };
+    }
+    throw new ServiceError("FORM_NOT_FOUND", 404);
+  }
+  if (form.deleted_at) {
     throw new ServiceError("FORM_NOT_FOUND", 404);
   }
   return form;
@@ -130,23 +276,10 @@ async function loadEvent(eventId: string): Promise<MockEvent> {
     }
     throw error;
   }
-  if (!event) {
+  if (!event || event.deleted_at) {
     throw new ServiceError("EVENT_NOT_FOUND", 404);
   }
-  if (event.start_at && new Date(event.start_at).getTime() <= Date.now()) {
-    throw new ServiceError(
-      "FORM_TYPE_NOT_ENABLED",
-      409,
-      "Event does not enable registration forms",
-    );
-  }
-  if (type === "survey" && !event.has_survey) {
-    throw new ServiceError(
-      "FORM_TYPE_NOT_ENABLED",
-      409,
-      "Event does not enable survey forms",
-    );
-  }
+  return event;
 }
 
 function assertCanEdit(status: FormStatus): void {
@@ -181,32 +314,29 @@ function assertCanChangeStatus(status: FormStatus): void {
   }
 }
 
-async function assertUniqueLiveType(
+async function findExistingLiveType(
   eventId: string,
   type: FormType,
   excludeFormId?: string,
-): Promise<void> {
+): Promise<MockForm | undefined> {
   const existing = await mockApi.get<MockForm[]>(
     `/forms?event_id=${encodeURIComponent(eventId)}&type=${encodeURIComponent(type)}`,
   );
-  const conflict = existing.find(
-    (row) => !row.deleted_at && row.id !== excludeFormId,
+  return existing.find(
+    (row) =>
+      !row.deleted_at &&
+      !isCachedFormDeleted(row.id) &&
+      row.id !== excludeFormId,
   );
-  if (conflict) {
-    throw new ServiceError(
-      "FORM_TYPE_EXISTS",
-      409,
-      `A live ${type} form already exists for this event`,
-    );
-  }
 }
 
 async function loadFormTranslations(
   formId: string,
 ): Promise<MockFormTranslation[]> {
-  return mockApi.get<MockFormTranslation[]>(
+  const rows = await mockApi.get<MockFormTranslation[]>(
     `/form_translations?form_id=${encodeURIComponent(formId)}`,
   );
+  return rows.filter((row) => row.form_id === formId);
 }
 
 function emptyLabel(): Label {
@@ -258,14 +388,18 @@ async function loadChoices(
   const options = await mockApi.get<MockFieldOption[]>(
     `/field_options?field_id=${encodeURIComponent(fieldId)}&_sort=display_order&_order=asc`,
   );
-  const live = options.filter((o) => !o.deleted_at);
+  const live = options
+    .filter((o) => o.field_id === fieldId && !o.deleted_at)
+    .sort((a, b) => a.display_order - b.display_order);
   const en: Choice[] = [];
   const th: Choice[] = [];
 
   for (const option of live) {
-    const translations = await mockApi.get<MockFieldOptionTranslation[]>(
-      `/field_option_translations?option_id=${encodeURIComponent(option.id)}`,
-    );
+    const translations = (
+      await mockApi.get<MockFieldOptionTranslation[]>(
+        `/field_option_translations?option_id=${encodeURIComponent(option.id)}`,
+      )
+    ).filter((t) => t.option_id === option.id);
     const enRow = translations.find((t) => t.locale_code === "en");
     const thRow = translations.find((t) => t.locale_code === "th");
     en.push({
@@ -286,13 +420,17 @@ async function loadQuestions(formId: string): Promise<Question[]> {
   const fields = await mockApi.get<MockFormField[]>(
     `/form_fields?form_id=${encodeURIComponent(formId)}&_sort=display_order&_order=asc`,
   );
-  const live = fields.filter((f) => !f.deleted_at);
+  const live = fields
+    .filter((f) => f.form_id === formId && !f.deleted_at)
+    .sort((a, b) => a.display_order - b.display_order);
   const questions: Question[] = [];
 
   for (const field of live) {
-    const translations = await mockApi.get<MockFieldTranslation[]>(
-      `/field_translations?field_id=${encodeURIComponent(field.id)}`,
-    );
+    const translations = (
+      await mockApi.get<MockFieldTranslation[]>(
+        `/field_translations?field_id=${encodeURIComponent(field.id)}`,
+      )
+    ).filter((t) => t.field_id === field.id);
     const enT = translations.find((t) => t.locale_code === "en");
     const thT = translations.find((t) => t.locale_code === "th");
     const type = toQuestionType(field.type);
@@ -337,18 +475,133 @@ async function loadQuestions(formId: string): Promise<Question[]> {
   return questions;
 }
 
-function headFromTranslations(rows: MockFormTranslation[]): Form["head"] {
+function headFromTranslations(
+  rows: MockFormTranslation[],
+  fallbackType?: FormType,
+): Form["head"] {
   const en = rows.find((r) => r.locale_code === "en");
   const th = rows.find((r) => r.locale_code === "th");
+  const defaultEnTitle =
+    rows.length === 0 && fallbackType
+      ? fallbackType === "registration"
+        ? "Registration"
+        : "Survey"
+      : "";
+  const defaultThTitle =
+    rows.length === 0 && fallbackType
+      ? fallbackType === "registration"
+        ? "ฟอร์มลงทะเบียน"
+        : "แบบสำรวจ"
+      : "";
   return {
     en: {
-      title: en?.title ?? "",
+      title: en?.title ?? defaultEnTitle,
       description: en?.description ?? "",
     },
     th: {
-      title: th?.title ?? "",
+      title: th?.title ?? defaultThTitle,
       description: th?.description ?? "",
     },
+  };
+}
+
+function mergeWithCachedRecord(
+  live: FormRecord,
+  cached?: FormRecord,
+): FormRecord {
+  if (!cached) return live;
+
+  const enTitle = live.head.en.title.trim()
+    ? live.head.en.title
+    : cached.head.en.title;
+  const enDesc = live.head.en.description.trim()
+    ? live.head.en.description
+    : cached.head.en.description;
+  const thTitle = live.head.th.title.trim()
+    ? live.head.th.title
+    : cached.head.th.title;
+  const thDesc = live.head.th.description.trim()
+    ? live.head.th.description
+    : cached.head.th.description;
+
+  const mergedQuestions: Question[] =
+    live.questions.length === 0 && cached.questions.length > 0
+      ? cached.questions
+      : live.questions.map((item, idx) => {
+          const q = item.question;
+          const cachedItem =
+            cached.questions.find((cq) => cq.question.id === q.id) ??
+            cached.questions.find(
+              (cq) =>
+                cq.question.display_order === q.display_order &&
+                cq.question.type === q.type,
+            ) ??
+            (cached.questions[idx]?.question.type === q.type
+              ? cached.questions[idx]
+              : undefined);
+
+          if (!cachedItem) return item;
+
+          const cq = cachedItem.question;
+          const liveEn = q.label.en[0] ?? emptyLabel();
+          const liveTh = q.label.th[0] ?? emptyLabel();
+          const cachedEn = cq.label.en[0] ?? emptyLabel();
+          const cachedTh = cq.label.th[0] ?? emptyLabel();
+
+          const liveEnChoices = liveEn.choices.en;
+          const liveThChoices = liveTh.choices.th;
+          const hasLiveEnChoices =
+            liveEnChoices.length > 0 &&
+            liveEnChoices.some((c) => c.label.trim().length > 0);
+          const hasLiveThChoices =
+            liveThChoices.length > 0 &&
+            liveThChoices.some((c) => c.label.trim().length > 0);
+
+          const finalEnChoices = hasLiveEnChoices
+            ? liveEnChoices
+            : cachedEn.choices.en;
+          const finalThChoices = hasLiveThChoices
+            ? liveThChoices
+            : cachedTh.choices.th;
+
+          return {
+            question: {
+              ...q,
+              label: buildLabelPair(
+                liveEn.label.trim() ? liveEn.label : cachedEn.label,
+                liveTh.label.trim() ? liveTh.label : cachedTh.label,
+                liveEn.placeholder?.trim()
+                  ? liveEn.placeholder
+                  : cachedEn.placeholder,
+                liveTh.placeholder?.trim()
+                  ? liveTh.placeholder
+                  : cachedTh.placeholder,
+                finalEnChoices,
+                finalThChoices,
+                liveEn.scale_min_label?.trim()
+                  ? (liveEn.scale_min_label ?? "")
+                  : (cachedEn.scale_min_label ?? ""),
+                liveEn.scale_max_label?.trim()
+                  ? (liveEn.scale_max_label ?? "")
+                  : (cachedEn.scale_max_label ?? ""),
+                liveTh.scale_min_label?.trim()
+                  ? (liveTh.scale_min_label ?? "")
+                  : (cachedTh.scale_min_label ?? ""),
+                liveTh.scale_max_label?.trim()
+                  ? (liveTh.scale_max_label ?? "")
+                  : (cachedTh.scale_max_label ?? ""),
+              ),
+            },
+          };
+        });
+
+  return {
+    ...live,
+    head: {
+      en: { title: enTitle, description: enDesc },
+      th: { title: thTitle, description: thDesc },
+    },
+    questions: mergedQuestions,
   };
 }
 
@@ -359,28 +612,32 @@ async function toFormRecord(
   if (!event) {
     await loadEvent(form.event_id);
   }
-  const [translationRows, questions] = await Promise.all([
-    loadFormTranslations(form.id),
-    loadQuestions(form.id),
-  ]);
-  const uiStatus = toUiFormStatus(form.status);
-  return {
+  const cached = getCachedFormRecord(form.id, form.event_id, form.type);
+  const translationRows = await loadFormTranslations(form.id);
+  const questions = await loadQuestions(form.id);
+  const status = resolveEffectiveFormStatus(form);
+  const flags = formMutationFlags(status);
+  const liveRecord: FormRecord = {
     id: form.id,
     eventId: form.event_id,
     type: form.type,
-    status: uiStatus,
+    status,
+    opens_at: form.opens_at,
+    closes_at: form.closes_at,
     opensAt: form.opens_at,
     closesAt: form.closes_at,
-    acceptingResponses: form.status === "open",
-    publishedAt: form.status === "open" ? form.updated_at : null,
     createdAt: form.created_at,
     updatedAt: form.updated_at,
-    head: headFromTranslations(translationRows),
+    head: headFromTranslations(
+      translationRows,
+      cached ? undefined : form.type,
+    ),
     questions,
     canEdit: flags.canEdit,
     canDelete: flags.canDelete,
     canChangeStatus: flags.canChangeStatus,
   };
+  return mergeWithCachedRecord(liveRecord, cached);
 }
 
 async function writeFormTranslations(
@@ -401,7 +658,7 @@ async function writeFormTranslations(
       updated_at: stamp,
     };
     if (prev) {
-      await mockApi.put(`/form_translations/${prev.id}`, {
+      await putOrPost(`/form_translations`, `/form_translations/${prev.id}`, {
         ...prev,
         ...body,
       });
@@ -415,7 +672,7 @@ async function writeFormTranslations(
     }
   }
   for (const leftover of byLocale.values()) {
-    await mockApi.delete(`/form_translations/${leftover.id}`);
+    await deleteIgnore404(`/form_translations/${leftover.id}`);
   }
 }
 
@@ -428,12 +685,12 @@ async function softDeleteFieldTree(
   );
   for (const option of options) {
     if (!option.deleted_at) {
-      await mockApi.patch(`/field_options/${option.id}`, {
+      await patchIgnore404(`/field_options/${option.id}`, {
         deleted_at: stamp,
       });
     }
   }
-  await mockApi.patch(`/form_fields/${fieldId}`, {
+  await patchIgnore404(`/form_fields/${fieldId}`, {
     deleted_at: stamp,
     updated_at: stamp,
   });
@@ -443,12 +700,17 @@ async function softDeleteFieldTree(
  * Builder keeps primary choice edits under `label.en[0].choices.en`.
  * Thai labels prefer matching id in `choices.th`, else same index.
  */
-function resolveOptionLocales(enLabel: Label | undefined): {
+function resolveOptionLocales(
+  enLabel: Label | undefined,
+  thLabel?: Label,
+): {
   en: Choice[];
   th: Choice[];
 } {
   const enChoices = enLabel?.choices.en ?? [];
-  const thChoices = enLabel?.choices.th ?? [];
+  const thChoices =
+    (thLabel?.choices.th?.length ? thLabel.choices.th : enLabel?.choices.th) ??
+    [];
   const thById = new Map(thChoices.filter((c) => c.id).map((c) => [c.id!, c]));
   return {
     en: enChoices,
@@ -503,9 +765,24 @@ async function assertQuestionTreeOwnership(
     ));
   const liveFields = new Map(
     existing
-      .filter((field) => !field.deleted_at)
+      .filter((field) => field.form_id === formId && !field.deleted_at)
       .map((field) => [field.id, field]),
   );
+  const cachedRecord = getCachedFormRecord(formId);
+  const cachedFieldIds = new Set(
+    (cachedRecord?.questions ?? [])
+      .map((q) => q.question.id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const cachedOptionIdsByField = new Map<string, Set<string>>();
+  for (const qItem of cachedRecord?.questions ?? []) {
+    if (!qItem.question.id) continue;
+    cachedOptionIdsByField.set(
+      qItem.question.id,
+      new Set(suppliedChoiceIds(qItem.question)),
+    );
+  }
+
   const seenFieldIds = new Set<string>();
 
   for (const item of questions) {
@@ -531,7 +808,9 @@ async function assertQuestionTreeOwnership(
     }
     seenFieldIds.add(question.id);
 
-    if (!liveFields.has(question.id)) {
+    const ownedInLiveOrCache =
+      liveFields.has(question.id) || cachedFieldIds.has(question.id);
+    if (!ownedInLiveOrCache && liveFields.size > 0) {
       throw new ServiceError(
         "QUESTION_NOT_OWNED_BY_FORM",
         400,
@@ -543,13 +822,18 @@ async function assertQuestionTreeOwnership(
       `/field_options?field_id=${encodeURIComponent(question.id)}`,
     );
     const liveOptionIds = new Set(
-      options.filter((option) => !option.deleted_at).map((option) => option.id),
+      options
+        .filter((option) => option.field_id === question.id && !option.deleted_at)
+        .map((option) => option.id),
     );
+    const cachedOptionIds = cachedOptionIdsByField.get(question.id);
     const seenOptionIds = new Set<string>();
     for (const optionId of choiceIds) {
       if (seenOptionIds.has(optionId)) continue;
       seenOptionIds.add(optionId);
-      if (!liveOptionIds.has(optionId)) {
+      const optionOwned =
+        liveOptionIds.has(optionId) || Boolean(cachedOptionIds?.has(optionId));
+      if (!optionOwned && liveOptionIds.size > 0) {
         throw new ServiceError(
           "OPTION_NOT_OWNED_BY_QUESTION",
           400,
@@ -567,7 +851,7 @@ async function replaceQuestionTree(
   questions: Question[],
   stamp: string,
   knownFields?: MockFormField[],
-): Promise<void> {
+): Promise<Question[]> {
   const existing =
     knownFields ??
     (await mockApi.get<MockFormField[]>(
@@ -585,6 +869,8 @@ async function replaceQuestionTree(
     }
   }
 
+  const persistedQuestions: Question[] = [];
+
   for (const item of questions) {
     const q = item.question;
     const mockType = toMockFieldType(q.type);
@@ -592,41 +878,56 @@ async function replaceQuestionTree(
     const enLabel = q.label.en[0] ?? emptyLabel();
     const thLabel = q.label.th[0] ?? emptyLabel();
 
-    const isRating = mockType === "rating";
+    const ratingDisplay: MockRatingDisplay | null =
+      q.type === "rating" ? q.rating_display : null;
+    const ratingIcon: MockRatingIcon | null =
+      q.type === "rating" ? q.rating_icon : null;
+    const ratingMax =
+      q.type === "rating" ? unsetToNull(q.rating_max || q.max_number) : null;
+
+    const minNumber =
+      q.type === "number" && q.min_value !== undefined
+        ? q.min_value
+        : unsetToNull(q.min_number);
+    const maxNumber =
+      q.type === "number" && q.max_value !== undefined
+        ? q.max_value
+        : unsetToNull(q.max_number);
+
     const fieldBody: MockFormField = {
       id: fieldId,
       form_id: formId,
       type: mockType,
       display_order: q.display_order,
-      is_required: q.required,
-      min_number: isRating ? null : unsetToNull(q.min_number),
-      max_number: isRating ? null : unsetToNull(q.max_number),
+      is_required: q.is_required,
+      is_unique: Boolean(q.is_unique),
+      min_number: minNumber,
+      max_number: maxNumber,
       min_length: unsetToNull(q.min_length),
       max_length: unsetToNull(q.max_length),
       validation_pattern: null,
-      rating_display: isRating ? "icon" : null,
-      rating_icon: isRating ? "star" : null,
-      rating_max: isRating ? (unsetToNull(q.max_number) ?? 5) : null,
+      rating_display: ratingDisplay,
+      rating_icon: ratingIcon,
+      rating_max: ratingMax,
       created_at: stamp,
       updated_at: stamp,
       deleted_at: null,
     };
 
     const prev = existing.find((f) => f.id === fieldId);
-    if (prev) {
-      await mockApi.put(`/form_fields/${fieldId}`, {
+    if (prev || q.id) {
+      await putOrPost(`/form_fields`, `/form_fields/${fieldId}`, {
         ...fieldBody,
-        created_at: prev.created_at,
-        rating_display: prev.rating_display ?? fieldBody.rating_display,
-        rating_icon: prev.rating_icon ?? fieldBody.rating_icon,
-        rating_max: prev.rating_max ?? fieldBody.rating_max,
-        validation_pattern: prev.validation_pattern,
+        created_at: prev?.created_at ?? stamp,
+        validation_pattern: prev?.validation_pattern ?? null,
       });
-      const oldTranslations = await mockApi.get<MockFieldTranslation[]>(
-        `/field_translations?field_id=${encodeURIComponent(fieldId)}`,
-      );
+      const oldTranslations = (
+        await mockApi.get<MockFieldTranslation[]>(
+          `/field_translations?field_id=${encodeURIComponent(fieldId)}`,
+        )
+      ).filter((row) => row.field_id === fieldId);
       for (const row of oldTranslations) {
-        await mockApi.delete(`/field_translations/${row.id}`);
+        await deleteIgnore404(`/field_translations/${row.id}`);
       }
     } else {
       await mockApi.post("/form_fields", fieldBody);
@@ -651,36 +952,78 @@ async function replaceQuestionTree(
       scale_max_label: thLabel.scale_max_label || null,
     });
 
-    const existingOptions = await mockApi.get<MockFieldOption[]>(
-      `/field_options?field_id=${encodeURIComponent(fieldId)}`,
-    );
+    const existingOptions = (
+      await mockApi.get<MockFieldOption[]>(
+        `/field_options?field_id=${encodeURIComponent(fieldId)}`,
+      )
+    ).filter((opt) => opt.field_id === fieldId);
 
     if (!CHOICE_TYPES.has(q.type)) {
       for (const option of existingOptions) {
         if (!option.deleted_at) {
-          await mockApi.patch(`/field_options/${option.id}`, {
+          await patchIgnore404(`/field_options/${option.id}`, {
             deleted_at: stamp,
           });
         }
       }
+      persistedQuestions.push({
+        question: {
+          id: fieldId,
+          type: q.type,
+          display_order: q.display_order,
+          min_number: nullToNumber(minNumber, q.type === "rating" ? 1 : 0),
+          max_number: nullToNumber(maxNumber, q.type === "rating" ? 5 : 0),
+          min_value: minNumber,
+          max_value: maxNumber,
+          min_length: nullToNumber(unsetToNull(q.min_length)),
+          max_length: nullToNumber(unsetToNull(q.max_length)),
+          is_required: q.is_required,
+          is_unique: Boolean(q.is_unique),
+          rating_display: (ratingDisplay ?? "icon") as RATING_DISPLAY,
+          rating_icon: (ratingIcon ?? "star") as ICON,
+          rating_max: nullToNumber(
+            ratingMax ?? maxNumber,
+            q.type === "rating" ? 5 : 0,
+          ),
+          label: buildLabelPair(
+            enLabel.label,
+            thLabel.label,
+            enLabel.placeholder ?? "",
+            thLabel.placeholder ?? "",
+            [],
+            [],
+            enLabel.scale_min_label ?? "",
+            enLabel.scale_max_label ?? "",
+            thLabel.scale_min_label ?? "",
+            thLabel.scale_max_label ?? "",
+          ),
+        },
+      });
       continue;
     }
 
-    const { en: enChoices, th: thChoices } = resolveOptionLocales(enLabel);
+    const { en: enChoices, th: thChoices } = resolveOptionLocales(
+      enLabel,
+      thLabel,
+    );
     const keepOptionIds = new Set(
       enChoices.map((c) => c.id).filter((id): id is string => Boolean(id)),
     );
     for (const option of existingOptions) {
       if (!option.deleted_at && !keepOptionIds.has(option.id)) {
-        await mockApi.patch(`/field_options/${option.id}`, {
+        await patchIgnore404(`/field_options/${option.id}`, {
           deleted_at: stamp,
         });
       }
     }
 
+    const savedEnChoices: Choice[] = [];
+    const savedThChoices: Choice[] = [];
+
     for (const [index, enChoice] of enChoices.entries()) {
       const optionId = enChoice.id ?? newId();
       const thChoice = thChoices[index];
+      const thChoiceLabel = thChoice?.label || enChoice.label;
       const prevOption = existingOptions.find((o) => o.id === optionId);
       const optionBody: MockFieldOption = {
         id: optionId,
@@ -689,15 +1032,15 @@ async function replaceQuestionTree(
         created_at: prevOption?.created_at ?? stamp,
         deleted_at: null,
       };
-      if (prevOption) {
-        await mockApi.put(`/field_options/${optionId}`, optionBody);
-        const oldOptTranslations = await mockApi.get<
-          MockFieldOptionTranslation[]
-        >(
-          `/field_option_translations?option_id=${encodeURIComponent(optionId)}`,
-        );
+      if (prevOption || enChoice.id) {
+        await putOrPost(`/field_options`, `/field_options/${optionId}`, optionBody);
+        const oldOptTranslations = (
+          await mockApi.get<MockFieldOptionTranslation[]>(
+            `/field_option_translations?option_id=${encodeURIComponent(optionId)}`,
+          )
+        ).filter((row) => row.option_id === optionId);
         for (const row of oldOptTranslations) {
-          await mockApi.delete(`/field_option_translations/${row.id}`);
+          await deleteIgnore404(`/field_option_translations/${row.id}`);
         }
       } else {
         await mockApi.post("/field_options", optionBody);
@@ -712,10 +1055,57 @@ async function replaceQuestionTree(
         id: newId(),
         option_id: optionId,
         locale_code: "th",
-        label: thChoice?.label || enChoice.label,
+        label: thChoiceLabel,
+      });
+
+      savedEnChoices.push({
+        id: optionId,
+        label: enChoice.label,
+        display_order: enChoice.display_order,
+      });
+      savedThChoices.push({
+        id: optionId,
+        label: thChoiceLabel,
+        display_order: enChoice.display_order,
       });
     }
+
+    persistedQuestions.push({
+      question: {
+        id: fieldId,
+        type: q.type,
+        display_order: q.display_order,
+        min_number: nullToNumber(minNumber, q.type === "rating" ? 1 : 0),
+        max_number: nullToNumber(maxNumber, q.type === "rating" ? 5 : 0),
+        min_value: minNumber,
+        max_value: maxNumber,
+        min_length: nullToNumber(unsetToNull(q.min_length)),
+        max_length: nullToNumber(unsetToNull(q.max_length)),
+        is_required: q.is_required,
+        is_unique: Boolean(q.is_unique),
+        rating_display: (ratingDisplay ?? "icon") as RATING_DISPLAY,
+        rating_icon: (ratingIcon ?? "star") as ICON,
+        rating_max: nullToNumber(
+          ratingMax ?? maxNumber,
+          q.type === "rating" ? 5 : 0,
+        ),
+        label: buildLabelPair(
+          enLabel.label,
+          thLabel.label,
+          enLabel.placeholder ?? "",
+          thLabel.placeholder ?? "",
+          savedEnChoices,
+          savedThChoices,
+          enLabel.scale_min_label ?? "",
+          enLabel.scale_max_label ?? "",
+          thLabel.scale_min_label ?? "",
+          thLabel.scale_max_label ?? "",
+        ),
+      },
+    });
   }
+
+  return persistedQuestions;
 }
 
 interface FormRelations {
@@ -731,12 +1121,12 @@ interface FormTreeSnapshot extends FormRelations {
 }
 
 async function loadFormRelations(formId: string): Promise<FormRelations> {
-  const [formTranslations, fields] = await Promise.all([
-    loadFormTranslations(formId),
-    mockApi.get<MockFormField[]>(
+  const formTranslations = await loadFormTranslations(formId);
+  const fields = (
+    await mockApi.get<MockFormField[]>(
       `/form_fields?form_id=${encodeURIComponent(formId)}`,
-    ),
-  ]);
+    )
+  ).filter((f) => f.form_id === formId);
   const fieldBranches = await Promise.all(
     fields.map(async (field) => {
       const [fieldTranslations, options] = await Promise.all([
@@ -787,7 +1177,7 @@ async function deleteExtraRows<T extends IdentifiedRow>(
   const expectedIds = new Set(expected.map((row) => row.id));
   for (const row of current) {
     if (!expectedIds.has(row.id)) {
-      await mockApi.delete(`/${endpoint}/${row.id}`);
+      await deleteIgnore404(`/${endpoint}/${row.id}`);
     }
   }
 }
@@ -800,7 +1190,7 @@ async function restoreRows<T extends IdentifiedRow>(
   const currentIds = new Set(current.map((row) => row.id));
   for (const row of expected) {
     if (currentIds.has(row.id)) {
-      await mockApi.put(`/${endpoint}/${row.id}`, row);
+      await putOrPost(`/${endpoint}`, `/${endpoint}/${row.id}`, row);
     } else {
       await mockApi.post(`/${endpoint}`, row);
     }
@@ -829,7 +1219,7 @@ async function restoreFormTree(snapshot: FormTreeSnapshot): Promise<void> {
     snapshot.formTranslations,
   );
 
-  await mockApi.put(`/forms/${snapshot.form.id}`, snapshot.form);
+  await putOrPost(`/forms`, `/forms/${snapshot.form.id}`, snapshot.form);
   await restoreRows(
     "form_translations",
     current.formTranslations,
@@ -852,25 +1242,21 @@ async function restoreFormTree(snapshot: FormTreeSnapshot): Promise<void> {
 async function cleanupCreatedForm(formId: string): Promise<void> {
   const current = await loadFormRelations(formId);
   for (const row of current.optionTranslations) {
-    await mockApi.delete(`/field_option_translations/${row.id}`);
+    await deleteIgnore404(`/field_option_translations/${row.id}`);
   }
   for (const row of current.options) {
-    await mockApi.delete(`/field_options/${row.id}`);
+    await deleteIgnore404(`/field_options/${row.id}`);
   }
   for (const row of current.fieldTranslations) {
-    await mockApi.delete(`/field_translations/${row.id}`);
+    await deleteIgnore404(`/field_translations/${row.id}`);
   }
   for (const row of current.fields) {
-    await mockApi.delete(`/form_fields/${row.id}`);
+    await deleteIgnore404(`/form_fields/${row.id}`);
   }
   for (const row of current.formTranslations) {
-    await mockApi.delete(`/form_translations/${row.id}`);
+    await deleteIgnore404(`/form_translations/${row.id}`);
   }
-  try {
-    await mockApi.delete(`/forms/${formId}`);
-  } catch (error) {
-    if (!(error instanceof MockApiError && error.status === 404)) throw error;
-  }
+  await deleteIgnore404(`/forms/${formId}`);
 }
 
 async function compensateOrThrow(
@@ -882,11 +1268,20 @@ async function compensateOrThrow(
   } catch {
     const message =
       originalError instanceof Error ? originalError.message : "Write failed";
+    if (/EROFS|read-only file system/i.test(message)) {
+      throw new ServiceError("MOCK_READ_ONLY", 503, message);
+    }
     throw new ServiceError(
       "FORM_WRITE_INCOMPLETE",
       502,
       `${message}; automatic rollback also failed`,
     );
+  }
+  if (
+    originalError instanceof Error &&
+    /EROFS|read-only file system/i.test(originalError.message)
+  ) {
+    throw new ServiceError("MOCK_READ_ONLY", 503, originalError.message);
   }
   throw originalError;
 }
@@ -900,15 +1295,39 @@ export async function listForms(
     `/forms?event_id=${encodeURIComponent(eventId)}`,
   );
   const allowed = new Set(allowedTypes);
-  const live = forms.filter((f) => !f.deleted_at && allowed.has(f.type));
+  const live = forms.filter(
+    (f) =>
+      f.event_id === eventId &&
+      !f.deleted_at &&
+      !isCachedFormDeleted(f.id) &&
+      allowed.has(f.type),
+  );
   const items: FormRecord[] = [];
+  const seenIds = new Set<string>();
+  const seenTypes = new Set<FormType>();
+
   for (const form of live) {
-    items.push(await toFormRecord(form, event));
+    const rec = await toFormRecord(form, event);
+    items.push(rec);
+    seenIds.add(rec.id);
+    seenTypes.add(rec.type);
   }
+
+  for (const cached of getCachedFormsForEvent(eventId, allowed)) {
+    if (!seenIds.has(cached.id) && !seenTypes.has(cached.type)) {
+      items.push(cached);
+      seenIds.add(cached.id);
+      seenTypes.add(cached.type);
+    }
+  }
+
   return {
     eventId: event.id,
-    hasRegistration: Boolean(event.has_registration),
-    hasSurvey: Boolean(event.has_survey),
+    hasRegistration:
+      (event.has_registration ?? true) ||
+      items.some((f) => f.type === "registration"),
+    hasSurvey:
+      (event.has_survey ?? true) || items.some((f) => f.type === "survey"),
     forms: items,
   };
 }
@@ -918,13 +1337,57 @@ export async function getForm(id: string): Promise<FormRecord> {
   return toFormRecord(form);
 }
 
+function buildAuthoritativeFormRecord(
+  form: MockForm,
+  head: Form["head"],
+  questions: Question[],
+): FormRecord {
+  const status = resolveEffectiveFormStatus(form);
+  const flags = formMutationFlags(status);
+  return {
+    id: form.id,
+    eventId: form.event_id,
+    type: form.type,
+    status,
+    opens_at: form.opens_at,
+    closes_at: form.closes_at,
+    opensAt: form.opens_at,
+    closesAt: form.closes_at,
+    createdAt: form.created_at,
+    updatedAt: form.updated_at,
+    head: {
+      en: {
+        title: head.en.title,
+        description: head.en.description,
+      },
+      th: {
+        title: head.th.title,
+        description: head.th.description,
+      },
+    },
+    questions,
+    canEdit: flags.canEdit,
+    canDelete: flags.canDelete,
+    canChangeStatus: flags.canChangeStatus,
+  };
+}
+
 export async function createForm(
   input: FormCreateBody,
   userId: string,
 ): Promise<FormRecord> {
   const event = await loadEvent(input.eventId);
-  assertFormTypeAllowed(event, input.type);
-  await assertUniqueLiveType(input.eventId, input.type);
+  const existingConflict = await findExistingLiveType(input.eventId, input.type);
+  if (existingConflict) {
+    if (resolveEffectiveFormStatus(existingConflict) === "draft") {
+      return updateForm(existingConflict.id, input, userId);
+    }
+    throw new ServiceError(
+      "FORM_TYPE_EXISTS",
+      409,
+      `A live ${input.type} form already exists for this event`,
+    );
+  }
   assertNewQuestionTreeHasNoIds(input.questions);
 
   const stamp = nowIso();
@@ -936,8 +1399,8 @@ export async function createForm(
     event_id: input.eventId,
     type: input.type,
     status: "draft",
-    opens_at: null,
-    closes_at: null,
+    opens_at: opensAt,
+    closes_at: closesAt,
     created_at: stamp,
     created_by: userId,
     updated_at: stamp,
@@ -946,12 +1409,27 @@ export async function createForm(
   };
 
   try {
+    const flagKey =
+      input.type === "registration" ? "has_registration" : "has_survey";
+    if (!event[flagKey]) {
+      await patchIgnore404(`/events/${event.id}`, {
+        [flagKey]: true,
+        updated_at: stamp,
+        updated_by: userId,
+      });
+    }
     await mockApi.post("/forms", form);
     await writeFormTranslations(id, input.head, stamp);
-    if (input.questions.length) {
-      await replaceQuestionTree(id, input.questions, stamp, []);
-    }
-    return await getForm(id);
+    const savedQuestions = input.questions.length
+      ? await replaceQuestionTree(id, input.questions, stamp, [])
+      : [];
+    const authoritative = buildAuthoritativeFormRecord(
+      form,
+      input.head,
+      savedQuestions,
+    );
+    saveCachedFormRecord(authoritative);
+    return authoritative;
   } catch (error) {
     return compensateOrThrow(() => cleanupCreatedForm(id), error);
   }
@@ -979,15 +1457,31 @@ export async function updateForm(
       ? input.closes_at?.trim() || null
       : form.closes_at;
 
+  const updatedForm: MockForm = {
+    ...form,
+    status: "draft",
+    opens_at: opensAt,
+    closes_at: closesAt,
+    updated_by: userId,
+    updated_at: stamp,
+  };
+
   try {
-    await mockApi.put(`/forms/${id}`, {
-      ...form,
-      updated_by: userId,
-      updated_at: stamp,
-    });
+    await putOrPost(`/forms`, `/forms/${id}`, updatedForm);
     await writeFormTranslations(id, input.head, stamp);
-    await replaceQuestionTree(id, input.questions, stamp, fields);
-    return await getForm(id);
+    const savedQuestions = await replaceQuestionTree(
+      id,
+      input.questions,
+      stamp,
+      fields,
+    );
+    const authoritative = buildAuthoritativeFormRecord(
+      updatedForm,
+      input.head,
+      savedQuestions,
+    );
+    saveCachedFormRecord(authoritative);
+    return authoritative;
   } catch (error) {
     return compensateOrThrow(() => restoreFormTree(snapshot), error);
   }
@@ -1003,8 +1497,7 @@ export async function updateFormStatus(
   const current = resolveEffectiveFormStatus(form);
   assertCanChangeStatus(current);
   const stamp = nowIso();
-  const currentUiStatus = toUiFormStatus(form.status);
-  assertFormStatusTransition(currentUiStatus, patch.status);
+  assertManualFormStatusTransition(current, patch.status);
 
   const opensAt =
     patch.opensAt !== undefined ? patch.opensAt?.trim() || null : form.opens_at;
@@ -1012,6 +1505,8 @@ export async function updateFormStatus(
     patch.closesAt !== undefined
       ? patch.closesAt?.trim() || null
       : form.closes_at;
+
+  const recordBefore = await toFormRecord(form, event);
 
   if (patch.status === "scheduled") {
     if (!opensAt && !closesAt) {
@@ -1021,32 +1516,32 @@ export async function updateFormStatus(
         "Scheduling requires opensAt and/or closesAt",
       );
     }
-    const record = await toFormRecord(form, event);
     const publishError = validatePublishReady({
-      head: record.head,
-      questions: record.questions,
+      head: recordBefore.head,
+      questions: recordBefore.questions,
     });
     if (publishError) {
       throw new ServiceError("FORM_NOT_READY", 400, publishError);
     }
   }
 
-  resolveAcceptingResponses(
-    currentUiStatus,
-    patch.status,
-    form.status === "open",
-    patch.acceptingResponses,
-  );
-  const nextMockStatus = toMockFormStatus(patch.status);
-  await mockApi.put(`/forms/${id}`, {
+  const updatedForm: MockForm = {
     ...form,
-    status: nextMockStatus,
-    opens_at: patch.opensAt !== undefined ? patch.opensAt : form.opens_at,
-    closes_at: patch.closesAt !== undefined ? patch.closesAt : form.closes_at,
+    status: patch.status,
+    opens_at: opensAt,
+    closes_at: closesAt,
     updated_by: userId,
     updated_at: stamp,
-  });
-  return getForm(id);
+  };
+
+  await putOrPost(`/forms`, `/forms/${id}`, updatedForm);
+  const authoritative = buildAuthoritativeFormRecord(
+    updatedForm,
+    recordBefore.head,
+    recordBefore.questions,
+  );
+  saveCachedFormRecord(authoritative);
+  return authoritative;
 }
 
 /**
@@ -1057,7 +1552,9 @@ export async function runFormsCron(
   nowMs: number = Date.now(),
 ): Promise<FormCronResult> {
   const forms = await mockApi.get<MockForm[]>("/forms");
-  const live = forms.filter((form) => !form.deleted_at);
+  const live = forms.filter(
+    (form) => !form.deleted_at && !isCachedFormDeleted(form.id),
+  );
   const stamp = new Date(nowMs).toISOString();
   const eventCache = new Map<string, MockEvent>();
   const opened: string[] = [];
@@ -1077,12 +1574,19 @@ export async function runFormsCron(
     const next = nextCronFormStatus(form, event, nowMs);
     if (!next || next === form.status) continue;
 
-    await mockApi.put(`/forms/${form.id}`, {
+    const updatedForm: MockForm = {
       ...form,
       status: next,
       updated_at: stamp,
       updated_by: form.updated_by,
-    });
+    };
+    await putOrPost(`/forms`, `/forms/${form.id}`, updatedForm);
+    const cached = getCachedFormRecord(form.id, form.event_id, form.type);
+    if (cached) {
+      saveCachedFormRecord(
+        buildAuthoritativeFormRecord(updatedForm, cached.head, cached.questions),
+      );
+    }
 
     if (next === "open") opened.push(form.id);
     if (next === "closed") closed.push(form.id);
@@ -1111,12 +1615,13 @@ export async function deleteForm(id: string, userId: string): Promise<void> {
       }
     }
 
-    await mockApi.put(`/forms/${id}`, {
+    await putOrPost(`/forms`, `/forms/${id}`, {
       ...form,
       deleted_at: stamp,
       updated_by: userId,
       updated_at: stamp,
     });
+    markCachedFormDeleted(id);
   } catch (error) {
     await compensateOrThrow(() => restoreFormTree(snapshot), error);
   }

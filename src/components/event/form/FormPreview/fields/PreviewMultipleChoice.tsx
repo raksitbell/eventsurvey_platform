@@ -21,6 +21,7 @@ export default function PreviewMultipleChoice({
   onClear,
 }: PreviewMultipleChoiceProps) {
   const tPreview = useTranslations("form.preview");
+  const tBuilder = useTranslations("form.builder");
 
   return (
     <div className="flex flex-col gap-3">
@@ -31,16 +32,19 @@ export default function PreviewMultipleChoice({
         return (
           <label
             key={cId}
-            className="flex cursor-pointer items-center gap-3 text-sm text-gray-800"
+            className="flex cursor-pointer items-center gap-3 text-sm text-gray-800 dark:text-gray-200"
           >
             <input
               type="radio"
               name={`q-${questionId}`}
               checked={isChecked}
               onChange={() => onChange(cId)}
-              className="h-5 w-5 shrink-0 cursor-pointer accent-[#5C54D1]"
+              className="h-5 w-5 shrink-0 cursor-pointer accent-brand-500"
             />
-            <span>{choice.label}</span>
+            <span>
+              {choice.label.trim() ||
+                tBuilder("optionPlaceholder", { order: choice.display_order })}
+            </span>
           </label>
         );
       })}

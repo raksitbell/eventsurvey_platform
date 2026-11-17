@@ -173,7 +173,7 @@ export default function QuestionCard({
       {/* Top Drag Handle Bar */}
       <div
         className="relative mb-2 flex cursor-grab items-center justify-center py-1 text-gray-300 transition-colors group-hover:text-gray-400 active:cursor-grabbing dark:text-gray-600 dark:group-hover:text-gray-400"
-        title="Drag to reorder question"
+        title={tbuilder("dragQuestion")}
       >
         {showLocaleBadge && (
           <span className="absolute start-0 inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-theme-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
@@ -242,9 +242,9 @@ export default function QuestionCard({
             e.stopPropagation();
             onDuplicate();
           }}
-          title="Duplicate question"
+          title={tbuilder("duplicateQuestion")}
           className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-          aria-label="Duplicate question"
+          aria-label={tbuilder("duplicateQuestion")}
         >
           <DocumentDuplicateIcon className="h-5 w-5" />
         </button>
@@ -255,9 +255,9 @@ export default function QuestionCard({
             e.stopPropagation();
             onDelete();
           }}
-          title="Delete question"
+          title={tbuilder("deleteQuestion")}
           className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-500/15 dark:hover:text-error-400"
-          aria-label="Delete question"
+          aria-label={tbuilder("deleteQuestion")}
         >
           <TrashIcon className="h-5 w-5" />
         </button>

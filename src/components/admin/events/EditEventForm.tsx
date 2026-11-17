@@ -113,11 +113,31 @@ export default function EditEventForm({ eventId }: EditEventFormProps) {
 
   if (isLoading) {
     return (
-      <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
+      <div
+        className="space-y-5 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3"
+        aria-busy="true"
+      >
         <Skeleton className="h-7 w-48" />
-        <Skeleton className="h-11 w-full" />
-        <Skeleton className="h-11 w-full" />
-        <Skeleton className="h-11 w-full" />
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-11 w-full rounded-lg" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-11 w-full rounded-lg" />
+          </div>
+        </div>
+        <Skeleton className="h-3.5 w-64 max-w-full" />
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-11 w-full rounded-lg" />
+          <Skeleton className="h-3.5 w-52 max-w-full" />
+        </div>
+        <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5 dark:border-gray-800">
+          <Skeleton className="h-10 w-24 rounded-lg" />
+          <Skeleton className="h-10 w-28 rounded-lg" />
+        </div>
       </div>
     );
   }

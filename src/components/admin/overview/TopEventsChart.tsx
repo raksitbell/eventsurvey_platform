@@ -1,5 +1,6 @@
 "use client";
 
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import type { AdminOverviewResponse } from "@/types/admin/overview";
 import type { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
@@ -7,14 +8,32 @@ import { useTranslations } from "next-intl";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
+  loading: () => <Skeleton className="h-[280px] w-full rounded-xl" />,
 });
 
 type TopEventsChartProps = {
   topEvents: AdminOverviewResponse["topEvents"] | null;
+  isLoading?: boolean;
 };
 
-export default function TopEventsChart({ topEvents }: TopEventsChartProps) {
+export default function TopEventsChart({
+  topEvents,
+  isLoading = false,
+}: TopEventsChartProps) {
   const t = useTranslations("adminHome");
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 py-2" aria-busy="true">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="h-4 w-28 shrink-0" />
+            <Skeleton className="h-6 flex-1 rounded-md" />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (!topEvents || topEvents.length === 0) {
     return (

@@ -110,7 +110,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
     const message =
       error instanceof Error ? error.message : "Failed to update form";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const readOnly = /EROFS|read-only file system/i.test(message);
+    return NextResponse.json(
+      { error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR", message },
+      { status: readOnly ? 503 : 502 },
+    );
   }
 }
 

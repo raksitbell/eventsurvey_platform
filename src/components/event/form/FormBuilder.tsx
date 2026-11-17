@@ -6,12 +6,12 @@ import { useRouter } from "@/i18n/navigation";
 import {
   ArrowPathIcon,
   CheckCircleIcon,
-  ExclamationCircleIcon,
   EyeIcon,
   LockClosedIcon,
   PlusIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
@@ -31,6 +31,7 @@ import {
   UNIQUE_QUESTION_TYPES,
 } from "@/types/event/form";
 import type { EventWorkspace } from "@/types/event/workspace";
+import { showToast } from "@/utils/alert";
 import FormHeaderCard from "./FormHeaderCard";
 import QuestionCard from "./QuestionCard";
 import FloatingToolbar from "./FloatingToolbar";
@@ -47,6 +48,31 @@ const PERSISTED_CHOICE_TYPES = new Set<QuestionType>([
   "multiple_choice",
   "checkbox",
   "dropdown",
+]);
+
+const KNOWN_FORM_ERROR_CODES = new Set([
+  "FORM_SCHEDULE_REQUIRED",
+  "FORM_NOT_READY",
+  "FORM_NOT_EDITABLE",
+  "FORM_NOT_DELETABLE",
+  "FORM_STATUS_LOCKED",
+  "FORM_STATUS_CRON_ONLY",
+  "INVALID_FORM_STATUS_TRANSITION",
+  "FORM_TYPE_EXISTS",
+  "FORM_TYPE_NOT_ENABLED",
+  "FORM_NOT_FOUND",
+  "EVENT_NOT_FOUND",
+  "FORBIDDEN",
+  "UNAUTHORIZED",
+  "VALIDATION_ERROR",
+  "INVALID_QUESTION_ID",
+  "INVALID_OPTION_ID",
+  "DUPLICATE_QUESTION_ID",
+  "QUESTION_NOT_OWNED_BY_FORM",
+  "OPTION_NOT_OWNED_BY_QUESTION",
+  "FORM_WRITE_INCOMPLETE",
+  "MOCK_READ_ONLY",
+  "MOCK_API_ERROR",
 ]);
 
 function toFlatpickrDateTime(raw: string | null | undefined): string {
@@ -136,9 +162,31 @@ function createQuestion(order: number): Question {
 export default function FormBuilder({ type }: { type: FormType }) {
   const t = useTranslations("form");
   const tbuilder = useTranslations("form.builder");
+  const terrors = useTranslations("form.errors");
   const tcommon = useTranslations("common");
   const router = useRouter();
   const { user } = useAuth();
+
+  const resolveErrorMessage = useCallback(
+    (err: unknown, fallback: string): string => {
+      if (err instanceof ApiError) {
+        if (err.details?.some((d) => d.path.includes("closes_at") || d.path.includes("opens_at"))) {
+          return terrors("DATE_RANGE_INVALID");
+        }
+        if (err.details?.some((d) => d.path.includes("min_number") || d.path.includes("min_value"))) {
+          return terrors("NUMBER_RANGE_INVALID");
+        }
+        if (err.code && KNOWN_FORM_ERROR_CODES.has(err.code)) {
+          return terrors(err.code);
+        }
+        if (err.status === 401) return terrors("UNAUTHORIZED");
+        if (err.status === 403) return terrors("FORBIDDEN");
+        if (err.status === 502) return terrors("MOCK_API_ERROR");
+      }
+      return fallback;
+    },
+    [terrors],
+  );
 
   const [hasEnglish, setHasEnglish] = useState<boolean>(false);
   const [mobileTab, setMobileTab] = useState<FormLocale>("th");
@@ -150,10 +198,6 @@ export default function FormBuilder({ type }: { type: FormType }) {
   const [canChangeStatus, setCanChangeStatus] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
 
   const serverQuestionIdsRef = useRef<Set<string>>(new Set());
   const serverChoiceIdsRef = useRef<Set<string>>(new Set());
@@ -315,16 +359,24 @@ export default function FormBuilder({ type }: { type: FormType }) {
         setHasEnglish(detectedEnglishDiff);
       }
 
+      const defaultTitle =
+        record.type === "registration" ? t("registration") : t("survey");
+      const thTitle =
+        record.head.th.title.trim() ||
+        record.head.en.title.trim() ||
+        defaultTitle;
+      const enTitle = record.head.en.title.trim() || thTitle;
+
       setForm({
         id: record.id,
         type: record.type,
         head: {
           th: {
-            title: record.head.th.title,
+            title: thTitle,
             description: record.head.th.description,
           },
           en: {
-            title: record.head.en.title,
+            title: enTitle,
             description: record.head.en.description,
           },
         },
@@ -335,7 +387,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
 
       setActiveSectionId(normalizedQuestions[0]?.question.id ?? "header");
     },
-    [],
+    [t],
   );
 
   useEffect(() => {
@@ -360,8 +412,10 @@ export default function FormBuilder({ type }: { type: FormType }) {
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof ApiError ? err.message : t("loadError");
-          setFeedback({ type: "error", message: msg });
+          showToast({
+            title: resolveErrorMessage(err, t("loadError")),
+            variant: "error",
+          });
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -372,7 +426,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     return () => {
       cancelled = true;
     };
-  }, [applyServerRecord, t, type, user]);
+  }, [applyServerRecord, resolveErrorMessage, t, type, user]);
 
   useEffect(() => {
     const updatePosition = () => {
@@ -415,7 +469,9 @@ export default function FormBuilder({ type }: { type: FormType }) {
           isChoiceType
             ? list.map((c, cIdx) => {
                 const keepChoiceId =
-                  isUpdate && c.id && serverChoiceIdsRef.current.has(c.id)
+                  Boolean(keepQuestionId) &&
+                  c.id &&
+                  serverChoiceIdsRef.current.has(c.id)
                     ? c.id
                     : undefined;
                 return {
@@ -499,10 +555,9 @@ export default function FormBuilder({ type }: { type: FormType }) {
     };
   };
 
-  const handleSave = async (): Promise<FormRecord | null> => {
+  const handleSave = async (silent = false): Promise<FormRecord | null> => {
     if (!eventId) return null;
     setIsSaving(true);
-    setFeedback(null);
 
     try {
       let saved: FormRecord;
@@ -513,17 +568,38 @@ export default function FormBuilder({ type }: { type: FormType }) {
           eventId,
         });
       } else {
-        const payload = buildPayloadForApi(form, true);
-        saved = await api.put<FormRecord>(`/event/forms/${formId}`, payload);
+        try {
+          const payload = buildPayloadForApi(form, true);
+          saved = await api.put<FormRecord>(`/event/forms/${formId}`, payload);
+        } catch (putErr) {
+          if (
+            putErr instanceof ApiError &&
+            (putErr.status === 404 ||
+              putErr.code === "FORM_NOT_FOUND" ||
+              putErr.code === "QUESTION_NOT_OWNED_BY_FORM" ||
+              putErr.code === "OPTION_NOT_OWNED_BY_QUESTION")
+          ) {
+            const createPayload = buildPayloadForApi(form, false);
+            saved = await api.post<FormRecord>("/event/forms", {
+              ...createPayload,
+              eventId,
+            });
+          } else {
+            throw putErr;
+          }
+        }
       }
 
       applyServerRecord(saved, true);
-      setFeedback({ type: "success", message: tbuilder("saveSuccess") });
+      if (!silent) {
+        showToast({ title: tbuilder("saveSuccess"), variant: "success" });
+      }
       return saved;
     } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : tbuilder("saveError");
-      setFeedback({ type: "error", message: msg });
+      showToast({
+        title: resolveErrorMessage(err, tbuilder("saveError")),
+        variant: "error",
+      });
       return null;
     } finally {
       setIsSaving(false);
@@ -531,13 +607,25 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const handleToggleSchedule = async () => {
+    if (
+      formStatus === "draft" &&
+      !form.opens_at?.trim() &&
+      !form.closes_at?.trim()
+    ) {
+      showToast({
+        title: tbuilder("scheduleRequiredError"),
+        variant: "warning",
+      });
+      setActiveSectionId("header");
+      return;
+    }
+
     setIsSaving(true);
-    setFeedback(null);
     try {
       let targetId = formId;
       if (formStatus === "draft") {
         // Save latest draft edits before transitioning to scheduled
-        const saved = await handleSave();
+        const saved = await handleSave(true);
         if (!saved) return;
         targetId = saved.id;
       }
@@ -554,17 +642,18 @@ export default function FormBuilder({ type }: { type: FormType }) {
       );
 
       applyServerRecord(updated, true);
-      setFeedback({
-        type: "success",
-        message:
+      showToast({
+        title:
           nextStatus === "scheduled"
             ? tbuilder("scheduleSuccess")
             : tbuilder("revertSuccess"),
+        variant: "success",
       });
     } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : tbuilder("saveError");
-      setFeedback({ type: "error", message: msg });
+      showToast({
+        title: resolveErrorMessage(err, tbuilder("saveError")),
+        variant: "error",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -1365,6 +1454,10 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
+  if (isLoading) {
+    return <FormBuilderSkeleton title={t("title")} />;
+  }
+
   if (isPreview) {
     return (
       <FormPreview
@@ -1455,41 +1548,15 @@ export default function FormBuilder({ type }: { type: FormType }) {
         </div>
       </div>
 
-      {/* Feedback Banner & Locked Notice */}
-      <div className={`mx-auto mb-4 flex ${containerWidthClass} flex-col gap-3`}>
-        {feedback && (
-          <div
-            className={`flex items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm font-medium ${
-              feedback.type === "success"
-                ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-300"
-                : "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-300"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {feedback.type === "success" ? (
-                <CheckCircleIcon className="h-5 w-5 shrink-0" />
-              ) : (
-                <ExclamationCircleIcon className="h-5 w-5 shrink-0" />
-              )}
-              <span>{feedback.message}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setFeedback(null)}
-              className="text-xs underline opacity-80 hover:opacity-100"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {!canEdit && (
-          <div className="flex items-center gap-2 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-300">
-            <LockClosedIcon className="h-5 w-5 shrink-0" />
-            <span>{tbuilder("lockedNotice")}</span>
-          </div>
-        )}
-      </div>
+      {/* Locked Notice */}
+      {!canEdit && (
+        <div
+          className={`mx-auto mb-4 flex ${containerWidthClass} items-center gap-2 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-300`}
+        >
+          <LockClosedIcon className="h-5 w-5 shrink-0" />
+          <span>{tbuilder("lockedNotice")}</span>
+        </div>
+      )}
 
       <div
         className={`relative mx-auto flex ${containerWidthClass} items-start gap-4`}
@@ -1583,14 +1650,15 @@ export default function FormBuilder({ type }: { type: FormType }) {
           )}
 
           {/* 1. Title & Description Row */}
-          <div
-            ref={(el) => {
-              sectionRefs.current["header"] = el;
-            }}
-            className={`grid grid-cols-1 gap-4 ${
-              hasEnglish ? "lg:grid-cols-2" : ""
-            }`}
-          >
+          <fieldset disabled={!canEdit} className="contents">
+            <div
+              ref={(el) => {
+                sectionRefs.current["header"] = el;
+              }}
+              className={`grid grid-cols-1 gap-4 ${
+                hasEnglish ? "lg:grid-cols-2" : ""
+              }`}
+            >
             {localesToRender.map((loc) => (
               <div
                 key={`header-${loc}`}
@@ -1766,12 +1834,89 @@ export default function FormBuilder({ type }: { type: FormType }) {
               </div>
             );
           })}
+          </fieldset>
         </div>
 
         {/* 3. Floating Sidebar (Right on Desktop, Bottom Bar on Mobile) */}
         {canEdit && (
           <FloatingToolbar topOffset={toolbarTop} onAddQuestion={addQuestion} />
         )}
+      </div>
+    </div>
+  );
+}
+
+function FormBuilderSkeleton({ title }: { title: string }) {
+  return (
+    <div
+      className="font-outfit min-h-screen bg-gray-50 px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100"
+      aria-busy="true"
+    >
+      <div className="mx-auto mb-6 flex max-w-4xl flex-wrap items-center justify-between gap-3 md:mb-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl md:text-3xl dark:text-white">
+            {title}
+          </h1>
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 md:me-16">
+          <Skeleton className="h-9 w-28 rounded-lg" />
+          <Skeleton className="h-9 w-24 rounded-lg" />
+          <Skeleton className="h-9 w-24 rounded-lg" />
+          <Skeleton className="h-9 w-20 rounded-lg" />
+        </div>
+      </div>
+
+      <div className="relative mx-auto flex max-w-4xl items-start gap-4">
+        <div className="relative flex min-w-0 flex-1 flex-col gap-4">
+          {/* Header Card Skeleton */}
+          <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white px-4 pt-6 pb-5 shadow-theme-xs sm:px-6 sm:pt-8 dark:border-gray-800 dark:bg-gray-900">
+            <div className="absolute top-0 start-0 h-2 w-full bg-brand-500" />
+            <Skeleton className="mb-3 h-6 w-24 rounded-full" />
+            <Skeleton className="h-8 w-64 max-w-full" />
+            <Skeleton className="mt-3 h-5 w-96 max-w-full" />
+            <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 sm:gap-4 dark:border-gray-800">
+              <div className="space-y-1.5">
+                <Skeleton className="h-3.5 w-24" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+              <div className="space-y-1.5">
+                <Skeleton className="h-3.5 w-24" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+            </div>
+          </div>
+
+          {/* Question Cards Skeleton */}
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex flex-col rounded-xl border border-gray-200 bg-white px-4 pt-3 pb-4 shadow-theme-xs sm:px-6 sm:pb-6 dark:border-gray-800 dark:bg-gray-900"
+            >
+              <div className="mb-3 flex justify-center">
+                <Skeleton className="h-3 w-8" />
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Skeleton className="h-11 flex-1 rounded-md" />
+                <Skeleton className="h-11 w-full rounded-md sm:w-48" />
+              </div>
+              <div className="mt-5 sm:mt-6">
+                <Skeleton className="h-10 w-full rounded-md" />
+              </div>
+              <div className="mt-5 flex items-center justify-end gap-3 border-t border-gray-100 pt-3 sm:mt-6 sm:pt-4 dark:border-gray-800">
+                <Skeleton className="size-8 rounded-lg" />
+                <Skeleton className="size-8 rounded-lg" />
+                <Skeleton className="h-5 w-20" />
+                <Skeleton className="h-5 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-xs md:flex md:flex-col dark:border-gray-800 dark:bg-gray-900">
+          <Skeleton className="size-9 rounded-lg" />
+        </div>
       </div>
     </div>
   );
