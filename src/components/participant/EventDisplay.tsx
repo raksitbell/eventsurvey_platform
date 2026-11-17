@@ -12,7 +12,9 @@ export interface EventDisplayProps {
   data: EventDisplayData;
   labels: {
     hostedBy: string;
+    hostedBySubtitle: string;
     about: string;
+    aboutSubtitle: string;
     registration: string;
     survey: string;
     bannerPlaceholder: string;

@@ -20,7 +20,8 @@ export default async function ParticipantDisplayPage({ searchParams }: Participa
         locationDetail: t("locationDetail"), description: t("description"), socialHandle: t("socialHandle"),
       }}
       labels={{
-        hostedBy: t("hostedBy"), about: t("about"), registration: t("registration"),
+        hostedBy: t("hostedBy"), hostedBySubtitle: t("hostedBySubtitle"),
+        about: t("about"), aboutSubtitle: t("aboutSubtitle"), registration: t("registration"),
         survey: t("survey"), bannerPlaceholder: t("bannerPlaceholder"), qrPlaceholder: t("qrPlaceholder"),
       }}
     />
