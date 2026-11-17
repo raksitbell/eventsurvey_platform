@@ -70,7 +70,7 @@ const form = z.object({
   ),
 });
 export const publicationSchema = z.object({
-  publishedAt: z.string().datetime(),
+  publishedAt: z.iso.datetime(),
   draft: eventDraftSchema,
   branding: eventBrandingSchema,
   forms: z.object({ registration: form.nullable(), survey: form.nullable() }),

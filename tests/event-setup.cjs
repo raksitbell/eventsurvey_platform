@@ -1295,7 +1295,7 @@ test("Overview follows the immutable local publication after save and ignores la
 });
 
 /** Exercise real setup action handlers with injected hook results, without a test UI package. */
-function compileSetupComponent(relative, mocks = {}) {
+function compileSetupComponent(relative, mocks = {}, exportName = "default") {
   const mod = { exports: {} };
   const source = ts.transpileModule(
     fs.readFileSync(path.join(root, relative), "utf8"),
@@ -1310,7 +1310,7 @@ function compileSetupComponent(relative, mocks = {}) {
     (name) => (name in mocks ? mocks[name] : require(name)),
     mod.exports,
   );
-  return mod.exports.default;
+  return mod.exports[exportName];
 }
 const setupButton = compileSetupComponent(
   "src/components/ui/button/Button.tsx",
@@ -1339,8 +1339,9 @@ function setupActionButtons(form) {
   );
   return { back, next, feedback: element.props.error };
 }
-function detailsActions(save) {
+function detailsActions(save, detailsDraft = seed) {
   const navigation = [];
+  let whitelistOpened = 0;
   const noop = { default: () => null };
   const messages = JSON.parse(
     fs.readFileSync(path.join(root, "src/messages/th.json")),
@@ -1349,6 +1350,24 @@ function detailsActions(save) {
     "src/components/event/setup/EventDetailsForm.tsx",
     {
       "@/components/event/setup/EventSetupSteps": noop,
+      "@/components/event/whitelist/WhitelistManagementDialog": noop,
+      react: { useState: () => [false, () => {}] },
+      "@/hooks/useWhitelistRequirement": {
+        default: () =>
+          whitelist.getWhitelistRequirement(
+            detailsDraft,
+            whitelist.whitelistKey("owner", seed.eventId, "th"),
+          ),
+      },
+      "@/core/event/whitelist": whitelist,
+      "@/hooks/useModal": {
+        useModal: () => ({
+          isOpen: false,
+          openModal() {
+            whitelistOpened++;
+          },
+        }),
+      },
       "@/components/event/setup/EventSetupBoundary": noop,
       "@/components/event/setup/details/EventAccessSettings": noop,
       "@/components/event/setup/details/EventInformationFields": noop,
@@ -1356,7 +1375,7 @@ function detailsActions(save) {
       "@/core/event/draft": load("src/core/event/draft.ts"),
       "@/hooks/useEventDraft": {
         default: () => ({
-          draft: seed,
+          draft: detailsDraft,
           status: "idle",
           readOnly: false,
           change() {},
@@ -1375,7 +1394,12 @@ function detailsActions(save) {
     userId: "owner",
     locale: "th",
   });
-  return { form, ...setupActionButtons(form), navigation };
+  return {
+    form,
+    ...setupActionButtons(form),
+    navigation,
+    whitelistOpened: () => whitelistOpened,
+  };
 }
 test("Details Back and Next save edited form choices before navigation; native submit follows Next", (t) => {
   storage(t);
@@ -1830,4 +1854,502 @@ test("Event information configuration preserves field bindings, limits, labels, 
       }
     }
   }
+});
+
+function whitelistModalHarness(t) {
+  storage(t);
+  const previousDocument = globalThis.document;
+  globalThis.document = { body: {} };
+  t.after(() => {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  });
+  const values = [];
+  let cursor = 0;
+  let closed = 0;
+  let approve = false;
+  let confirmations = 0;
+  let deferred = false;
+  let resolveConfirmation;
+  let confirmOptions;
+  const react = {
+    useState(initial) {
+      const index = cursor++;
+      if (!(index in values))
+        values[index] = typeof initial === "function" ? initial() : initial;
+      return [
+        values[index],
+        (next) => {
+          values[index] =
+            typeof next === "function" ? next(values[index]) : next;
+        },
+      ];
+    },
+    useEffect() {},
+  };
+  const noop = { default: () => null };
+  const messages = JSON.parse(
+    fs.readFileSync(path.join(root, "src/messages/en.json")),
+  ).eventWhitelist;
+  const hook = compileSetupComponent("src/hooks/useEventWhitelist.ts", {
+    react,
+    "@/core/event/whitelist": whitelist,
+  });
+  const component = compileSetupComponent(
+    "src/components/event/whitelist/WhitelistManagementDialog.tsx",
+    {
+      react,
+      "react-dom": { createPortal: (children) => children },
+      "@/components/event/whitelist/WhitelistDialog": noop,
+      "@/components/event/whitelist/WhitelistImportDialog": {
+        default: function Import() {},
+      },
+      "@/components/event/whitelist/WhitelistTable": {
+        default: function Table() {},
+      },
+      "@/components/form/input/InputField": { default: function Input() {} },
+      "@/components/ui/button/Button": { default: setupButton },
+      "@/hooks/useConfirm": {
+        useConfirm: () => ({
+          confirm: (options) => {
+            confirmations++;
+            confirmOptions = options;
+            return deferred
+              ? new Promise((resolve) => {
+                  resolveConfirmation = resolve;
+                })
+              : Promise.resolve(approve);
+          },
+        }),
+      },
+      "@/hooks/useEventWhitelist": { default: hook },
+      "@/core/event/whitelist": whitelist,
+      "next-intl": { useTranslations: () => (key) => messages[key] ?? key },
+    },
+  );
+  const key = whitelist.whitelistKey("modal-owner", seed.eventId, "en");
+  const joined = whitelistEntry("used@example.com", "joined");
+  const unused = whitelistEntry("unused@example.com");
+  whitelist.saveWhitelist(key, [joined, unused]);
+  const render = () => {
+    cursor = 0;
+    return component({
+      workspace: { ...seed, isPrivate: true, canManageWhitelist: true },
+      userId: "modal-owner",
+      locale: "en",
+      onClose: () => closed++,
+    });
+  };
+  return {
+    key,
+    render,
+    joined,
+    unused,
+    approve: (value) => {
+      approve = value;
+    },
+    closed: () => closed,
+    confirmations: () => confirmations,
+    holdConfirmation: () => {
+      deferred = true;
+    },
+    resolveConfirmation: (answer) => resolveConfirmation(answer),
+    confirmOptions: () => confirmOptions,
+  };
+}
+function modalElement(tree, name) {
+  return findSetupElement(tree, (node) => node.type?.name === name);
+}
+function modalAction(tree, label) {
+  return findSetupElement(
+    tree.props.footer,
+    (node) => node.props?.children === label,
+  );
+}
+
+test("Whitelist modal stages deletions, protects used entries, and only Save replaces storage", async (t) => {
+  const ui = whitelistModalHarness(t);
+  let tree = ui.render();
+  ui.approve(true);
+  await modalElement(tree, "Table").props.onDelete(ui.joined);
+  assert.equal(modalElement(ui.render(), "Table").props.entries.length, 2);
+  // The table callback starts an async confirmation; flush its promise continuation.
+  modalElement(ui.render(), "Table").props.onDelete(ui.unused);
+  await Promise.resolve();
+  tree = ui.render();
+  assert.equal(modalElement(tree, "Table").props.entries.length, 1);
+  assert.equal(whitelist.loadWhitelist(ui.key).entries.length, 2);
+  modalAction(tree, "Save").props.onClick();
+  assert.deepEqual(whitelist.loadWhitelist(ui.key).entries, [ui.joined]);
+  assert.equal(ui.closed(), 1);
+});
+
+test("Whitelist modal searches without changing the list and validates inline email before staging", (t) => {
+  const ui = whitelistModalHarness(t);
+  let tree = ui.render();
+  modalElement(tree, "Input").props.onChange({ target: { value: "UNUSED@" } });
+  assert.equal(modalElement(ui.render(), "Table").props.entries.length, 1);
+  tree = ui.render();
+  findSetupElement(
+    tree,
+    (node) => node.props?.children === "Add name",
+  ).props.onClick();
+  let editor = modalElement(ui.render(), "Table").props.editor;
+  editor.onUniqueId("USED@EXAMPLE.COM");
+  modalAction(ui.render(), "Add entry").props.onClick();
+  assert.equal(modalElement(ui.render(), "Table").props.editor.error, "used");
+  editor = modalElement(ui.render(), "Table").props.editor;
+  editor.onUniqueId(" New@Example.com ");
+  editor.onName(" New attendee ");
+  modalAction(ui.render(), "Add entry").props.onClick();
+  const rows = modalElement(ui.render(), "Table").props.entries;
+  assert.equal(rows.length, 3);
+  assert.equal(rows[2].uniqueId, "new@example.com");
+  assert.equal(rows[2].name, "New attendee");
+  assert.equal(whitelist.loadWhitelist(ui.key).entries.length, 2);
+});
+
+test("Whitelist modal dismiss guards pending edits and failed saves keep the modal open", async (t) => {
+  const ui = whitelistModalHarness(t);
+  findSetupElement(
+    ui.render(),
+    (node) => node.props?.children === "Add name",
+  ).props.onClick();
+  modalElement(ui.render(), "Table").props.editor.onUniqueId(
+    "pending@example.com",
+  );
+  await ui.render().props.onClose();
+  await Promise.resolve();
+  assert.equal(ui.closed(), 0);
+  assert.equal(ui.render().props.attentionRequest, 1);
+  assert.equal(ui.render().props.inactive, false);
+  assert.equal(ui.confirmations(), 0);
+  modalAction(ui.render(), "Add entry").props.onClick();
+  globalThis.localStorage.setItem = () => {
+    throw Error("QuotaExceededError");
+  };
+  modalAction(ui.render(), "Save").props.onClick();
+  assert.equal(ui.closed(), 0);
+  assert.ok(
+    findSetupElement(ui.render(), (node) => node.props?.role === "alert"),
+  );
+  // Every repeated close attempt stays in place and requests another shake.
+  ui.approve(true);
+  ui.render().props.onClose();
+  assert.equal(ui.closed(), 0);
+  assert.equal(ui.render().props.attentionRequest, 2);
+  assert.equal(ui.confirmations(), 0);
+  modalAction(ui.render(), "Cancel").props.onClick();
+  assert.equal(ui.closed(), 1);
+  assert.equal(ui.render().props.attentionRequest, 2);
+  assert.equal(whitelist.loadWhitelist(ui.key).entries.length, 2);
+});
+
+test("Details opens Whitelist in place only after a successful details save", () => {
+  for (const saved of [false, true]) {
+    let saves = 0;
+    const ui = detailsActions(() => {
+      saves++;
+      return saved;
+    });
+    const access = findSetupElement(
+      ui.form,
+      (node) => typeof node.props?.onManageWhitelist === "function",
+    );
+    access.props.onManageWhitelist();
+    assert.equal(saves, 1);
+    assert.equal(ui.whitelistOpened(), saved ? 1 : 0);
+    assert.deepEqual(ui.navigation, []);
+  }
+});
+
+test("Whitelist requirement applies only to Private Registration and counts committed valid entries", (t) => {
+  storage(t);
+  const privateDraft = { ...seed, isPrivate: true };
+  const key = whitelist.whitelistKey("owner", seed.eventId, "th");
+  assert.equal(whitelist.getWhitelistRequirement(seed, key), "not_required");
+  assert.equal(
+    whitelist.getWhitelistRequirement(
+      { ...privateDraft, hasRegistration: false },
+      key,
+    ),
+    "not_required",
+  );
+  assert.equal(whitelist.getWhitelistRequirement(privateDraft, key), "missing");
+  whitelist.saveWhitelist(key, [whitelistEntry("one@example.com")]);
+  assert.equal(whitelist.getWhitelistRequirement(privateDraft, key), "ready");
+  assert.equal(
+    whitelist.getWhitelistRequirement(
+      privateDraft,
+      whitelist.whitelistKey("other", seed.eventId, "th"),
+    ),
+    "missing",
+  );
+  assert.equal(
+    whitelist.getWhitelistRequirement(
+      privateDraft,
+      whitelist.whitelistKey("owner", seed.eventId, "en"),
+    ),
+    "missing",
+  );
+  whitelist.saveWhitelist(key, []);
+  assert.equal(whitelist.getWhitelistRequirement(privateDraft, key), "missing");
+  globalThis.localStorage.setItem(key, "invalid-json");
+  assert.equal(whitelist.getWhitelistRequirement(privateDraft, key), "error");
+});
+
+test("Details forward actions require a saved Whitelist but Back and opening management remain available", (t) => {
+  storage(t);
+  const draft = { ...seed, isPrivate: true };
+  const blocked = detailsActions(() => true, draft);
+  blocked.form.props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(blocked.navigation, []);
+  const steps = findSetupElement(
+    blocked.form,
+    (node) => node.props?.current === 1,
+  );
+  assert.equal(steps.props.onNavigate(), false);
+  findSetupElement(
+    blocked.form,
+    (node) => typeof node.props?.onManageWhitelist === "function",
+  ).props.onManageWhitelist();
+  assert.equal(blocked.whitelistOpened(), 1);
+  blocked.back.props.onClick();
+  assert.deepEqual(blocked.navigation, ["/event"]);
+  const key = whitelist.whitelistKey("owner", seed.eventId, "th");
+  whitelist.saveWhitelist(key, [whitelistEntry("one@example.com")]);
+  const allowed = detailsActions(() => true, draft);
+  allowed.form.props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(allowed.navigation, ["/event/branding"]);
+  // Recheck storage at click time even when the last render showed a complete checklist.
+  whitelist.saveWhitelist(key, []);
+  assert.equal(
+    findSetupElement(
+      allowed.form,
+      (node) => node.props?.current === 1,
+    ).props.onNavigate(),
+    false,
+  );
+});
+
+test("Whitelist requirement listeners update only after a successful scoped save", (t) => {
+  storage(t);
+  setupWindow(t);
+  const { subscribeToEventSetup } = load("src/core/event/local-events.ts");
+  const key = whitelist.whitelistKey("owner", seed.eventId, "th");
+  let updates = 0;
+  const unsubscribe = subscribeToEventSetup([key], () => updates++);
+  t.after(unsubscribe);
+  whitelist.saveWhitelist(
+    whitelist.whitelistKey("other", seed.eventId, "th"),
+    [],
+  );
+  assert.equal(updates, 0);
+  whitelist.saveWhitelist(key, [whitelistEntry("one@example.com")]);
+  assert.equal(updates, 1);
+  globalThis.localStorage.setItem = () => {
+    throw Error("QuotaExceededError");
+  };
+  whitelist.saveWhitelist(key, []);
+  assert.equal(updates, 1);
+  assert.equal(
+    whitelist.getWhitelistRequirement({ ...seed, isPrivate: true }, key),
+    "ready",
+  );
+});
+
+test("Whitelist modal closes immediately when there are no unsaved changes", (t) => {
+  const ui = whitelistModalHarness(t);
+  ui.render().props.onClose();
+  assert.equal(ui.closed(), 1);
+  assert.equal(ui.confirmations(), 0);
+});
+
+test("Whitelist close attention shakes only the existing panel and respects reduced motion", (t) => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "matchMedia");
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, "matchMedia", original);
+    else delete globalThis.matchMedia;
+  });
+  let reduced = false;
+  globalThis.matchMedia = () => ({ matches: reduced });
+  const effects = [];
+  const animations = [];
+  let focused = 0;
+  let cancelled = 0;
+  const panel = {
+    querySelector: () => ({ focus: () => focused++ }),
+    parentElement: {
+      animate: (frames, options) => {
+        animations.push({ frames, options });
+        return { cancel: () => cancelled++ };
+      },
+    },
+  };
+  const Dialog = compileSetupComponent(
+    "src/components/event/whitelist/WhitelistDialog.tsx",
+    {
+      react: {
+        useEffect: (effect) => effects.push(effect),
+        useRef: (value) => ({ current: value === 0 ? 0 : panel }),
+        useId: () => "whitelist-dialog",
+      },
+      "next-intl": { useTranslations: () => (key) => key },
+      "@/components/ui/modal": { Modal: function Modal() {} },
+    },
+  );
+  const render = (attentionRequest) => {
+    effects.length = 0;
+    return Dialog({
+      title: "Whitelist",
+      wide: true,
+      attentionRequest,
+      onClose() {},
+      children: null,
+    });
+  };
+  render(0);
+  effects[1]();
+  assert.equal(animations.length, 0);
+  const tree = render(1);
+  const cleanup = effects[1]();
+  assert.equal(tree.props.isOpen, true);
+  assert.equal(animations.length, 1);
+  assert.equal(animations[0].options.duration, 360);
+  assert.deepEqual(animations[0].frames.at(-1), {
+    transform: "translateX(0px)",
+  });
+  assert.ok(findSetupElement(tree, (node) => node.props?.role === "alert"));
+  cleanup();
+  assert.equal(cancelled, 1);
+  reduced = true;
+  render(2);
+  effects[1]();
+  assert.equal(animations.length, 1);
+  assert.equal(focused, 2);
+});
+
+test("Whitelist Cancel discards an unsubmitted inline row and closes without shaking or saving", (t) => {
+  const ui = whitelistModalHarness(t);
+  findSetupElement(
+    ui.render(),
+    (node) => node.props?.children === "Add name",
+  ).props.onClick();
+  modalElement(ui.render(), "Table").props.editor.onUniqueId(
+    "pending@example.com",
+  );
+  modalAction(ui.render(), "Cancel").props.onClick();
+  assert.equal(ui.closed(), 1);
+  assert.equal(ui.render().props.attentionRequest, 0);
+  assert.equal(ui.confirmations(), 0);
+  assert.equal(whitelist.loadWhitelist(ui.key).entries.length, 2);
+  const status = findSetupElement(
+    ui.render(),
+    (node) => node.props?.["aria-live"] === "polite",
+  );
+  assert.equal(
+    [status.props.children].flat(Infinity).filter(Boolean).length,
+    1,
+  );
+});
+
+test("Whitelist delete confirmation keeps the same list mounted and inactive until resolved", async (t) => {
+  const ui = whitelistModalHarness(t);
+  ui.holdConfirmation();
+  const original = ui.render();
+  modalElement(original, "Table").props.onDelete(ui.unused);
+  const pending = ui.render();
+  assert.equal(pending.type, original.type);
+  assert.equal(pending.props.inactive, true);
+  assert.equal(ui.confirmOptions().overModal, true);
+  assert.deepEqual(modalElement(pending, "Table").props.entries, [
+    ui.joined,
+    ui.unused,
+  ]);
+  pending.props.onClose();
+  assert.equal(ui.closed(), 0);
+  ui.resolveConfirmation(false);
+  await Promise.resolve();
+  assert.equal(ui.render().props.inactive, false);
+  assert.equal(modalElement(ui.render(), "Table").props.entries.length, 2);
+  modalElement(ui.render(), "Table").props.onDelete(ui.unused);
+  ui.resolveConfirmation(true);
+  await Promise.resolve();
+  assert.equal(modalElement(ui.render(), "Table").props.entries.length, 1);
+  assert.equal(whitelist.loadWhitelist(ui.key).entries.length, 2);
+});
+
+test("Inactive underlying modal stays visible and does not handle the foreground confirmation's Escape", (t) => {
+  const previousDocument = globalThis.document;
+  const listeners = new Map();
+  globalThis.document = {
+    body: { style: { overflow: "" } },
+    addEventListener: (name, handler) => listeners.set(name, handler),
+    removeEventListener: (name) => listeners.delete(name),
+  };
+  t.after(() => {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  });
+  let effect;
+  let closed = 0;
+  const Modal = compileSetupComponent(
+    "src/components/ui/modal/index.tsx",
+    {
+      react: {
+        useRef: () => ({ current: null }),
+        useEffect: (callback) => {
+          effect = callback;
+        },
+      },
+    },
+    "Modal",
+  );
+  const tree = Modal({
+    isOpen: true,
+    inactive: true,
+    onClose: () => closed++,
+    children: "Retained Whitelist",
+  });
+  const cleanup = effect();
+  const dialog = findSetupElement(
+    tree,
+    (node) => node.props?.role === "dialog",
+  );
+  assert.equal(dialog.props.children[1], "Retained Whitelist");
+  assert.equal(dialog.props.inert, true);
+  assert.equal(dialog.props["aria-hidden"], true);
+  listeners.get("keydown")({ key: "Escape" });
+  assert.equal(closed, 0);
+  assert.equal(tree.props.children[0].props.onClick, undefined);
+  cleanup();
+});
+
+test("Over-modal confirmation uses one black 50% scrim without changing default confirmations", async () => {
+  const calls = [];
+  const showConfirm = compileSetupComponent(
+    "src/utils/confirm.ts",
+    {
+      sweetalert2: {
+        default: {
+          fire: async (options) => {
+            calls.push(options);
+            return { isConfirmed: false };
+          },
+        },
+      },
+    },
+    "showConfirm",
+  );
+  await showConfirm({
+    title: "Delete",
+    message: "Email",
+    appearance: "event",
+    overModal: true,
+  });
+  assert.equal(calls[0].backdrop, "rgba(0,0,0,0.5)");
+  assert.equal(calls[0].keydownListenerCapture, true);
+  await showConfirm({ title: "Default", message: "Unchanged" });
+  assert.equal("backdrop" in calls[1], false);
+  assert.equal("keydownListenerCapture" in calls[1], false);
 });

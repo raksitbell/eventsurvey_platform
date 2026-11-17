@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 export interface ConfirmOptions {
   title: string;
   appearance?: "default" | "event";
+  overModal?: boolean;
   subtitle?: string;
   note?: string;
   showCancel?: boolean;
@@ -30,6 +31,7 @@ export async function showConfirm({
   title,
   message,
   appearance = "default",
+  overModal = false,
   subtitle,
   note,
   showCancel = true,
@@ -65,6 +67,9 @@ export async function showConfirm({
     cancelButtonText: cancelLabel,
     buttonsStyling: false,
     heightAuto: false,
+    ...(overModal
+      ? { backdrop: "rgba(0,0,0,0.5)", keydownListenerCapture: true }
+      : {}),
     ...(eventStyle ? { width: "var(--container-event-confirm)" } : {}),
     customClass: {
       container: "es-swal-container",

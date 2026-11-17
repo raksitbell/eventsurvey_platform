@@ -28,7 +28,6 @@ function WhitelistPage({ workspace, userId, locale }: EventSetupPageProps) {
     if (!dirty) return;
     const beforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = "";
     };
     globalThis.addEventListener("beforeunload", beforeUnload);
     return () => globalThis.removeEventListener("beforeunload", beforeUnload);
