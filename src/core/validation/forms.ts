@@ -37,30 +37,67 @@ const labelSchema = z.object({
 const ratingDisplaySchema = z.enum(["icon", "linear_scale"]);
 const ratingIconSchema = z.enum(["star", "heart", "like"]);
 
+const rawQuestionInnerSchema = z
+  .object({
+    id: z.uuid().optional(),
+    type: questionTypeSchema,
+    display_order: z.number().int().positive(),
+    min_number: z.number(),
+    max_number: z.number(),
+    min_value: z.number().nullable().optional(),
+    max_value: z.number().nullable().optional(),
+    min_length: z.number().int().nonnegative(),
+    max_length: z.number().int().nonnegative(),
+    is_required: z.boolean().optional(),
+    required: z.boolean().optional(),
+    is_unique: z.boolean().default(false),
+    rating_display: ratingDisplaySchema.default("icon"),
+    rating_icon: ratingIconSchema.default("star"),
+    rating_max: z.number().default(5),
+    label: z.object({
+      en: z.array(labelSchema).min(1),
+      th: z.array(labelSchema).min(1),
+    }),
+  })
+  .superRefine((q, ctx) => {
+    if (typeof q.is_required !== "boolean" && typeof q.required !== "boolean") {
+      ctx.addIssue({
+        code: "custom",
+        message: "is_required (or required) must be a boolean",
+        path: ["is_required"],
+      });
+    }
+  })
+  .transform((q) => {
+    const { required, is_required, ...rest } = q;
+    return {
+      ...rest,
+      is_required: is_required ?? required ?? false,
+    };
+  });
+
 const questionSchema = z
   .object({
-    question: z.object({
-      id: z.uuid().optional(),
-      type: questionTypeSchema,
-      display_order: z.number().int().positive(),
-      min_number: z.number(),
-      max_number: z.number(),
-      min_length: z.number().int().nonnegative(),
-      max_length: z.number().int().nonnegative(),
-      is_required: z.boolean(),
-      is_unique: z.boolean().default(false),
-      rating_display: ratingDisplaySchema.default("icon"),
-      rating_icon: ratingIconSchema.default("star"),
-      rating_max: z.number().default(5),
-      label: z.object({
-        en: z.array(labelSchema).min(1),
-        th: z.array(labelSchema).min(1),
-      }),
-    }),
+    question: rawQuestionInnerSchema,
   })
   .superRefine((item, ctx) => {
     const q = item.question;
-    if (q.min_number > q.max_number) {
+    if (
+      q.min_value !== undefined &&
+      q.min_value !== null &&
+      q.max_value !== undefined &&
+      q.max_value !== null &&
+      q.min_value > q.max_value
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "min_value must be <= max_value",
+        path: ["question", "min_value"],
+      });
+    } else if (
+      (q.type === "rating" || q.max_number !== 0) &&
+      q.min_number > q.max_number
+    ) {
       ctx.addIssue({
         code: "custom",
         message: "min_number must be <= max_number",

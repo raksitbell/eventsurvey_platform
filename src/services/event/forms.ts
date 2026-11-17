@@ -224,12 +224,18 @@ function buildLabelPair(
   thPlaceholder: string,
   enChoices: Choice[],
   thChoices: Choice[],
+  enScaleMinLabel = "",
+  enScaleMaxLabel = "",
+  thScaleMinLabel = "",
+  thScaleMaxLabel = "",
 ): { en: Label[]; th: Label[] } {
   return {
     en: [
       {
         label: enLabel,
         placeholder: enPlaceholder,
+        scale_min_label: enScaleMinLabel,
+        scale_max_label: enScaleMaxLabel,
         choices: { en: enChoices, th: thChoices },
       },
     ],
@@ -237,6 +243,8 @@ function buildLabelPair(
       {
         label: thLabel,
         placeholder: thPlaceholder,
+        scale_min_label: thScaleMinLabel,
+        scale_max_label: thScaleMaxLabel,
         choices: { en: enChoices, th: thChoices },
       },
     ],
@@ -299,6 +307,8 @@ async function loadQuestions(formId: string): Promise<Question[]> {
         display_order: field.display_order,
         min_number: nullToNumber(field.min_number, type === "rating" ? 1 : 0),
         max_number: nullToNumber(field.max_number, type === "rating" ? 5 : 0),
+        min_value: field.min_number,
+        max_value: field.max_number,
         min_length: nullToNumber(field.min_length),
         max_length: nullToNumber(field.max_length),
         is_required: field.is_required,
@@ -316,6 +326,10 @@ async function loadQuestions(formId: string): Promise<Question[]> {
           thT?.placeholder ?? "",
           choices.en,
           choices.th,
+          enT?.scale_min_label ?? "",
+          enT?.scale_max_label ?? "",
+          thT?.scale_min_label ?? "",
+          thT?.scale_max_label ?? "",
         ),
       },
     });
@@ -342,7 +356,9 @@ async function toFormRecord(
   form: MockForm,
   event?: MockEvent,
 ): Promise<FormRecord> {
-  const parent = event ?? (await loadEvent(form.event_id));
+  if (!event) {
+    await loadEvent(form.event_id);
+  }
   const [translationRows, questions] = await Promise.all([
     loadFormTranslations(form.id),
     loadQuestions(form.id),
@@ -622,6 +638,8 @@ async function replaceQuestionTree(
       locale_code: "en",
       label: enLabel.label,
       placeholder: enLabel.placeholder || null,
+      scale_min_label: enLabel.scale_min_label || null,
+      scale_max_label: enLabel.scale_max_label || null,
     });
     await mockApi.post("/field_translations", {
       id: newId(),
@@ -629,6 +647,8 @@ async function replaceQuestionTree(
       locale_code: "th",
       label: thLabel.label,
       placeholder: thLabel.placeholder || null,
+      scale_min_label: thLabel.scale_min_label || null,
+      scale_max_label: thLabel.scale_max_label || null,
     });
 
     const existingOptions = await mockApi.get<MockFieldOption[]>(
