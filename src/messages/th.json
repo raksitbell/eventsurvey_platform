@@ -136,6 +136,7 @@
     "eventStatus": {
       "draft": "ฉบับร่าง",
       "pending_approval": "รออนุมัติ",
+      "open": "เปิด",
       "published": "เผยแพร่แล้ว",
       "closed": "ปิดแล้ว",
       "archived": "เก็บถาวร"
@@ -221,6 +222,7 @@
     "eventStatus": {
       "draft": "แบบร่าง",
       "pending_approval": "รออนุมัติ",
+      "open": "เปิด",
       "published": "เผยแพร่แล้ว",
       "closed": "ปิดแล้ว",
       "archived": "เก็บถาวร"

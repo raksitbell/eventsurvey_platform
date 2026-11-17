@@ -136,6 +136,7 @@
     "eventStatus": {
       "draft": "Draft",
       "pending_approval": "Pending approval",
+      "open": "Open",
       "published": "Published",
       "closed": "Closed",
       "archived": "Archived"
@@ -221,6 +222,7 @@
     "eventStatus": {
       "draft": "Draft",
       "pending_approval": "Pending approval",
+      "open": "Open",
       "published": "Published",
       "closed": "Closed",
       "archived": "Archived"

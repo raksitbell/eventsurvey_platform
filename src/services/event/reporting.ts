@@ -92,9 +92,15 @@ export async function getReportingData(
       "/answer_option_selections",
     ),
     mockApi.get<Translation[]>("/field_option_translations"),
-    mockApi.get<Trash[]>(
-      `/trash_items?event_id=${encodeURIComponent(ctx.eventId)}`,
-    ),
+    (async () => {
+      try {
+        return await mockApi.get<Trash[]>(
+          `/trash_items?event_id=${encodeURIComponent(ctx.eventId)}`,
+        );
+      } catch {
+        return [];
+      }
+    })(),
     mockApi.get<MockUser[]>(
       `/users?event_id=${encodeURIComponent(ctx.eventId)}`,
     ),

@@ -10,6 +10,7 @@ export type MockAccountStatus = "invited" | "active" | "suspended" | "removed";
 export type MockEventStatus =
   | "draft"
   | "pending_approval"
+  | "open"
   | "published"
   | "closed"
   | "archived";
