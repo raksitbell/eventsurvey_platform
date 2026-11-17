@@ -1,14 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { EyeIcon, PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  EyeIcon,
+  LockClosedIcon,
+  PlusIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
+import { useAuth } from "@/context/AuthContext";
+import { api, ApiError } from "@/core/api";
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
 import {
   Choice,
   Form,
+  FormListResponse,
   FormLocale,
+  FormRecord,
+  FormStatus,
   FormType,
   ICON,
   Question,
@@ -17,6 +30,7 @@ import {
   RATING_DISPLAY,
   UNIQUE_QUESTION_TYPES,
 } from "@/types/event/form";
+import type { EventWorkspace } from "@/types/event/workspace";
 import FormHeaderCard from "./FormHeaderCard";
 import QuestionCard from "./QuestionCard";
 import FloatingToolbar from "./FloatingToolbar";
@@ -28,6 +42,36 @@ const CHOICE_QUESTION_TYPES: QuestionType[] = [
   "dropdown",
   "rating",
 ];
+
+const PERSISTED_CHOICE_TYPES = new Set<QuestionType>([
+  "multiple_choice",
+  "checkbox",
+  "dropdown",
+]);
+
+function toFlatpickrDateTime(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(trimmed)) return trimmed;
+  const d = new Date(trimmed);
+  if (Number.isNaN(d.getTime())) return trimmed;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+}
+
+function toApiIsoDateTime(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.includes("T")
+    ? trimmed
+    : trimmed.replace(" ", "T");
+  const d = new Date(normalized);
+  return Number.isNaN(d.getTime()) ? trimmed : d.toISOString();
+}
 
 function createChoicePair(order: number): { th: Choice; en: Choice } {
   const id = crypto.randomUUID();
@@ -94,9 +138,25 @@ export default function FormBuilder({ type }: { type: FormType }) {
   const tbuilder = useTranslations("form.builder");
   const tcommon = useTranslations("common");
   const router = useRouter();
+  const { user } = useAuth();
 
   const [hasEnglish, setHasEnglish] = useState<boolean>(false);
   const [mobileTab, setMobileTab] = useState<FormLocale>("th");
+
+  const [eventId, setEventId] = useState<string | null>(null);
+  const [formId, setFormId] = useState<string | null>(null);
+  const [formStatus, setFormStatus] = useState<FormStatus>("draft");
+  const [canEdit, setCanEdit] = useState<boolean>(true);
+  const [canChangeStatus, setCanChangeStatus] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const serverQuestionIdsRef = useRef<Set<string>>(new Set());
+  const serverChoiceIdsRef = useRef<Set<string>>(new Set());
 
   const [form, setForm] = useState<Form>(() => {
     const firstQuestion = createQuestion(1);
@@ -145,6 +205,175 @@ export default function FormBuilder({ type }: { type: FormType }) {
     choiceId: string;
   } | null>(null);
 
+  const applyServerRecord = useCallback(
+    (record: FormRecord, preserveHasEnglish = false) => {
+      const qIds = new Set<string>();
+      const cIds = new Set<string>();
+      let detectedEnglishDiff =
+        record.head.en.title.trim() !== record.head.th.title.trim() ||
+        record.head.en.description.trim() !==
+          record.head.th.description.trim();
+
+      const normalizedQuestions: Question[] = (
+        record.questions.length > 0 ? record.questions : [createQuestion(1)]
+      ).map((item, idx) => {
+        const q = item.question;
+        const qId = q.id || crypto.randomUUID();
+        if (q.id) qIds.add(q.id);
+
+        const enLbl = q.label.en[0];
+        const thLbl = q.label.th[0];
+        if (
+          (enLbl?.label ?? "").trim() !== (thLbl?.label ?? "").trim() ||
+          (enLbl?.scale_min_label ?? "") !== (thLbl?.scale_min_label ?? "") ||
+          (enLbl?.scale_max_label ?? "") !== (thLbl?.scale_max_label ?? "")
+        ) {
+          detectedEnglishDiff = true;
+        }
+
+        const rawEnChoices = enLbl?.choices.en ?? [];
+        const rawThChoices = thLbl?.choices.th ?? enLbl?.choices.th ?? [];
+        rawEnChoices.forEach((c) => {
+          if (c.id) cIds.add(c.id);
+        });
+        rawThChoices.forEach((c) => {
+          if (c.id) cIds.add(c.id);
+        });
+
+        let syncedChoices: { th: Choice[]; en: Choice[] };
+        if (rawEnChoices.length > 0 || rawThChoices.length > 0) {
+          const len = Math.max(rawEnChoices.length, rawThChoices.length);
+          const thList: Choice[] = [];
+          const enList: Choice[] = [];
+          for (let i = 0; i < len; i += 1) {
+            const enC = rawEnChoices[i];
+            const thC = rawThChoices[i];
+            const sharedId = enC?.id || thC?.id || crypto.randomUUID();
+            const thText = thC?.label ?? enC?.label ?? `Option ${i + 1}`;
+            const enText = enC?.label ?? thC?.label ?? `Option ${i + 1}`;
+            if (thText !== enText) detectedEnglishDiff = true;
+            thList.push({
+              id: sharedId,
+              label: thText,
+              display_order: i + 1,
+              scale_min_label: thLbl?.scale_min_label ?? "",
+              scale_max_label: thLbl?.scale_max_label ?? "",
+            });
+            enList.push({
+              id: sharedId,
+              label: enText,
+              display_order: i + 1,
+              scale_min_label: enLbl?.scale_min_label ?? "",
+              scale_max_label: enLbl?.scale_max_label ?? "",
+            });
+          }
+          syncedChoices = { th: thList, en: enList };
+        } else {
+          const fallback = createChoicePair(1);
+          syncedChoices = { th: [fallback.th], en: [fallback.en] };
+        }
+
+        return {
+          question: {
+            ...q,
+            id: qId,
+            display_order: idx + 1,
+            label: {
+              th: [
+                {
+                  label: thLbl?.label ?? "",
+                  placeholder: thLbl?.placeholder ?? "",
+                  scale_min_label: thLbl?.scale_min_label ?? "",
+                  scale_max_label: thLbl?.scale_max_label ?? "",
+                  choices: syncedChoices,
+                },
+              ],
+              en: [
+                {
+                  label: enLbl?.label ?? thLbl?.label ?? "",
+                  placeholder: enLbl?.placeholder ?? thLbl?.placeholder ?? "",
+                  scale_min_label:
+                    enLbl?.scale_min_label ?? thLbl?.scale_min_label ?? "",
+                  scale_max_label:
+                    enLbl?.scale_max_label ?? thLbl?.scale_max_label ?? "",
+                  choices: syncedChoices,
+                },
+              ],
+            },
+          },
+        };
+      });
+
+      serverQuestionIdsRef.current = qIds;
+      serverChoiceIdsRef.current = cIds;
+
+      setFormId(record.id);
+      setFormStatus(record.status);
+      setCanEdit(record.canEdit);
+      setCanChangeStatus(record.canChangeStatus);
+      if (!preserveHasEnglish) {
+        setHasEnglish(detectedEnglishDiff);
+      }
+
+      setForm({
+        id: record.id,
+        type: record.type,
+        head: {
+          th: {
+            title: record.head.th.title,
+            description: record.head.th.description,
+          },
+          en: {
+            title: record.head.en.title,
+            description: record.head.en.description,
+          },
+        },
+        opens_at: toFlatpickrDateTime(record.opensAt ?? record.opens_at),
+        closes_at: toFlatpickrDateTime(record.closesAt ?? record.closes_at),
+        questions: normalizedQuestions,
+      });
+
+      setActiveSectionId(normalizedQuestions[0]?.question.id ?? "header");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function loadInitial() {
+      setIsLoading(true);
+      try {
+        const ws = await api.get<EventWorkspace>("/event/workspace");
+        if (cancelled) return;
+        setEventId(ws.eventId);
+
+        const listRes = await api.get<FormListResponse>(
+          `/event/forms?eventId=${encodeURIComponent(ws.eventId)}`,
+        );
+        if (cancelled) return;
+
+        const existing = listRes.forms.find((f) => f.type === type);
+        if (existing) {
+          applyServerRecord(existing);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof ApiError ? err.message : t("loadError");
+          setFeedback({ type: "error", message: msg });
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    void loadInitial();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyServerRecord, t, type, user]);
+
   useEffect(() => {
     const updatePosition = () => {
       const activeEl = sectionRefs.current[activeSectionId];
@@ -159,6 +388,187 @@ export default function FormBuilder({ type }: { type: FormType }) {
     window.addEventListener("resize", updatePosition);
     return () => window.removeEventListener("resize", updatePosition);
   }, [activeSectionId, form.questions, hasEnglish, mobileTab]);
+
+  const buildPayloadForApi = (currentForm: Form, isUpdate: boolean): Form => {
+    const fallbackTitle =
+      type === "registration" ? t("registration") : t("survey");
+    const thTitle = currentForm.head.th.title.trim() || fallbackTitle;
+    const enTitle = hasEnglish
+      ? currentForm.head.en.title.trim() || thTitle
+      : thTitle;
+    const thDesc = currentForm.head.th.description;
+    const enDesc = hasEnglish ? currentForm.head.en.description : thDesc;
+
+    const mappedQuestions: Question[] = currentForm.questions.map(
+      (item, qIdx) => {
+        const q = item.question;
+        const keepQuestionId =
+          isUpdate && q.id && serverQuestionIdsRef.current.has(q.id)
+            ? q.id
+            : undefined;
+
+        const thLbl = q.label.th[0];
+        const enLbl = hasEnglish ? q.label.en[0] : thLbl;
+        const isChoiceType = PERSISTED_CHOICE_TYPES.has(q.type);
+
+        const mapChoiceList = (list: Choice[]): Choice[] =>
+          isChoiceType
+            ? list.map((c, cIdx) => {
+                const keepChoiceId =
+                  isUpdate && c.id && serverChoiceIdsRef.current.has(c.id)
+                    ? c.id
+                    : undefined;
+                return {
+                  ...(keepChoiceId ? { id: keepChoiceId } : {}),
+                  label: c.label,
+                  display_order: cIdx + 1,
+                };
+              })
+            : [];
+
+        const apiThChoices = mapChoiceList(thLbl.choices.th);
+        const apiEnChoices = mapChoiceList(
+          hasEnglish ? enLbl.choices.en : thLbl.choices.th,
+        );
+        const apiChoicesPair = { en: apiEnChoices, th: apiThChoices };
+
+        const minNum =
+          q.type === "rating"
+            ? q.min_number
+            : q.type === "number"
+              ? (q.min_value ?? 0)
+              : 0;
+        const maxNum =
+          q.type === "rating"
+            ? q.max_number || q.rating_max || 5
+            : q.type === "number"
+              ? (q.max_value ?? 0)
+              : 0;
+
+        return {
+          question: {
+            ...(keepQuestionId ? { id: keepQuestionId } : {}),
+            type: q.type,
+            display_order: qIdx + 1,
+            min_number: minNum,
+            max_number: maxNum,
+            min_value: q.min_value ?? null,
+            max_value: q.max_value ?? null,
+            min_length: q.min_length,
+            max_length: q.max_length,
+            is_required: q.is_required,
+            is_unique: q.is_unique,
+            rating_display: q.rating_display,
+            rating_icon: q.rating_icon,
+            rating_max: q.rating_max || 5,
+            label: {
+              en: [
+                {
+                  label: enLbl.label,
+                  placeholder: enLbl.placeholder,
+                  scale_min_label: enLbl.scale_min_label ?? "",
+                  scale_max_label: enLbl.scale_max_label ?? "",
+                  choices: apiChoicesPair,
+                },
+              ],
+              th: [
+                {
+                  label: thLbl.label,
+                  placeholder: thLbl.placeholder,
+                  scale_min_label: thLbl.scale_min_label ?? "",
+                  scale_max_label: thLbl.scale_max_label ?? "",
+                  choices: apiChoicesPair,
+                },
+              ],
+            },
+          },
+        };
+      },
+    );
+
+    return {
+      ...(isUpdate && formId ? { id: formId } : {}),
+      type: currentForm.type,
+      head: {
+        en: { title: enTitle, description: enDesc },
+        th: { title: thTitle, description: thDesc },
+      },
+      opens_at: toApiIsoDateTime(currentForm.opens_at),
+      closes_at: toApiIsoDateTime(currentForm.closes_at),
+      questions: mappedQuestions,
+    };
+  };
+
+  const handleSave = async (): Promise<FormRecord | null> => {
+    if (!eventId) return null;
+    setIsSaving(true);
+    setFeedback(null);
+
+    try {
+      let saved: FormRecord;
+      if (!formId) {
+        const payload = buildPayloadForApi(form, false);
+        saved = await api.post<FormRecord>("/event/forms", {
+          ...payload,
+          eventId,
+        });
+      } else {
+        const payload = buildPayloadForApi(form, true);
+        saved = await api.put<FormRecord>(`/event/forms/${formId}`, payload);
+      }
+
+      applyServerRecord(saved, true);
+      setFeedback({ type: "success", message: tbuilder("saveSuccess") });
+      return saved;
+    } catch (err) {
+      const msg =
+        err instanceof ApiError ? err.message : tbuilder("saveError");
+      setFeedback({ type: "error", message: msg });
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleSchedule = async () => {
+    setIsSaving(true);
+    setFeedback(null);
+    try {
+      let targetId = formId;
+      if (formStatus === "draft") {
+        // Save latest draft edits before transitioning to scheduled
+        const saved = await handleSave();
+        if (!saved) return;
+        targetId = saved.id;
+      }
+      if (!targetId) return;
+
+      const nextStatus = formStatus === "draft" ? "scheduled" : "draft";
+      const updated = await api.patch<FormRecord>(
+        `/event/forms/${targetId}/status`,
+        {
+          status: nextStatus,
+          opensAt: toApiIsoDateTime(form.opens_at),
+          closesAt: toApiIsoDateTime(form.closes_at),
+        },
+      );
+
+      applyServerRecord(updated, true);
+      setFeedback({
+        type: "success",
+        message:
+          nextStatus === "scheduled"
+            ? tbuilder("scheduleSuccess")
+            : tbuilder("revertSuccess"),
+      });
+    } catch (err) {
+      const msg =
+        err instanceof ApiError ? err.message : tbuilder("saveError");
+      setFeedback({ type: "error", message: msg });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   /**
    * Duplicate all current Thai (`th`) text values into English (`en`)
@@ -244,6 +654,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const addQuestion = () => {
+    if (!canEdit) return;
     const newQ = createQuestion(form.questions.length + 1);
     const newId = newQ.question.id!;
 
@@ -276,6 +687,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const duplicateQuestion = (id: string) => {
+    if (!canEdit) return;
     const targetIdx = form.questions.findIndex(
       (item) => item.question.id === id,
     );
@@ -359,6 +771,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const deleteQuestion = (id: string) => {
+    if (!canEdit) return;
     const currentIdx = form.questions.findIndex(
       (item) => item.question.id === id,
     );
@@ -386,7 +799,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const reorderQuestions = (sourceId: string, targetId: string) => {
-    if (sourceId === targetId) return;
+    if (!canEdit || sourceId === targetId) return;
 
     setForm((prev) => {
       const sourceIdx = prev.questions.findIndex(
@@ -417,6 +830,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const updateQuestion = (id: string, nextType: QuestionType) => {
+    if (!canEdit) return;
     const isUniqueEligible = (
       UNIQUE_QUESTION_TYPES as readonly QuestionType[]
     ).includes(nextType);
@@ -477,6 +891,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const toggleRequired = (id: string) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       questions: prev.questions.map((item) =>
@@ -494,6 +909,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const toggleUnique = (id: string) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       questions: prev.questions.map((item) =>
@@ -511,6 +927,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const updateQuestionRange = (id: string, min: number, max: number) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       questions: prev.questions.map((item) =>
@@ -534,6 +951,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     min: number | null,
     max: number | null,
   ) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       questions: prev.questions.map((item) =>
@@ -557,6 +975,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     id: string,
     ratingDisplay: RATING_DISPLAY,
   ) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       questions: prev.questions.map((item) =>
@@ -574,6 +993,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const updateQuestionRatingIcon = (id: string, ratingIcon: ICON) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       questions: prev.questions.map((item) =>
@@ -596,6 +1016,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     minLabel: string,
     maxLabel: string,
   ) => {
+    if (!canEdit) return;
     const mirrorToEnglish = !hasEnglish && locale === "th";
 
     setForm((prev) => ({
@@ -676,6 +1097,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const addChoice = (questionId: string) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       questions: prev.questions.map((item) => {
@@ -713,6 +1135,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     choiceId: string,
     newLabel: string,
   ) => {
+    if (!canEdit) return;
     const mirrorToEnglish = !hasEnglish && locale === "th";
 
     setForm((prev) => ({
@@ -758,6 +1181,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const deleteChoice = (questionId: string, choiceId: string) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       questions: prev.questions.map((item) => {
@@ -799,7 +1223,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     sourceChoiceId: string,
     targetChoiceId: string,
   ) => {
-    if (sourceChoiceId === targetChoiceId) return;
+    if (!canEdit || sourceChoiceId === targetChoiceId) return;
 
     const moveChoiceInList = (list: Choice[]): Choice[] => {
       const next = [...list];
@@ -842,6 +1266,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const setTitle = (locale: FormLocale, title: string) => {
+    if (!canEdit) return;
     const mirrorToEnglish = !hasEnglish && locale === "th";
 
     setForm((prev) => ({
@@ -865,6 +1290,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const setDescription = (locale: FormLocale, description: string) => {
+    if (!canEdit) return;
     const mirrorToEnglish = !hasEnglish && locale === "th";
 
     setForm((prev) => ({
@@ -888,6 +1314,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const setOpensAt = (opensAt: string) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       opens_at: opensAt,
@@ -895,6 +1322,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   const setClosesAt = (closesAt: string) => {
+    if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
       closes_at: closesAt,
@@ -906,6 +1334,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     locale: FormLocale,
     nextLabel: string,
   ) => {
+    if (!canEdit) return;
     const mirrorToEnglish = !hasEnglish && locale === "th";
 
     setForm((prev) => ({
@@ -957,12 +1386,17 @@ export default function FormBuilder({ type }: { type: FormType }) {
       <div
         className={`mx-auto mb-6 flex ${containerWidthClass} flex-wrap items-center justify-between gap-3 md:mb-8`}
       >
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl md:text-3xl dark:text-white">
-          {t("title")}
-        </h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl md:text-3xl dark:text-white">
+            {t("title")}
+          </h1>
+          <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+            {formId ? t(`status.${formStatus}`) : t("status.draft")}
+          </span>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2 md:me-16">
-          {!hasEnglish && (
+          {!hasEnglish && canEdit && (
             <button
               type="button"
               onClick={addEnglishLanguage}
@@ -971,6 +1405,34 @@ export default function FormBuilder({ type }: { type: FormType }) {
               <PlusIcon className="h-4 w-4" />
               <UsFlagIcon className="size-4 rounded-sm" />
               <span>{tbuilder("addEnglish")}</span>
+            </button>
+          )}
+
+          {canEdit && (
+            <button
+              type="button"
+              disabled={isSaving || isLoading || !eventId}
+              onClick={() => void handleSave()}
+              className="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 disabled:opacity-50"
+            >
+              <CheckCircleIcon className="h-4 w-4" />
+              <span>{isSaving ? tbuilder("saving") : tbuilder("save")}</span>
+            </button>
+          )}
+
+          {canChangeStatus && (formId || canEdit) && (
+            <button
+              type="button"
+              disabled={isSaving || isLoading || !eventId}
+              onClick={() => void handleToggleSchedule()}
+              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <ArrowPathIcon className="h-4 w-4" />
+              <span>
+                {formStatus === "draft"
+                  ? tbuilder("schedule")
+                  : tbuilder("revertToDraft")}
+              </span>
             </button>
           )}
 
@@ -991,6 +1453,42 @@ export default function FormBuilder({ type }: { type: FormType }) {
             {tcommon("back")}
           </button>
         </div>
+      </div>
+
+      {/* Feedback Banner & Locked Notice */}
+      <div className={`mx-auto mb-4 flex ${containerWidthClass} flex-col gap-3`}>
+        {feedback && (
+          <div
+            className={`flex items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm font-medium ${
+              feedback.type === "success"
+                ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-300"
+                : "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-300"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {feedback.type === "success" ? (
+                <CheckCircleIcon className="h-5 w-5 shrink-0" />
+              ) : (
+                <ExclamationCircleIcon className="h-5 w-5 shrink-0" />
+              )}
+              <span>{feedback.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFeedback(null)}
+              className="text-xs underline opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {!canEdit && (
+          <div className="flex items-center gap-2 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-300">
+            <LockClosedIcon className="h-5 w-5 shrink-0" />
+            <span>{tbuilder("lockedNotice")}</span>
+          </div>
+        )}
       </div>
 
       <div
@@ -1039,18 +1537,20 @@ export default function FormBuilder({ type }: { type: FormType }) {
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={removeEnglishLanguage}
-                  title={tbuilder("removeEnglish")}
-                  aria-label={tbuilder("removeEnglish")}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-500 transition-colors hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-500/15 dark:hover:text-error-400"
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                  <span className="hidden sm:inline">
-                    {tbuilder("removeEnglish")}
-                  </span>
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={removeEnglishLanguage}
+                    title={tbuilder("removeEnglish")}
+                    aria-label={tbuilder("removeEnglish")}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-500 transition-colors hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-500/15 dark:hover:text-error-400"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      {tbuilder("removeEnglish")}
+                    </span>
+                  </button>
+                )}
               </div>
 
               {/* Desktop (>= lg): 2-Column Language Header Bar */}
@@ -1067,14 +1567,16 @@ export default function FormBuilder({ type }: { type: FormType }) {
                     <UsFlagIcon className="size-4 rounded-sm" />
                     <span>{tbuilder("langEnglish")}</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={removeEnglishLanguage}
-                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-500/15 dark:hover:text-error-400"
-                  >
-                    <XMarkIcon className="h-4 w-4" />
-                    <span>{tbuilder("removeEnglish")}</span>
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={removeEnglishLanguage}
+                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-500/15 dark:hover:text-error-400"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                      <span>{tbuilder("removeEnglish")}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </>
@@ -1130,8 +1632,12 @@ export default function FormBuilder({ type }: { type: FormType }) {
                 ref={(el) => {
                   sectionRefs.current[qId] = el;
                 }}
-                draggable
+                draggable={canEdit}
                 onDragStart={(e) => {
+                  if (!canEdit) {
+                    e.preventDefault();
+                    return;
+                  }
                   const target = e.target as HTMLElement;
                   if (
                     target.closest("input, textarea, select, button, label")
@@ -1263,7 +1769,9 @@ export default function FormBuilder({ type }: { type: FormType }) {
         </div>
 
         {/* 3. Floating Sidebar (Right on Desktop, Bottom Bar on Mobile) */}
-        <FloatingToolbar topOffset={toolbarTop} onAddQuestion={addQuestion} />
+        {canEdit && (
+          <FloatingToolbar topOffset={toolbarTop} onAddQuestion={addQuestion} />
+        )}
       </div>
     </div>
   );

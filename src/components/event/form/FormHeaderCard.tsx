@@ -143,7 +143,7 @@ export default function FormHeaderCard({
     locale === "th" ? tbuilder("langThai") : tbuilder("langEnglish");
 
   const isDateRangeInvalid =
-    Boolean(opensAt && closesAt) && opensAt > closesAt;
+    Boolean(opensAt && closesAt) && opensAt >= closesAt;
 
   return (
     <div
