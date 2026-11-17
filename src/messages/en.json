@@ -386,6 +386,25 @@
       }
     }
   },
+  "participantDisplay": {
+    "title": "Sample Event",
+    "organizer": "Event Team",
+    "organizerInitial": "E",
+    "startsAt": "Starts 1 Dec 2026 · 10:00",
+    "endsAt": "Ends 2 Dec 2026 · 18:00",
+    "location": "Event Venue",
+    "locationDetail": "Hall A",
+    "description": "Event information will appear here. This space can introduce the event, activities, and useful details for attendees.",
+    "socialHandle": "@username",
+    "hostedBy": "Organizer",
+    "hostedBySubtitle": "Hosted by",
+    "about": "About Event",
+    "aboutSubtitle": "Overview",
+    "registration": "Registration",
+    "survey": "Survey",
+    "bannerPlaceholder": "Event banner placeholder",
+    "qrPlaceholder": "QR placeholder"
+  },
   "notFound": {
     "error": "ERROR",
     "message": "We can't seem to find the page you are looking for!",
