@@ -1,5 +1,6 @@
 "use client";
 
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import type { AdminOverviewResponse } from "@/types/admin/overview";
 import type { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
@@ -7,12 +8,14 @@ import { useTranslations } from "next-intl";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
+  loading: () => <Skeleton className="h-[320px] w-full rounded-xl" />,
 });
 
 type Growth = AdminOverviewResponse["growth"];
 
 type PlatformGrowthChartProps = {
   growth: Growth | null;
+  isLoading?: boolean;
 };
 
 function withForecastGap(history: number[], forecast: number[]): number[] {
@@ -20,8 +23,24 @@ function withForecastGap(history: number[], forecast: number[]): number[] {
   return [history[history.length - 1], ...forecast];
 }
 
-export default function PlatformGrowthChart({ growth }: PlatformGrowthChartProps) {
+export default function PlatformGrowthChart({
+  growth,
+  isLoading = false,
+}: PlatformGrowthChartProps) {
   const t = useTranslations("adminHome");
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3" aria-busy="true">
+        <div className="flex flex-wrap gap-3">
+          <Skeleton className="h-3.5 w-20" />
+          <Skeleton className="h-3.5 w-20" />
+          <Skeleton className="h-3.5 w-24" />
+        </div>
+        <Skeleton className="h-[290px] w-full rounded-xl" />
+      </div>
+    );
+  }
 
   if (!growth) {
     return (

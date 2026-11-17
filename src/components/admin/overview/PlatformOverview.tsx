@@ -30,12 +30,14 @@ export default function PlatformOverview() {
   const t = useTranslations("adminHome");
   const locale = useLocale() as Locale;
   const [overview, setOverview] = useState<AdminOverviewResponse | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      setIsLoading(true);
       try {
         const data = await api.get<AdminOverviewResponse>(
           `/admin/overview?locale=${encodeURIComponent(locale)}`,
@@ -46,6 +48,8 @@ export default function PlatformOverview() {
         }
       } catch {
         if (!cancelled) setError(t("loadError"));
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     }
 
@@ -189,14 +193,20 @@ export default function PlatformOverview() {
           <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
             {t("growthHint")}
           </p>
-          <PlatformGrowthChart growth={overview?.growth ?? null} />
+          <PlatformGrowthChart
+            growth={overview?.growth ?? null}
+            isLoading={isLoading}
+          />
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
           <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
             {t("eventStatusTitle")}
           </h2>
-          <EventStatusChart breakdown={overview?.eventStatusBreakdown ?? null} />
+          <EventStatusChart
+            breakdown={overview?.eventStatusBreakdown ?? null}
+            isLoading={isLoading}
+          />
         </div>
       </div>
 
@@ -205,7 +215,10 @@ export default function PlatformOverview() {
           <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
             {t("topEventsTitle")}
           </h2>
-          <TopEventsChart topEvents={overview?.topEvents ?? null} />
+          <TopEventsChart
+            topEvents={overview?.topEvents ?? null}
+            isLoading={isLoading}
+          />
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">

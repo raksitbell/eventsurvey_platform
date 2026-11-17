@@ -3,15 +3,30 @@
  * Aggregated/bound responses live here; raw mock resources are fetched server-side.
  */
 
+export interface ApiValidationDetail {
+  path: string;
+  message: string;
+}
+
 export class ApiError extends Error {
   status: number;
+  code?: string;
+  details?: ApiValidationDetail[];
   body?: unknown;
 
-  constructor(message: string, status: number, body?: unknown) {
+  constructor(
+    message: string,
+    status: number,
+    body?: unknown,
+    code?: string,
+    details?: ApiValidationDetail[],
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.code = code;
+    this.details = details;
   }
 }
 
@@ -26,21 +41,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let message = response.statusText;
+    let code: string | undefined;
+    let details: ApiValidationDetail[] | undefined;
     let body: unknown;
     try {
       body = await response.json();
-      if (
-        body &&
-        typeof body === "object" &&
-        "error" in body &&
-        typeof (body as { error: unknown }).error === "string"
-      ) {
-        message = (body as { error: string }).error;
+      if (body && typeof body === "object") {
+        const errObj = body as {
+          error?: unknown;
+          message?: unknown;
+          details?: unknown;
+        };
+        if (typeof errObj.error === "string") {
+          code = errObj.error;
+          message = errObj.error;
+        }
+        if (typeof errObj.message === "string" && errObj.message.trim()) {
+          message = errObj.message;
+        }
+        if (Array.isArray(errObj.details)) {
+          details = errObj.details.filter(
+            (item): item is ApiValidationDetail =>
+              Boolean(item) &&
+              typeof item === "object" &&
+              typeof (item as ApiValidationDetail).path === "string" &&
+              typeof (item as ApiValidationDetail).message === "string",
+          );
+        }
       }
     } catch {
       // ignore parse errors
     }
-    throw new ApiError(message, response.status, body);
+    throw new ApiError(message, response.status, body, code, details);
   }
 
   if (response.status === 204) {

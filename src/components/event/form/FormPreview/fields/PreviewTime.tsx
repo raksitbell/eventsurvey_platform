@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ClockIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useClickOutside } from "@/hooks/useClickOutside";
 
@@ -17,6 +18,7 @@ const MINUTES = Array.from({ length: 60 }, (_, i) =>
 );
 
 export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
+  const tPreview = useTranslations("form.preview");
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -51,8 +53,8 @@ export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
           readOnly
           value={value}
           onClick={() => setIsOpen((prev) => !prev)}
-          placeholder="HH:mm"
-          className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white py-2.5 ps-3.5 pe-16 text-sm text-gray-800 transition-colors placeholder:text-gray-400 focus:border-[#5C54D1] focus:outline-none"
+          placeholder={tPreview("selectTime")}
+          className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white py-2.5 ps-3.5 pe-16 text-sm text-gray-800 transition-colors placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
         />
 
         <div className="absolute inset-y-0 end-0 flex items-center gap-1 pe-3">
@@ -63,8 +65,8 @@ export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
                 e.stopPropagation();
                 onChange("");
               }}
-              aria-label="Clear time"
-              className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              aria-label={tPreview("clearTime")}
+              className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
             >
               <XMarkIcon className="h-4 w-4" />
             </button>
@@ -72,8 +74,8 @@ export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
           <button
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            aria-label="Open time picker"
-            className="text-gray-500 transition-colors hover:text-[#5C54D1]"
+            aria-label={tPreview("openTimePicker")}
+            className="text-gray-500 transition-colors hover:text-brand-500 dark:text-gray-400"
           >
             <ClockIcon className="h-5 w-5" />
           </button>
@@ -81,10 +83,10 @@ export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
       </div>
 
       {isOpen && (
-        <div className="absolute start-0 z-50 mt-2 w-56 rounded-xl border border-gray-200 bg-white p-3 shadow-theme-lg">
-          <div className="mb-2 grid grid-cols-2 text-center text-xs font-medium text-gray-500">
-            <span>HH</span>
-            <span>mm</span>
+        <div className="absolute start-0 z-50 mt-2 w-56 rounded-xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-2 grid grid-cols-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span>{tPreview("timeHour")}</span>
+            <span>{tPreview("timeMinute")}</span>
           </div>
 
           <div className="grid h-48 grid-cols-2 gap-2">
@@ -99,8 +101,8 @@ export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
                     onClick={() => handleSelectHour(hour)}
                     className={`rounded-lg py-1.5 text-center text-sm transition-colors ${
                       isSelected
-                        ? "bg-[#5C54D1] font-semibold text-white"
-                        : "text-gray-700 hover:bg-gray-100"
+                        ? "bg-brand-500 font-semibold text-white"
+                        : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                     }`}
                   >
                     {hour}
@@ -110,7 +112,7 @@ export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
             </div>
 
             {/* Minutes column */}
-            <div className="custom-scrollbar flex flex-col gap-1 overflow-y-auto border-s border-gray-100 ps-2 pe-1">
+            <div className="custom-scrollbar flex flex-col gap-1 overflow-y-auto border-s border-gray-100 ps-2 pe-1 dark:border-gray-800">
               {MINUTES.map((minute) => {
                 const isSelected = selectedMinute === minute;
                 return (
@@ -120,8 +122,8 @@ export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
                     onClick={() => handleSelectMinute(minute)}
                     className={`rounded-lg py-1.5 text-center text-sm transition-colors ${
                       isSelected
-                        ? "bg-[#5C54D1] font-semibold text-white"
-                        : "text-gray-700 hover:bg-gray-100"
+                        ? "bg-brand-500 font-semibold text-white"
+                        : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                     }`}
                   >
                     {minute}
@@ -131,20 +133,20 @@ export default function PreviewTime({ value, onChange }: PreviewTimeProps) {
             </div>
           </div>
 
-          <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
+          <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 dark:border-gray-800">
             <button
               type="button"
               onClick={handleSetNow}
-              className="rounded px-2 py-1 text-xs font-medium text-[#5C54D1] transition-colors hover:bg-indigo-50"
+              className="rounded px-2 py-1 text-xs font-medium text-brand-500 transition-colors hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-500/15"
             >
-              Now
+              {tPreview("timeNow")}
             </button>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="rounded bg-[#5C54D1] px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-[#4b43b8]"
+              className="rounded bg-brand-500 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-brand-600"
             >
-              OK
+              {tPreview("timeOk")}
             </button>
           </div>
         </div>

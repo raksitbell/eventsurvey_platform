@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import flatpickr from "flatpickr";
 import type { Instance } from "flatpickr/dist/types/instance";
 import "flatpickr/dist/flatpickr.min.css";
-import { CalendarDaysIcon } from "@heroicons/react/24/outline";
+import { CalendarDaysIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 interface PreviewDateProps {
   value: string;
@@ -12,6 +13,7 @@ interface PreviewDateProps {
 }
 
 export default function PreviewDate({ value, onChange }: PreviewDateProps) {
+  const tPreview = useTranslations("form.preview");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fpRef = useRef<Instance | null>(null);
   const onChangeRef = useRef(onChange);
@@ -60,18 +62,34 @@ export default function PreviewDate({ value, onChange }: PreviewDateProps) {
         type="text"
         readOnly
         value={value}
-        placeholder="YYYY-MM-DD HH:mm"
-        className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white py-2.5 ps-3.5 pe-10 text-sm text-gray-800 transition-colors placeholder:text-gray-400 focus:border-[#5C54D1] focus:outline-none"
+        placeholder={tPreview("selectDateTime")}
+        className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white py-2.5 ps-3.5 pe-16 text-sm text-gray-800 transition-colors placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
       />
-      <button
-        type="button"
-        onClick={() => fpRef.current?.open()}
-        tabIndex={-1}
-        aria-label="Open calendar"
-        className="pointer-events-none absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500"
-      >
-        <CalendarDaysIcon className="h-5 w-5" />
-      </button>
+      <div className="absolute inset-y-0 end-0 flex items-center gap-1 pe-3">
+        {value && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              fpRef.current?.clear(false);
+              onChange("");
+            }}
+            aria-label={tPreview("clearDate")}
+            className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => fpRef.current?.open()}
+          tabIndex={-1}
+          aria-label={tPreview("openCalendar")}
+          className="pointer-events-none text-gray-500 dark:text-gray-400"
+        >
+          <CalendarDaysIcon className="h-5 w-5" />
+        </button>
+      </div>
     </div>
   );
 }

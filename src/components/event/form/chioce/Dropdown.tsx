@@ -107,7 +107,7 @@ export default function Dropdown({
             {/* Drag Handle for Choice */}
             <span
               className="shrink-0 cursor-grab text-gray-300 transition-colors group-hover:text-gray-500 active:cursor-grabbing dark:text-gray-600 dark:group-hover:text-gray-400"
-              title="Drag to reorder option"
+              title={tbuilder("dragOption")}
             >
               <EllipsisVerticalIcon className="h-5 w-5" />
             </span>
@@ -119,7 +119,9 @@ export default function Dropdown({
               type="text"
               value={choice.label}
               onChange={(e) => onUpdateChoice(choice.id!, e.target.value)}
-              placeholder={`Option ${choice.display_order}`}
+              placeholder={tbuilder("optionPlaceholder", {
+                order: choice.display_order,
+              })}
               className="min-w-0 flex-1 border-b border-transparent bg-transparent py-1 text-sm text-gray-800 transition-all hover:border-gray-200 focus:border-b-2 focus:border-brand-500 focus:outline-none dark:text-gray-100 dark:hover:border-gray-700"
             />
             {choices.length > 1 && (
@@ -127,7 +129,7 @@ export default function Dropdown({
                 type="button"
                 onClick={() => onDeleteChoice(choice.id!)}
                 className="shrink-0 rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                aria-label="Remove option"
+                aria-label={tbuilder("removeOption")}
               >
                 <XMarkIcon className="h-4 w-4" />
               </button>

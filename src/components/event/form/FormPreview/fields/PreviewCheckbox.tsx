@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Choice } from "@/types/event/form";
 
 interface PreviewCheckboxProps {
@@ -13,6 +14,8 @@ export default function PreviewCheckbox({
   selectedValues,
   onToggleChoice,
 }: PreviewCheckboxProps) {
+  const tBuilder = useTranslations("form.builder");
+
   return (
     <div className="flex flex-col gap-3">
       {choices.map((choice) => {
@@ -22,15 +25,18 @@ export default function PreviewCheckbox({
         return (
           <label
             key={cId}
-            className="flex cursor-pointer items-center gap-3 text-sm text-gray-800"
+            className="flex cursor-pointer items-center gap-3 text-sm text-gray-800 dark:text-gray-200"
           >
             <input
               type="checkbox"
               checked={isChecked}
               onChange={() => onToggleChoice(cId)}
-              className="h-5 w-5 shrink-0 cursor-pointer rounded accent-[#5C54D1]"
+              className="h-5 w-5 shrink-0 cursor-pointer rounded accent-brand-500"
             />
-            <span>{choice.label}</span>
+            <span>
+              {choice.label.trim() ||
+                tBuilder("optionPlaceholder", { order: choice.display_order })}
+            </span>
           </label>
         );
       })}

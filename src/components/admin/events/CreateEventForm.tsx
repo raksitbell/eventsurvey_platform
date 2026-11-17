@@ -4,6 +4,7 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import SelectField from "@/components/form/SelectField";
 import Button from "@/components/ui/button/Button";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
 import { fetchImpersonationTarget } from "@/core/auth";
@@ -34,11 +35,13 @@ export default function CreateEventForm() {
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [assignable, setAssignable] = useState<AssignableAdmin[]>([]);
+  const [isLoadingAssignable, setIsLoadingAssignable] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function loadAssignable() {
+      setIsLoadingAssignable(true);
       try {
         const data = await api.get<{ users: AssignableAdmin[] }>(
           "/admin/events/assignable-users",
@@ -46,6 +49,8 @@ export default function CreateEventForm() {
         if (!cancelled) setAssignable(data.users);
       } catch {
         // leave empty — create with new user still works
+      } finally {
+        if (!cancelled) setIsLoadingAssignable(false);
       }
     }
     void loadAssignable();
@@ -226,17 +231,21 @@ export default function CreateEventForm() {
               <Label>
                 {t("selectUser")} <span className="text-error-500">*</span>
               </Label>
-              <SelectField
-                value={existingUserId}
-                onChange={(e) => setExistingUserId(e.target.value)}
-              >
-                <option value="">{t("selectUserPlaceholder")}</option>
-                {assignable.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.email})
-                  </option>
-                ))}
-              </SelectField>
+              {isLoadingAssignable ? (
+                <Skeleton className="h-11 w-full rounded-lg" />
+              ) : (
+                <SelectField
+                  value={existingUserId}
+                  onChange={(e) => setExistingUserId(e.target.value)}
+                >
+                  <option value="">{t("selectUserPlaceholder")}</option>
+                  {assignable.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} ({user.email})
+                    </option>
+                  ))}
+                </SelectField>
+              )}
             </div>
           ) : (
             <div className="grid gap-5 sm:grid-cols-2">
