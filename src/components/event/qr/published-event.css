@@ -171,8 +171,7 @@
 }
 .published-qr__card--event {
   padding: 18px;
-  grid-template-columns: 136px minmax(0, 1fr) minmax(175px, 26.5%);
-  min-height: 174px;
+  grid-template-columns: minmax(0, 1fr) minmax(175px, 26.5%);
   background: var(--pub-lav);
 }
 .published-qr__card--form {
@@ -211,18 +210,27 @@
   flex: none;
 }
 .published-qr__art {
-  width: 166px;
-  height: 166px;
+  box-sizing: border-box;
+  width: min(166px, 100%);
+  aspect-ratio: 1;
   border: 1px solid var(--pub-line);
   border-radius: 12px;
-  background: white;
+  background: var(--color-white);
+  color: var(--color-gray-700);
+  overflow: hidden;
   display: grid;
   place-items: center;
   justify-self: center;
 }
-.published-qr__card--event .published-qr__art {
-  width: 136px;
-  height: 136px;
+.published-qr__art img {
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+.published-qr__art p {
+  padding-inline: 12px;
+  color: inherit;
+  text-align: center;
 }
 .published-qr__field {
   min-height: 48px;
@@ -233,6 +241,9 @@
   align-items: center;
   padding: 0 14px;
   background: var(--color-participant-page);
+}
+.dark .published-qr__field {
+  background: var(--pub-lav);
 }
 .published-qr__card--event .published-qr__field {
   min-height: 42px;
@@ -252,11 +263,11 @@
   flex-direction: column;
   gap: 7px;
 }
-.published-qr__card--event .published-qr__buttons button {
+.published-qr__card--event .published-qr__buttons > :is(a, button) {
   min-height: 39px;
 }
-.published-qr__buttons button {
-  cursor: not-allowed;
+.published-qr__buttons > :is(a, button) {
+  cursor: pointer;
   display: inline-flex;
   flex: 1;
   min-width: 0;
@@ -272,12 +283,23 @@
   font-weight: 600;
   background: var(--pub-surface);
   color: var(--pub-ink);
+}
+.published-qr__buttons button:disabled {
+  cursor: wait;
   opacity: 0.72;
 }
-.published-qr__buttons button.published-qr__primary {
+.published-qr__buttons .published-qr__primary {
   background: var(--pub-action);
-  color: white;
+  color: var(--color-white);
   border-color: var(--pub-action);
+}
+.published-qr__buttons > :is(a, button):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+.published-qr__buttons > a:hover,
+.published-qr__buttons > button:enabled:hover {
+  box-shadow: var(--shadow-theme-xs);
 }
 @media (max-width: 850px) {
   .published-event__pair,
@@ -288,7 +310,7 @@
     min-height: auto;
   }
   .published-qr__card--event {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
   .published-qr__card--event .published-qr__buttons {
     grid-column: 1/-1;
@@ -305,9 +327,6 @@
   }
   .published-event__heading {
     flex-wrap: wrap;
-  }
-  .published-qr__card--event {
-    grid-template-columns: 1fr;
   }
 }
 

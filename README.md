@@ -57,12 +57,15 @@
 npm install
 ```
 
-สร้างไฟล์ `.env.local` ใส่ที่อยู่ของ mock API:
+สร้างไฟล์ `.env.local` เพื่อกำหนด Mock API และโดเมนสำหรับลิงก์อีเวนต์
 
 ```bash
 MOCK_API_BASE_URL=https://eventmockapi.vercel.app
 NEXT_PUBLIC_API_BASE_URL=https://eventmockapi.vercel.app
+APP_URL=http://localhost:3000
 ```
+
+ตั้ง `APP_URL` เป็น HTTPS origin ของเว็บ Demo จริงเมื่อต้องการสแกนจากมือถือ ใช้อีเวนต์และฟอร์มที่มีอยู่ใน Mock API เพื่อเปิดลิงก์ข้ามเครื่อง การตั้งค่าที่บันทึกใน LocalStorage ของผู้จัดจะแสดงใน Preview ของเบราว์เซอร์นั้น
 
 ```bash
 npm run dev

@@ -7,6 +7,7 @@ import {
   canEnterEventArea,
   getHomePathForRole,
 } from "@/core/auth/permissions";
+import { isPublicEventPath } from "@/core/event/public-event-paths";
 import { routing } from "@/i18n/routing";
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
@@ -25,15 +26,17 @@ function isArea(pathname: string, area: string): boolean {
 /**
  * Gate /admin and /event before the App Router soft-navigates into those
  * layouts. Auth lives in localStorage; the client mirrors a small session
- * cookie so Edge middleware can redirect early (avoids 403-inside-/event hangs).
+ * cookie so Proxy can redirect early (avoids 403-inside-/event hangs).
  */
-function authRedirect(request: NextRequest): NextResponse | null {
-  const { pathname } = request.nextUrl;
-
+function authRedirect(
+  request: NextRequest,
+  pathname: string,
+): NextResponse | null {
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
-    isArea(pathname, "/error")
+    isArea(pathname, "/error") ||
+    isPublicEventPath(pathname)
   ) {
     return null;
   }
@@ -81,16 +84,23 @@ function authRedirect(request: NextRequest): NextResponse | null {
 }
 
 export default function proxy(request: NextRequest) {
-  // next-intl rewrites the public display URL to /<locale>/participant/display.
-  // Let that internal target through if Next invokes proxy again for the rewrite.
+  const { pathname } = request.nextUrl;
+  const localePrefix = routing.locales.find((locale) =>
+    isArea(pathname, `/${locale}`),
+  );
+  const canonicalPath = localePrefix
+    ? pathname.slice(localePrefix.length + 1) || "/"
+    : pathname;
+
+  // Let next-intl's localized participant rewrite finish without a second redirect.
   if (
-    routing.locales.some((locale) =>
-      isArea(request.nextUrl.pathname, `/${locale}/participant/display`),
-    )
+    localePrefix &&
+    (isArea(canonicalPath, "/participant/display") ||
+      isPublicEventPath(canonicalPath))
   ) {
     return NextResponse.next();
   }
-  const redirect = authRedirect(request);
+  const redirect = authRedirect(request, canonicalPath);
   if (redirect) return redirect;
   return intlMiddleware(request);
 }
