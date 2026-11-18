@@ -1810,6 +1810,9 @@ test("Event information configuration preserves field bindings, limits, labels, 
     "src/components/event/setup/details/EventInformationFields.tsx",
     {
       "@/components/form/DateTimePicker": { default: placeholder },
+      "@/components/event/workspace/EventLanguageDropdown": {
+        default: placeholder,
+      },
       "@/components/form/Label": { default: placeholder },
       "@/components/form/input/InputField": { default: placeholder },
       react: { useState: (v) => [v, () => {}] },

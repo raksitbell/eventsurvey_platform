@@ -38,7 +38,7 @@
   font-weight: 600;
   line-height: 28px;
 }
-.es-info-heading select,
+.es-info-language,
 .es-info-status {
   height: 44px;
   border: 1px solid var(--es-border-default);
@@ -47,9 +47,15 @@
   font-size: 14px;
   font-weight: 500;
 }
-.es-info-heading select {
+.es-info-language {
+  display: flex;
   width: 136px;
-  padding-inline: 8px 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-inline: 8px;
+  cursor: pointer;
+  text-align: start;
 }
 .es-info-status {
   min-width: 92px;

@@ -1,4 +1,7 @@
 "use client";
+import EventLanguageDropdown from "@/components/event/workspace/EventLanguageDropdown";
+import type { Locale } from "@/i18n/routing";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import DateTimePicker from "@/components/form/DateTimePicker";
 import type { EventDraft } from "@/types/event/setup";
 import { useLocale, useTranslations } from "next-intl";
@@ -26,8 +29,9 @@ export default function EventInformationFields({
   const t = useTranslations("eventHome.details");
   const s = useTranslations("eventSetup");
   const v = useTranslations("eventSetupDesign");
-  const locale = useLocale();
+  const locale = useLocale() as Locale;
   const [alternate, setAlternate] = useState(false);
+  const contentLocale = alternate ? (locale === "th" ? "en" : "th") : locale;
   const content = alternate ? (draft.alternateContent ?? emptyContent) : draft;
   function edit(key: keyof typeof emptyContent, value: string) {
     if (alternate)
@@ -44,18 +48,15 @@ export default function EventInformationFields({
     <section className="es-info">
       <header className="es-info-heading">
         <h1 className="es-icon-label es-info-title">{t("information")}</h1>
-        <select
-          aria-label={s("contentLanguage")}
-          value={alternate ? "other" : "base"}
-          onChange={(e) => setAlternate(e.target.value === "other")}
+        <EventLanguageDropdown
+          label={s("contentLanguage")}
+          value={contentLocale}
+          onChange={(language) => setAlternate(language !== locale)}
+          className="es-info-language"
         >
-          <option value="base">
-            {v(locale === "th" ? "languageTh" : "languageEn")}
-          </option>
-          <option value="other">
-            {v(locale === "th" ? "languageEn" : "languageTh")}
-          </option>
-        </select>
+          <span>{v(contentLocale === "th" ? "languageTh" : "languageEn")}</span>
+          <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
+        </EventLanguageDropdown>
         <span className="es-info-status">
           <i aria-hidden="true" />
           {statusLabel}

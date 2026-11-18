@@ -8,10 +8,11 @@ import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { useConfirm } from "@/hooks/useConfirm";
-import { languages } from "@/i18n/languages";
+import { GlobeAltIcon } from "@heroicons/react/24/outline";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { translateRole } from "@/utils/i18n-labels";
+import EventLanguageDropdown from "./EventLanguageDropdown";
 import styles from "./EventWorkspaceChrome.module.css";
 
 export default function EventWorkspaceHeader() {
@@ -24,16 +25,16 @@ export default function EventWorkspaceHeader() {
   const { confirm } = useConfirm();
   const pathname = usePathname();
   const router = useRouter();
-  const locale = useLocale();
+  const locale = useLocale() as Locale;
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const accountTrigger = useRef<HTMLButtonElement>(null);
 
-  function changeLanguage(language: string) {
-    setOpen(false);
-    router.replace(pathname + globalThis.location.search, {
-      locale: language as Locale,
-    });
+  function changeLanguage(language: Locale) {
+    router.replace(
+      pathname + globalThis.location.search + globalThis.location.hash,
+      { locale: language },
+    );
   }
 
   async function leaveAccount(impersonation: boolean) {
@@ -71,26 +72,16 @@ export default function EventWorkspaceHeader() {
         />
       </button>
       <div className={styles.headerActions}>
-        <label className={styles.language}>
-          <Image
-            src="/images/event-workspace/globe-component-instance.svg"
-            alt=""
-            width={18}
-            height={18}
-          />
-          <span aria-hidden="true">{locale.toUpperCase()}</span>
-          <select
-            aria-label={a("language")}
-            value={locale}
-            onChange={(event) => changeLanguage(event.target.value)}
-          >
-            {languages.map((language) => (
-              <option key={language.id} value={language.id}>
-                {language.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <EventLanguageDropdown
+          label={a("language")}
+          value={locale}
+          onChange={changeLanguage}
+          onOpen={() => setOpen(false)}
+          className={styles.language}
+        >
+          <GlobeAltIcon className="size-[18px] shrink-0" aria-hidden="true" />
+          <span>{locale.toUpperCase()}</span>
+        </EventLanguageDropdown>
         {user && (
           <div
             className="relative"

@@ -8,6 +8,7 @@ interface DropdownItemProps {
   onItemClick?: () => void;
   baseClassName?: string;
   className?: string;
+  pressed?: boolean;
   children: React.ReactNode;
 }
 
@@ -18,6 +19,7 @@ export const DropdownItem: React.FC<DropdownItemProps> = ({
   onItemClick,
   baseClassName = "block w-full text-start px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900",
   className = "",
+  pressed,
   children,
 }) => {
   const combinedClasses = `${baseClassName} ${className}`.trim();
@@ -39,7 +41,12 @@ export const DropdownItem: React.FC<DropdownItemProps> = ({
   }
 
   return (
-    <button onClick={handleClick} className={combinedClasses}>
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={handleClick}
+      className={combinedClasses}
+    >
       {children}
     </button>
   );
