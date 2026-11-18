@@ -1,4 +1,9 @@
+import { localDay } from "@/core/analytics/policy";
 import type { DashboardWidget, ReportingData } from "@/types/event/reporting";
+export function reportingDay(iso: string): string {
+  return localDay(iso, "Asia/Bangkok");
+}
+
 export function widgetData(
   widget: DashboardWidget,
   data: ReportingData,
@@ -11,7 +16,7 @@ export function widgetData(
     if (widget.source_form_id && r.formId !== widget.source_form_id) {
       return false;
     }
-    const dayStr = r.submittedAt.slice(0, 10);
+    const dayStr = reportingDay(r.submittedAt);
     if (fromDate && dayStr < fromDate) return false;
     if (toDate && dayStr > toDate) return false;
     if (days && Date.parse(r.submittedAt) < now - days * 86400000) return false;
@@ -43,7 +48,7 @@ export function widgetData(
   rows.forEach((r) => {
     const label = widget.source_field_id
       ? r.answers.find((a) => a.fieldId === widget.source_field_id)?.value
-      : r.submittedAt.slice(0, 10);
+      : reportingDay(r.submittedAt);
     if (label) groups.set(label, (groups.get(label) ?? 0) + 1);
   });
   let comparison: number | null = null;

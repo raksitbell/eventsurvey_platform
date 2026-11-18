@@ -1,7 +1,6 @@
-"use client";
+import { getLocale } from "next-intl/server";
+import { redirect } from "@/i18n/navigation";
 
-import EventDashboardView from "@/components/event/dashboard/EventDashboardView";
-
-export default function EventAnalyticsPage() {
-  return <EventDashboardView />;
+export default async function Page() {
+  redirect({ href: "/event/dashboard", locale: await getLocale() });
 }

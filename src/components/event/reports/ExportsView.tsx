@@ -9,10 +9,37 @@ import {
   responseCsv,
 } from "@/core/event/export";
 import Button from "@/components/ui/button/Button";
-import { Squares2X2Icon } from "@heroicons/react/24/outline";
+import {
+  ChartBarIcon,
+  DocumentChartBarIcon,
+  TableCellsIcon,
+} from "@heroicons/react/24/outline";
+import type { ReportingData } from "@/types/event/reporting";
 import ReportShell, { panelClass } from "./ReportShell";
+
+const formats = [
+  { kind: "responses", Icon: TableCellsIcon },
+  { kind: "summary", Icon: ChartBarIcon },
+  { kind: "pdf", Icon: DocumentChartBarIcon },
+] as const;
 export default function ExportsView() {
-  const { data, error, reload } = useEventReporting();
+  const { data, identityKey, errorStatus, reload } = useEventReporting();
+
+  return (
+    <ReportShell
+      section="exports"
+      loading={!data}
+      errorStatus={errorStatus}
+      retry={reload}
+    >
+      {data && (
+        <ExportPanel key={`${identityKey}:${data.eventId}`} data={data} />
+      )}
+    </ReportShell>
+  );
+}
+
+function ExportPanel({ data }: { data: ReportingData }) {
   const t = useTranslations("eventReports");
   const locale = useLocale();
   const [last, setLast] = useState<{
@@ -20,27 +47,29 @@ export default function ExportsView() {
     name: string;
     at: string;
   } | null>(null);
-  const rows = data ? approvedResponses(data) : [];
+  const forms = data.forms.filter((form) => form.approved);
+  const rows = approvedResponses(data);
   function generate(kind: "responses" | "summary") {
-    if (!data) return;
     const content =
       kind === "responses"
         ? responseCsv(rows, [t("id"), t("respondent"), t("submitted")])
         : csv([
             [t("item"), t("count")],
-            ...data.forms
-              .filter((f) => f.approved)
-              .map((f) => [
-                f.title,
-                rows.filter((r) => r.formId === f.id).length,
-              ]),
+            ...forms.map((f) => [
+              f.title,
+              rows.filter((r) => r.formId === f.id).length,
+            ]),
           ]);
     const name = `${kind}-${data.eventId}.csv`;
-    setLast({ content, name, at: new Date().toLocaleString(locale) });
+    setLast({
+      content,
+      name,
+      at: new Date().toLocaleString(locale, { timeZone: "Asia/Bangkok" }),
+    });
     download(content, name);
   }
   return (
-    <ReportShell section="exports" loading={!data} error={error} retry={reload}>
+    <>
       <div className="space-y-5">
         <div className="flex flex-wrap justify-between gap-4 rounded-2xl bg-gray-900 p-6 text-white dark:bg-gray-800">
           <div>
@@ -53,11 +82,11 @@ export default function ExportsView() {
             {t("exports.current")}
           </span>
         </div>
-        <div className="grid gap-5 md:grid-cols-3">
-          {(["responses", "summary", "pdf"] as const).map((kind) => (
+        <div className="grid gap-5 sm:grid-cols-3">
+          {formats.map(({ kind, Icon }) => (
             <article className={`${panelClass} flex flex-col gap-5`} key={kind}>
               <span className="flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
-                <Squares2X2Icon className="size-5" />
+                <Icon aria-hidden="true" className="size-5" />
               </span>
               <div className="flex-1">
                 <h3 className="text-theme-sm font-semibold">
@@ -70,7 +99,7 @@ export default function ExportsView() {
               <Button
                 disabled={!rows.length}
                 onClick={() =>
-                  kind === "pdf" ? window.print() : generate(kind)
+                  kind === "pdf" ? globalThis.print() : generate(kind)
                 }
               >
                 {t(kind === "pdf" ? "exports.print" : "generate")}
@@ -106,9 +135,11 @@ export default function ExportsView() {
         )}
       </div>
       <section id="event-print-report" className="hidden print:block">
-        <h1>{data?.eventName}</h1>
+        <h1>{data.eventName}</h1>
         <h2>{t("exports.pdf")}</h2>
-        <p>{new Date().toLocaleDateString(locale)}</p>
+        <p>
+          {new Date().toLocaleDateString(locale, { timeZone: "Asia/Bangkok" })}
+        </p>
         <table>
           <thead>
             <tr>
@@ -117,17 +148,15 @@ export default function ExportsView() {
             </tr>
           </thead>
           <tbody>
-            {data?.forms
-              .filter((f) => f.approved)
-              .map((f) => (
-                <tr key={f.id}>
-                  <td>{f.title}</td>
-                  <td>{rows.filter((r) => r.formId === f.id).length}</td>
-                </tr>
-              ))}
+            {forms.map((f) => (
+              <tr key={f.id}>
+                <td>{f.title}</td>
+                <td>{rows.filter((r) => r.formId === f.id).length}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </section>
-    </ReportShell>
+    </>
   );
 }

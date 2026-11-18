@@ -4,16 +4,19 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEventReporting } from "@/hooks/useEventReporting";
 import { useConfirm } from "@/hooks/useConfirm";
 import { api } from "@/core/api";
+import { useAuth } from "@/context/AuthContext";
 import Button from "@/components/ui/button/Button";
 import { showToast } from "@/utils/toast";
 import ReportShell, { panelClass } from "./ReportShell";
 export default function TrashView() {
-  const { data, error, reload } = useEventReporting();
+  const { data, errorStatus, reload } = useEventReporting();
   const t = useTranslations("eventReports");
+  const { isImpersonating } = useAuth();
   const locale = useLocale();
   const { confirm } = useConfirm();
   const [pending, setPending] = useState<string | null>(null);
   async function restore(id: string) {
+    if (isImpersonating) return;
     if (!(await confirm({ title: t("restore"), message: t("trash.confirm") })))
       return;
     setPending(id);
@@ -28,7 +31,12 @@ export default function TrashView() {
     }
   }
   return (
-    <ReportShell section="trash" loading={!data} error={error} retry={reload}>
+    <ReportShell
+      section="trash"
+      loading={!data}
+      errorStatus={errorStatus}
+      retry={reload}
+    >
       <div className="space-y-5">
         <div className="rounded-2xl bg-warning-50 p-5 dark:bg-warning-500/10">
           <h2 className="font-medium text-warning-700 dark:text-warning-400">
@@ -82,12 +90,15 @@ export default function TrashView() {
                     <td>
                       <Button
                         size="sm"
-                        disabled={!row.canRestore || pending !== null}
+                        disabled={
+                          (!row.canRestore && !isImpersonating) ||
+                          pending !== null
+                        }
                         onClick={() => void restore(row.id)}
                       >
                         {pending === row.id ? t("loading") : t("restore")}
                       </Button>
-                      {!row.canRestore && (
+                      {!row.canRestore && !isImpersonating && (
                         <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
                           {t("trash.unavailable")}
                         </p>

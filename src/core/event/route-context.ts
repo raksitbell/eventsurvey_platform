@@ -1,45 +1,59 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { acceptsJson } from "@/core/auth/route-response";
 import {
-  AUTH_SESSION_COOKIE,
-  parseAuthSessionCookie,
-} from "@/core/auth/cookie";
-import { canEnterEventArea } from "@/core/auth/permissions";
+  VerifiedSessionError,
+  verifiedActor,
+} from "@/core/auth/verified-session";
 import { routing, type Locale } from "@/i18n/routing";
 import { ReportingError } from "@/services/event/reporting";
+
+const responseHeaders = { "Cache-Control": "private, no-store" };
+
 export async function eventRoute(
   request: NextRequest,
   action: (userId: string, locale: Locale) => Promise<unknown>,
 ) {
   try {
-    const session = parseAuthSessionCookie(
-      request.cookies.get(AUTH_SESSION_COOKIE)?.value,
-    );
-    if (!session)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { user, impersonating } = await verifiedActor(request);
+    const isWrite = request.method !== "GET" && request.method !== "HEAD";
     if (
-      !canEnterEventArea(session.role, session.realRole, session.impersonating)
-    )
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      user.system_role !== "event_user" ||
+      !user.event_id ||
+      (impersonating && isWrite)
+    ) {
+      return NextResponse.json(
+        { error: "FORBIDDEN" },
+        { status: 403, headers: responseHeaders },
+      );
+    }
+    if (isWrite && !acceptsJson(request)) {
+      return NextResponse.json(
+        { error: "INVALID_REQUEST" },
+        { status: 400, headers: responseHeaders },
+      );
+    }
+
     const requested = request.nextUrl.searchParams.get("locale") as Locale;
     const locale = routing.locales.includes(requested)
       ? requested
       : routing.defaultLocale;
-    return NextResponse.json(await action(session.userId, locale));
+    return NextResponse.json(await action(user.id, locale), {
+      headers: responseHeaders,
+    });
   } catch (error) {
+    const domainError =
+      error instanceof ReportingError || error instanceof VerifiedSessionError;
     return NextResponse.json(
       {
-        error:
-          error instanceof ReportingError
-            ? error.message
-            : "Unable to process event data",
+        error: domainError ? error.message : "Unable to process event data",
       },
       {
-        status:
-          error instanceof ReportingError
-            ? error.status
-            : error instanceof SyntaxError
-              ? 400
-              : 502,
+        status: domainError
+          ? error.status
+          : error instanceof SyntaxError
+            ? 400
+            : 502,
+        headers: responseHeaders,
       },
     );
   }

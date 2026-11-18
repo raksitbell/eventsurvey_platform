@@ -1,30 +1,42 @@
 /**
  * Raw shapes from the mock JSON Server (`event_mock_api/db.json`).
- * Soft-delete uses `deleted_at` / `removed_at` (not `isDeleted`).
+ * Soft-delete uses `deleted_at` / `removed_at` where present.
  * Event titles live in `event_translations`, not on `events`.
+ * Permissions live in `role_permissions` / `platform_role_permissions`.
  */
 
 export type MockSystemRole = "platform_admin" | "event_user";
-export type MockEventRole = "event_admin" | "event_sub_user";
 export type MockAccountStatus = "invited" | "active" | "suspended" | "removed";
-export type MockEventStatus =
-  | "draft"
-  | "pending_approval"
-  | "open"
-  | "published"
-  | "closed"
-  | "archived";
+export type MockEventStatus = "draft" | "scheduled" | "open" | "closed";
+export type MockSurveyAccess = "public" | "registered_only";
 export type MockFormType = "registration" | "survey";
-export type MockFormStatus =
-  | "draft"
-  | "pending_approval"
-  | "approved"
-  | "rejected"
-  | "published"
-  | "paused"
-  | "closed"
-  | "archived";
-export type MockSubmissionStatus = "submitted" | "soft_deleted";
+export type MockFormStatus = "draft" | "scheduled" | "open" | "closed";
+export type MockFieldType =
+  | "short_text"
+  | "long_text"
+  | "single_choice"
+  | "multiple_choice"
+  | "dropdown"
+  | "date"
+  | "time"
+  | "number"
+  | "email"
+  | "rating";
+export type MockRatingDisplay = "icon" | "linear_scale";
+export type MockRatingIcon = "star" | "heart" | "like";
+export type MockSubmissionStatus = "submitted" | "cancelled";
+export type MockWhitelistEntryStatus = "available" | "joined";
+export type MockPermissionCode =
+  | "manage_dashboard"
+  | "manage_event"
+  | "manage_registration_form"
+  | "manage_survey_form"
+  | "manage_sub_user";
+export type MockPlatformPermissionCode =
+  | "manage_platform_users"
+  | "manage_all_events"
+  | "view_platform_overview"
+  | "impersonate_event_user";
 
 export interface MockUser {
   id: string;
@@ -33,20 +45,13 @@ export interface MockUser {
   password: string;
   display_name: string;
   system_role: MockSystemRole;
+  /** Platform Admin only */
+  platform_role_id: string | null;
   event_id: string | null;
-  /** Legacy API fields; current role_permissions are normalized by services/auth/access. */
-  event_role?: MockEventRole | null;
-  /** Optional custom role (mainly for event_sub_user fine-grained permissions) */
+  /** Event-scoped custom role — permissions via `role_permissions` */
   role_id: string | null;
-  can_manage_dashboard?: boolean;
-  can_manage_event?: boolean;
-  can_manage_registration_form?: boolean;
-  can_manage_survey_form?: boolean;
-  can_manage_sub_user?: boolean;
-  can_approve?: boolean;
-  can_view_unmasked_pii?: boolean;
-  permission_granted_by_user_id: string | null;
-  permission_updated_at: string | null;
+  role_assigned_by_user_id: string | null;
+  role_assigned_at: string | null;
   status: MockAccountStatus;
   invited_by_user_id: string | null;
   joined_at: string | null;
@@ -55,30 +60,42 @@ export interface MockUser {
   removed_at: string | null;
 }
 
-/** Custom role owned by an Event Admin (`/roles`) */
+export interface MockPlatformRole {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  created_by: string | null;
+  updated_at: string;
+  updated_by: string | null;
+  deleted_at: string | null;
+}
+
+export interface MockPlatformRolePermission {
+  id?: string;
+  platform_role_id: string;
+  permission: MockPlatformPermissionCode;
+}
+
+/** Custom role owned by an Event (`/roles`) */
 export interface MockRole {
   id: string;
   event_id: string;
-  owner_user_id: string;
   name: string;
   description: string | null;
-  is_default: boolean;
-  deleted_at?: string | null;
   created_at: string;
+  created_by: string;
   updated_at: string;
+  updated_by: string;
+  deleted_at: string | null;
 }
 
-export interface MockPermission {
-  id: string;
+/** One row = role grants that permission (`/role_permissions`) */
+export interface MockRolePermission {
+  /** Present for json-server compatibility; not in production PK */
+  id?: string;
   role_id: string;
-  feature: string;
-  can_access: boolean;
-  can_view: boolean;
-  can_create: boolean;
-  can_edit: boolean;
-  can_delete: boolean;
-  can_approve?: boolean;
-  can_publish: boolean;
+  permission: MockPermissionCode;
 }
 
 export interface MockEvent {
@@ -86,30 +103,50 @@ export interface MockEvent {
   slug: string;
   status: MockEventStatus;
   default_locale: string;
-  language_rotation_seconds: number;
-  starts_at: string | null;
-  ends_at: string | null;
-  timezone: string;
-  banner_url: string | null;
-  banner_aspect_ratio: string | null;
-  created_by_user_id: string;
-  published_at: string | null;
-  closed_at: string | null;
-  archived_at: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  is_private: boolean;
+  has_registration: boolean;
+  has_survey: boolean;
+  survey_access: MockSurveyAccess | null;
+  opens_at: string | null;
+  closes_at: string | null;
   created_at: string;
+  created_by: string;
   updated_at: string;
-  deleted_at: string | null;
+  updated_by: string | null;
+  deleted_at?: string | null;
 }
 
 export interface MockEventTranslation {
   id: string;
   event_id: string;
   locale_code: string;
+  display_order: number;
   title: string;
-  summary: string | null;
   description: string | null;
-  venue_name: string | null;
+  location_name: string | null;
   address_text: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Legacy seed field — ignore if present */
+  summary?: string | null;
+}
+
+export interface MockEventFormSettings {
+  id: string;
+  event_id: string;
+  form_type: MockFormType;
+  is_unlimited: boolean;
+  capacity: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockEventBanner {
+  id: string;
+  event_id: string;
+  banner_url: string;
   created_at: string;
   updated_at: string;
 }
@@ -121,39 +158,22 @@ export interface MockForm {
   status: MockFormStatus;
   opens_at: string | null;
   closes_at: string | null;
-  accepting_responses: boolean;
-  created_by_user_id: string;
-  updated_by_user_id: string | null;
-  published_at: string | null;
   created_at: string;
+  created_by: string;
   updated_at: string;
+  updated_by: string;
   deleted_at: string | null;
 }
 
-export interface MockFormSubmission {
+export interface MockFormTranslation {
   id: string;
   form_id: string;
-  status: MockSubmissionStatus;
-  submitted_language: string;
-  submitted_at: string;
-  deleted_by_user_id: string | null;
-  deleted_at: string | null;
+  locale_code: string;
+  title: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
 }
-
-// -----------------------------------------------------------------------
-// Form field types
-// -----------------------------------------------------------------------
-
-export type MockFieldType =
-  | "short_text"
-  | "long_text"
-  | "number"
-  | "rating"
-  | "radio"
-  | "checkbox"
-  | "dropdown"
-  | "date"
-  | "time";
 
 export interface MockFormField {
   id: string;
@@ -161,12 +181,15 @@ export interface MockFormField {
   type: MockFieldType;
   display_order: number;
   is_required: boolean;
-  contains_pii: boolean;
+  is_unique?: boolean;
   min_number: number | null;
   max_number: number | null;
   min_length: number | null;
   max_length: number | null;
   validation_pattern: string | null;
+  rating_display: MockRatingDisplay | null;
+  rating_icon: MockRatingIcon | null;
+  rating_max: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -178,6 +201,8 @@ export interface MockFieldTranslation {
   locale_code: string;
   label: string;
   placeholder: string | null;
+  scale_min_label?: string | null;
+  scale_max_label?: string | null;
 }
 
 export interface MockFieldOption {
@@ -195,57 +220,77 @@ export interface MockFieldOptionTranslation {
   label: string;
 }
 
-export interface MockFormTranslation {
+export interface MockWhitelistEntry {
+  id: string;
+  event_id: string;
+  access_code: string;
+  username: string;
+  status: MockWhitelistEntryStatus;
+  joined_at: string | null;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+export interface MockFormSubmission {
   id: string;
   form_id: string;
-  locale_code: string;
+  status: MockSubmissionStatus;
+  submitted_at: string;
+  cancelled_by_user_id: string | null;
+  cancelled_at: string | null;
+}
+
+export interface MockRegistration {
+  submission_id: string;
+  whitelist_entry_id: string | null;
+  confirmation_code: string;
+}
+
+export interface MockSubmissionAnswer {
+  id: string;
+  submission_id: string;
+  field_id: string;
+  value_text: string | null;
+  value_number: number | null;
+  value_boolean: boolean | null;
+  value_date: string | null;
+  value_time: string | null;
+  created_at: string;
+}
+
+export interface MockAnswerOptionSelection {
+  answer_id: string;
+  option_id: string;
+}
+
+export type MockDashboardWidgetType = "number" | "comparison" | "chart";
+export type MockDisplaySize = "small" | "medium" | "large" | "custom";
+
+export interface MockDashboardLayout {
+  id: string;
+  event_id: string;
+  updated_by_user_id: string;
+  updated_at: string;
+}
+
+export interface MockDashboardWidget {
+  id: string;
+  layout_id: string;
+  widget_type: MockDashboardWidgetType;
   title: string;
-  description: string | null;
-}
-
-// -----------------------------------------------------------------------
-// Role permissions
-// -----------------------------------------------------------------------
-
-export type MockPermissionCode =
-  | "manage_dashboard"
-  | "manage_event"
-  | "manage_registration_form"
-  | "manage_survey_form"
-  | "manage_sub_user"
-  | "approve"
-  | "view_unmasked_pii";
-
-export interface MockRolePermission {
-  id: string;
-  role_id: string;
-  permission: MockPermissionCode;
-  granted_by_user_id: string | null;
-  granted_at: string;
-}
-
-// -----------------------------------------------------------------------
-// Audit & approvals
-// -----------------------------------------------------------------------
-
-export interface MockAuditLog {
-  id: string;
-  action: string;
-  description: string | null;
-  resource_type: string;
-  resource_id: string | null;
-  performed_by_user_id: string | null;
-  occurred_at: string;
-  includes_unmasked_pii: boolean;
-}
-
-export interface MockApprovalRequest {
-  id: string;
-  target_type: string;
-  target_id: string;
-  status: "pending" | "approved" | "rejected";
-  requested_by_user_id: string;
-  requested_at: string;
-  reviewed_by_user_id: string | null;
-  reviewed_at: string | null;
+  source_form_id: string | null;
+  source_field_id: string | null;
+  aggregation: string;
+  chart_type: string | null;
+  comparison_mode: string | null;
+  target_value: number | null;
+  text_align: string;
+  date_type: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  display_size: MockDisplaySize;
+  grid_w: number | null;
+  grid_h: number | null;
+  display_order: number;
+  updated_at: string;
 }

@@ -5,12 +5,7 @@ export interface MetricPair {
   total: number;
 }
 
-export type EventStatusKey =
-  | "draft"
-  | "pending_approval"
-  | "published"
-  | "closed"
-  | "archived";
+export type EventStatusKey = "draft" | "scheduled" | "open" | "closed";
 
 export interface AdminOverviewResponse {
   metrics: {

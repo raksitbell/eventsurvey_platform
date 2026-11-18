@@ -30,14 +30,12 @@ const user = {
   id: "owner",
   event_id: "event-a",
   system_role: "event_user",
-  event_role: "event_admin",
+  role_id: "role-owner",
   status: "active",
   removed_at: null,
-  can_view_unmasked_pii: false,
-  can_manage_dashboard: true,
-  can_manage_survey_form: true,
 };
 let db;
+let failWidgetTitle;
 function reset() {
   db = {
     users: [
@@ -45,39 +43,52 @@ function reset() {
       {
         ...user,
         id: "viewer",
-        event_role: "event_sub_user",
-        can_manage_dashboard: false,
-        can_manage_survey_form: false,
+        role_id: "role-viewer",
       },
     ],
     events: [
-      { id: "event-a", slug: "event-a", status: "published", deleted_at: null },
+      {
+        id: "event-a",
+        slug: "event-a",
+        status: "scheduled",
+        start_at: "2026-10-24T18:00:00Z",
+        end_at: "2026-10-25T20:00:00Z",
+        default_locale: "th",
+        deleted_at: null,
+      },
     ],
     event_translations: [
       { id: "et", event_id: "event-a", locale_code: "th", title: "กิจกรรม" },
       { id: "ee", event_id: "event-a", locale_code: "en", title: "Event" },
     ],
-    roles: [],
+    roles: [
+      { id: "role-owner", event_id: "event-a", deleted_at: null },
+      { id: "role-viewer", event_id: "event-a", deleted_at: null },
+    ],
+    role_permissions: [
+      { role_id: "role-owner", permission: "manage_dashboard" },
+      { role_id: "role-owner", permission: "manage_survey_form" },
+    ],
     forms: [
       {
         id: "form-a",
         event_id: "event-a",
         type: "survey",
-        status: "published",
+        status: "open",
         deleted_at: null,
       },
       {
         id: "form-b",
         event_id: "event-b",
         type: "survey",
-        status: "published",
+        status: "open",
         deleted_at: null,
       },
       {
         id: "deleted-form",
         event_id: "event-a",
         type: "survey",
-        status: "published",
+        status: "open",
         deleted_at: now,
       },
     ],
@@ -90,7 +101,7 @@ function reset() {
         id: "name",
         form_id: "form-a",
         type: "short_text",
-        contains_pii: true,
+
         is_required: true,
         deleted_at: null,
       },
@@ -98,7 +109,7 @@ function reset() {
         id: "rating",
         form_id: "form-a",
         type: "rating",
-        contains_pii: false,
+
         is_required: true,
         deleted_at: null,
       },
@@ -125,7 +136,7 @@ function reset() {
       {
         id: "deleted-response",
         form_id: "form-a",
-        status: "soft_deleted",
+        status: "cancelled",
         submitted_at: now,
         deleted_at: now,
       },
@@ -153,6 +164,7 @@ function reset() {
       },
     ],
     answer_option_selections: [],
+    field_options: [],
     field_option_translations: [],
     dashboard_layouts: [{ id: "layout-a", event_id: "event-a" }],
     dashboard_widgets: [],
@@ -197,6 +209,12 @@ global.fetch = async (url, init = {}) => {
         );
   if (method === "POST") {
     result = JSON.parse(init.body);
+    if (resource === "dashboard_widgets" && result.title === failWidgetTitle) {
+      return new Response("Simulated write error", { status: 500 });
+    }
+    if (records.some((record) => record.id === result.id)) {
+      return new Response("Duplicate ID", { status: 409 });
+    }
     records.push(result);
   }
   if (method === "PATCH") {
@@ -220,9 +238,14 @@ global.fetch = async (url, init = {}) => {
   } = require("../src/services/event/reporting.ts");
   const { publishDashboard } = require("../src/services/event/dashboard.ts");
   const { responseCsv } = require("../src/core/event/export.ts");
-  const { widgetData } = require("../src/core/event/widget-data.ts");
+  const {
+    widgetData,
+    reportingDay,
+  } = require("../src/core/event/widget-data.ts");
   let data = await getReportingData("owner", "en");
   assert.equal(data.eventName, "Event");
+  assert.equal(data.eventStartsAt, "2026-10-24T18:00:00Z");
+  assert.equal(reportingDay(data.eventStartsAt), "2026-10-25");
   assert.equal(data.forms[0].title, "Survey");
   assert.equal(data.responses.length, 1);
   assert.equal(data.responses[0].respondent, "••••");
@@ -292,7 +315,7 @@ global.fetch = async (url, init = {}) => {
       publishDashboard("owner", "en", [{ ...widget, text_align: "invalid" }]),
     (e) => e.status === 400,
   );
-  const todayStr = now.slice(0, 10);
+  const todayStr = reportingDay(now);
   data = await publishDashboard("owner", "en", [
     {
       ...widget,
@@ -339,32 +362,78 @@ global.fetch = async (url, init = {}) => {
   data = await publishDashboard("owner", "en", []);
   assert.equal(data.widgets.length, 0);
   reset();
-  const { bindMockUserAccess } = require("../src/services/auth/access.ts");
-  const current = { ...db.users[0], role_id: "role-a" };
-  delete current.event_role;
-  delete current.can_manage_dashboard;
-  delete current.can_manage_survey_form;
-  delete current.can_view_unmasked_pii;
-  db.users[0] = current;
-  db.roles = [
-    {
-      id: "role-a",
-      event_id: "event-a",
-      owner_user_id: "owner",
-      deleted_at: null,
-    },
+  db.dashboard_widgets.push({
+    ...widget,
+    id: "legacy",
+    layout_id: "layout-a",
+    display_order: 0,
+    grid_span: undefined,
+    row_span: undefined,
+    date_range_days: undefined,
+    display_size: "medium",
+    date_type: "week",
+  });
+  data = await getReportingData("owner", "en");
+  assert.equal(data.widgets[0].grid_span, 2);
+  assert.equal(data.widgets[0].date_range_days, 7);
+
+  const revisions = [
+    { ...widget, id: "one", title: "First widget" },
+    { ...widget, id: "two", title: "Second widget" },
   ];
-  db.role_permissions = [
-    { role_id: "role-a", permission: "manage_dashboard" },
-    { role_id: "role-a", permission: "manage_survey_form" },
-  ];
-  const bound = await bindMockUserAccess(current);
-  assert.equal(bound.event_role, "event_admin");
-  assert.equal(bound.can_manage_dashboard, true);
-  assert.equal(bound.can_view_unmasked_pii, false);
+  failWidgetTitle = "Second widget";
+  await assert.rejects(() => publishDashboard("owner", "en", revisions));
+  assert.deepEqual(
+    (await getReportingData("owner", "en")).widgets.map((row) => row.id),
+    ["legacy"],
+  );
+  failWidgetTitle = undefined;
+
+  const published = await publishDashboard("owner", "en", revisions);
+  const storedCount = db.dashboard_widgets.length;
+  const retried = await publishDashboard("owner", "en", revisions);
+  assert.deepEqual(retried.widgets, published.widgets);
+  assert.equal(db.dashboard_widgets.length, storedCount);
+  assert.deepEqual(
+    retried.widgets.map((row) => row.title),
+    ["First widget", "Second widget"],
+  );
+
+  db.events[0].status = "draft";
+  await assert.rejects(
+    () => getReportingData("owner", "en"),
+    (e) => e.status === 403,
+  );
+  db.events[0].status = "closed";
   assert.equal((await getReportingData("owner", "en")).responses.length, 1);
   db.roles[0].event_id = "event-b";
-  await assert.rejects(() => getReportingData("owner", "en"));
+  await assert.rejects(
+    () => getReportingData("owner", "en"),
+    (e) => e.status === 403,
+  );
+  db.roles[0].event_id = "event-a";
+  db.role_permissions = db.role_permissions.filter(
+    (row) => row.permission !== "manage_survey_form",
+  );
+  const restricted = await getReportingData("owner", "en");
+  assert.deepEqual(restricted.responses, []);
+  assert.deepEqual(restricted.forms, []);
+  assert.deepEqual(restricted.widgets, []);
+  assert.equal(restricted.canManage, false);
+  await assert.rejects(
+    () => publishDashboard("owner", "en", []),
+    (error) => error.status === 403,
+  );
+  reset();
+  delete db.trash_items;
+  db.form_submissions.push({
+    id: "invalid-date",
+    form_id: "form-a",
+    status: "submitted",
+    submitted_at: "invalid",
+  });
+  assert.equal((await getReportingData("owner", "en")).responses.length, 1);
+  assert.deepEqual((await getReportingData("owner", "en")).trash, []);
   console.log(
     "Passed: event isolation, TH/EN binding, PII masking, zero ratings, deleted-response exclusion, restore permissions/expiry, dashboard permissions/source validation/persistence, aggregations, CSV escaping/formula protection.",
   );

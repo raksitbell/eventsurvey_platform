@@ -11,11 +11,21 @@
     "status": {
       "active": "Active",
       "inactive": "Inactive"
+    },
+    "back": "Back",
+    "create": "Create",
+    "edit": "Edit",
+    "accountStatus": {
+      "invited": "Pending setup",
+      "active": "Active",
+      "suspended": "Suspended",
+      "removed": "Removed"
     }
   },
   "confirm": {
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "ok": "OK",
     "signOutTitle": "Sign out",
     "impersonateTitle": "Impersonate user",
     "stopImpersonateTitle": "Stop impersonating"
@@ -26,8 +36,8 @@
       "event": "EVENT"
     },
     "items": {
-      "overview": "Overview",
-      "owners": "Owners",
+      "overview": "System Overview",
+      "owners": "User Management",
       "eventHome": "Overview",
       "eventWorkspace": "Event Workspace",
       "dashboard": "Dashboard",
@@ -36,7 +46,9 @@
       "builder": "Dashboard Builder",
       "responses": "Response data",
       "exports": "Export reports",
-      "trash": "Deleted items"
+      "trash": "Deleted items",
+      "events": "Event Management",
+      "Form": "Form Builder"
     },
     "roles": {
       "superAdmin": "Super Admin",
@@ -136,10 +148,11 @@
     "eventStatus": {
       "draft": "Draft",
       "pending_approval": "Pending approval",
-      "open": "Open",
+      "open": "Active",
       "published": "Published",
-      "closed": "Closed",
-      "archived": "Archived"
+      "closed": "Inactive",
+      "archived": "Archived",
+      "scheduled": "Scheduled"
     },
     "topEventsTitle": "Top events by responses",
     "topEventsSeries": "Responses",
@@ -183,33 +196,6 @@
       "actions": "Actions"
     }
   },
-  "eventDashboard": {
-    "title": "Event Dashboard",
-    "description": "Real-time overview of event metrics, participation trends, and responses.",
-    "kpis": {
-      "totalResponses": "Total Responses",
-      "registrations": "Registrations",
-      "surveys": "Surveys",
-      "completionRate": "Completion Rate"
-    },
-    "charts": {
-      "responseTrend": "Daily Response Trend",
-      "formDistribution": "Responses by Form"
-    },
-    "recentActivity": {
-      "title": "Recent Response Activity",
-      "viewAll": "View all in Analytics",
-      "formName": "Form Name",
-      "submittedAt": "Submitted At",
-      "status": "Status",
-      "verified": "Verified",
-      "completed": "Completed"
-    },
-    "quickActions": {
-      "openAnalytics": "Open Analytics",
-      "openBuilder": "Customize Dashboard"
-    }
-  },
   "eventHome": {
     "title": "Event Overview",
     "description": "This area is for event_owner and sub_user only. Super Admin enters by impersonating a user from Owners.",
@@ -222,70 +208,375 @@
     "eventStatus": {
       "draft": "Draft",
       "pending_approval": "Pending approval",
-      "open": "Open",
+      "open": "Active",
       "published": "Published",
-      "closed": "Closed",
-      "archived": "Archived"
+      "closed": "Inactive",
+      "archived": "Archived",
+      "scheduled": "Scheduled"
+    },
+    "scheduleEvent": {
+      "title": "Schedule the event",
+      "description": "Fill in the remaining details. Status becomes Scheduled — the platform can start the event when the start time arrives.",
+      "startsAt": "Starts at",
+      "endsAt": "Ends at",
+      "descriptionField": "Description",
+      "locationName": "Location",
+      "addressText": "Address",
+      "submit": "Save & schedule",
+      "submitting": "Saving...",
+      "success": "Scheduled. The event can be started when the start time arrives.",
+      "error": "Failed to schedule the event"
     }
   },
-  "eventAnalytics": {
-    "brand": {
-      "title": "EventSurvey",
-      "subtitle": "Event registration and survey platform"
+  "setupPassword": {
+    "eyebrow": "Event Admin invite",
+    "title": "Set your password",
+    "description": "Choose a password to open your event workspace. You will sign in with this email after saving.",
+    "accountLabel": "Invited account",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "passwordPlaceholder": "At least 8 characters",
+    "confirmPlaceholder": "Re-enter your password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "submit": "Save password & continue",
+    "saving": "Saving...",
+    "loading": "Loading...",
+    "alreadySet": "Already set your password?",
+    "backToLogin": "Back to sign in",
+    "unavailableTitle": "Invite unavailable",
+    "brandHeadline": "One password. Full event control.",
+    "brandSubtext": "After you save, sign in to manage registration, surveys, and your event team.",
+    "rules": {
+      "minLength": "At least 8 characters",
+      "match": "Both passwords match"
     },
-    "title": "Analytics",
-    "description": "Monitor registration, attendance and response activity for this event.",
-    "metrics": {
-      "registrations": {
-        "title": "Registrations",
-        "value": "428",
-        "trend": "+120.5% this week"
-      },
-      "attendance": {
-        "title": "Attendance",
-        "value": "312",
-        "trend": "72.9% checked in"
-      },
-      "surveyResponses": {
-        "title": "Survey responses",
-        "value": "186",
-        "trend": "43.4% response rate"
-      },
-      "completion": {
-        "title": "Completion",
-        "value": "84%",
-        "trend": "+6.1% from last event"
+    "errors": {
+      "unavailable": "This link is unavailable or already used",
+      "tooShort": "Password must be at least 8 characters",
+      "mismatch": "Passwords do not match",
+      "saveFailed": "Failed to save password"
+    }
+  },
+  "adminEvents": {
+    "title": "Event Management",
+    "description": "Create and manage all platform events, including Event Admin assignment.",
+    "breadcrumb": "System / Events",
+    "createNew": "Create new event",
+    "loading": "Loading events...",
+    "empty": "No events yet",
+    "loadError": "Failed to load events",
+    "searchPlaceholder": "Search event name or slug",
+    "allStatuses": "All statuses",
+    "dateRange": "Date range",
+    "dateRangePlaceholder": "Select start — end date",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "manage": "Manage",
+    "view": "View details",
+    "edit": "Edit",
+    "start": "Start event",
+    "startWaiting": "Waiting for start time",
+    "close": "Close",
+    "forceClose": "Confirm close",
+    "actionError": "Failed to update status",
+    "confirmStart": "Start “{title}” now and open the event?",
+    "confirmClose": "Do you want to close “{title}”?\nThis action cannot be undone.",
+    "confirmCloseWithWarnings": "Close “{title}”?\nThese forms are still active or not expired:",
+    "formTypes": {
+      "registration": "Registration",
+      "survey": "Survey"
+    },
+    "closeReasons": {
+      "still_open": "still open",
+      "not_expired": "window not finished",
+      "post_event": "post-event survey"
+    },
+    "columns": {
+      "title": "Event name",
+      "slug": "Slug",
+      "admin": "Event Admin",
+      "status": "Status",
+      "updatedAt": "Last updated",
+      "actions": "Actions"
+    },
+    "roleNames": {
+      "eventAdmin": "Event Admin"
+    },
+    "status": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "open": "Active",
+      "closed": "Inactive"
+    },
+    "preview": {
+      "back": "Back",
+      "tabDetails": "Event details",
+      "tabUsers": "Users ({count})",
+      "eventInfo": "Event information",
+      "schedule": "Schedule",
+      "bannerGallery": "Banner gallery",
+      "statusCard": "Event status",
+      "noBanner": "No banner images yet",
+      "bannerCount": "{count} images",
+      "noTranslations": "No translations yet",
+      "localeBlock": "Locale {locale}",
+      "contentByLocale": "Content by language",
+      "field": "Field",
+      "description": "Description",
+      "venue": "Venue",
+      "address": "Address",
+      "accessMode": "Access",
+      "privateEvent": "Private",
+      "publicEvent": "Public",
+      "flows": "Participant flows",
+      "hasRegistration": "Registration",
+      "hasSurvey": "Survey",
+      "defaultLocale": "Default locale",
+      "createdAt": "Created at",
+      "opensAt": "Opens at",
+      "closesAt": "Closes at",
+      "userSearch": "Search users",
+      "userSearchPlaceholder": "Name, email, or role",
+      "allUserStatuses": "All statuses",
+      "userName": "Name",
+      "userEmail": "Email",
+      "userRole": "Role",
+      "memberCount": "Members",
+      "usersEmpty": "No users found"
+    },
+    "create": {
+      "title": "Create event and assign Event Admin",
+      "cardTitle": "Event details and admin account",
+      "eventName": "Event name",
+      "eventNameTh": "Event name (Thai)",
+      "eventNameEn": "Event name (English)",
+      "eventNameThPlaceholder": "งานสัมมนา CSI 2028",
+      "eventNameEnPlaceholder": "CSI EventSurvey 2028",
+      "eventNameHint": "Enter at least one language — both Thai and English recommended",
+      "slug": "Event slug",
+      "slugHint": "Auto-generated from the English name; you can edit before saving",
+      "modeExisting": "Existing user",
+      "modeNew": "New user",
+      "selectUser": "Select Event Admin",
+      "selectUserPlaceholder": "Choose a user not yet linked to an event",
+      "adminName": "Event Admin name",
+      "adminEmail": "Event Admin email",
+      "cancel": "Cancel",
+      "submit": "Create draft + go to Event Workspace",
+      "submitNew": "Create draft + send setup email",
+      "submitting": "Creating...",
+      "inviteSent": "Event created. Setup email sent to {email}",
+      "successTitle": "Event created",
+      "successCreated": "Draft event created successfully.",
+      "errorTitle": "Could not create event",
+      "errors": {
+        "required": "Please fill in all required fields",
+        "slugExists": "This slug is already taken",
+        "emailExists": "This email is already in use",
+        "mailFailed": "Account created but email failed to send",
+        "generic": "Failed to create event"
       }
     },
-    "chart": {
-      "title": "Registration trend",
-      "subtitle": "Last 7 days",
-      "seriesName": "Registrations",
-      "registrationsUnit": "registrations",
-      "days": {
-        "mon": "Mon",
-        "tue": "Tue",
-        "wed": "Wed",
-        "thu": "Thu",
-        "fri": "Fri",
-        "sat": "Sat",
-        "sun": "Sun"
+    "editForm": {
+      "title": "Edit draft event",
+      "description": "Platform can update titles and slug while the event is still a draft.",
+      "cardTitle": "Event details",
+      "eventNameTh": "Event name (Thai)",
+      "eventNameEn": "Event name (English)",
+      "eventNameThPlaceholder": "งานสัมมนา CSI 2028",
+      "eventNameEnPlaceholder": "CSI EventSurvey 2028",
+      "eventNameHint": "Enter at least one language — both Thai and English recommended",
+      "slug": "Event slug",
+      "slugHint": "Changing the slug updates the public event path",
+      "cancel": "Cancel",
+      "submit": "Save changes",
+      "submitting": "Saving...",
+      "successTitle": "Saved",
+      "successSaved": "Draft event updated successfully.",
+      "errorTitle": "Could not save",
+      "errors": {
+        "required": "Please fill in all required fields",
+        "slugExists": "This slug is already taken",
+        "notDraft": "Only draft events can be edited",
+        "mockReadOnly": "Mock API cannot save changes (read-only). Run the local mock API and point MOCK_API_BASE_URL to it.",
+        "generic": "Failed to update event"
       }
+    }
+  },
+  "participantDisplay": {
+    "title": "Sample Event",
+    "organizer": "Event Team",
+    "organizerInitial": "E",
+    "startsAt": "Starts 1 Dec 2026 · 10:00",
+    "endsAt": "Ends 2 Dec 2026 · 18:00",
+    "location": "Event Venue",
+    "locationDetail": "Hall A",
+    "description": "Event information will appear here. This space can introduce the event, activities, and useful details for attendees.",
+    "socialHandle": "@username",
+    "hostedBy": "Organizer",
+    "hostedBySubtitle": "Hosted by",
+    "about": "About Event",
+    "aboutSubtitle": "Overview",
+    "registration": "Registration",
+    "survey": "Survey",
+    "bannerPlaceholder": "Event banner placeholder",
+    "qrPlaceholder": "QR placeholder"
+  },
+  "form": {
+    "title": "Form Builder",
+    "registration": "Registration",
+    "survey": "Survey",
+    "open": "Open",
+    "create": "Create form",
+    "edit": "Edit form",
+    "delete": "Delete",
+    "deleteConfirmTitle": "Delete form?",
+    "deleteConfirmMessage": "Are you sure you want to delete this form?",
+    "deleteSuccess": "Form deleted successfully",
+    "loading": "Loading form...",
+    "loadError": "Failed to load form.",
+    "status": {
+      "notCreated": "Not created",
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "open": "Open",
+      "closed": "Closed",
+      "disabled": "Disabled for this event"
     },
-    "insights": {
-      "title": "Key insights",
-      "highlightTitle": "Strongest day: Saturday",
-      "highlightDesc": "176 registrations followed the latest campaign.",
-      "bullet1": "Registration conversion is 68%",
-      "bullet2": "54% registered on mobile",
-      "bullet3": "Survey completion is on target",
-      "exportButton": "Export report",
-      "exportSuccess": "Report exported successfully"
+    "errors": {
+      "FORM_SCHEDULE_REQUIRED": "Please set Opens at or Closes at before scheduling the form",
+      "FORM_NOT_READY": "Form is not ready to schedule (requires a title, at least 1 question, and options for choice questions)",
+      "FORM_NOT_EDITABLE": "Only draft forms can be edited. Please revert to draft first.",
+      "FORM_NOT_DELETABLE": "Only draft forms can be deleted. Please revert to draft first.",
+      "FORM_STATUS_LOCKED": "Cannot manually change status of an open or closed form",
+      "FORM_STATUS_CRON_ONLY": "Open and closed statuses are updated automatically by schedule",
+      "INVALID_FORM_STATUS_TRANSITION": "Invalid form status transition",
+      "FORM_TYPE_EXISTS": "A form of this type already exists for this event",
+      "FORM_TYPE_NOT_ENABLED": "This form type is not enabled for this event",
+      "FORM_NOT_FOUND": "Form not found",
+      "EVENT_NOT_FOUND": "Event not found",
+      "FORBIDDEN": "You do not have permission to manage this form",
+      "UNAUTHORIZED": "Please sign in again",
+      "VALIDATION_ERROR": "Invalid form data. Please check your inputs.",
+      "DATE_RANGE_INVALID": "Closes at must be later than Opens at",
+      "NUMBER_RANGE_INVALID": "Minimum value must be less than or equal to maximum value",
+      "INVALID_QUESTION_ID": "Invalid question ID",
+      "INVALID_OPTION_ID": "Invalid option ID",
+      "DUPLICATE_QUESTION_ID": "Duplicate question ID found",
+      "QUESTION_NOT_OWNED_BY_FORM": "Question does not belong to this form",
+      "OPTION_NOT_OWNED_BY_QUESTION": "Option does not belong to this question",
+      "FORM_WRITE_INCOMPLETE": "Failed to save form completely (Mock API may be read-only; check MOCK_API_BASE_URL in .env)",
+      "MOCK_READ_ONLY": "Mock API cannot save changes (read-only). Run the local mock API and set MOCK_API_BASE_URL in .env.",
+      "MOCK_API_ERROR": "Unable to save to the Mock API server",
+      "GENERIC": "Failed to save form. Please try again."
     },
-    "footer": {
-      "copyright": "© EventSurvey",
-      "privacyPolicy": "Privacy Policy",
-      "name_oo": "Phoom"
+    "builder": {
+      "formTitlePlaceholder": "Form title",
+      "description": "description",
+      "save": "Save draft",
+      "saving": "Saving...",
+      "saveSuccess": "Form saved successfully",
+      "saveError": "Failed to save form",
+      "schedule": "Schedule",
+      "revertToDraft": "Revert to draft",
+      "scheduleSuccess": "Form scheduled successfully",
+      "revertSuccess": "Reverted to draft",
+      "scheduleRequiredError": "Please set Opens at or Closes at before scheduling the form",
+      "lockedNotice": "This form is locked because it is not in draft status. Revert to draft first to edit.",
+      "choice": {
+        "short_text": "Short Text",
+        "long_text": "Long Text",
+        "email": "Email",
+        "multiple_choice": "Multiple Choice",
+        "dropdown": "Dropdown",
+        "checkbox": "Checkbox",
+        "radio": "Radio",
+        "date": "Date",
+        "time": "Time",
+        "number": "Number",
+        "rating": "Rating"
+      },
+      "shortTextPlaceholder": "Short answer text",
+      "longTextPlaceholder": "Long answer text",
+      "emailPlaceholder": "Email address (must contain @)",
+      "numberPlaceholder": "Number (integer or decimal)",
+      "datePlaceholder": "Month, day, year",
+      "timePlaceholder": "Time (HH:mm)",
+      "minNumber": "Min value",
+      "maxNumber": "Max value",
+      "noLimit": "No limit",
+      "minGreaterThanMax": "Minimum value must be less than or equal to maximum value",
+      "ratingDisplay": {
+        "icon": "Icon",
+        "linear_scale": "Linear scale"
+      },
+      "ratingIcon": {
+        "star": "Star",
+        "heart": "Heart",
+        "like": "Like"
+      },
+      "maxRating": "Max rating:",
+      "to": "to",
+      "linearLabelPlaceholder": "Label (optional)",
+      "opensAt": "Opens at",
+      "closesAt": "Closes at",
+      "selectDateTime": "Select date & time",
+      "clearDate": "Clear date",
+      "dateRangeInvalid": "Closes at must be later than Opens at",
+      "unique": "Unique",
+      "required": "Required",
+      "questionPlaceholder": "Question",
+      "optionPlaceholder": "Option {order}",
+      "addOption": "Add option",
+      "removeOption": "Remove option",
+      "dragOption": "Drag to reorder option",
+      "addQuestion": "Add question",
+      "duplicateQuestion": "Duplicate question",
+      "deleteQuestion": "Delete question",
+      "dragQuestion": "Drag to reorder question",
+      "addEnglish": "Add English",
+      "removeEnglish": "Remove English",
+      "langThai": "Thai (Default)",
+      "langEnglish": "English"
+    },
+    "preview": {
+      "button": "Preview",
+      "editForm": "Back to edit",
+      "langThai": "ภาษาไทย",
+      "langEnglish": "English",
+      "requiredNote": "* Indicates required question",
+      "requiredError": "This is a required question",
+      "uniqueBadge": "Unique",
+      "uniqueMockHint": "Mock existing value to test duplicate: {value}",
+      "uniqueError": "This value has already been used (must be unique)",
+      "opensAt": "Opens",
+      "closesAt": "Closes",
+      "emailError": "Please enter a valid email address containing @",
+      "numberInvalidError": "Please enter a valid number",
+      "numberMinError": "Value must be at least {min}",
+      "numberMaxError": "Value must be at most {max}",
+      "numberRangeError": "Value must be between {min} and {max}",
+      "yourAnswer": "Your answer",
+      "yourEmail": "name@example.com",
+      "yourNumber": "Enter a number",
+      "selectDateTime": "Select date & time",
+      "openCalendar": "Open calendar",
+      "clearDate": "Clear date",
+      "selectTime": "Select time (HH:mm)",
+      "timeHour": "HH",
+      "timeMinute": "mm",
+      "timeNow": "Now",
+      "timeOk": "OK",
+      "clearTime": "Clear time",
+      "openTimePicker": "Open time picker",
+      "choose": "Choose",
+      "clearSelection": "Clear selection",
+      "submit": "Submit",
+      "clearForm": "Clear form",
+      "submittedDesc": "Your response has been recorded.",
+      "submitAnother": "Submit another response",
+      "untitledQuestion": "Untitled Question"
     }
   },
   "notFound": {
@@ -353,20 +644,19 @@
     },
     "responses": {
       "title": "Response data",
-      "description": "Review individual submissions and monitor response quality.",
       "heading": "Survey responses",
       "summary": "{count} submitted · {rate}% completion rate",
       "latest": "Latest responses",
-      "detail": "Response details"
+      "detail": "Response details",
+      "allHeading": "Form responses"
     },
     "exports": {
       "title": "Export reports",
-      "description": "Prepare shareable event reports using the latest approved form data.",
       "heading": "Create an export",
       "hint": "Choose the output format and the data you want to include.",
-      "current": "Latest API data",
+      "current": "Data up to date",
       "responses": "Response spreadsheet",
-      "responsesHint": "Raw responses and fields from approved forms. CSV format.",
+      "responsesHint": "Responses and fields from approved forms. CSV format.",
       "summary": "Event summary",
       "summaryHint": "Response totals by approved form. CSV format.",
       "pdf": "PDF report",
@@ -431,7 +721,7 @@
       "published": "Dashboard published.",
       "saved": "Draft saved on this device.",
       "noDraft": "No saved draft on this device.",
-      "draftHint": "Drafts stay on this device. Publish saves the shared event configuration.",
+      "draftHint": "Save a draft or publish the widget layout. The event status stays the same.",
       "readOnly": "You can view this dashboard. Editing requires Manage Dashboard permission.",
       "unsaved": "Unsaved changes",
       "canvas": "Event dashboard",
@@ -468,12 +758,11 @@
       "dateTo": "To"
     },
     "dashboard": {
-      "title": "Event dashboard",
-      "description": "Latest event data from your published widgets."
+      "title": "Event dashboard"
     },
-    "analytics": {
-      "title": "Analytics",
-      "description": "Monitor registration, attendance and response activity for this event."
-    }
+    "publishedEvent": "Published",
+    "publishedDescription": "Latest data from the published event.",
+    "dashboardUnavailable": "The dashboard is available after the event is published and you have permission to access it.",
+    "sessionExpired": "Sign in again to access event reports."
   }
 }

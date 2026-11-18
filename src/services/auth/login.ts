@@ -1,9 +1,9 @@
-import { bindMockUserAccess } from "@/services/auth/access";
 import { PORTAL_ROLES } from "@/core/auth/constants";
 import { canAccessPortal } from "@/core/auth/permissions";
 import { sanitizeUser } from "@/core/auth/session";
 import { mockApi } from "@/core/api/mock-client";
 import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
+import { getRolePermissions } from "@/core/mock/role-permissions";
 import type { MockUser } from "@/types/mock";
 import type { User } from "@/types/user";
 
@@ -22,13 +22,19 @@ export async function loginWithMockCredentials(
   });
 
   const users = await mockApi.get<MockUser[]>(`/users?${params.toString()}`);
-  const matched = users.find(isActiveMockUser);
+  const matched = users.find(
+    (user) =>
+      user.email === email &&
+      user.password === password &&
+      isActiveMockUser(user),
+  );
 
   if (!matched) {
     return { ok: false, error: "INVALID_CREDENTIALS" };
   }
 
-  const user = mapMockUserToUser(await bindMockUserAccess(matched));
+  const permissions = await getRolePermissions(matched.role_id);
+  const user = mapMockUserToUser(matched, permissions);
   if (!user) {
     return { ok: false, error: "UNSUPPORTED_ROLE" };
   }

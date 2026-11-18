@@ -1,17 +1,17 @@
-import { mockApi } from "@/core/api/mock-client";
+import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { verifiedActor } from "@/core/auth/verified-session";
 import {
   AnalyticsError,
-  hasRawGrant,
   localDay,
   parseFilters,
 } from "@/core/analytics/policy";
+import {
+  isReportingChoiceField,
+  isReportingFieldPrivate,
+} from "@/core/event/dashboard-policy";
+import { getDashboardScope } from "@/services/event/dashboard-access";
 import type { NextRequest } from "next/server";
 import type {
-  MockUser,
-  MockRole,
-  MockPermission,
-  MockEvent,
   MockEventTranslation,
   MockForm,
   MockFormSubmission,
@@ -35,104 +35,79 @@ type Translation = {
 type Option = { id: string; field_id: string; deleted_at: string | null };
 type Selection = { answer_id: string; option_id: string };
 const q = encodeURIComponent;
+const timezone = "Asia/Bangkok";
+type AnalyticsSubmission = MockFormSubmission & { deleted_at?: string | null };
 async function scope(request: NextRequest) {
   const identity = await verifiedActor(request);
-  const { user } = identity;
-  if (
-    user.status !== "active" ||
-    user.removed_at ||
-    user.system_role !== "event_user" ||
-    !user.event_id ||
-    !user.role_id ||
-    !["event_admin", "event_sub_user"].includes(user.event_role || "")
-  )
-    throw new AnalyticsError(403, "FORBIDDEN");
-  const [event, role, permissions] = await Promise.all([
-    mockApi.get<MockEvent>(`/events/${q(user.event_id)}`),
-    mockApi.get<MockRole>(`/roles/${q(user.role_id)}`),
-    mockApi.get<MockPermission[]>(`/permissions?role_id=${q(user.role_id)}`),
-  ]);
-  if (event.deleted_at || role.event_id !== event.id)
-    throw new AnalyticsError(403, "FORBIDDEN");
-  const mayRead = (feature: string) =>
-    permissions.some(
-      (p) =>
-        p.role_id === role.id &&
-        p.feature === feature &&
-        p.can_access &&
-        p.can_view,
-    );
-  if (!mayRead("dashboards")) throw new AnalyticsError(403, "FORBIDDEN");
-  const grantor = user.permission_granted_by_user_id
-    ? await mockApi.get<MockUser>(
-        `/users/${q(user.permission_granted_by_user_id)}`,
-      )
-    : null;
+  const scoped = await getDashboardScope(identity.user);
+  if (!scoped) throw new AnalyticsError(403, "FORBIDDEN");
   return {
     ...identity,
-    event,
-    mayRead,
-    rawAllowed: !identity.impersonating && hasRawGrant(user, grantor),
-    manage:
-      user.can_manage_dashboard === true &&
-      permissions.some(
-        (p) =>
-          p.role_id === role.id &&
-          p.feature === "dashboards" &&
-          p.can_access &&
-          p.can_edit,
-      ),
+    ...scoped,
+    manage: !identity.impersonating,
   };
 }
+
+async function requireLegacyStore<T>(operation: () => Promise<T>) {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof MockApiError && error.status === 404) {
+      throw new AnalyticsError(503, "ANALYTICS_STORAGE_UNAVAILABLE");
+    }
+    throw error;
+  }
+}
+
 async function audit(
   context: Awaited<ReturnType<typeof scope>>,
   action: string,
   filters: Filters,
   count: number,
 ) {
-  await mockApi.post("/audit_logs", {
-    id: crypto.randomUUID(),
-    event_id: context.event.id,
-    actor_user_id: context.actor.id,
-    action,
-    resource_type: "analytics",
-    resource_id: context.event.id,
-    description: JSON.stringify({
-      effectiveUserId: context.user.id,
-      formId: filters.formId || null,
-      from: filters.from,
-      to: filters.to,
-      locale: filters.locale,
-      count,
+  await requireLegacyStore(() =>
+    mockApi.post("/audit_logs", {
+      id: crypto.randomUUID(),
+      event_id: context.event.id,
+      actor_user_id: context.actor.id,
+      action,
+      resource_type: "analytics",
+      resource_id: context.event.id,
+      description: JSON.stringify({
+        effectiveUserId: context.user.id,
+        formId: filters.formId || null,
+        from: filters.from,
+        to: filters.to,
+        locale: filters.locale,
+        count,
+      }),
+      includes_unmasked_pii: filters.raw,
+      occurred_at: new Date().toISOString(),
     }),
-    includes_unmasked_pii: filters.raw,
-    occurred_at: new Date().toISOString(),
-  });
+  );
 }
 export async function getAnalytics(
   request: NextRequest,
   action = "analytics.view",
 ): Promise<AnalyticsData> {
   const context = await scope(request);
-  const { event, mayRead } = context;
+  const { event, canReadForm } = context;
   const filters = parseFilters(request.nextUrl.searchParams);
   if (filters.eventId && filters.eventId !== event.id)
     throw new AnalyticsError(403, "FORBIDDEN_EVENT");
   filters.eventId = event.id;
-  if (filters.raw && !context.rawAllowed)
-    throw new AnalyticsError(403, "RAW_PII_FORBIDDEN");
+  if (filters.raw) throw new AnalyticsError(403, "RAW_PII_FORBIDDEN");
   const [allForms, eventTranslations, dashboards] = await Promise.all([
     mockApi.get<MockForm[]>(`/forms?event_id=${q(event.id)}`),
     mockApi.get<MockEventTranslation[]>(
       `/event_translations?event_id=${q(event.id)}`,
     ),
-    mockApi.get<Dashboard[]>(`/dashboard_data?event_id=${q(event.id)}`),
+    requireLegacyStore(() =>
+      mockApi.get<Dashboard[]>(`/dashboard_data?event_id=${q(event.id)}`),
+    ),
   ]);
   const forms = allForms.filter(
-    (f) =>
-      f.event_id === event.id &&
-      !f.deleted_at &&
-      mayRead(f.type === "registration" ? "registrations" : "surveys"),
+    (f) => f.event_id === event.id && !f.deleted_at && canReadForm(f.type),
   );
   if (filters.formId && !forms.some((f) => f.id === filters.formId))
     throw new AnalyticsError(403, "FORBIDDEN_FORM");
@@ -148,7 +123,7 @@ export async function getAnalytics(
       ),
       Promise.all(
         selected.map((f) =>
-          mockApi.get<MockFormSubmission[]>(
+          mockApi.get<AnalyticsSubmission[]>(
             `/form_submissions?form_id=${q(f.id)}`,
           ),
         ),
@@ -170,10 +145,11 @@ export async function getAnalytics(
       if (
         !selectedIds.has(s.form_id) ||
         s.status !== "submitted" ||
-        s.deleted_at
+        s.deleted_at ||
+        !Number.isFinite(Date.parse(s.submitted_at))
       )
         return false;
-      const day = localDay(s.submitted_at, event.timezone);
+      const day = localDay(s.submitted_at, timezone);
       return (
         (!filters.from || day >= filters.from) &&
         (!filters.to || day <= filters.to)
@@ -234,7 +210,7 @@ export async function getAnalytics(
     return entry?.label || entry?.title || fallback;
   };
   const answerValue = (answer: Answer, field: Field) => {
-    if (field.contains_pii && !filters.raw) return "••••";
+    if (isReportingFieldPrivate(field)) return "••••";
     const chosen = selectionGroups
       .flat()
       .filter((s) => s.answer_id === answer.id)
@@ -242,7 +218,7 @@ export async function getAnalytics(
         options.find((o) => o.id === s.option_id && o.field_id === field.id),
       )
       .filter((o): o is Option => !!o);
-    if (chosen.length)
+    if (isReportingChoiceField(field.type))
       return chosen
         .map((o) =>
           label(
@@ -251,6 +227,17 @@ export async function getAnalytics(
           ),
         )
         .join("; ");
+    if (field.type === "rating" || field.type === "number") {
+      const value = answer.value_number;
+      if (typeof value !== "number" || !Number.isFinite(value)) return "";
+      if (
+        field.type === "rating" &&
+        (value < 0 || value > (field.rating_max ?? 10))
+      ) {
+        return "";
+      }
+      return String(value);
+    }
     const value =
       answer.value_text ??
       answer.value_number ??
@@ -302,7 +289,7 @@ export async function getAnalytics(
             (f) =>
               f.id === w.field_id &&
               f.form_id === w.form_id &&
-              !f.contains_pii,
+              !isReportingFieldPrivate(f),
           )),
     )
     .sort((a, b) => a.display_order - b.display_order)
@@ -365,7 +352,7 @@ export async function getAnalytics(
     });
   const days = new Map<string, number>();
   for (const s of submissions) {
-    const day = localDay(s.submitted_at, event.timezone);
+    const day = localDay(s.submitted_at, timezone);
     days.set(day, (days.get(day) || 0) + 1);
   }
   // Audit is awaited: a failed write must not release sensitive data or exports.
@@ -374,7 +361,7 @@ export async function getAnalytics(
     event: {
       id: event.id,
       title: label(eventTranslations, event.slug),
-      timezone: event.timezone,
+      timezone,
     },
     filters,
     forms: forms.map((f) => ({
@@ -392,7 +379,7 @@ export async function getAnalytics(
         fieldTranslationGroups.flat().filter((t) => t.field_id === f.id),
         f.id,
       ),
-      pii: f.contains_pii,
+      pii: isReportingFieldPrivate(f),
       type: f.type,
     })),
     rows,
@@ -410,7 +397,7 @@ export async function getAnalytics(
     ),
     dashboards: allowedDashboards,
     widgets,
-    permissions: { raw: context.rawAllowed, manage: context.manage },
+    permissions: { raw: false, manage: context.manage },
   };
 }
 export async function saveAnalyticsLayout(request: NextRequest) {
@@ -429,21 +416,23 @@ export async function saveAnalyticsLayout(request: NextRequest) {
     body.widgets.length > 30
   )
     throw new AnalyticsError(400, "INVALID_LAYOUT");
-  const dashboard = await mockApi.get<Dashboard>(
-    `/dashboard_data/${q(body.id)}`,
+  const dashboard = await requireLegacyStore(() =>
+    mockApi.get<Dashboard>(`/dashboard_data/${q(body.id)}`),
   );
   if (dashboard.event_id !== context.event.id)
     throw new AnalyticsError(403, "FORBIDDEN");
-  const originals = await mockApi.get<Widget[]>(
-    `/dashboard_widgets?dashboard_data_id=${q(dashboard.id)}`,
-  );
+  const originals = (
+    await mockApi.get<Widget[]>(
+      `/dashboard_widgets?dashboard_data_id=${q(dashboard.id)}`,
+    )
+  ).filter((widget) => widget.dashboard_data_id === dashboard.id);
   const forms = (
     await mockApi.get<MockForm[]>(`/forms?event_id=${q(context.event.id)}`)
   ).filter(
     (f) =>
       f.event_id === context.event.id &&
       !f.deleted_at &&
-      context.mayRead(f.type === "registration" ? "registrations" : "surveys"),
+      context.canReadForm(f.type),
   );
   const fields = (
     await Promise.all(
@@ -458,7 +447,7 @@ export async function saveAnalyticsLayout(request: NextRequest) {
           f.id === w.field_id &&
           f.form_id === w.form_id &&
           !f.deleted_at &&
-          !f.contains_pii,
+          !isReportingFieldPrivate(f),
       ));
   if (originals.some((w) => !validSource(w)))
     throw new AnalyticsError(403, "FORBIDDEN");

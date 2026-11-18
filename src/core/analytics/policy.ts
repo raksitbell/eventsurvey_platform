@@ -1,5 +1,4 @@
 import type { Filters } from "@/types/event/analytics";
-import type { MockUser } from "@/types/mock";
 export class AnalyticsError extends Error {
   constructor(
     public status: number,
@@ -35,18 +34,6 @@ export function parseFilters(params: URLSearchParams): Filters {
     locale,
     raw: raw === "true",
   };
-}
-export function hasRawGrant(user: MockUser, grantor: MockUser | null): boolean {
-  return (
-    user.event_role === "event_admin" &&
-    user.can_view_unmasked_pii === true &&
-    !!user.permission_updated_at &&
-    !!grantor &&
-    grantor.system_role === "platform_admin" &&
-    grantor.status === "active" &&
-    !grantor.removed_at &&
-    user.permission_granted_by_user_id === grantor.id
-  );
 }
 export function localDay(iso: string, timezone: string) {
   return new Intl.DateTimeFormat("en-CA", {

@@ -1,36 +1,33 @@
-import { bindMockUserAccess } from "@/services/auth/access";
-import { mockApi } from "@/core/api/mock-client";
-import { getEventWorkspace } from "@/services/event/workspace";
+import { mockApi, MockApiError } from "@/core/api/mock-client";
+import {
+  isReportingChoiceField,
+  isReportingFieldPrivate,
+} from "@/core/event/dashboard-policy";
+import { resolveEventTitle } from "@/core/mock/event-title";
+import { getDashboardScope } from "@/services/event/dashboard-access";
+import {
+  getDashboardLayout,
+  getLayoutWidgets,
+} from "@/services/event/dashboard-layout";
 import type { Locale } from "@/i18n/routing";
-import type { MockForm, MockFormSubmission, MockUser } from "@/types/mock";
-import type { DashboardWidget, ReportingData } from "@/types/event/reporting";
+import type {
+  MockAnswerOptionSelection,
+  MockEventTranslation,
+  MockFieldOption,
+  MockFieldOptionTranslation,
+  MockFieldTranslation,
+  MockForm,
+  MockFormField,
+  MockFormSubmission,
+  MockFormTranslation,
+  MockSubmissionAnswer,
+  MockUser,
+} from "@/types/mock";
+import type { ReportingData } from "@/types/event/reporting";
 
-interface Translation {
-  form_id: string;
-  field_id: string;
-  option_id: string;
-  locale_code: string;
-  title: string;
-  label: string;
-}
-interface Field {
-  id: string;
-  form_id: string;
-  type: string;
-  contains_pii: boolean;
-  is_required: boolean;
-  deleted_at: string | null;
-}
-interface Answer {
-  id: string;
-  submission_id: string;
-  field_id: string;
-  value_text: string | null;
-  value_number: number | null;
-  value_boolean: boolean | null;
-  value_date: string | null;
-  value_time: string | null;
-}
+type ReportingField = MockFormField & { contains_pii?: boolean };
+type ReportingSubmission = MockFormSubmission & { deleted_at?: string | null };
+
 interface Trash {
   id: string;
   event_id: string;
@@ -42,6 +39,7 @@ interface Trash {
   restored_at: string | null;
   restore_allowed: boolean;
 }
+
 export class ReportingError extends Error {
   constructor(
     public status: number,
@@ -50,212 +48,339 @@ export class ReportingError extends Error {
     super(message);
   }
 }
-export async function eventContext(userId: string, locale: Locale) {
-  const workspace = await getEventWorkspace(userId, locale);
-  if (!workspace) throw new ReportingError(403, "Forbidden");
-  const user = await bindMockUserAccess(
-    await mockApi.get<MockUser>(`/users/${encodeURIComponent(userId)}`),
-  );
-  return {
-    ...workspace,
-    user,
-    canManage: Boolean(user.can_manage_dashboard),
-  };
+
+const q = encodeURIComponent;
+
+async function loadOptionalTrash(eventId: string) {
+  try {
+    return await mockApi.get<Trash[]>(`/trash_items?event_id=${q(eventId)}`);
+  } catch (error) {
+    if (error instanceof MockApiError && error.status === 404) return [];
+    throw error;
+  }
 }
+
+function answerValue(
+  answer: MockSubmissionAnswer,
+  field: ReportingField,
+  choices: string[],
+): string {
+  if (isReportingFieldPrivate(field)) return "••••";
+  if (isReportingChoiceField(field.type)) {
+    return choices.join(", ");
+  }
+  if (field.type === "rating" || field.type === "number") {
+    const value = answer.value_number;
+    if (typeof value !== "number" || !Number.isFinite(value)) return "";
+    if (
+      field.type === "rating" &&
+      (value < 0 || value > (field.rating_max ?? 10))
+    ) {
+      return "";
+    }
+    return String(value);
+  }
+  return String(
+    answer.value_text ??
+      answer.value_boolean ??
+      answer.value_date ??
+      answer.value_time ??
+      "",
+  );
+}
+
 export async function getReportingData(
   userId: string,
   locale: Locale,
 ): Promise<ReportingData> {
-  const ctx = await eventContext(userId, locale);
-  const [
-    allForms,
-    translations,
-    allFields,
-    fieldTranslations,
-    submissions,
-    answers,
-    selections,
-    optionTranslations,
-    trash,
-    users,
-    layouts,
-  ] = await Promise.all([
-    mockApi.get<MockForm[]>(
-      `/forms?event_id=${encodeURIComponent(ctx.eventId)}`,
-    ),
-    mockApi.get<Translation[]>("/form_translations"),
-    mockApi.get<Field[]>("/form_fields"),
-    mockApi.get<Translation[]>("/field_translations"),
-    mockApi.get<MockFormSubmission[]>("/form_submissions"),
-    mockApi.get<Answer[]>("/submission_answers"),
-    mockApi.get<{ answer_id: string; option_id: string }[]>(
-      "/answer_option_selections",
-    ),
-    mockApi.get<Translation[]>("/field_option_translations"),
-    (async () => {
-      try {
-        return await mockApi.get<Trash[]>(
-          `/trash_items?event_id=${encodeURIComponent(ctx.eventId)}`,
-        );
-      } catch {
-        return [];
-      }
-    })(),
-    mockApi.get<MockUser[]>(
-      `/users?event_id=${encodeURIComponent(ctx.eventId)}`,
-    ),
-    mockApi.get<{ id: string; event_id: string }[]>(
-      `/dashboard_layouts?event_id=${encodeURIComponent(ctx.eventId)}`,
-    ),
-  ]);
-  const forms = allForms.filter(
-    (f) => f.event_id === ctx.eventId && !f.deleted_at,
+  const users = await mockApi.get<MockUser[]>(`/users?id=${q(userId)}`);
+  const scope = await getDashboardScope(
+    users.find((user) => user.id === userId) ?? null,
   );
-  const formIds = new Set(forms.map((f) => f.id));
-  const fields = allFields.filter(
-    (f) => formIds.has(f.form_id) && !f.deleted_at,
-  );
-  const localized = (rows: Translation[]) =>
-    rows.find((r) => r.locale_code === locale) ??
-    rows.find((r) => r.locale_code === "th") ??
-    rows[0];
-  const fieldLabel = (id: string) =>
-    localized(fieldTranslations.filter((t) => t.field_id === id))?.label ?? id;
-  const active = submissions.filter(
-    (s) => formIds.has(s.form_id) && s.status === "submitted" && !s.deleted_at,
-  );
-  const responses = active
-    .map((s) => {
-      const fs = fields.filter((f) => f.form_id === s.form_id);
-      const rows = answers.filter(
-        (a) => a.submission_id === s.id && fs.some((f) => f.id === a.field_id),
-      );
-      const values = rows.map((a) => {
-        const field = fs.find((f) => f.id === a.field_id)!;
-        const choices = selections
-          .filter((o) => o.answer_id === a.id)
-          .map(
-            (o) =>
-              localized(
-                optionTranslations.filter((t) => t.option_id === o.option_id),
-              )?.label ?? o.option_id,
-          );
-        const raw =
-          a.value_text ??
-          a.value_number ??
-          a.value_boolean ??
-          a.value_date ??
-          a.value_time ??
-          (choices.length ? choices.join(", ") : "");
-        return {
-          fieldId: a.field_id,
-          label: fieldLabel(a.field_id),
-          value:
-            field.contains_pii && !ctx.user.can_view_unmasked_pii
-              ? "••••"
-              : String(raw),
-        };
-      });
-      const hasAnswer = (field: Field) =>
-        rows.some(
-          (a) =>
-            a.field_id === field.id &&
-            ((a.value_text !== null && a.value_text !== "") ||
-              a.value_number !== null ||
-              a.value_boolean !== null ||
-              !!a.value_date ||
-              !!a.value_time ||
-              selections.some((o) => o.answer_id === a.id)),
-        );
-      const nameField = fs.find(
-        (f) => f.contains_pii && f.type === "short_text",
-      );
-      const rating = rows.find((a) =>
-        fs.some(
-          (f) => f.id === a.field_id && f.type === "rating" && !f.contains_pii,
-        ),
-      );
-      return {
-        id: s.id,
-        formId: s.form_id,
-        respondent:
-          values.find((a) => a.fieldId === nameField?.id)?.value ||
-          s.id.slice(0, 8),
-        submittedAt: s.submitted_at,
-        complete: fs.filter((f) => f.is_required).every(hasAnswer),
-        score: rating?.value_number ?? null,
-        answers: values,
-      };
-    })
-    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-  const layout = layouts.find((l) => l.event_id === ctx.eventId);
-  const widgets = layout
-    ? await mockApi.get<DashboardWidget[]>(
-        `/dashboard_widgets?layout_id=${encodeURIComponent(layout.id)}`,
-      )
-    : [];
-  const earliestResponse = responses.at(-1)?.submittedAt ?? null;
-  const latestResponse = responses[0]?.submittedAt ?? null;
-  return {
-    eventId: ctx.eventId,
-    eventName: ctx.eventName,
-    eventStartsAt: ctx.eventStartsAt ?? earliestResponse,
-    eventEndsAt: ctx.eventEndsAt ?? latestResponse,
-    canManage: ctx.canManage,
-    forms: forms.map((f) => ({
-      id: f.id,
-      title:
-        localized(translations.filter((t) => t.form_id === f.id))?.title ??
-        f.id,
-      type: f.type,
-      approved: ["approved", "published", "paused", "closed"].includes(
-        f.status,
+  if (!scope) throw new ReportingError(403, "Forbidden");
+
+  const { event, canReadForm } = scope;
+  const [eventTranslations, eventForms, trash, eventUsers, layout] =
+    await Promise.all([
+      mockApi.get<MockEventTranslation[]>(
+        `/event_translations?event_id=${q(event.id)}`,
       ),
-    })),
-    responses,
-    fields: fields
-      .filter((f) => !f.contains_pii)
-      .map((f) => ({
-        id: f.id,
-        formId: f.form_id,
-        label: fieldLabel(f.id),
-        numeric: ["number", "rating"].includes(f.type),
-      })),
-    widgets: widgets
-      .filter((w) => w.layout_id === layout?.id)
-      .sort((a, b) => a.display_order - b.display_order),
-    trash: trash
-      .filter((t) => t.event_id === ctx.eventId && !t.restored_at)
-      .map((t) => {
-        const expiresAt = new Date(
-          new Date(t.deleted_at).getTime() + 30 * 86400000,
-        ).toISOString();
-        const form = allForms.find((f) => f.id === t.resource_id);
-        const allowed =
-          form?.type === "survey"
-            ? ctx.user.can_manage_survey_form
-            : form?.type === "registration" &&
-              ctx.user.can_manage_registration_form;
+      mockApi.get<MockForm[]>(`/forms?event_id=${q(event.id)}`),
+      loadOptionalTrash(event.id),
+      mockApi.get<MockUser[]>(`/users?event_id=${q(event.id)}`),
+      getDashboardLayout(event.id),
+    ]);
+
+  const allowedForms = eventForms.filter(
+    (form) => form.event_id === event.id && canReadForm(form.type),
+  );
+  const forms = allowedForms.filter((form) => !form.deleted_at);
+  const formIds = new Set(forms.map((form) => form.id));
+  const activeEventFormIds = new Set(
+    eventForms
+      .filter((form) => form.event_id === event.id && !form.deleted_at)
+      .map((form) => form.id),
+  );
+  const [formGroups, widgets] = await Promise.all([
+    Promise.all(
+      forms.map(async (form) => {
+        const [translations, fields, submissions] = await Promise.all([
+          mockApi.get<MockFormTranslation[]>(
+            `/form_translations?form_id=${q(form.id)}`,
+          ),
+          mockApi.get<ReportingField[]>(`/form_fields?form_id=${q(form.id)}`),
+          mockApi.get<ReportingSubmission[]>(
+            `/form_submissions?form_id=${q(form.id)}`,
+          ),
+        ]);
         return {
-          id: t.id,
-          name:
-            t.resource_type === "submission" && !ctx.user.can_view_unmasked_pii
-              ? "••••"
-              : t.display_name,
-          type: t.resource_type,
-          deletedBy:
-            users.find((u) => u.id === t.deleted_by_user_id)?.display_name ??
-            "—",
-          expiresAt,
-          canRestore:
-            !!allowed &&
-            t.resource_type === "form" &&
-            t.restore_allowed &&
-            Date.parse(expiresAt) > Date.now(),
+          translations: translations.filter((row) => row.form_id === form.id),
+          fields: fields.filter(
+            (row) => row.form_id === form.id && !row.deleted_at,
+          ),
+          submissions: submissions.filter(
+            (row) =>
+              row.form_id === form.id &&
+              row.status === "submitted" &&
+              !row.deleted_at &&
+              Number.isFinite(Date.parse(row.submitted_at)),
+          ),
         };
       }),
+    ),
+    getLayoutWidgets(layout),
+  ]);
+  const formTranslations = formGroups.flatMap((group) => group.translations);
+  const fields = formGroups.flatMap((group) => group.fields);
+  const submissions = formGroups.flatMap((group) => group.submissions);
+  const widgetFields = fields.filter(
+    (field) => !isReportingFieldPrivate(field),
+  );
+
+  const choiceFieldIds = new Set(
+    fields
+      .filter((field) => isReportingChoiceField(field.type))
+      .map((field) => field.id),
+  );
+  const [fieldGroups, answerGroups] = await Promise.all([
+    Promise.all(
+      fields.map(async (field) => {
+        const [translations, options] = await Promise.all([
+          mockApi.get<MockFieldTranslation[]>(
+            `/field_translations?field_id=${q(field.id)}`,
+          ),
+          choiceFieldIds.has(field.id)
+            ? mockApi.get<MockFieldOption[]>(
+                `/field_options?field_id=${q(field.id)}`,
+              )
+            : Promise.resolve([]),
+        ]);
+        return {
+          translations: translations.filter((row) => row.field_id === field.id),
+          options: options.filter(
+            (row) => row.field_id === field.id && !row.deleted_at,
+          ),
+        };
+      }),
+    ),
+    Promise.all(
+      submissions.map(async (submission) => {
+        const rows = await mockApi.get<MockSubmissionAnswer[]>(
+          `/submission_answers?submission_id=${q(submission.id)}`,
+        );
+        return rows.filter((row) => row.submission_id === submission.id);
+      }),
+    ),
+  ]);
+  const fieldTranslations = fieldGroups.flatMap((group) => group.translations);
+  const options = fieldGroups.flatMap((group) => group.options);
+
+  const [selectionGroups, optionTranslationGroups] = await Promise.all([
+    Promise.all(
+      answerGroups
+        .flat()
+        .filter((answer) => choiceFieldIds.has(answer.field_id))
+        .map(async (answer) => {
+          const rows = await mockApi.get<MockAnswerOptionSelection[]>(
+            `/answer_option_selections?answer_id=${q(answer.id)}`,
+          );
+          return rows.filter((row) => row.answer_id === answer.id);
+        }),
+    ),
+    Promise.all(
+      options.map(async (option) => {
+        const rows = await mockApi.get<MockFieldOptionTranslation[]>(
+          `/field_option_translations?option_id=${q(option.id)}`,
+        );
+        return rows.filter((row) => row.option_id === option.id);
+      }),
+    ),
+  ]);
+  const selections = selectionGroups.flat();
+  const optionTranslations = optionTranslationGroups.flat();
+  const localized = <T extends { locale_code: string }>(rows: T[]) =>
+    rows.find((row) => row.locale_code === locale) ??
+    rows.find((row) => row.locale_code === event.default_locale) ??
+    rows[0];
+  const fieldLabel = (id: string) =>
+    localized(fieldTranslations.filter((row) => row.field_id === id))?.label ??
+    id;
+
+  const responses = submissions
+    .map((submission, index) => {
+      const submissionFields = fields.filter(
+        (field) => field.form_id === submission.form_id,
+      );
+      const answers = answerGroups[index]
+        .filter((answer) =>
+          submissionFields.some((field) => field.id === answer.field_id),
+        )
+        .map((answer) => {
+          const field = submissionFields.find(
+            (row) => row.id === answer.field_id,
+          )!;
+          const choiceIds = selections
+            .filter((selection) => selection.answer_id === answer.id)
+            .map((selection) => selection.option_id);
+          const choices = options
+            .filter(
+              (option) =>
+                option.field_id === field.id && choiceIds.includes(option.id),
+            )
+            .map(
+              (option) =>
+                localized(
+                  optionTranslations.filter(
+                    (row) => row.option_id === option.id,
+                  ),
+                )?.label ?? option.id,
+            );
+          const hasValue =
+            Boolean(
+              answer.value_text ||
+              answer.value_date ||
+              answer.value_time ||
+              choices.length,
+            ) ||
+            typeof answer.value_number === "number" ||
+            typeof answer.value_boolean === "boolean";
+
+          return {
+            field,
+            value: answerValue(answer, field, choices),
+            hasValue,
+          };
+        });
+      const name = answers.find(
+        ({ field }) =>
+          field.type === "short_text" && isReportingFieldPrivate(field),
+      );
+      const rating = answers.find(
+        ({ field, value }) =>
+          field.type === "rating" &&
+          value !== "" &&
+          !isReportingFieldPrivate(field),
+      );
+
+      return {
+        id: submission.id,
+        formId: submission.form_id,
+        respondent: name?.value ?? submission.id.slice(0, 8),
+        submittedAt: submission.submitted_at,
+        complete: submissionFields
+          .filter((field) => field.is_required)
+          .every((field) =>
+            answers.some(
+              (answer) => answer.field.id === field.id && answer.hasValue,
+            ),
+          ),
+        score: rating ? Number(rating.value) : null,
+        answers: answers.map(({ field, value }) => ({
+          fieldId: field.id,
+          label: fieldLabel(field.id),
+          value,
+        })),
+      };
+    })
+    .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
+
+  // Replacing a layout cannot remove widgets for an active form the actor
+  // cannot read. Widgets with obsolete sources can still be removed.
+  const canManage = widgets.every(
+    (widget) =>
+      !widget.source_form_id ||
+      !activeEventFormIds.has(widget.source_form_id) ||
+      formIds.has(widget.source_form_id),
+  );
+
+  return {
+    eventId: event.id,
+    eventName:
+      resolveEventTitle(eventTranslations, event.id, locale) ?? event.slug,
+    eventStartsAt:
+      event.start_at && Number.isFinite(Date.parse(event.start_at))
+        ? event.start_at
+        : (responses.at(-1)?.submittedAt ?? null),
+    eventEndsAt:
+      event.end_at && Number.isFinite(Date.parse(event.end_at))
+        ? event.end_at
+        : (responses[0]?.submittedAt ?? null),
+    canManage,
+    forms: forms.map((form) => ({
+      id: form.id,
+      title:
+        localized(formTranslations.filter((row) => row.form_id === form.id))
+          ?.title ?? form.id,
+      type: form.type,
+      approved: ["scheduled", "open", "closed"].includes(form.status),
+    })),
+    responses,
+    fields: widgetFields.map((field) => ({
+      id: field.id,
+      formId: field.form_id,
+      label: fieldLabel(field.id),
+      numeric: ["number", "rating"].includes(field.type),
+    })),
+    widgets: widgets.filter(
+      (widget) =>
+        (!widget.source_form_id || formIds.has(widget.source_form_id)) &&
+        (!widget.source_field_id ||
+          widgetFields.some(
+            (field) =>
+              field.id === widget.source_field_id &&
+              field.form_id === widget.source_form_id,
+          )),
+    ),
+    trash: trash.flatMap((item) => {
+      if (item.event_id !== event.id || item.restored_at) return [];
+      const expiresAt = new Date(Date.parse(item.deleted_at) + 30 * 86400000);
+      if (Number.isNaN(expiresAt.getTime())) return [];
+      const form = allowedForms.find((row) => row.id === item.resource_id);
+      if (item.resource_type === "form" && !form) return [];
+
+      return [
+        {
+          id: item.id,
+          name: item.resource_type === "form" ? item.display_name : "••••",
+          type: item.resource_type,
+          deletedBy:
+            eventUsers.find(
+              (user) =>
+                user.id === item.deleted_by_user_id &&
+                user.event_id === event.id,
+            )?.display_name ?? "—",
+          expiresAt: expiresAt.toISOString(),
+          canRestore:
+            item.resource_type === "form" &&
+            Boolean(form) &&
+            item.restore_allowed &&
+            expiresAt.getTime() > Date.now(),
+        },
+      ];
+    }),
   };
 }
+
 export async function restoreTrash(
   userId: string,
   locale: Locale,
@@ -263,23 +388,32 @@ export async function restoreTrash(
 ) {
   if (typeof id !== "string") throw new ReportingError(400, "Invalid item");
   const data = await getReportingData(userId, locale);
-  if (!data.trash.some((t) => t.id === id && t.canRestore))
+  if (!data.trash.some((item) => item.id === id && item.canRestore))
     throw new ReportingError(403, "Restore not allowed");
-  const item = await mockApi.get<Trash>(
-    `/trash_items/${encodeURIComponent(id)}`,
-  );
-  const form = await mockApi.get<MockForm>(
-    `/forms/${encodeURIComponent(item.resource_id)}`,
-  );
-  if (form.event_id !== data.eventId || item.event_id !== data.eventId)
+
+  const item = await mockApi.get<Trash>(`/trash_items/${q(id)}`);
+  const form = await mockApi.get<MockForm>(`/forms/${q(item.resource_id)}`);
+  if (
+    form.event_id !== data.eventId ||
+    item.event_id !== data.eventId ||
+    item.resource_type !== "form" ||
+    item.restored_at ||
+    !item.restore_allowed ||
+    !(Date.parse(item.deleted_at) + 30 * 86400000 > Date.now())
+  ) {
     throw new ReportingError(403, "Forbidden");
-  await mockApi.patch(`/forms/${encodeURIComponent(form.id)}`, {
-    deleted_at: null,
-    updated_at: new Date().toISOString(),
-    updated_by_user_id: userId,
-  });
-  await mockApi.patch(`/trash_items/${encodeURIComponent(id)}`, {
-    restored_at: new Date().toISOString(),
+  }
+
+  const now = new Date().toISOString();
+  if (form.deleted_at) {
+    await mockApi.patch(`/forms/${q(form.id)}`, {
+      deleted_at: null,
+      updated_at: now,
+      updated_by: userId,
+    });
+  }
+  await mockApi.patch(`/trash_items/${q(id)}`, {
+    restored_at: now,
     restored_by_user_id: userId,
   });
   return { ok: true };

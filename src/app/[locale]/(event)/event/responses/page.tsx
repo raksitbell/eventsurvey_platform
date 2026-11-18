@@ -1,4 +1,10 @@
+import { Suspense } from "react";
 import ResponsesView from "@/components/event/reports/ResponsesView";
+
 export default function Page() {
-  return <ResponsesView />;
+  return (
+    <Suspense>
+      <ResponsesView />
+    </Suspense>
+  );
 }

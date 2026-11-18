@@ -3,10 +3,11 @@
  * Use only from Route Handlers / Server Components — not from the browser.
  */
 
-export const MOCK_API_BASE_URL =
+export const MOCK_API_BASE_URL = (
   process.env.MOCK_API_BASE_URL ??
   process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "https://eventmockapi.vercel.app";
+  "https://eventmockapi.vercel.app"
+).replace(/\/+$/, "");
 
 export class MockApiError extends Error {
   status: number;
@@ -19,7 +20,8 @@ export class MockApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${MOCK_API_BASE_URL}${path}`, {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const response = await fetch(`${MOCK_API_BASE_URL}${normalizedPath}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -30,8 +32,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      detail = (await response.text()) || detail;
+    } catch {
+      // keep statusText
+    }
     throw new MockApiError(
-      `Mock API failed: ${response.statusText}`,
+      `Mock API failed: ${detail.slice(0, 500)}`,
       response.status,
     );
   }

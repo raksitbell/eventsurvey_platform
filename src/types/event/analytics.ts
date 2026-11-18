@@ -3,7 +3,9 @@ export interface Field {
   form_id: string;
   type: string;
   display_order: number;
-  contains_pii: boolean;
+  contains_pii?: boolean;
+  is_unique?: boolean;
+  rating_max?: number | null;
   deleted_at: string | null;
 }
 export interface Answer {

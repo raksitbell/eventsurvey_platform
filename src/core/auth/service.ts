@@ -19,14 +19,14 @@ export async function loginWithCredentials({
     return sanitizeUser(data.user);
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "INVALID_CREDENTIALS") {
-        throw new Error("INVALID_CREDENTIALS");
-      }
-      if (error.message === "UNSUPPORTED_ROLE") {
-        throw new Error("UNSUPPORTED_ROLE");
+      if (
+        error.message === "INVALID_CREDENTIALS" ||
+        error.message === "UNSUPPORTED_ROLE"
+      ) {
+        throw error;
       }
     }
-    throw new Error("INVALID_CREDENTIALS");
+    throw new Error("LOGIN_UNAVAILABLE");
   }
 }
 

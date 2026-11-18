@@ -5,7 +5,7 @@ import { panelClass } from "@/components/event/reports/ReportShell";
 import { HandRaisedIcon } from "@heroicons/react/24/outline";
 import type { DashboardWidget } from "@/types/event/reporting";
 import { useTranslations } from "next-intl";
-import React from "react";
+import type { PointerEvent } from "react";
 
 interface DashboardToolbarProps {
   eventName: string;
@@ -19,7 +19,7 @@ interface DashboardToolbarProps {
   onAddWidget: (type: DashboardWidget["widget_type"]) => void;
   onStartPointerDragNew?: (
     type: DashboardWidget["widget_type"],
-    e: React.PointerEvent<HTMLButtonElement>,
+    e: PointerEvent<HTMLButtonElement>,
   ) => void;
   onLoadDraft: () => void;
   onSaveDraft: () => void;
@@ -110,15 +110,17 @@ export default function DashboardToolbar({
                 key={type}
                 type="button"
                 disabled={pending || widgetCount >= 24}
-                onPointerDown={(e) => {
-                  if (pending || widgetCount >= 24 || e.button !== 0) return;
-                  if (onStartPointerDragNew) {
-                    onStartPointerDragNew(type, e);
-                  } else {
+                onClick={(event) => {
+                  if (!onStartPointerDragNew || event.detail === 0) {
                     onAddWidget(type);
                   }
                 }}
-                className={`inline-flex cursor-grab touch-none items-center gap-2 rounded-xl border px-3.5 py-2 text-theme-sm font-medium select-none transition duration-200 active:scale-95 active:cursor-grabbing disabled:opacity-50 ${
+                onPointerDown={(event) => {
+                  if (event.isPrimary && event.button === 0) {
+                    onStartPointerDragNew?.(type, event);
+                  }
+                }}
+                className={`inline-flex cursor-grab touch-none items-center gap-2 rounded-xl border px-3.5 py-2 text-theme-sm font-medium transition duration-200 select-none active:scale-95 active:cursor-grabbing disabled:opacity-50 ${
                   draggingNewType === type
                     ? "scale-95 border-brand-500 bg-brand-50 text-brand-600 shadow-theme-sm dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-400"
                     : "border-gray-200 bg-gray-50 text-gray-700 shadow-theme-xs hover:-translate-y-0.5 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-600 hover:shadow-theme-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-brand-500 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"

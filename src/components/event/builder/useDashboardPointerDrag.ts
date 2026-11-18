@@ -52,6 +52,7 @@ export function useDashboardPointerDrag({
   const drawerRefs = useRef<Map<string, HTMLElement>>(new Map());
   const floatingCardRef = useRef<HTMLDivElement | null>(null);
   const dropTargetRef = useRef<number | null>(null);
+  const clearActivePointer = useRef<(() => void) | null>(null);
 
   // Resolve drawer placement based on card size:
   // - Small (colSpan === 1) & Medium (colSpan === 2): open on the side ("right" or "left")
@@ -116,6 +117,7 @@ export function useDashboardPointerDrag({
       mode: "existing" | "new";
       widgetId?: string;
       widgetType: DashboardWidget["widget_type"];
+      pointerId: number;
       startX: number;
       startY: number;
       originLeft: number;
@@ -123,10 +125,14 @@ export function useDashboardPointerDrag({
       width: number;
       height: number;
     }) => {
+      clearActivePointer.current?.();
+      dropTargetRef.current = null;
+
       const {
         mode,
         widgetId,
         widgetType,
+        pointerId,
         startX,
         startY,
         originLeft,
@@ -227,6 +233,7 @@ export function useDashboardPointerDrag({
       };
 
       const onPointerMove = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
 
@@ -266,28 +273,26 @@ export function useDashboardPointerDrag({
         }
       };
 
-      const onPointerUp = () => {
+      const clearPointer = () => {
         globalThis.window.removeEventListener("pointermove", onPointerMove);
-        globalThis.window.removeEventListener("pointerup", onPointerUp);
-        globalThis.window.removeEventListener("pointercancel", onPointerUp);
+        globalThis.window.removeEventListener("pointerup", onPointerFinish);
+        globalThis.window.removeEventListener("pointercancel", onPointerFinish);
+        clearActivePointer.current = null;
+      };
+      const onPointerFinish = (event: PointerEvent) => {
+        if (event.pointerId !== pointerId) return;
+        clearPointer();
 
         const finalTarget = dropTargetRef.current;
-        if (isDraggingActive) {
-          if (mode === "existing" && widgetId) {
-            if (finalTarget !== null) {
+        if (event.type === "pointerup") {
+          if (!isDraggingActive) {
+            if (mode === "existing" && widgetId) onSelectWidget(widgetId);
+            if (mode === "new") onAddWidget(widgetType);
+          } else if (finalTarget !== null) {
+            if (mode === "existing" && widgetId)
               onMoveWidget(widgetId, finalTarget);
-            }
-          } else if (mode === "new") {
-            if (finalTarget !== null) {
-              onAddWidget(widgetType, finalTarget);
-            } else {
-              onAddWidget(widgetType);
-            }
+            if (mode === "new") onAddWidget(widgetType, finalTarget);
           }
-        } else if (mode === "existing" && widgetId) {
-          onSelectWidget(widgetId);
-        } else if (mode === "new") {
-          onAddWidget(widgetType);
         }
 
         dropTargetRef.current = null;
@@ -295,17 +300,19 @@ export function useDashboardPointerDrag({
         setDropTargetIndex(null);
       };
 
+      clearActivePointer.current = clearPointer;
       globalThis.window.addEventListener("pointermove", onPointerMove, {
         passive: true,
       });
-      globalThis.window.addEventListener("pointerup", onPointerUp);
-      globalThis.window.addEventListener("pointercancel", onPointerUp);
+      globalThis.window.addEventListener("pointerup", onPointerFinish);
+      globalThis.window.addEventListener("pointercancel", onPointerFinish);
     },
     [onAddWidget, onMoveWidget, onSelectWidget, widgets],
   );
 
   useEffect(() => {
     return () => {
+      clearActivePointer.current?.();
       dropTargetRef.current = null;
     };
   }, []);

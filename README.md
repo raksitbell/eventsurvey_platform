@@ -90,24 +90,28 @@ npm run dev
 > ก่อนเขียนโค้ดบรรทัดแรก อ่าน [`AGENTS.md`](AGENTS.md) ให้จบ
 > ข้อห้ามในนั้นส่วนใหญ่มาจากกรณีที่เคยทำแล้วเว็บค้างหรือพังจริงในโปรเจกต์นี้ ไม่ใช่กฎที่ตั้งขึ้นลอย ๆ
 
-## Event dashboard และรายงาน
+## Event Dashboard และรายงาน
+
+Dashboard เปิดให้ผู้ใช้ที่มีสิทธิ์ `manage_dashboard` เมื่ออีเวนต์อยู่ในสถานะ `scheduled`, `open` หรือ `closed` ตาม lifecycle ของ Mock API สิทธิ์ของแต่ละฟอร์มกำหนดว่าผู้ใช้จะเห็นคำตอบชุดใด และ BFF ปกปิดค่า PII ก่อนส่งข้อมูลให้หน้าเว็บและไฟล์ส่งออก
+
+ตั้งค่า `AUTH_SESSION_SECRET` ใน Production และ Preview ให้เป็นค่าสุ่มที่คงเดิมข้ามอินสแตนซ์ เช่น ค่าที่สร้างด้วย `openssl rand -hex 32` สำหรับลงนาม session ฝั่งเซิร์ฟเวอร์ ผู้ใช้ที่เข้าใช้งานอยู่ก่อน deploy ต้องลงชื่อเข้าใช้อีกครั้งเพื่อรับ session ที่ลงนามแล้ว
 
 | หน้า | การทำงาน |
 |---|---|
 | `/event/dashboard` | แสดงวิดเจ็ตที่เผยแพร่ โดยคำนวณจากคำตอบ API ของกิจกรรมปัจจุบัน |
 | `/event/dashboard/builder` | เพิ่ม/ย้าย/ปรับความกว้าง/ตั้งค่าวิดเจ็ต บันทึกฉบับร่างในอุปกรณ์ หรือเผยแพร่ผ่าน API |
 | `/event/responses` | ค้นหาคำตอบแบบสำรวจ ดูรายละเอียด และส่งออก CSV |
-| `/event/exports` | CSV คำตอบและสรุปจากแบบฟอร์มที่อนุมัติ พร้อมรายงานสำหรับพิมพ์หรือบันทึก PDF |
+| `/event/exports` | CSV คำตอบและสรุปจากแบบฟอร์มสถานะ `scheduled`, `open` หรือ `closed` พร้อมรายงานสำหรับพิมพ์หรือบันทึก PDF |
 | `/event/trash` | แสดงถังขยะ กู้คืนแบบฟอร์มภายใน 30 วันตามสิทธิ์ (ไม่กู้คืนคำตอบ) |
 
-ทุกหน้ารองรับไทย/อังกฤษและ dark mode ใช้ BFF `/api/event/data`, `/api/event/dashboard` และ `/api/event/trash` โดย service จำกัดข้อมูลตามกิจกรรมจาก session และปกปิดฟิลด์ PII ตามสิทธิ์ ฉบับร่างเก็บเฉพาะการตั้งค่าวิดเจ็ตใน localStorage แยกตามผู้ใช้และกิจกรรม การเผยแพร่เขียน `dashboard_layouts` / `dashboard_widgets` ของ Mock API; อายุการเก็บข้อมูลขึ้นกับเซิร์ฟเวอร์ Mock ที่ตั้งค่าไว้ การเขียนหลาย resource ยังไม่มี transaction ตามข้อจำกัด JSON Server
+ทุกหน้ารองรับไทย/อังกฤษและ dark mode ใช้ BFF `/api/event/data`, `/api/event/dashboard` และ `/api/event/trash` ฉบับร่างเก็บการตั้งค่าวิดเจ็ตใน localStorage แยกตามผู้ใช้และอีเวนต์ การเผยแพร่บันทึกใน `dashboard_layouts` และ `dashboard_widgets` ของ Mock API
 
-เพิ่ม `grid_span` และ `date_range_days` ใน schema วิดเจ็ตเพื่อเก็บความกว้างและช่วงวันที่ โดยข้อมูลเดิมที่ไม่มีฟิลด์เหล่านี้ใช้ค่าเริ่มต้น 6 คอลัมน์ / ทุกช่วงเวลา
+Mock API เก็บ `grid_span` และ `date_range_days` สำหรับขนาดวิดเจ็ตและช่วงวันที่ ข้อมูลเดิมยังอ่านได้จาก `grid_w`, `display_size` และ `date_type` การเผยแพร่เขียนวิดเจ็ตชุดใหม่พร้อม `publication_revision` ให้ครบก่อนสลับ `published_widget_ids` ใน layout จึงยังอ่านชุดเดิมได้หากการเขียนชุดใหม่สะดุด
+
+เส้นทางในเว็บใต้ `/event/analytics` เปิดหน้าที่สอดคล้องกันของ Dashboard ส่วน Legacy API `/api/event/analytics` ต้องใช้ข้อมูล `dashboard_data` และ `audit_logs` จึงคืน `503` เมื่อ Mock API ไม่มีทรัพยากรเหล่านี้ หาก Mock API ไม่มี `trash_items` หน้า Trash จะแสดงสถานะว่าง
 
 ทดสอบ service, permissions, การคำนวณ และ CSV ด้วย fixture ในหน่วยความจำ (ไม่เขียนข้อมูลไปยัง API ภายนอก):
 
 ```bash
-node tests/event-reporting.cjs
+node --test tests/*.cjs
 ```
-
-รองรับ Mock API ปัจจุบันที่ใช้ `users.role_id` → `roles` + `role_permissions` ผ่าน `services/auth/access.ts` และยังรองรับ `event_role` แบบเดิม โดยใช้ตัวแปลงเดียวกันใน login, workspace และ admin impersonation

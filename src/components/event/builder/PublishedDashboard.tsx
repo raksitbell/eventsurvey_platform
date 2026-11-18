@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useEventReporting } from "@/hooks/useEventReporting";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
+import { reportingDay } from "@/core/event/widget-data";
 import { useConfirm } from "@/hooks/useConfirm";
 import { showToast } from "@/utils/toast";
 import ReportShell, {
@@ -18,21 +19,21 @@ import type { ColSpan, RowSpan } from "./WidgetSizeMenu";
 import type { DashboardWidget, ReportingData } from "@/types/event/reporting";
 
 export default function PublishedDashboard() {
-  const { data, error, reload } = useEventReporting();
-  const { user } = useAuth();
+  const { data, identityKey, errorStatus, reload } = useEventReporting();
+  const { isImpersonating } = useAuth();
 
   return (
     <ReportShell
       section="dashboard"
       loading={!data}
-      error={error}
+      errorStatus={errorStatus}
       retry={reload}
       wide
     >
       {data && (
         <MainDashboardContent
-          key={`${user?.id}:${data.eventId}`}
-          initial={data}
+          key={`${identityKey}:${data.eventId}`}
+          initial={isImpersonating ? { ...data, canManage: false } : data}
         />
       )}
     </ReportShell>
@@ -52,6 +53,15 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
   const [openMenuWidgetId, setOpenMenuWidgetId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const mounted = useRef(false);
+  const publishing = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const storageKey = `event-dashboard-draft:${user?.id}:${data.eventId}`;
 
@@ -106,8 +116,10 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
           row_span: 1,
           text_align: "left",
           date_range_days: 0,
-          date_from: data.eventStartsAt ? data.eventStartsAt.slice(0, 10) : null,
-          date_to: data.eventEndsAt ? data.eventEndsAt.slice(0, 10) : null,
+          date_from: data.eventStartsAt
+            ? reportingDay(data.eventStartsAt)
+            : null,
+          date_to: data.eventEndsAt ? reportingDay(data.eventEndsAt) : null,
         };
         const next = [...prev];
         next.splice(insertAt, 0, widget);
@@ -167,28 +179,30 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
   );
 
   async function publish() {
-    if (
-      !(await confirm({
-        title: t("builder.publish"),
-        message: t("builder.publishConfirm"),
-      }))
-    )
-      return;
+    if (!data.canManage || publishing.current) return;
+    publishing.current = true;
     setPending(true);
     try {
+      const confirmed = await confirm({
+        title: t("builder.publish"),
+        message: t("builder.publishConfirm"),
+      });
+      if (!confirmed || !mounted.current) return;
       const result = await api.post<ReportingData>(
         `/event/dashboard?locale=${locale}`,
         { widgets },
       );
+      if (!mounted.current) return;
       setData(result);
       setWidgets(result.widgets);
       setSelected(result.widgets[0]?.id ?? "");
       setDirty(false);
       await showToast(t("builder.published"));
     } catch {
-      await showToast(t("actionError"), "error");
+      if (mounted.current) await showToast(t("actionError"), "error");
     } finally {
-      setPending(false);
+      publishing.current = false;
+      if (mounted.current) setPending(false);
     }
   }
 
@@ -271,6 +285,7 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
           beginPointerDrag({
             mode: "new",
             widgetType: type,
+            pointerId: e.pointerId,
             startX: e.clientX,
             startY: e.clientY,
             originLeft: e.clientX - width / 2,
@@ -287,13 +302,9 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
       <div className="grid items-start gap-5 xl:grid-cols-12">
         <section
           ref={canvasRef}
-          className={`${data.canManage && isEditing ? panelClass : ""} xl:col-span-12`}
+          className={`${data.canManage && isEditing ? `${panelClass} min-h-72 lg:min-h-[calc(100dvh-19rem)]` : ""} xl:col-span-12`}
         >
-          <div
-            className={`grid grid-cols-1 content-start gap-5 md:grid-cols-3 md:grid-flow-row-dense ${
-              data.canManage && isEditing ? "min-h-72" : ""
-            }`}
-          >
+          <div className="grid grid-cols-1 content-start gap-5 md:grid-flow-row-dense md:grid-cols-3">
             {widgets.map((widget, index) => {
               const isSelected =
                 data.canManage && isEditing && selected === widget.id;
@@ -334,7 +345,8 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
                     else drawerRefs.current.delete(widget.id);
                   }}
                   onPointerDownCard={(e) => {
-                    if (!canEditCanvas || e.button !== 0) return;
+                    if (!canEditCanvas || !e.isPrimary || e.button !== 0)
+                      return;
                     const targetEl = e.target as HTMLElement | null;
                     if (targetEl?.closest("[data-no-drag]")) return;
                     e.preventDefault();
@@ -344,6 +356,7 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
                       mode: "existing",
                       widgetId: widget.id,
                       widgetType: widget.widget_type,
+                      pointerId: e.pointerId,
                       startX: e.clientX,
                       startY: e.clientY,
                       originLeft: rect.left,
@@ -366,11 +379,7 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
                   onRemoveWidget={() => removeWidget(widget.id)}
                   onMenuOpenChange={(isOpen) =>
                     setOpenMenuWidgetId((prev) =>
-                      isOpen
-                        ? widget.id
-                        : prev === widget.id
-                          ? null
-                          : prev,
+                      isOpen ? widget.id : prev === widget.id ? null : prev,
                     )
                   }
                   onChangeSize={(nextCol, nextRow) => {

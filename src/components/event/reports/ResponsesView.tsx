@@ -10,50 +10,83 @@ import Select from "@/components/form/Select";
 import Button from "@/components/ui/button/Button";
 import ReportShell, { panelClass } from "./ReportShell";
 import { download, responseCsv } from "@/core/event/export";
-import type { ResponseRow } from "@/types/event/reporting";
+import type { ReportingData } from "@/types/event/reporting";
 export default function ResponsesView() {
-  const { data, error, reload } = useEventReporting();
-  const searchParams = useSearchParams();
-  const initialFormId = searchParams.get("formId") ?? "";
+  const { data, identityKey, errorStatus, reload } = useEventReporting();
+  const initialFormId = useSearchParams().get("formId") ?? "";
+
+  return (
+    <ReportShell
+      section="responses"
+      loading={!data}
+      errorStatus={errorStatus}
+      retry={reload}
+    >
+      {data && (
+        <ResponseTable
+          key={`${identityKey}:${data.eventId}:${initialFormId}`}
+          data={data}
+          initialFormId={initialFormId}
+        />
+      )}
+    </ReportShell>
+  );
+}
+
+function ResponseTable({
+  data,
+  initialFormId,
+}: {
+  data: ReportingData;
+  initialFormId: string;
+}) {
   const t = useTranslations("eventReports");
   const locale = useLocale();
   const [formFilter, setFormFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [all, setAll] = useState(false);
-  const [selected, setSelected] = useState<ResponseRow | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const { isOpen, openModal, closeModal } = useModal();
-  const activeFormId = formFilter ?? initialFormId;
-  const activeForm = data?.forms.find((f) => f.id === activeFormId);
-  const baseRows =
-    data?.responses.filter((r) =>
-      activeFormId
-        ? r.formId === activeFormId
-        : data.forms.some((f) => f.id === r.formId && f.type === "survey"),
-    ) ?? [];
-  const rows = baseRows.filter((r) =>
-    `${r.respondent} ${r.id}`.toLowerCase().includes(search.toLowerCase()),
+  const defaultFormId =
+    data.forms.find((form) => form.type === "survey")?.id ?? "";
+  const requestedFormId = data.forms.some((form) => form.id === initialFormId)
+    ? initialFormId
+    : defaultFormId;
+  const activeFormId = formFilter ?? requestedFormId;
+  const activeForm = data.forms.find((form) => form.id === activeFormId);
+  const baseRows = activeFormId
+    ? data.responses.filter((row) => row.formId === activeFormId)
+    : data.responses;
+  const selected = baseRows.find((row) => row.id === selectedId);
+  const searchTerm = search.trim().toLocaleLowerCase(locale);
+  const rows = baseRows.filter((row) =>
+    `${row.respondent} ${row.id}`
+      .toLocaleLowerCase(locale)
+      .includes(searchTerm),
   );
   const visible = all ? rows : rows.slice(0, 3);
-  const total = baseRows;
+  const submittedAt = new Intl.DateTimeFormat(locale, {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Asia/Bangkok",
+  });
   return (
-    <ReportShell
-      section="responses"
-      loading={!data}
-      error={error}
-      retry={reload}
-    >
+    <>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gray-900 p-6 text-white dark:bg-gray-800">
           <div>
             <h2 className="font-semibold">
-              {activeForm ? activeForm.title : t("responses.heading")}
+              {activeForm?.type === "survey" && !initialFormId
+                ? t("responses.heading")
+                : (activeForm?.title ?? t("responses.allHeading"))}
             </h2>
             <p className="mt-2 text-theme-xs text-gray-300 dark:text-gray-400">
               {t("responses.summary", {
-                count: total.length,
-                rate: total.length
+                count: baseRows.length,
+                rate: baseRows.length
                   ? Math.round(
-                      (total.filter((r) => r.complete).length / total.length) *
+                      (baseRows.filter((r) => r.complete).length /
+                        baseRows.length) *
                         100,
                     )
                   : 0,
@@ -62,11 +95,12 @@ export default function ResponsesView() {
           </div>
           <Button
             variant="outline"
+            size="sm"
             disabled={!rows.length}
             onClick={() =>
               download(
                 responseCsv(rows, [t("id"), t("respondent"), t("submitted")]),
-                "survey-responses.csv",
+                `responses-${data.eventId}.csv`,
               )
             }
           >
@@ -77,7 +111,7 @@ export default function ResponsesView() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h2 className="font-semibold">{t("responses.latest")}</h2>
             <div className="flex flex-wrap items-center gap-3">
-              {data && data.forms.length > 0 && (
+              {data.forms.length > 1 && (
                 <div className="min-w-48">
                   <Select
                     aria-label={t("builder.source")}
@@ -106,8 +140,16 @@ export default function ResponsesView() {
               <thead className="border-y border-gray-200 text-theme-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
                 <tr>
                   {["respondent", "score", "submitted", "status"].map((k) => (
-                    <th className="py-3 pe-4 text-start font-medium" key={k}>
-                      {t(k)}
+                    <th
+                      scope="col"
+                      className="py-3 pe-4 text-start font-medium"
+                      key={k}
+                    >
+                      {k === "status" ? (
+                        <span className="sr-only">{t(k)}</span>
+                      ) : (
+                        t(k)
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -122,7 +164,7 @@ export default function ResponsesView() {
                       <button
                         className="font-medium text-brand-600 hover:underline dark:text-brand-400"
                         onClick={() => {
-                          setSelected(row);
+                          setSelectedId(row.id);
                           openModal();
                         }}
                       >
@@ -131,7 +173,7 @@ export default function ResponsesView() {
                     </td>
                     <td className="pe-4">{row.score ?? "—"}</td>
                     <td className="pe-4 text-gray-500 dark:text-gray-400">
-                      {new Date(row.submittedAt).toLocaleString(locale)}
+                      {submittedAt.format(new Date(row.submittedAt))}
                     </td>
                     <td>
                       <span
@@ -168,7 +210,11 @@ export default function ResponsesView() {
           </div>
         </section>
       </div>
-      <Modal isOpen={isOpen} onClose={closeModal} className="max-w-2xl p-6">
+      <Modal
+        isOpen={isOpen && Boolean(selected)}
+        onClose={closeModal}
+        className="max-w-2xl p-6"
+      >
         <h2 className="mb-5 text-xl font-semibold text-gray-900 dark:text-white">
           {t("responses.detail")}
         </h2>
@@ -185,6 +231,6 @@ export default function ResponsesView() {
           ))}
         </dl>
       </Modal>
-    </ReportShell>
+    </>
   );
 }

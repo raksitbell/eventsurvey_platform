@@ -1,7 +1,8 @@
-import { bindMockUserAccess } from "@/services/auth/access";
 import { mockApi } from "@/core/api/mock-client";
+import { canUseEventDashboard } from "@/core/event/dashboard-policy";
 import { resolveEventTitle } from "@/core/mock/event-title";
 import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
+import { getRolePermissions } from "@/core/mock/role-permissions";
 import { routing, type Locale } from "@/i18n/routing";
 import type { EventWorkspace } from "@/types/event/workspace";
 import type {
@@ -16,13 +17,13 @@ export async function getEventWorkspace(
   userId: string,
   locale: Locale = routing.defaultLocale,
 ): Promise<EventWorkspace | null> {
-  const rawUser = await mockApi.get<MockUser>(
+  const mockUser = await mockApi.get<MockUser>(
     `/users/${encodeURIComponent(userId)}`,
   );
-  const mockUser = await bindMockUserAccess(rawUser);
   if (!mockUser || !isActiveMockUser(mockUser)) return null;
 
-  const user = mapMockUserToUser(mockUser);
+  const permissions = await getRolePermissions(mockUser.role_id);
+  const user = mapMockUserToUser(mockUser, permissions);
   if (!user || (user.role !== "event_owner" && user.role !== "sub_user")) {
     return null;
   }
@@ -31,7 +32,7 @@ export async function getEventWorkspace(
   if (!eventId) return null;
 
   const [event, translations, roles] = await Promise.all([
-    mockApi.get<MockEvent>(`/events/${eventId}`),
+    mockApi.get<MockEvent>(`/events/${encodeURIComponent(eventId)}`),
     mockApi.get<MockEventTranslation[]>(
       `/event_translations?event_id=${encodeURIComponent(eventId)}`,
     ),
@@ -42,23 +43,26 @@ export async function getEventWorkspace(
       : Promise.resolve([] as MockRole[]),
   ]);
 
-  if (!event || event.deleted_at) return null;
+  if (!event || event.id !== eventId || event.deleted_at) return null;
 
   const eventName =
     resolveEventTitle(translations, eventId, locale) ?? event.slug;
 
-  const customRole =
-    user.role === "sub_user" && mockUser.role_id
-      ? (roles.find((role) => role.id === mockUser.role_id) ?? null)
-      : null;
+  const assignedRole = roles.find(
+    (role) =>
+      role.id === mockUser.role_id &&
+      role.event_id === eventId &&
+      !role.deleted_at,
+  );
 
   return {
     eventId: event.id,
     eventName,
     eventStatus: event.status,
-    eventStartsAt: event.starts_at ?? null,
-    eventEndsAt: event.ends_at ?? null,
     userRole: user.role,
-    customRoleName: customRole?.name ?? null,
+    customRoleName:
+      user.role === "sub_user" ? (assignedRole?.name ?? null) : null,
+    canAccessDashboard:
+      Boolean(assignedRole) && canUseEventDashboard(event.status, permissions),
   };
 }

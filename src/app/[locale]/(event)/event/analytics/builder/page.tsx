@@ -1,9 +1,6 @@
-import { Suspense } from "react";
-import AnalyticsWorkspace from "@/components/analytics/AnalyticsWorkspace";
-export default function Page() {
-  return (
-    <Suspense>
-      <AnalyticsWorkspace view="builder" />
-    </Suspense>
-  );
+import { getLocale } from "next-intl/server";
+import { redirect } from "@/i18n/navigation";
+
+export default async function Page() {
+  redirect({ href: "/event/dashboard/builder", locale: await getLocale() });
 }

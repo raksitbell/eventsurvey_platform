@@ -45,6 +45,12 @@ export async function GET(request: NextRequest) {
     const data = await listForms(eventId, allowedTypes);
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof ServiceError) {
+      return NextResponse.json(
+        { error: error.code, message: error.message },
+        { status: error.status },
+      );
+    }
     const message =
       error instanceof Error ? error.message : "Failed to list forms";
     return NextResponse.json({ error: message }, { status: 502 });
@@ -87,6 +93,10 @@ export async function POST(request: NextRequest) {
     }
     const message =
       error instanceof Error ? error.message : "Failed to create form";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const readOnly = /EROFS|read-only file system/i.test(message);
+    return NextResponse.json(
+      { error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR", message },
+      { status: readOnly ? 503 : 502 },
+    );
   }
 }

@@ -11,11 +11,21 @@
     "status": {
       "active": "ใช้งาน",
       "inactive": "ปิดใช้งาน"
+    },
+    "back": "ย้อนกลับ",
+    "create": "สร้าง",
+    "edit": "แก้ไข",
+    "accountStatus": {
+      "invited": "รอตั้งรหัสผ่าน",
+      "active": "ใช้งาน",
+      "suspended": "ระงับ",
+      "removed": "ลบแล้ว"
     }
   },
   "confirm": {
     "cancel": "ยกเลิก",
     "confirm": "ยืนยัน",
+    "ok": "ตกลง",
     "signOutTitle": "ออกจากระบบ",
     "impersonateTitle": "สวมสิทธิ์ผู้ใช้",
     "stopImpersonateTitle": "หยุดสวมสิทธิ์"
@@ -26,8 +36,8 @@
       "event": "EVENT"
     },
     "items": {
-      "overview": "ภาพรวม",
-      "owners": "เจ้าของอีเวนต์",
+      "overview": "ภาพรวมระบบ",
+      "owners": "จัดการผู้ใช้",
       "eventHome": "ภาพรวม",
       "eventWorkspace": "Event Workspace",
       "dashboard": "แดชบอร์ด",
@@ -36,7 +46,9 @@
       "builder": "จัดการแดชบอร์ด",
       "responses": "ข้อมูลคำตอบ",
       "exports": "ส่งออกรายงาน",
-      "trash": "รายการที่ลบ"
+      "trash": "รายการที่ลบ",
+      "events": "จัดการอีเวนต์",
+      "Form": "จัดการฟอร์ม"
     },
     "roles": {
       "superAdmin": "ผู้ดูแลระบบ",
@@ -136,10 +148,11 @@
     "eventStatus": {
       "draft": "ฉบับร่าง",
       "pending_approval": "รออนุมัติ",
-      "open": "เปิด",
+      "open": "เปิดใช้งาน",
       "published": "เผยแพร่แล้ว",
-      "closed": "ปิดแล้ว",
-      "archived": "เก็บถาวร"
+      "closed": "ปิดใช้งาน",
+      "archived": "เก็บถาวร",
+      "scheduled": "ตั้งเวลาแล้ว"
     },
     "topEventsTitle": "อีเวนต์ยอดนิยมตามคำตอบ",
     "topEventsSeries": "คำตอบ",
@@ -183,33 +196,6 @@
       "actions": "การกระทำ"
     }
   },
-  "eventDashboard": {
-    "title": "แดชบอร์ดกิจกรรม",
-    "description": "สรุปสถิติภาพรวมและการมีส่วนร่วมของกิจกรรมแบบเรียลไทม์",
-    "kpis": {
-      "totalResponses": "ยอดคำตอบทั้งหมด",
-      "registrations": "การลงทะเบียน",
-      "surveys": "แบบสอบถาม",
-      "completionRate": "อัตราการตอบสมบูรณ์"
-    },
-    "charts": {
-      "responseTrend": "แนวโน้มการตอบรายวัน",
-      "formDistribution": "สัดส่วนคำตอบแยกตามแบบฟอร์ม"
-    },
-    "recentActivity": {
-      "title": "กิจกรรมคำตอบล่าสุด",
-      "viewAll": "ดูทั้งหมดในระบบวิเคราะห์",
-      "formName": "ชื่อแบบฟอร์ม",
-      "submittedAt": "เวลาที่ส่ง",
-      "status": "สถานะ",
-      "verified": "ยืนยันแล้ว",
-      "completed": "เสร็จสมบูรณ์"
-    },
-    "quickActions": {
-      "openAnalytics": "เปิดหน้าวิเคราะห์ผล",
-      "openBuilder": "จัดวางแดชบอร์ด"
-    }
-  },
   "eventHome": {
     "title": "ภาพรวมอีเวนต์",
     "description": "พื้นที่นี้สำหรับบทบาท event_owner และ sub_user เท่านั้น ผู้ดูแลระบบเข้าได้โดยสวมสิทธิ์จากเมนูเจ้าของอีเวนต์",
@@ -222,71 +208,375 @@
     "eventStatus": {
       "draft": "แบบร่าง",
       "pending_approval": "รออนุมัติ",
-      "open": "เปิด",
+      "open": "เปิดใช้งาน",
       "published": "เผยแพร่แล้ว",
-      "closed": "ปิดแล้ว",
-      "archived": "เก็บถาวร"
+      "closed": "ปิดใช้งาน",
+      "archived": "เก็บถาวร",
+      "scheduled": "ตั้งเวลาแล้ว"
+    },
+    "scheduleEvent": {
+      "title": "ตั้งเวลาอีเวนต์",
+      "description": "กรอกรายละเอียดที่เหลือ สถานะจะเป็น Scheduled — แพลตฟอร์มเปิดงานได้เมื่อถึงเวลาเริ่ม",
+      "startsAt": "วันเริ่ม",
+      "endsAt": "วันสิ้นสุด",
+      "descriptionField": "รายละเอียด",
+      "locationName": "สถานที่",
+      "addressText": "ที่อยู่",
+      "submit": "บันทึกและตั้งเวลา",
+      "submitting": "กำลังบันทึก...",
+      "success": "ตั้งเวลาแล้ว เมื่อถึงเวลาเริ่มสามารถเปิดงานได้",
+      "error": "ตั้งเวลาไม่สำเร็จ"
     }
   },
-  "eventAnalytics": {
-    "brand": {
-      "title": "EventSurvey",
-      "subtitle": "ลงทะเบียนและแบบสอบถามกิจกรรม"
+  "setupPassword": {
+    "eyebrow": "คำเชิญผู้ดูแลอีเวนต์",
+    "title": "ตั้งรหัสผ่าน",
+    "description": "เลือกรหัสผ่านเพื่อเข้าพื้นที่จัดการอีเวนต์ หลังจากบันทึกแล้วจะเข้าสู่ระบบด้วยอีเมลนี้",
+    "accountLabel": "บัญชีที่ได้รับเชิญ",
+    "password": "รหัสผ่าน",
+    "confirmPassword": "ยืนยันรหัสผ่าน",
+    "passwordPlaceholder": "อย่างน้อย 8 ตัวอักษร",
+    "confirmPlaceholder": "พิมพ์รหัสผ่านอีกครั้ง",
+    "showPassword": "แสดงรหัสผ่าน",
+    "hidePassword": "ซ่อนรหัสผ่าน",
+    "submit": "บันทึกรหัสผ่านแล้วไปต่อ",
+    "saving": "กำลังบันทึก...",
+    "loading": "กำลังโหลด...",
+    "alreadySet": "ตั้งรหัสผ่านแล้ว?",
+    "backToLogin": "กลับไปหน้าเข้าสู่ระบบ",
+    "unavailableTitle": "ลิงก์เชิญไม่พร้อมใช้งาน",
+    "brandHeadline": "รหัสผ่านเดียว คุมทั้งอีเวนต์",
+    "brandSubtext": "หลังบันทึกแล้ว เข้าสู่ระบบเพื่อจัดการลงทะเบียน แบบสำรวจ และทีมงานอีเวนต์",
+    "rules": {
+      "minLength": "อย่างน้อย 8 ตัวอักษร",
+      "match": "รหัสผ่านทั้งสองช่องตรงกัน"
     },
-    "title": "การวิเคราะห์",
-    "description": "ติดตามการลงทะเบียน การเข้าร่วม และการตอบแบบสอบถามสำหรับกิจกรรมนี้",
-    "metrics": {
-      "registrations": {
-        "title": "การลงทะเบียน",
-        "value": "428",
-        "trend": "+12.5% สัปดาห์นี้"
-      },
-      "attendance": {
-        "title": "การเข้าร่วมงาน",
-        "value": "312",
-        "trend": "เช็คอินแล้ว 72.9%"
-      },
-      "surveyResponses": {
-        "title": "การตอบแบบสอบถาม",
-        "value": "186",
-        "trend": "อัตราการตอบ 43.4%"
-      },
-      "completion": {
-        "title": "ความสำเร็จ",
-        "value": "84%",
-        "trend": "+6.1% จากกิจกรรมที่แล้ว"
+    "errors": {
+      "unavailable": "ลิงก์นี้ไม่พร้อมใช้งานหรือถูกใช้ไปแล้ว",
+      "tooShort": "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร",
+      "mismatch": "รหัสผ่านไม่ตรงกัน",
+      "saveFailed": "บันทึกรหัสผ่านไม่สำเร็จ"
+    }
+  },
+  "adminEvents": {
+    "title": "จัดการอีเวนต์",
+    "description": "สร้างและจัดการอีเวนต์ทั้งหมดบนแพลตฟอร์ม รวมถึงมอบหมายผู้ดูแลอีเวนต์",
+    "breadcrumb": "การจัดการระบบ / อีเวนต์",
+    "createNew": "สร้างอีเวนต์ใหม่",
+    "loading": "กำลังโหลดอีเวนต์...",
+    "empty": "ยังไม่มีอีเวนต์",
+    "loadError": "โหลดอีเวนต์ไม่สำเร็จ",
+    "searchPlaceholder": "ค้นหาชื่ออีเวนต์หรือ slug",
+    "allStatuses": "ทุกสถานะ",
+    "dateRange": "ช่วงวันที่",
+    "dateRangePlaceholder": "เลือกวันเริ่ม — วันสิ้นสุด",
+    "startDate": "วันเริ่ม",
+    "endDate": "วันสิ้นสุด",
+    "manage": "จัดการ",
+    "view": "ดูรายละเอียด",
+    "edit": "แก้ไข",
+    "start": "เริ่มงาน",
+    "startWaiting": "รอถึงเวลาเริ่ม",
+    "close": "ปิดงาน",
+    "forceClose": "ยืนยันปิดงาน",
+    "actionError": "อัปเดตสถานะไม่สำเร็จ",
+    "confirmStart": "เริ่มอีเวนต์ “{title}” ตอนนี้หรือไม่?",
+    "confirmClose": "คุณต้องการปิดอีเวนต์ “{title}” หรือไม่?\nระบบไม่สามารถย้อนกลับได้",
+    "confirmCloseWithWarnings": "ปิดอีเวนต์ “{title}” หรือไม่?\nฟอร์มเหล่านี้ยังเปิดอยู่หรือยังไม่หมดเวลา:",
+    "formTypes": {
+      "registration": "ลงทะเบียน",
+      "survey": "แบบสอบถาม"
+    },
+    "closeReasons": {
+      "still_open": "ยังเปิดรับอยู่",
+      "not_expired": "ยังไม่หมดเวลา",
+      "post_event": "แบบสอบถามหลังงาน"
+    },
+    "columns": {
+      "title": "ชื่ออีเวนต์",
+      "slug": "Slug",
+      "admin": "ผู้ดูแลอีเวนต์",
+      "status": "สถานะ",
+      "updatedAt": "อัปเดตล่าสุด",
+      "actions": "การจัดการ"
+    },
+    "roleNames": {
+      "eventAdmin": "ผู้ดูแลอีเวนต์"
+    },
+    "status": {
+      "draft": "ร่าง",
+      "scheduled": "ตั้งเวลาแล้ว",
+      "open": "เปิดใช้งาน",
+      "closed": "ปิดใช้งาน"
+    },
+    "preview": {
+      "back": "กลับ",
+      "tabDetails": "รายละเอียดอีเวนต์",
+      "tabUsers": "ผู้ใช้ ({count})",
+      "eventInfo": "ข้อมูลอีเวนต์",
+      "schedule": "กำหนดการ",
+      "bannerGallery": "แกลเลอรีแบนเนอร์",
+      "statusCard": "สถานะอีเวนต์",
+      "noBanner": "ยังไม่มีรูปแบนเนอร์",
+      "bannerCount": "{count} รูป",
+      "noTranslations": "ยังไม่มีข้อมูลคำแปล",
+      "localeBlock": "ภาษา {locale}",
+      "contentByLocale": "เนื้อหาตามภาษา",
+      "field": "ฟิลด์",
+      "description": "รายละเอียด",
+      "venue": "สถานที่",
+      "address": "ที่อยู่",
+      "defaultLocale": "ภาษาเริ่มต้น",
+      "createdAt": "สร้างเมื่อ",
+      "userSearch": "ค้นหาผู้ใช้",
+      "userSearchPlaceholder": "ชื่อ อีเมล หรือบทบาท",
+      "allUserStatuses": "ทุกสถานะ",
+      "userName": "ชื่อ",
+      "userEmail": "อีเมล",
+      "userRole": "บทบาท",
+      "memberCount": "จำนวนผู้ใช้",
+      "usersEmpty": "ไม่พบผู้ใช้",
+      "accessMode": "การเข้าถึง",
+      "privateEvent": "ส่วนตัว",
+      "publicEvent": "สาธารณะ",
+      "flows": "โฟลว์ผู้เข้าร่วม",
+      "hasRegistration": "ลงทะเบียน",
+      "hasSurvey": "แบบสอบถาม",
+      "opensAt": "เปิดรับเมื่อ",
+      "closesAt": "ปิดรับเมื่อ"
+    },
+    "create": {
+      "title": "สร้างอีเวนต์และกำหนดผู้ดูแลอีเวนต์",
+      "cardTitle": "ข้อมูลอีเวนต์และบัญชีผู้ดูแล",
+      "eventName": "ชื่ออีเวนต์",
+      "eventNameTh": "ชื่ออีเวนต์ (ไทย)",
+      "eventNameEn": "ชื่ออีเวนต์ (อังกฤษ)",
+      "eventNameThPlaceholder": "งานสัมมนา CSI 2028",
+      "eventNameEnPlaceholder": "CSI EventSurvey 2028",
+      "eventNameHint": "กรอกอย่างน้อยหนึ่งภาษา — แนะนำให้กรอกทั้งไทยและอังกฤษ",
+      "slug": "Slug อีเวนต์",
+      "slugHint": "สร้างอัตโนมัติจากชื่อภาษาอังกฤษ สามารถแก้ได้ก่อนบันทึก",
+      "modeExisting": "มีผู้ใช้อยู่แล้ว",
+      "modeNew": "ยังไม่มีผู้ใช้",
+      "selectUser": "เลือกผู้ดูแลอีเวนต์",
+      "selectUserPlaceholder": "เลือกผู้ใช้ที่ยังไม่ผูกอีเวนต์",
+      "adminName": "ชื่อผู้ดูแลอีเวนต์",
+      "adminEmail": "อีเมลผู้ดูแลอีเวนต์",
+      "cancel": "ยกเลิก",
+      "submit": "สร้าง Draft + ไป Event Workspace",
+      "submitNew": "สร้าง Draft + ส่งอีเมลตั้งรหัสผ่าน",
+      "submitting": "กำลังสร้าง...",
+      "inviteSent": "สร้างอีเวนต์แล้ว และส่งอีเมลตั้งรหัสผ่านไปที่ {email}",
+      "successTitle": "สร้างอีเวนต์แล้ว",
+      "successCreated": "สร้างอีเวนต์แบบร่างสำเร็จ",
+      "errorTitle": "สร้างอีเวนต์ไม่สำเร็จ",
+      "errors": {
+        "required": "กรุณากรอกข้อมูลให้ครบ",
+        "slugExists": "Slug นี้ถูกใช้แล้ว",
+        "emailExists": "อีเมลนี้ถูกใช้แล้ว",
+        "mailFailed": "สร้างบัญชีแล้ว แต่ส่งอีเมลไม่สำเร็จ",
+        "generic": "สร้างอีเวนต์ไม่สำเร็จ"
       }
     },
-    "chart": {
-      "title": "แนวโน้มการลงทะเบียน",
-      "subtitle": "7 วันล่าสุด",
-      "seriesName": "การลงทะเบียน",
-      "registrationsUnit": "รายการ",
-      "days": {
-        "mon": "จันทร์",
-        "tue": "อังคาร",
-        "wed": "พุธ",
-        "thu": "พฤหัส",
-        "fri": "ศุกร์",
-        "sat": "เสาร์",
-        "sun": "อาทิตย์"
+    "editForm": {
+      "title": "แก้ไขอีเวนต์แบบร่าง",
+      "description": "แพลตฟอร์มแก้ไขชื่อและ slug ได้ขณะสถานะยังเป็น draft",
+      "cardTitle": "รายละเอียดอีเวนต์",
+      "eventNameTh": "ชื่ออีเวนต์ (ไทย)",
+      "eventNameEn": "ชื่ออีเวนต์ (อังกฤษ)",
+      "eventNameThPlaceholder": "งานสัมมนา CSI 2028",
+      "eventNameEnPlaceholder": "CSI EventSurvey 2028",
+      "eventNameHint": "กรอกอย่างน้อยหนึ่งภาษา — แนะนำให้กรอกทั้งไทยและอังกฤษ",
+      "slug": "Slug อีเวนต์",
+      "slugHint": "การเปลี่ยน slug จะอัปเดตพาธสาธารณะของอีเวนต์",
+      "cancel": "ยกเลิก",
+      "submit": "บันทึกการแก้ไข",
+      "submitting": "กำลังบันทึก...",
+      "successTitle": "บันทึกแล้ว",
+      "successSaved": "อัปเดตอีเวนต์แบบร่างสำเร็จ",
+      "errorTitle": "บันทึกไม่สำเร็จ",
+      "errors": {
+        "required": "กรุณากรอกข้อมูลให้ครบ",
+        "slugExists": "Slug นี้ถูกใช้แล้ว",
+        "notDraft": "แก้ไขได้เฉพาะอีเวนต์สถานะ draft",
+        "mockReadOnly": "Mock API บันทึกไม่ได้ (read-only) — รัน mock แบบ local แล้วตั้ง MOCK_API_BASE_URL ชี้ไปที่นั้น",
+        "generic": "แก้ไขอีเวนต์ไม่สำเร็จ"
       }
+    }
+  },
+  "participantDisplay": {
+    "title": "ชื่องานตัวอย่าง",
+    "organizer": "ทีมงาน",
+    "organizerInitial": "ต",
+    "startsAt": "เริ่ม 1 ธ.ค. 2569 · 10:00 น.",
+    "endsAt": "สิ้นสุด 2 ธ.ค. 2569 · 18:00 น.",
+    "location": "สถานที่จัดงานตัวอย่าง",
+    "locationDetail": "ฮอลล์ A",
+    "description": "รายละเอียดงานจะแสดงที่นี่ สามารถใช้พื้นที่นี้แนะนำงาน กิจกรรม และข้อมูลที่เป็นประโยชน์สำหรับผู้เข้าร่วมงาน",
+    "socialHandle": "@username",
+    "hostedBy": "ผู้จัด",
+    "hostedBySubtitle": "Hosted by",
+    "about": "เกี่ยวกับอีเวนต์",
+    "aboutSubtitle": "About Event",
+    "registration": "ลงทะเบียน",
+    "survey": "แบบสอบถาม",
+    "bannerPlaceholder": "พื้นที่แบนเนอร์งาน",
+    "qrPlaceholder": "พื้นที่ QR"
+  },
+  "form": {
+    "title": "จัดการฟอร์ม",
+    "registration": "การลงทะเบียน",
+    "survey": "แบบสอบถาม",
+    "open": "เปิด",
+    "create": "สร้างฟอร์ม",
+    "edit": "แก้ไขฟอร์ม",
+    "delete": "ลบฟอร์ม",
+    "deleteConfirmTitle": "ยืนยันการลบฟอร์ม",
+    "deleteConfirmMessage": "คุณต้องการลบฟอร์มนี้ใช่หรือไม่?",
+    "deleteSuccess": "ลบฟอร์มสำเร็จ",
+    "loading": "กำลังโหลดข้อมูลฟอร์ม...",
+    "loadError": "โหลดข้อมูลฟอร์มไม่สำเร็จ",
+    "status": {
+      "notCreated": "ยังไม่ได้สร้าง",
+      "draft": "แบบร่าง",
+      "scheduled": "กำหนดเวลา",
+      "open": "เปิดรับคำตอบ",
+      "closed": "ปิดแล้ว",
+      "disabled": "ปิดใช้งานในอีเวนต์นี้"
     },
-    "insights": {
-      "title": "ข้อมูลเชิงลึกที่สำคัญ",
-      "highlightTitle": "วันที่ลงทะเบียนสูงสุด: วันเสาร์",
-      "highlightDesc": "ลงทะเบียน 176 รายการหลังจากแคมเปญล่าสุด",
-      "bullet1": "อัตราการเปลี่ยนเป็นการลงทะเบียนอยู่ที่ 68%",
-      "bullet2": "54% ลงทะเบียนผ่านโทรศัพท์มือถือ",
-      "bullet3": "การตอบแบบสอบถามเสร็จสิ้นตามเป้าหมาย",
-      "exportButton": "ส่งออกรายงาน",
-      "exportSuccess": "ส่งออกรายงานเรียบร้อยแล้ว"
+    "errors": {
+      "FORM_SCHEDULE_REQUIRED": "กรุณากำหนดเวลาเปิดหรือเวลาปิดรับคำตอบก่อนตั้งเวลาเปิดฟอร์ม",
+      "FORM_NOT_READY": "ข้อมูลฟอร์มยังไม่ครบถ้วน (ต้องมีชื่อฟอร์ม คำถามอย่างน้อย 1 ข้อ และตัวเลือกอย่างน้อย 1 ข้อ)",
+      "FORM_NOT_EDITABLE": "แก้ไขได้เฉพาะฟอร์มสถานะแบบร่าง กรุณาเปลี่ยนกลับเป็นแบบร่างก่อน",
+      "FORM_NOT_DELETABLE": "ลบได้เฉพาะฟอร์มสถานะแบบร่าง กรุณาเปลี่ยนกลับเป็นแบบร่างก่อน",
+      "FORM_STATUS_LOCKED": "ไม่สามารถเปลี่ยนสถานะของฟอร์มที่เปิดหรือปิดรับคำตอบแล้วได้",
+      "FORM_STATUS_CRON_ONLY": "สถานะเปิด/ปิดรับคำตอบจะถูกปรับอัตโนมัติตามเวลาที่กำหนดเท่านั้น",
+      "INVALID_FORM_STATUS_TRANSITION": "ไม่สามารถเปลี่ยนสถานะฟอร์มตามที่เลือกได้",
+      "FORM_TYPE_EXISTS": "มีฟอร์มประเภทนี้อยู่ในอีเวนต์แล้ว",
+      "FORM_TYPE_NOT_ENABLED": "อีเวนต์นี้ยังไม่ได้เปิดใช้งานฟอร์มประเภทนี้",
+      "FORM_NOT_FOUND": "ไม่พบข้อมูลฟอร์มในระบบ",
+      "EVENT_NOT_FOUND": "ไม่พบข้อมูลอีเวนต์ในระบบ",
+      "FORBIDDEN": "คุณไม่มีสิทธิ์จัดการฟอร์มนี้",
+      "UNAUTHORIZED": "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
+      "VALIDATION_ERROR": "ข้อมูลฟอร์มไม่ถูกต้อง กรุณาตรวจสอบข้อมูลอีกครั้ง",
+      "DATE_RANGE_INVALID": "เวลาปิดรับคำตอบต้องมาหลังเวลาเปิดรับคำตอบ",
+      "NUMBER_RANGE_INVALID": "ค่าต่ำสุดต้องน้อยกว่าหรือเท่ากับค่าสูงสุด",
+      "INVALID_QUESTION_ID": "รหัสคำถามไม่ถูกต้อง",
+      "INVALID_OPTION_ID": "รหัสตัวเลือกไม่ถูกต้อง",
+      "DUPLICATE_QUESTION_ID": "พบรหัสคำถามซ้ำกันในฟอร์ม",
+      "QUESTION_NOT_OWNED_BY_FORM": "คำถามนี้ไม่ได้อยู่ในฟอร์มปัจจุบัน",
+      "OPTION_NOT_OWNED_BY_QUESTION": "ตัวเลือกนี้ไม่ได้อยู่ในคำถามข้อนี้",
+      "FORM_WRITE_INCOMPLETE": "บันทึกข้อมูลฟอร์มไม่สมบูรณ์ (เซิร์ฟเวอร์จำลองอาจเป็นแบบ Read-only กรุณาตั้งค่า MOCK_API_BASE_URL ใน .env)",
+      "MOCK_READ_ONLY": "Mock API บันทึกไม่ได้ (Read-only) — กรุณารัน mock แบบ local แล้วตั้งค่า MOCK_API_BASE_URL ในไฟล์ .env",
+      "MOCK_API_ERROR": "ไม่สามารถเชื่อมต่อหรือบันทึกลงเซิร์ฟเวอร์ข้อมูลจำลอง (Mock API) ได้",
+      "GENERIC": "บันทึกฟอร์มไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
     },
-    "footer": {
-      "copyright": "© EventSurvey",
-      "privacyPolicy": "นโยบายความเป็นส่วนตัว",
-      "name_oo": "ภูมิ"
-      
+    "builder": {
+      "formTitlePlaceholder": "ชื่อแบบฟอร์ม",
+      "description": "คำอธิบาย",
+      "save": "บันทึกแบบร่าง",
+      "saving": "กำลังบันทึก...",
+      "saveSuccess": "บันทึกฟอร์มสำเร็จ",
+      "saveError": "บันทึกฟอร์มไม่สำเร็จ",
+      "schedule": "กำหนดเวลาเปิด",
+      "revertToDraft": "เปลี่ยนกลับเป็นแบบร่าง",
+      "scheduleSuccess": "เปลี่ยนสถานะเป็นกำหนดเวลาสำเร็จ",
+      "revertSuccess": "เปลี่ยนสถานะกลับเป็นแบบร่างสำเร็จ",
+      "scheduleRequiredError": "กรุณากำหนดเวลาเปิดหรือเวลาปิดรับคำตอบก่อนตั้งเวลาเปิดฟอร์ม",
+      "lockedNotice": "ฟอร์มนี้ไม่ได้อยู่ในสถานะแบบร่าง จึงไม่สามารถแก้ไขเนื้อหาได้ (กดเปลี่ยนกลับเป็นแบบร่างหากต้องการแก้ไข)",
+      "choice": {
+        "short_text": "คำตอบสั้นๆ",
+        "long_text": "คำตอบยาว",
+        "email": "อีเมล",
+        "multiple_choice": "หลายตัวเลือก",
+        "dropdown": "รายการแบบเลื่อนลง",
+        "checkbox": "ช่องทำเครื่องหมาย",
+        "radio": "ตัวเลือกเดียว",
+        "date": "วันที่",
+        "time": "เวลา",
+        "number": "ตัวเลข",
+        "rating": "การให้คะแนน"
+      },
+      "shortTextPlaceholder": "ข้อความคำตอบสั้นๆ",
+      "longTextPlaceholder": "ข้อความคำตอบยาว",
+      "emailPlaceholder": "อีเมล (ต้องมีเครื่องหมาย @)",
+      "numberPlaceholder": "ตัวเลข (รองรับจำนวนเต็มและทศนิยม)",
+      "datePlaceholder": "วัน/เดือน/ปี และเวลา",
+      "timePlaceholder": "เวลา (ชั่วโมง:นาที)",
+      "minNumber": "ค่าต่ำสุด",
+      "maxNumber": "ค่าสูงสุด",
+      "noLimit": "ไม่จำกัด",
+      "minGreaterThanMax": "ค่าต่ำสุดต้องน้อยกว่าหรือเท่ากับค่าสูงสุด",
+      "ratingDisplay": {
+        "icon": "ไอคอน (Icon)",
+        "linear_scale": "สเกลเชิงเส้น (Linear scale)"
+      },
+      "ratingIcon": {
+        "star": "ดาว (Star)",
+        "heart": "หัวใจ (Heart)",
+        "like": "ถูกใจ (Like)"
+      },
+      "maxRating": "คะแนนสูงสุด:",
+      "to": "ถึง",
+      "linearLabelPlaceholder": "ป้ายกำกับ (ไม่บังคับ)",
+      "opensAt": "เวลาเปิดรับคำตอบ",
+      "closesAt": "เวลาปิดรับคำตอบ",
+      "selectDateTime": "เลือกวันและเวลา",
+      "clearDate": "ล้างวันที่",
+      "dateRangeInvalid": "เวลาปิดต้องมาหลังเวลาเปิด",
+      "unique": "ห้ามซ้ำ (Unique)",
+      "required": "จำเป็น",
+      "questionPlaceholder": "คำถาม",
+      "optionPlaceholder": "ตัวเลือกที่ {order}",
+      "addOption": "เพิ่มตัวเลือก",
+      "removeOption": "ลบตัวเลือก",
+      "dragOption": "ลากเพื่อสลับลำดับตัวเลือก",
+      "addQuestion": "เพิ่มคำถาม",
+      "duplicateQuestion": "ทำสำเนาคำถาม",
+      "deleteQuestion": "ลบคำถาม",
+      "dragQuestion": "ลากเพื่อสลับลำดับคำถาม",
+      "addEnglish": "เพิ่มภาษาอังกฤษ",
+      "removeEnglish": "ลบภาษาอังกฤษ",
+      "langThai": "ภาษาไทย (ค่าเริ่มต้น)",
+      "langEnglish": "ภาษาอังกฤษ (English)"
+    },
+    "preview": {
+      "button": "ดูตัวอย่าง",
+      "editForm": "กลับไปแก้ไขฟอร์ม",
+      "langThai": "ภาษาไทย",
+      "langEnglish": "English",
+      "requiredNote": "* ระบุว่าเป็นคำถามที่จำเป็น",
+      "requiredError": "คำถามนี้จำเป็นต้องตอบ",
+      "uniqueBadge": "Unique",
+      "uniqueMockHint": "ค่าจำลองที่มีในระบบแล้ว (ลองกรอกเพื่อทดสอบค่าซ้ำ): {value}",
+      "uniqueError": "ค่านี้ถูกใช้งานไปแล้ว กรุณากรอกค่าที่ไม่ซ้ำ",
+      "opensAt": "เปิดรับคำตอบ",
+      "closesAt": "ปิดรับคำตอบ",
+      "emailError": "กรุณากรอกอีเมลที่มีเครื่องหมาย @",
+      "numberInvalidError": "กรุณากรอกตัวเลขที่ถูกต้อง",
+      "numberMinError": "ค่าต้องไม่น้อยกว่า {min}",
+      "numberMaxError": "ค่าต้องไม่เกิน {max}",
+      "numberRangeError": "ค่าต้องอยู่ระหว่าง {min} ถึง {max}",
+      "yourAnswer": "คำตอบของคุณ",
+      "yourEmail": "name@example.com",
+      "yourNumber": "กรอกตัวเลข",
+      "selectDateTime": "เลือกวันและเวลา",
+      "openCalendar": "เปิดปฏิทิน",
+      "clearDate": "ล้างวันที่",
+      "selectTime": "เลือกเวลา (ชั่วโมง:นาที)",
+      "timeHour": "ชม.",
+      "timeMinute": "นาที",
+      "timeNow": "เวลาปัจจุบัน",
+      "timeOk": "ตกลง",
+      "clearTime": "ล้างเวลา",
+      "openTimePicker": "เปิดเลือกเวลา",
+      "choose": "เลือก",
+      "clearSelection": "ล้างการเลือก",
+      "submit": "ส่ง",
+      "clearForm": "ล้างแบบฟอร์ม",
+      "submittedDesc": "เราได้บันทึกคำตอบของคุณไว้แล้ว",
+      "submitAnother": "ส่งคำตอบเพิ่ม",
+      "untitledQuestion": "คำถามที่ไม่มีชื่อ"
     }
   },
   "notFound": {
@@ -354,18 +644,17 @@
     },
     "responses": {
       "title": "ข้อมูลคำตอบ",
-      "description": "ตรวจสอบคำตอบรายบุคคลและติดตามความครบถ้วนของข้อมูล",
-      "heading": "คำตอบแบบสำรวจ",
+      "heading": "คำตอบแบบสอบถาม",
       "summary": "ส่งแล้ว {count} คำตอบ · ครบถ้วน {rate}%",
       "latest": "คำตอบล่าสุด",
-      "detail": "รายละเอียดคำตอบ"
+      "detail": "รายละเอียดคำตอบ",
+      "allHeading": "คำตอบจากฟอร์ม"
     },
     "exports": {
       "title": "ส่งออกรายงาน",
-      "description": "สร้างรายงานกิจกรรมจากข้อมูลล่าสุดของแบบฟอร์มที่ผ่านการอนุมัติ",
       "heading": "สร้างไฟล์ส่งออก",
       "hint": "เลือกรูปแบบไฟล์และข้อมูลที่ต้องการนำไปใช้งาน",
-      "current": "ข้อมูลล่าสุดจาก API",
+      "current": "ข้อมูลล่าสุด",
       "responses": "ตารางข้อมูลคำตอบ",
       "responsesHint": "คำตอบและฟิลด์จากแบบฟอร์มที่อนุมัติ ในรูปแบบ CSV",
       "summary": "สรุปกิจกรรม",
@@ -425,14 +714,14 @@
       "noComparison": "ไม่มีข้อมูลเปรียบเทียบ",
       "change": "{value}% เทียบกับช่วงก่อนหน้า",
       "progress": "{value}% ของเป้าหมาย",
-      "save": "บันทึกฉบับร่าง",
-      "loadDraft": "โหลดฉบับร่าง",
+      "save": "บันทึกร่าง",
+      "loadDraft": "เปิดร่าง",
       "publish": "เผยแพร่",
       "publishConfirm": "แทนที่การตั้งค่าแดชบอร์ดกิจกรรมด้วยวิดเจ็ตเหล่านี้หรือไม่?",
       "published": "เผยแพร่แดชบอร์ดสำเร็จ",
       "saved": "บันทึกฉบับร่างในอุปกรณ์นี้แล้ว",
       "noDraft": "ไม่มีฉบับร่างในอุปกรณ์นี้",
-      "draftHint": "ฉบับร่างเก็บในอุปกรณ์นี้ การเผยแพร่จะบันทึกการตั้งค่าร่วมของกิจกรรม",
+      "draftHint": "บันทึกร่างหรือเผยแพร่การจัดวางวิดเจ็ต โดยไม่มีผลกับสถานะอีเวนต์",
       "readOnly": "คุณดูแดชบอร์ดนี้ได้ การแก้ไขต้องมีสิทธิ์จัดการแดชบอร์ด",
       "unsaved": "มีการแก้ไขที่ยังไม่บันทึก",
       "canvas": "แดชบอร์ดกิจกรรม",
@@ -469,12 +758,11 @@
       "dateTo": "สิ้นสุด"
     },
     "dashboard": {
-      "title": "แดชบอร์ดกิจกรรม",
-      "description": "ข้อมูลล่าสุดตามวิดเจ็ตที่เผยแพร่สำหรับกิจกรรมของคุณ"
+      "title": "แดชบอร์ดอีเวนต์"
     },
-    "analytics": {
-      "title": "การวิเคราะห์",
-      "description": "ติดตามการลงทะเบียน การเข้าร่วม และกิจกรรมการตอบแบบสำรวจของอีเวนต์นี้"
-    }
+    "publishedEvent": "เผยแพร่แล้ว",
+    "publishedDescription": "ข้อมูลล่าสุดจากอีเวนต์ที่เผยแพร่แล้ว",
+    "dashboardUnavailable": "แดชบอร์ดเปิดให้ใช้งานหลังเผยแพร่อีเวนต์และสำหรับบัญชีที่มีสิทธิ์เข้าถึง",
+    "sessionExpired": "เข้าสู่ระบบอีกครั้งเพื่อเข้าถึงรายงานอีเวนต์"
   }
 }

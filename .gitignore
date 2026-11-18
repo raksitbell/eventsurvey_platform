@@ -32,6 +32,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
 
 # vercel
@@ -45,7 +46,10 @@ next-env.d.ts
 /.wiki-build
 /.wiki-data
 
-# docs
+# planning
+.cursor
+
+# local working docs (not part of the app)
 /docs
 /docs-build
 /docs-data

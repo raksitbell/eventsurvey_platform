@@ -1,5 +1,7 @@
 "use client";
 
+import { reportingDay } from "@/core/event/widget-data";
+
 import React, { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import Input from "@/components/form/input/InputField";
@@ -56,9 +58,9 @@ export default function WidgetSettings({
   }, [onClose]);
 
   const eventStartDate = data.eventStartsAt
-    ? data.eventStartsAt.slice(0, 10)
+    ? reportingDay(data.eventStartsAt)
     : "";
-  const eventEndDate = data.eventEndsAt ? data.eventEndsAt.slice(0, 10) : "";
+  const eventEndDate = data.eventEndsAt ? reportingDay(data.eventEndsAt) : "";
   const effectiveFrom = widget.date_from ?? eventStartDate;
   const effectiveTo = widget.date_to ?? eventEndDate;
   const hasCustomDates = Boolean(widget.date_from || widget.date_to);
@@ -222,8 +224,7 @@ export default function WidgetSettings({
               value={widget.aggregation}
               onChange={(e) =>
                 change({
-                  aggregation: e.target
-                    .value as DashboardWidget["aggregation"],
+                  aggregation: e.target.value as DashboardWidget["aggregation"],
                 })
               }
             >

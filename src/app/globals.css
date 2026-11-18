@@ -134,6 +134,20 @@
 
   --color-theme-purple-500: #7a5af8;
 
+  --color-event-display-mat: #f4e7fa;
+  --color-event-display-gradient-start: #eddefa;
+  --color-event-display-gradient-middle: #ede5ff;
+  --color-event-display-gradient-end: #ffe8f2;
+  --color-event-display-text: #242333;
+  --color-event-display-muted: #676474;
+  --color-event-display-border: #b5b3b7;
+  --color-event-display-accent: #8365a0;
+  --color-event-display-tint: #ebe1f4;
+  --color-event-display-banner: #ded1ea;
+  --color-event-display-banner-text: #5d4675;
+  --color-event-display-qr: #f7f2fb;
+  --shadow-event-display: 0 8px 24px rgba(64, 43, 84, 0.07);
+
   --shadow-theme-md:
     0px 4px 8px -2px rgba(16, 24, 40, 0.1),
     0px 2px 4px -2px rgba(16, 24, 40, 0.06);
@@ -499,8 +513,8 @@
 .task {
   border-radius: 0.75rem;
   box-shadow:
-    0 1px 3px 0 rgba(16, 24, 40, 0.1),
-    0 1px 2px 0 rgba(16, 24, 40, 0.06);
+    0px 1px 3px 0px rgba(16, 24, 40, 0.1),
+    0px 1px 2px 0px rgba(16, 24, 40, 0.06);
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
@@ -578,10 +592,13 @@
 .flatpickr-month .flatpickr-current-month .flatpickr-monthDropdown-months {
   background: none !important;
   appearance: none;
+  background-image: none !important;
   font-weight: 500;
 }
 
-.flatpickr-month .flatpickr-current-month .flatpickr-monthDropdown-months:focus {
+.flatpickr-month
+  .flatpickr-current-month
+  .flatpickr-monthDropdown-months:focus {
   outline: none !important;
   border: 0 !important;
 }
@@ -1035,16 +1052,27 @@ pre[class*="language-"].line-numbers {
   }
 
   /* Day Header (SUN MON TUE...) sticks directly below the Month Title */
-  .custom-calendar:has(.fc-multimonth) [role="grid"] [role="row"]:has([role="columnheader"]),
-  .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-multimonth-day-header-row,
+  .custom-calendar:has(.fc-multimonth)
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .custom-calendar:has(.fc-multimonth)
+    [role="grid"]
+    .fc-multimonth-day-header-row,
   .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-daygrid-header,
-  .custom-calendar .fc-multimonth [role="grid"] [role="row"]:has([role="columnheader"]),
+  .custom-calendar
+    .fc-multimonth
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
   .custom-calendar .fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
   .custom-calendar .fc-multimonth [role="grid"] .fc-daygrid-header,
-  .custom-calendar.fc-multimonth [role="grid"] [role="row"]:has([role="columnheader"]),
+  .custom-calendar.fc-multimonth
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
   .custom-calendar.fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
   .custom-calendar.fc-multimonth [role="grid"] .fc-daygrid-header,
-  .custom-calendar [role="grid"].fc-multimonth [role="row"]:has([role="columnheader"]),
+  .custom-calendar
+    [role="grid"].fc-multimonth
+    [role="row"]:has([role="columnheader"]),
   .custom-calendar [role="grid"].fc-multimonth .fc-multimonth-day-header-row,
   .custom-calendar [role="grid"].fc-multimonth .fc-daygrid-header {
     position: sticky !important;
@@ -1052,17 +1080,43 @@ pre[class*="language-"].line-numbers {
     z-index: 9 !important;
     background-color: #f9fafb !important;
   }
-  .dark .custom-calendar:has(.fc-multimonth) [role="grid"] [role="row"]:has([role="columnheader"]),
-  .dark .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-multimonth-day-header-row,
+  .dark
+    .custom-calendar:has(.fc-multimonth)
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .dark
+    .custom-calendar:has(.fc-multimonth)
+    [role="grid"]
+    .fc-multimonth-day-header-row,
   .dark .custom-calendar:has(.fc-multimonth) [role="grid"] .fc-daygrid-header,
-  .dark .custom-calendar .fc-multimonth [role="grid"] [role="row"]:has([role="columnheader"]),
-  .dark .custom-calendar .fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
+  .dark
+    .custom-calendar
+    .fc-multimonth
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .dark
+    .custom-calendar
+    .fc-multimonth
+    [role="grid"]
+    .fc-multimonth-day-header-row,
   .dark .custom-calendar .fc-multimonth [role="grid"] .fc-daygrid-header,
-  .dark .custom-calendar.fc-multimonth [role="grid"] [role="row"]:has([role="columnheader"]),
-  .dark .custom-calendar.fc-multimonth [role="grid"] .fc-multimonth-day-header-row,
+  .dark
+    .custom-calendar.fc-multimonth
+    [role="grid"]
+    [role="row"]:has([role="columnheader"]),
+  .dark
+    .custom-calendar.fc-multimonth
+    [role="grid"]
+    .fc-multimonth-day-header-row,
   .dark .custom-calendar.fc-multimonth [role="grid"] .fc-daygrid-header,
-  .dark .custom-calendar [role="grid"].fc-multimonth [role="row"]:has([role="columnheader"]),
-  .dark .custom-calendar [role="grid"].fc-multimonth .fc-multimonth-day-header-row,
+  .dark
+    .custom-calendar
+    [role="grid"].fc-multimonth
+    [role="row"]:has([role="columnheader"]),
+  .dark
+    .custom-calendar
+    [role="grid"].fc-multimonth
+    .fc-multimonth-day-header-row,
   .dark .custom-calendar [role="grid"].fc-multimonth .fc-daygrid-header {
     background-color: #111827 !important;
   }
@@ -1212,12 +1266,35 @@ pre[class*="language-"].line-numbers {
   background: #374151 !important;
 }
 
-/* The export view supplies a text-based, bilingual printable report. */
+/* Print only the report contents when exporting from the Dashboard. */
 @media print {
-  body:has(#event-print-report) * { visibility: hidden; }
+  body:has(#event-print-report) * {
+    visibility: hidden;
+  }
+
   body:has(#event-print-report) #event-print-report,
-  body:has(#event-print-report) #event-print-report * { visibility: visible; }
-  #event-print-report { position: absolute; inset: 0; padding: 2rem; color: black; background: white; }
-  #event-print-report table { width: 100%; margin-block-start: 2rem; border-collapse: collapse; }
-  #event-print-report th, #event-print-report td { padding: 0.75rem; border-block-end: 1px solid; text-align: start; }
+  body:has(#event-print-report) #event-print-report * {
+    visibility: visible;
+  }
+
+  #event-print-report {
+    position: absolute;
+    inset: 0;
+    padding: 2rem;
+    color: black;
+    background: white;
+  }
+
+  #event-print-report table {
+    width: 100%;
+    margin-block-start: 2rem;
+    border-collapse: collapse;
+  }
+
+  #event-print-report th,
+  #event-print-report td {
+    padding: 0.75rem;
+    border-block-end: 1px solid;
+    text-align: start;
+  }
 }

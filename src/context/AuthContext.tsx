@@ -10,7 +10,7 @@ import {
   subscribeAuth,
   type AuthSnapshot,
 } from "@/core/auth";
-import { api } from "@/core/api";
+import { api, ApiError } from "@/core/api";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { User } from "@/types/user";
 import type React from "react";
@@ -30,9 +30,9 @@ interface AuthContextValue {
   /** True until localStorage is read, or while a soft auth navigation is in flight */
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  logout: () => void;
-  impersonate: (target: User) => void;
-  stopImpersonating: () => void;
+  logout: () => Promise<void>;
+  impersonate: (target: User) => Promise<void>;
+  stopImpersonating: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -113,9 +113,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [softGo]);
 
   const impersonate = useCallback(
-    (target: User) => {
+    async (target: User) => {
       if (!realUser) throw new Error("FORBIDDEN");
       assertCanImpersonate(realUser, target);
+      await api.post("/auth/impersonation", { userId: target.id });
       // Hold first so /admin doesn't paint 403 after role flip
       setPendingPath(getHomePathForRole(target.role));
       persistAuthStorage(realUser, sanitizeUser(target));
@@ -124,13 +125,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [realUser, router],
   );
 
-  const stopImpersonating = useCallback(() => {
+  const stopImpersonating = useCallback(async () => {
     if (!realUser) return;
+    try {
+      await api.delete("/auth/impersonation");
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        await logout();
+        return;
+      }
+      throw error;
+    }
     const home = getHomePathForRole(realUser.role);
     setPendingPath(home);
     persistAuthStorage(realUser, null);
     router.replace(home);
-  }, [realUser, router]);
+  }, [logout, realUser, router]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

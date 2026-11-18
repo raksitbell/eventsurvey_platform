@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useTheme } from "@/context/ThemeContext";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { widgetData } from "@/core/event/widget-data";
+import { reportingDay, widgetData } from "@/core/event/widget-data";
 import {
   ArrowRightIcon,
   BoltIcon,
@@ -93,9 +93,9 @@ export default function WidgetPreview({
     : "/event/responses";
 
   const eventStartDate = data.eventStartsAt
-    ? data.eventStartsAt.slice(0, 10)
+    ? reportingDay(data.eventStartsAt)
     : "";
-  const eventEndDate = data.eventEndsAt ? data.eventEndsAt.slice(0, 10) : "";
+  const eventEndDate = data.eventEndsAt ? reportingDay(data.eventEndsAt) : "";
   const effectiveFrom = widget.date_from ?? eventStartDate;
   const effectiveTo = widget.date_to ?? eventEndDate;
 
@@ -159,7 +159,9 @@ export default function WidgetPreview({
       {widget.widget_type === "chart" ? (
         result.groups.length ? (
           <div className="mt-3 flex flex-1 flex-col justify-center">
-            <div className={`transition-all duration-200 ${chartBoxAlignClass}`}>
+            <div
+              className={`transition-all duration-200 ${chartBoxAlignClass}`}
+            >
               <Chart
                 type={widget.chart_type ?? "line"}
                 height={chartHeight}

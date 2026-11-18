@@ -81,6 +81,15 @@ function authRedirect(request: NextRequest): NextResponse | null {
 }
 
 export default function proxy(request: NextRequest) {
+  // next-intl rewrites the public display URL to /<locale>/participant/display.
+  // Let that internal target through if Next invokes proxy again for the rewrite.
+  if (
+    routing.locales.some((locale) =>
+      isArea(request.nextUrl.pathname, `/${locale}/participant/display`),
+    )
+  ) {
+    return NextResponse.next();
+  }
   const redirect = authRedirect(request);
   if (redirect) return redirect;
   return intlMiddleware(request);

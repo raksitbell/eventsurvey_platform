@@ -36,10 +36,7 @@ const {
   issueVerifiedSession,
 } = require("../src/core/auth/verified-session.ts");
 const { csvReport, printReport } = require("../src/core/analytics/report.ts");
-const {
-  parseFilters,
-  hasRawGrant,
-} = require("../src/core/analytics/policy.ts");
+const { parseFilters } = require("../src/core/analytics/policy.ts");
 function fixture() {
   return {
     users: [
@@ -52,43 +49,36 @@ function fixture() {
       {
         id: "owner",
         system_role: "event_user",
-        event_role: "event_admin",
         event_id: "event",
-        role_id: "role",
+        role_id: "role-owner",
         status: "active",
         removed_at: null,
-        can_manage_dashboard: true,
-        can_view_unmasked_pii: true,
-        permission_granted_by_user_id: "admin",
-        permission_updated_at: "2026-10-01",
       },
       {
         id: "sub",
         system_role: "event_user",
-        event_role: "event_sub_user",
         event_id: "event",
-        role_id: "role",
+        role_id: "role-sub",
         status: "active",
         removed_at: null,
-        can_manage_dashboard: false,
-        can_view_unmasked_pii: true,
-        permission_granted_by_user_id: "admin",
-        permission_updated_at: "2026-10-01",
       },
     ],
-    roles: [{ id: "role", event_id: "event" }],
-    permissions: ["dashboards", "registrations", "surveys"].map((feature) => ({
-      role_id: "role",
-      feature,
-      can_access: true,
-      can_view: true,
-      can_edit: true,
-    })),
+    roles: [
+      { id: "role-owner", event_id: "event", deleted_at: null },
+      { id: "role-sub", event_id: "event", deleted_at: null },
+    ],
+    role_permissions: [
+      { role_id: "role-owner", permission: "manage_dashboard" },
+      { role_id: "role-owner", permission: "manage_registration_form" },
+      { role_id: "role-owner", permission: "manage_survey_form" },
+      { role_id: "role-sub", permission: "manage_dashboard" },
+      { role_id: "role-sub", permission: "manage_registration_form" },
+    ],
     events: [
       {
         id: "event",
         slug: "test",
-        timezone: "Asia/Bangkok",
+        status: "open",
         default_locale: "th",
         deleted_at: null,
       },
@@ -107,7 +97,6 @@ function fixture() {
         id: "name",
         form_id: "reg",
         type: "short_text",
-        contains_pii: true,
         display_order: 1,
         deleted_at: null,
       },
@@ -122,7 +111,7 @@ function fixture() {
       {
         id: "topic",
         form_id: "reg",
-        type: "checkbox",
+        type: "multiple_choice",
         contains_pii: false,
         display_order: 2,
         deleted_at: null,
@@ -151,7 +140,7 @@ function fixture() {
       {
         id: "deleted",
         form_id: "reg",
-        status: "soft_deleted",
+        status: "cancelled",
         submitted_at: "2026-10-25T10:00:00Z",
         deleted_at: "2026-10-25",
       },
@@ -276,10 +265,12 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
     (await getAnalytics(request("owner", "to=2026-10-24"))).rows.length,
     0,
   );
-  const raw = await getAnalytics(request("owner", "raw=true"));
-  assert.equal(raw.rows.find((r) => r.id === "r1").values.name, "=PRIVATE()");
-  assert.match(csvReport(raw), /'=PRIVATE/);
-  assert.ok(db.audit_logs.at(-1).includes_unmasked_pii);
+  await assert.rejects(
+    getAnalytics(request("owner", "raw=true")),
+    (e) => e.status === 403,
+  );
+  assert.ok(!csvReport(data).includes("PRIVATE"));
+  assert.equal(db.audit_logs.at(-1).includes_unmasked_pii, false);
   assert.ok(printReport(data).includes("Personal data masked"));
   assert.ok(!printReport(data).includes("PRIVATE"));
   for (const params of ["eventId=foreign", "formId=other"])
@@ -295,16 +286,8 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
     getAnalytics(request("admin", "raw=true", "owner")),
     (e) => e.status === 403,
   );
-  await assert.rejects(
-    getAnalytics(request("sub", "", "owner")),
-    (e) => e.status === 403,
-  );
-  db.users[1].permission_granted_by_user_id = "sub";
-  await assert.rejects(
-    getAnalytics(request("owner", "raw=true")),
-    (e) => e.status === 403,
-  );
-  db.users[1].permission_granted_by_user_id = "admin";
+  const unsignedHint = await getAnalytics(request("sub", "", "owner"));
+  assert.equal(unsignedHint.metrics.total, 1);
   const tampered = request();
   const get = tampered.cookies.get;
   tampered.cookies.get = (name) =>
@@ -312,7 +295,6 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
       ? { value: "fake.fake" }
       : get(name);
   await assert.rejects(getAnalytics(tampered), (e) => e.status === 401);
-  db.permissions.find((p) => p.feature === "surveys").can_view = false;
   const restricted = await getAnalytics(request("sub"));
   assert.deepEqual(
     restricted.forms.map((f) => f.id),
@@ -347,6 +329,10 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
   edit.json = async () => ({ id: "layout", columns: 2, widgets: [] });
   await saveAnalyticsLayout(edit);
   assert.equal(db.dashboard_widgets.length, 0);
+  db.role_permissions = db.role_permissions.filter(
+    (row) =>
+      row.role_id !== "role-sub" || row.permission !== "manage_dashboard",
+  );
   const denied = request("sub");
   denied.json = edit.json;
   await assert.rejects(saveAnalyticsLayout(denied), (e) => e.status === 403);
@@ -359,5 +345,4 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
     () => parseFilters(new URLSearchParams("from=2026-10-26&to=2026-10-25")),
     (e) => e.status === 400,
   );
-  assert.equal(hasRawGrant(db.users[2], db.users[0]), false);
 });

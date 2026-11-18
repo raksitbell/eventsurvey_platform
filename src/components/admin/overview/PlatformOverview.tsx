@@ -3,6 +3,7 @@
 import EventStatusChart from "./EventStatusChart";
 import PlatformGrowthChart from "./PlatformGrowthChart";
 import TopEventsChart from "./TopEventsChart";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { api } from "@/core/api";
 import { formatDateTime } from "@/core/i18n/format-datetime";
 import type { Locale } from "@/i18n/routing";
@@ -29,12 +30,14 @@ export default function PlatformOverview() {
   const t = useTranslations("adminHome");
   const locale = useLocale() as Locale;
   const [overview, setOverview] = useState<AdminOverviewResponse | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      setIsLoading(true);
       try {
         const data = await api.get<AdminOverviewResponse>(
           `/admin/overview?locale=${encodeURIComponent(locale)}`,
@@ -45,6 +48,8 @@ export default function PlatformOverview() {
         }
       } catch {
         if (!cancelled) setError(t("loadError"));
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     }
 
@@ -82,9 +87,9 @@ export default function PlatformOverview() {
               <p className="text-theme-sm text-gray-500 dark:text-gray-400">
                 {t(`metrics.${key}`)}
               </p>
-              <p className="mt-3 text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
+              <div className="mt-3">
                 {pair ? (
-                  <>
+                  <p className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
                     <span>{pair.active}</span>
                     <span className="mx-1 text-xl font-medium text-gray-400 dark:text-gray-500">
                       /
@@ -92,11 +97,11 @@ export default function PlatformOverview() {
                     <span className="text-xl font-medium text-gray-500 dark:text-gray-400">
                       {pair.total}
                     </span>
-                  </>
+                  </p>
                 ) : (
-                  "—"
+                  <Skeleton className="h-9 w-28" />
                 )}
-              </p>
+              </div>
               <p className="mt-2 text-theme-xs text-gray-400 dark:text-gray-500">
                 {t("metrics.activeLabel")} / {t("metrics.totalLabel")}
               </p>
@@ -111,12 +116,25 @@ export default function PlatformOverview() {
             {t("recentActivity")}
           </h2>
           <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-            {(overview?.recentActivity ?? []).length === 0 ? (
+            {!overview ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <Skeleton className="size-2.5 shrink-0 rounded-full" />
+                    <Skeleton className="h-4 w-full max-w-64" />
+                  </div>
+                  <Skeleton className="h-3 w-20" />
+                </li>
+              ))
+            ) : overview.recentActivity.length === 0 ? (
               <li className="py-3 text-sm text-gray-500 dark:text-gray-400">
                 {t("noActivity")}
               </li>
             ) : (
-              overview?.recentActivity.map((item) => (
+              overview.recentActivity.map((item) => (
                 <li
                   key={item.id}
                   className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0"
@@ -158,10 +176,7 @@ export default function PlatformOverview() {
                       {t(`health.status.${status}`)}
                     </span>
                   ) : (
-                    <span
-                      aria-hidden
-                      className="inline-block h-6 w-20 animate-pulse rounded-full bg-gray-200 dark:bg-white/10"
-                    />
+                    <Skeleton className="h-6 w-20 rounded-full" />
                   )}
                 </li>
               );
@@ -178,14 +193,20 @@ export default function PlatformOverview() {
           <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
             {t("growthHint")}
           </p>
-          <PlatformGrowthChart growth={overview?.growth ?? null} />
+          <PlatformGrowthChart
+            growth={overview?.growth ?? null}
+            isLoading={isLoading}
+          />
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
           <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
             {t("eventStatusTitle")}
           </h2>
-          <EventStatusChart breakdown={overview?.eventStatusBreakdown ?? null} />
+          <EventStatusChart
+            breakdown={overview?.eventStatusBreakdown ?? null}
+            isLoading={isLoading}
+          />
         </div>
       </div>
 
@@ -194,7 +215,10 @@ export default function PlatformOverview() {
           <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-white/90">
             {t("topEventsTitle")}
           </h2>
-          <TopEventsChart topEvents={overview?.topEvents ?? null} />
+          <TopEventsChart
+            topEvents={overview?.topEvents ?? null}
+            isLoading={isLoading}
+          />
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
@@ -202,12 +226,25 @@ export default function PlatformOverview() {
             {t("piiActivityTitle")}
           </h2>
           <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-            {(overview?.piiActivity ?? []).length === 0 ? (
+            {!overview ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <Skeleton className="size-2.5 shrink-0 rounded-full" />
+                    <Skeleton className="h-4 w-full max-w-56" />
+                  </div>
+                  <Skeleton className="h-3 w-20" />
+                </li>
+              ))
+            ) : overview.piiActivity.length === 0 ? (
               <li className="py-3 text-sm text-gray-500 dark:text-gray-400">
                 {t("piiActivityEmpty")}
               </li>
             ) : (
-              overview?.piiActivity.map((item) => (
+              overview.piiActivity.map((item) => (
                 <li
                   key={item.id}
                   className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0"
