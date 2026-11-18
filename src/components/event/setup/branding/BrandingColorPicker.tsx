@@ -18,7 +18,7 @@ interface BrandingColorPickerProps {
   embedded?: boolean;
   colorKey: BrandingColorKey;
   value: string;
-  onSelect: (color: string) => void;
+  onSelect: (color: string) => boolean;
   onClose: () => void;
 }
 export default function BrandingColorPicker({
@@ -29,15 +29,22 @@ export default function BrandingColorPicker({
   onClose,
 }: BrandingColorPickerProps) {
   const t = useTranslations("eventBranding");
+  const setup = useTranslations("eventSetup");
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
   const [color, setColor] = useState(() => hexToHsv(value));
   const [hexInput, setHexInput] = useState(value);
-  const selectColor = (hex: string) => {
-    setColor(hexToHsv(hex));
+  const [saveFailed, setSaveFailed] = useState(false);
+  function selectColor(hex: string, hsv = hexToHsv(hex)) {
+    const saved = onSelect(hex);
+    setSaveFailed(!saved);
+    if (!saved) {
+      setHexInput(value);
+      return;
+    }
+    setColor(hsv);
     setHexInput(hex);
-    onSelect(hex);
-  };
+  }
   useEffect(() => {
     const previous = globalThis.document.activeElement as HTMLElement | null;
     const focusFirst = () => panel.current?.querySelector("button")?.focus();
@@ -100,12 +107,7 @@ export default function BrandingColorPicker({
       </p>
       <BrandingColorSpectrum
         color={color}
-        onChange={(next) => {
-          setColor(next);
-          const hex = hsvToHex(next);
-          setHexInput(hex);
-          onSelect(hex);
-        }}
+        onChange={(next) => selectColor(hsvToHex(next), next)}
       />
       <div className="flex h-10 shrink-0 items-center gap-2.5">
         <Input
@@ -128,8 +130,8 @@ export default function BrandingColorPicker({
             dir="ltr"
             onChange={(event) => {
               const hex = event.target.value.toUpperCase();
-              setHexInput(hex);
               if (/^#[0-9A-F]{6}$/.test(hex)) selectColor(hex);
+              else setHexInput(hex);
             }}
             onBlur={() => setHexInput(value)}
             className="h-6! w-28! rounded-none! border-0! p-0! text-base! font-semibold text-picker-text shadow-none! dark:text-gray-100"
@@ -161,6 +163,14 @@ export default function BrandingColorPicker({
           </button>
         ))}
       </div>
+      {saveFailed && (
+        <p
+          role="alert"
+          className="text-picker-small text-error-600 dark:text-error-400"
+        >
+          {setup("saveError")}
+        </p>
+      )}
       <div className="flex h-9 shrink-0 items-center">
         <Button
           size="sm"

@@ -44,6 +44,12 @@ export default function SetupBrandingDialog({
     setValue((current) => ({ ...current, ...changes }));
     setError("");
   }
+  function selectColor(field: ColorKey, hex: string) {
+    const changes = { [field]: hex };
+    if (!onSave(changes)) return false;
+    change(changes);
+    return true;
+  }
   function color(key: ColorKey) {
     return (
       value[key] ??
@@ -202,7 +208,7 @@ export default function SetupBrandingDialog({
                       : picker
                 }
                 value={color(picker)}
-                onSelect={(hex) => change({ [picker]: hex })}
+                onSelect={(hex) => selectColor(picker, hex)}
                 onClose={() => setPicker(null)}
               />
             )}

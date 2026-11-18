@@ -10,7 +10,7 @@ import { useState } from "react";
 interface BrandingThemeCustomizationProps {
   branding: EventBranding;
   readOnly: boolean;
-  onChange: (changes: Partial<EventBranding>) => void;
+  onChange: (changes: Partial<EventBranding>) => boolean;
 }
 export default function BrandingThemeCustomization({
   branding,
