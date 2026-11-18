@@ -8,7 +8,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { languages } from "@/i18n/languages";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { showError } from "@/utils/alert";
+import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
 import {
   CheckIcon,
@@ -21,7 +21,6 @@ import { useRef, useState } from "react";
 export default function UserDropdown() {
   const t = useTranslations("userDropdown");
   const tc = useTranslations("confirm");
-  const tError = useTranslations("errors.500");
   const th = useTranslations("header");
   const tCommon = useTranslations("common");
   const locale = useLocale() as Locale;
@@ -64,7 +63,7 @@ export default function UserDropdown() {
     try {
       await stopImpersonating();
     } catch {
-      await showError(tError("title"), tError("message"), tc("ok"));
+      showToast({ title: t("stopImpersonatingFailed"), variant: "error" });
     }
   };
 
@@ -77,7 +76,11 @@ export default function UserDropdown() {
     });
     if (!confirmed) return;
     closeDropdown();
-    await logout();
+    try {
+      await logout();
+    } catch {
+      showToast({ title: t("signOutFailed"), variant: "error" });
+    }
   };
 
   if (!user) return null;

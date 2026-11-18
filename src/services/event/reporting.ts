@@ -1,4 +1,5 @@
 import { mockApi, MockApiError } from "@/core/api/mock-client";
+import { maskName } from "@/core/auth/pii";
 import {
   isReportingChoiceField,
   isReportingFieldPrivate,
@@ -93,10 +94,7 @@ export async function getReportingData(
   userId: string,
   locale: Locale,
 ): Promise<ReportingData> {
-  const users = await mockApi.get<MockUser[]>(`/users?id=${q(userId)}`);
-  const scope = await getDashboardScope(
-    users.find((user) => user.id === userId) ?? null,
-  );
+  const scope = await getDashboardScope(userId);
   if (!scope) throw new ReportingError(403, "Forbidden");
 
   const { event, canReadForm } = scope;
@@ -358,17 +356,16 @@ export async function getReportingData(
       const form = allowedForms.find((row) => row.id === item.resource_id);
       if (item.resource_type === "form" && !form) return [];
 
+      const deletedBy = eventUsers.find(
+        (user) =>
+          user.id === item.deleted_by_user_id && user.event_id === event.id,
+      )?.display_name;
       return [
         {
           id: item.id,
           name: item.resource_type === "form" ? item.display_name : "••••",
           type: item.resource_type,
-          deletedBy:
-            eventUsers.find(
-              (user) =>
-                user.id === item.deleted_by_user_id &&
-                user.event_id === event.id,
-            )?.display_name ?? "—",
+          deletedBy: deletedBy ? maskName(deletedBy) : "—",
           expiresAt: expiresAt.toISOString(),
           canRestore:
             item.resource_type === "form" &&

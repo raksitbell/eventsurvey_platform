@@ -1,5 +1,5 @@
 import { mockApi, MockApiError } from "@/core/api/mock-client";
-import { verifiedActor } from "@/core/auth/verified-session";
+import type { AuthSessionCookie } from "@/core/auth/cookie";
 import {
   AnalyticsError,
   localDay,
@@ -37,14 +37,13 @@ type Selection = { answer_id: string; option_id: string };
 const q = encodeURIComponent;
 const timezone = "Asia/Bangkok";
 type AnalyticsSubmission = MockFormSubmission & { deleted_at?: string | null };
-async function scope(request: NextRequest) {
-  const identity = await verifiedActor(request);
-  const scoped = await getDashboardScope(identity.user);
+async function scope(session: AuthSessionCookie) {
+  const scoped = await getDashboardScope(session.userId);
   if (!scoped) throw new AnalyticsError(403, "FORBIDDEN");
   return {
-    ...identity,
     ...scoped,
-    manage: !identity.impersonating,
+    session,
+    manage: !session.impersonating,
   };
 }
 
@@ -69,12 +68,12 @@ async function audit(
     mockApi.post("/audit_logs", {
       id: crypto.randomUUID(),
       event_id: context.event.id,
-      actor_user_id: context.actor.id,
+      actor_user_id: context.session.realUserId,
       action,
       resource_type: "analytics",
       resource_id: context.event.id,
       description: JSON.stringify({
-        effectiveUserId: context.user.id,
+        effectiveUserId: context.session.userId,
         formId: filters.formId || null,
         from: filters.from,
         to: filters.to,
@@ -88,9 +87,10 @@ async function audit(
 }
 export async function getAnalytics(
   request: NextRequest,
+  session: AuthSessionCookie,
   action = "analytics.view",
 ): Promise<AnalyticsData> {
-  const context = await scope(request);
+  const context = await scope(session);
   const { event, canReadForm } = context;
   const filters = parseFilters(request.nextUrl.searchParams);
   if (filters.eventId && filters.eventId !== event.id)
@@ -400,8 +400,11 @@ export async function getAnalytics(
     permissions: { raw: false, manage: context.manage },
   };
 }
-export async function saveAnalyticsLayout(request: NextRequest) {
-  const context = await scope(request);
+export async function saveAnalyticsLayout(
+  request: NextRequest,
+  session: AuthSessionCookie,
+) {
+  const context = await scope(session);
   if (!context.manage) throw new AnalyticsError(403, "FORBIDDEN");
   const body = (await request.json()) as {
     id: string;

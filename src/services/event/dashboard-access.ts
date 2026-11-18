@@ -9,8 +9,12 @@ interface DashboardScope {
 }
 
 export async function getDashboardScope(
-  user: MockUser | null,
+  userId: string,
 ): Promise<DashboardScope | null> {
+  const users = await mockApi.get<MockUser[]>(
+    `/users?id=${encodeURIComponent(userId)}`,
+  );
+  const user = users.find((row) => row.id === userId);
   if (
     !user ||
     user.status !== "active" ||

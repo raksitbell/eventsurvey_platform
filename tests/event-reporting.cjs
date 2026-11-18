@@ -28,6 +28,7 @@ require.extensions[".ts"] = (mod, filename) =>
 const now = new Date().toISOString();
 const user = {
   id: "owner",
+  display_name: "Private Owner",
   event_id: "event-a",
   system_role: "event_user",
   role_id: "role-owner",
@@ -68,6 +69,7 @@ function reset() {
     role_permissions: [
       { role_id: "role-owner", permission: "manage_dashboard" },
       { role_id: "role-owner", permission: "manage_survey_form" },
+      { role_id: "role-owner", permission: "view_unmasked_pii" },
     ],
     forms: [
       {
@@ -252,6 +254,8 @@ global.fetch = async (url, init = {}) => {
   assert.equal(data.responses[0].score, 0);
   assert.equal(data.responses[0].complete, true);
   assert(!JSON.stringify(data).includes("PRIVATE NAME"));
+  assert(!JSON.stringify(data).includes("Private Owner"));
+  assert.equal(data.trash[0].deletedBy, "P••• O•••");
   assert.equal(
     (await getReportingData("owner", "th")).forms[0].title,
     "แบบสำรวจ",

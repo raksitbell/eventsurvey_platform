@@ -57,12 +57,17 @@
 npm install
 ```
 
-สร้างไฟล์ `.env.local` ใส่ที่อยู่ของ mock API:
+สร้างไฟล์ `.env.local` สำหรับ Mock API และ session
 
 ```bash
 MOCK_API_BASE_URL=https://eventmockapi.vercel.app
 NEXT_PUBLIC_API_BASE_URL=https://eventmockapi.vercel.app
+AUTH_SESSION_SECRET=<ค่าที่สร้างจาก openssl rand -hex 32>
 ```
+
+ใช้ secret สุ่มแยกตาม environment และตั้งค่าใน Vercel ก่อน deploy คุกกี้มีอายุ 8 ชั่วโมงและถูกล้างเมื่อออกจากระบบ การเปลี่ยน secret จะทำให้ session และลิงก์ตั้งรหัสผ่านที่ออกด้วยค่าเดิมหมดอายุ ผู้ใช้ demo ต้องเข้าสู่ระบบใหม่และต้องออกลิงก์ใหม่สำหรับคำเชิญเก่าที่ยังไม่ได้ใช้
+
+Mock API และบัญชีทดลองใช้สำหรับ development ด้วยข้อมูลจำลอง
 
 ```bash
 npm run dev
@@ -83,6 +88,7 @@ npm run dev
 | `npm run build` | สร้างไฟล์สำหรับขึ้นเซิร์ฟเวอร์จริง |
 | `npm run start` | รันเวอร์ชันที่ build แล้ว |
 | `npm run lint` | ตรวจโค้ดว่าผิดกฎที่ตั้งไว้ไหม |
+| `npm test` | รันชุดทดสอบสิทธิ์และการปกปิด PII ด้วยข้อมูลจำลอง |
 
 ---
 
@@ -93,8 +99,6 @@ npm run dev
 ## Event Dashboard และรายงาน
 
 Dashboard เปิดให้ผู้ใช้ที่มีสิทธิ์ `manage_dashboard` เมื่ออีเวนต์อยู่ในสถานะ `scheduled`, `open` หรือ `closed` ตาม lifecycle ของ Mock API สิทธิ์ของแต่ละฟอร์มกำหนดว่าผู้ใช้จะเห็นคำตอบชุดใด และ BFF ปกปิดค่า PII ก่อนส่งข้อมูลให้หน้าเว็บและไฟล์ส่งออก
-
-ตั้งค่า `AUTH_SESSION_SECRET` ใน Production และ Preview ให้เป็นค่าสุ่มที่คงเดิมข้ามอินสแตนซ์ เช่น ค่าที่สร้างด้วย `openssl rand -hex 32` สำหรับลงนาม session ฝั่งเซิร์ฟเวอร์ ผู้ใช้ที่เข้าใช้งานอยู่ก่อน deploy ต้องลงชื่อเข้าใช้อีกครั้งเพื่อรับ session ที่ลงนามแล้ว
 
 | หน้า | การทำงาน |
 |---|---|

@@ -1,45 +1,34 @@
-import { api } from "@/core/api";
+import { api, ApiError } from "@/core/api/client";
 import type { LoginCredentials } from "@/types/auth";
-// noinspection ES6PreferShortImport
 import type { User } from "@/types/user";
-// noinspection ES6PreferShortImport
-import { canImpersonate, isImpersonatableRole } from "./permissions";
-// noinspection ES6PreferShortImport
-import { sanitizeUser } from "./session";
+import type { AuthSnapshot } from "./session";
 
-export async function loginWithCredentials({
-  email,
-  password,
-}: LoginCredentials): Promise<User> {
+export async function loginWithCredentials(
+  credentials: LoginCredentials,
+): Promise<User> {
+  const data = await api.post<{ user: User }>("/auth/login", credentials);
+  return data.user;
+}
+
+export async function getAuthSnapshot(signal: AbortSignal): Promise<AuthSnapshot> {
   try {
-    const data = await api.post<{ user: User }>("/auth/login", {
-      email,
-      password,
-    });
-    return sanitizeUser(data.user);
+    return await api.get<AuthSnapshot>("/auth/session", signal);
   } catch (error) {
-    if (error instanceof Error) {
-      if (
-        error.message === "INVALID_CREDENTIALS" ||
-        error.message === "UNSUPPORTED_ROLE"
-      ) {
-        throw error;
-      }
+    if (error instanceof ApiError && error.status === 401) {
+      return { realUser: null, impersonatedUser: null };
     }
-    throw new Error("LOGIN_UNAVAILABLE");
+    throw error;
   }
 }
 
-export async function fetchImpersonationTarget(userId: string): Promise<User> {
-  const data = await api.get<{ user: User }>(`/admin/users/${userId}`);
-  return sanitizeUser(data.user);
+export function signOut() {
+  return api.post<void>("/auth/logout", {});
 }
 
-export function assertCanImpersonate(actor: User, target: User) {
-  if (!canImpersonate(actor.role)) {
-    throw new Error("FORBIDDEN");
-  }
-  if (!isImpersonatableRole(target.role)) {
-    throw new Error("INVALID_TARGET");
-  }
+export function startImpersonation(userId: string) {
+  return api.post<AuthSnapshot>("/auth/impersonation", { userId });
+}
+
+export function endImpersonation() {
+  return api.delete<AuthSnapshot>("/auth/impersonation");
 }

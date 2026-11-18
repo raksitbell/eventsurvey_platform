@@ -1,60 +1,37 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { acceptsJson } from "@/core/auth/route-response";
-import {
-  VerifiedSessionError,
-  verifiedActor,
-} from "@/core/auth/verified-session";
+import type { NextRequest } from "next/server";
+import { isAuthSession, requireEventSession } from "@/core/auth/api-guard";
+import { authJson, readJsonObject } from "@/core/auth/route-response";
 import { routing, type Locale } from "@/i18n/routing";
 import { ReportingError } from "@/services/event/reporting";
 
-const responseHeaders = { "Cache-Control": "private, no-store" };
-
 export async function eventRoute(
   request: NextRequest,
-  action: (userId: string, locale: Locale) => Promise<unknown>,
+  action: (
+    userId: string,
+    locale: Locale,
+    body?: Record<string, unknown>,
+  ) => Promise<unknown>,
 ) {
-  try {
-    const { user, impersonating } = await verifiedActor(request);
-    const isWrite = request.method !== "GET" && request.method !== "HEAD";
-    if (
-      user.system_role !== "event_user" ||
-      !user.event_id ||
-      (impersonating && isWrite)
-    ) {
-      return NextResponse.json(
-        { error: "FORBIDDEN" },
-        { status: 403, headers: responseHeaders },
-      );
-    }
-    if (isWrite && !acceptsJson(request)) {
-      return NextResponse.json(
-        { error: "INVALID_REQUEST" },
-        { status: 400, headers: responseHeaders },
-      );
-    }
+  const session = await requireEventSession(request);
+  if (!isAuthSession(session)) return session;
 
-    const requested = request.nextUrl.searchParams.get("locale") as Locale;
-    const locale = routing.locales.includes(requested)
-      ? requested
-      : routing.defaultLocale;
-    return NextResponse.json(await action(user.id, locale), {
-      headers: responseHeaders,
-    });
+  const isWrite = request.method !== "GET" && request.method !== "HEAD";
+  if (session.impersonating && isWrite) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
+
+  const body = isWrite ? await readJsonObject(request) : undefined;
+  if (body === null) return authJson({ error: "INVALID_REQUEST" }, 400);
+
+  const requested = request.nextUrl.searchParams.get("locale") as Locale;
+  const locale = routing.locales.includes(requested)
+    ? requested
+    : routing.defaultLocale;
+  try {
+    return authJson(await action(session.userId, locale, body));
   } catch (error) {
-    const domainError =
-      error instanceof ReportingError || error instanceof VerifiedSessionError;
-    return NextResponse.json(
-      {
-        error: domainError ? error.message : "Unable to process event data",
-      },
-      {
-        status: domainError
-          ? error.status
-          : error instanceof SyntaxError
-            ? 400
-            : 502,
-        headers: responseHeaders,
-      },
-    );
+    return error instanceof ReportingError
+      ? authJson({ error: error.message }, error.status)
+      : authJson({ error: "Unable to process event data" }, 502);
   }
 }

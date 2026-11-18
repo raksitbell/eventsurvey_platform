@@ -3,14 +3,13 @@
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
-import { showError } from "@/utils/alert";
+import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
 import { useTranslations } from "next-intl";
 
 export default function ImpersonationBanner() {
   const t = useTranslations("impersonation");
   const tc = useTranslations("confirm");
-  const tError = useTranslations("errors.500");
   const tCommon = useTranslations("common");
   const { isImpersonating, user, realUser, stopImpersonating } = useAuth();
   const { confirm } = useConfirm();
@@ -28,7 +27,7 @@ export default function ImpersonationBanner() {
     try {
       await stopImpersonating();
     } catch {
-      await showError(tError("title"), tError("message"), tc("ok"));
+      showToast({ title: t("stopFailed"), variant: "error" });
     }
   };
 

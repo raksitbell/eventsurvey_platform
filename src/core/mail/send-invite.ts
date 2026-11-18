@@ -1,3 +1,7 @@
+import {
+  issueSetupPasswordInvite,
+  SETUP_PASSWORD_INVITE_DAYS,
+} from "@/core/auth/setup-password-invite";
 import nodemailer from "nodemailer";
 
 function appBaseUrl(): string {
@@ -43,7 +47,8 @@ export async function sendSetupPasswordInvite(input: {
   eventTitleFallback?: string | null;
 }): Promise<void> {
   const config = mailConfig();
-  const setupUrl = `${appBaseUrl()}/setup-password/${input.userId}`;
+  const token = issueSetupPasswordInvite(input.userId);
+  const setupUrl = `${appBaseUrl()}/setup-password/${token}`;
 
   const transporter = nodemailer.createTransport({
     host: config.host,
@@ -78,14 +83,14 @@ export async function sendSetupPasswordInvite(input: {
       `คุณได้รับเชิญเป็นผู้ดูแลอีเวนต์ของ "${eventTitleTh}" บน EventSurvey`,
       "กรุณาตั้งรหัสผ่านเพื่อเข้าใช้งานพื้นที่จัดการอีเวนต์:",
       setupUrl,
-      "ลิงก์นี้ใช้ได้จนกว่าคุณจะตั้งรหัสผ่านเรียบร้อย",
+      `ลิงก์นี้มีอายุ ${SETUP_PASSWORD_INVITE_DAYS} วันและใช้ได้ขณะบัญชียังรอตั้งรหัสผ่าน`,
       "หากคุณไม่ได้คาดหวังอีเมลนี้ สามารถเพิกเฉยได้",
       "",
       "— English —",
       `You have been invited as Event Admin for "${eventTitleEn}" on EventSurvey.`,
       "Please set your password to access the event workspace:",
       setupUrl,
-      "This link remains valid until you finish setting your password.",
+      `This link expires in ${SETUP_PASSWORD_INVITE_DAYS} days and works while the account is awaiting password setup.`,
       "If you did not expect this email, you can ignore it.",
     ].join("\n"),
     html: buildInviteHtml({
@@ -184,7 +189,7 @@ function buildInviteHtml(input: {
               </p>
               <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;" />
               <p style="margin:0;font-size:12px;line-height:1.55;color:#9ca3af;">
-                ลิงก์นี้ใช้ได้จนกว่าคุณจะตั้งรหัสผ่านเรียบร้อย · This link remains valid until you set your password.<br />
+                ลิงก์นี้มีอายุ ${SETUP_PASSWORD_INVITE_DAYS} วันและใช้ได้ขณะบัญชียังรอตั้งรหัสผ่าน · This link expires in ${SETUP_PASSWORD_INVITE_DAYS} days and works while the account is awaiting password setup.<br />
                 หากไม่ได้คาดหวังอีเมลนี้ สามารถเพิกเฉยได้ · If you did not expect this email, you can ignore it.
               </p>
             </td>

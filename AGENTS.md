@@ -92,9 +92,9 @@ Mock → portal role map: `system_role=platform_admin` → `super_admin`. Active
 | `participant` | portal login blocked |
 
 - Login: `core/auth/service.ts` → `POST /api/auth/login` (BFF → mock `GET /users?...`)
-- Session stored in `localStorage` via `core/auth/session.ts`
-- Impersonation: only `super_admin` from `/admin/users`; effective user enters `/event`
-- Route guards: `components/auth/AuthGuard.tsx` + `AuthContext`
+- The BFF issues a signed, expiring HttpOnly cookie via `core/auth/cookie.ts`. Configure `AUTH_SESSION_SECRET` in each environment. Browser state is hydrated from `GET /api/auth/session`. Protected API handlers verify the cookie and the current account and role before reading protected data.
+- Impersonation goes through `/api/auth/impersonation`. The BFF verifies the real `super_admin` has `impersonate_event_user` and validates the effective event account. Keep real and effective identities separate.
+- Route guards: `components/auth/AuthGuard.tsx` + `AuthContext`.
 
 ## Conventions
 

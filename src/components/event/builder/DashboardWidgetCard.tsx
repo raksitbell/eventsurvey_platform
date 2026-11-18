@@ -2,7 +2,11 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { ChevronLeftIcon, HandRaisedIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronLeftIcon,
+  HandRaisedIcon,
+  PencilSquareIcon,
+} from "@heroicons/react/24/outline";
 import HoldToDeleteButton from "./HoldToDeleteButton";
 import WidgetPreview from "./WidgetPreview";
 import WidgetSettings from "./WidgetSettings";
@@ -26,7 +30,6 @@ interface DashboardWidgetCardProps {
   isBeingDragged: boolean;
   isDropTarget: boolean;
   isMenuOpen: boolean;
-  drawerOpen: boolean;
   drawerPlacement: DrawerPlacement;
   onCardRef: (el: HTMLElement | null) => void;
   onDrawerRef: (el: HTMLElement | null) => void;
@@ -50,7 +53,6 @@ export default function DashboardWidgetCard({
   isBeingDragged,
   isDropTarget,
   isMenuOpen,
-  drawerOpen,
   drawerPlacement,
   onCardRef,
   onDrawerRef,
@@ -65,6 +67,14 @@ export default function DashboardWidgetCard({
   const t = useTranslations("eventReports");
   const activeColSpan = resolveColSpan(widget.grid_span);
   const activeRowSpan = resolveRowSpan(widget.row_span);
+  const sideDrawerWidth =
+    activeColSpan === 2 ? "md:w-[calc(50%-0.5rem)] md:min-w-72" : "md:w-100";
+  const drawerOffsets = {
+    right: `relative order-last mt-3.5 md:absolute md:start-full md:top-0 md:ms-3.5 md:mt-0 ${sideDrawerWidth}`,
+    left: `relative order-last mt-3.5 md:absolute md:end-full md:top-0 md:me-3.5 md:mt-0 ${sideDrawerWidth}`,
+    bottom: "relative order-last mt-3.5",
+    top: "relative order-last mt-3.5 md:absolute md:inset-x-0 md:bottom-full md:mb-3.5 md:mt-0",
+  };
 
   const rowHeightClass =
     activeRowSpan === 3
@@ -86,7 +96,7 @@ export default function DashboardWidgetCard({
       className={`relative col-span-1 flex flex-col justify-between rounded-2xl border p-5 transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out md:col-span-(--widget-span) md:row-span-(--widget-row-span) ${rowHeightClass} ${
         isFocusedForEdit
           ? `z-99995 origin-top scale-[1.015] border-2 border-brand-500 bg-white shadow-theme-xl ring-4 ring-brand-500/35 dark:border-brand-400 dark:bg-gray-900 ${
-              activeColSpan === 3 ? "mt-88" : ""
+              drawerPlacement === "top" ? "md:mt-88" : ""
             }`
           : isSelected
             ? "z-40"
@@ -94,7 +104,7 @@ export default function DashboardWidgetCard({
               ? "z-30"
               : ""
       } ${
-        canEditCanvas
+        canEditCanvas && !isFocusedForEdit
           ? "cursor-grab touch-none select-none hover:-translate-y-0.5 hover:shadow-theme-md active:cursor-grabbing"
           : ""
       } ${
@@ -109,49 +119,15 @@ export default function DashboardWidgetCard({
                 : ""
       }`}
     >
-      {/* Dynamic Card-Attached Widget Settings Drawer (Top for Large, Side for Small/Medium) */}
-      {isSelected && (
+      {isFocusedForEdit && (
         <aside
           ref={onDrawerRef}
           role="dialog"
           data-no-drag
           aria-label={t("builder.settings")}
-          aria-hidden={!drawerOpen}
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          className={`absolute z-99999 rounded-2xl border-2 border-brand-500 bg-white p-4 shadow-theme-xl ring-4 ring-brand-500/20 transition-all duration-300 ease-out dark:border-brand-400 dark:bg-gray-900 ${
-            drawerPlacement === "right"
-              ? `start-full top-0 ms-3.5 origin-top-left starting:-translate-x-3 starting:scale-90 starting:opacity-0 ${
-                  activeColSpan === 2
-                    ? "w-[min(85vw,22rem)] md:w-[calc(50%-0.5rem)] md:min-w-72"
-                    : "w-[min(88vw,25rem)]"
-                } ${
-                  drawerOpen
-                    ? "pointer-events-auto translate-x-0 scale-100 opacity-100"
-                    : "pointer-events-none -translate-x-3 scale-90 opacity-0"
-                }`
-              : drawerPlacement === "left"
-                ? `end-full top-0 me-3.5 origin-top-right starting:translate-x-3 starting:scale-90 starting:opacity-0 ${
-                    activeColSpan === 2
-                      ? "w-[min(85vw,22rem)] md:w-[calc(50%-0.5rem)] md:min-w-72"
-                      : "w-[min(88vw,25rem)]"
-                  } ${
-                    drawerOpen
-                      ? "pointer-events-auto translate-x-0 scale-100 opacity-100"
-                      : "pointer-events-none translate-x-3 scale-90 opacity-0"
-                  }`
-                : drawerPlacement === "bottom"
-                  ? `inset-x-0 top-full mt-3.5 origin-top-right starting:-translate-y-3 starting:scale-90 starting:opacity-0 ${
-                      drawerOpen
-                        ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
-                        : "pointer-events-none -translate-y-3 scale-90 opacity-0"
-                    }`
-                  : `inset-x-0 bottom-full mb-3.5 origin-bottom-right starting:translate-y-3 starting:scale-90 starting:opacity-0 ${
-                      drawerOpen
-                        ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
-                        : "pointer-events-none translate-y-3 scale-90 opacity-0"
-                    }`
-          }`}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          className={`z-99999 min-w-0 rounded-2xl border-2 border-brand-500 bg-white p-4 shadow-theme-xl ring-4 ring-brand-500/20 transition-opacity duration-300 ease-out dark:border-brand-400 dark:bg-gray-900 starting:opacity-0 ${drawerOffsets[drawerPlacement]}`}
         >
           <WidgetSettings
             widget={widget}
@@ -164,12 +140,12 @@ export default function DashboardWidgetCard({
             aria-hidden="true"
             className={`pointer-events-none absolute size-3.5 rotate-45 border-brand-500 bg-white dark:border-brand-400 dark:bg-gray-900 ${
               drawerPlacement === "right"
-                ? "-start-2 top-7 border-s-2 border-b-2"
+                ? "end-7 -top-2 border-s-2 border-t-2 md:-start-2 md:end-auto md:top-7 md:border-t-0 md:border-b-2"
                 : drawerPlacement === "left"
-                  ? "-end-2 top-7 border-e-2 border-t-2"
+                  ? "end-7 -top-2 border-s-2 border-t-2 md:-end-2 md:top-7 md:border-s-0 md:border-e-2"
                   : drawerPlacement === "bottom"
-                    ? "-top-2 end-7 border-s-2 border-t-2"
-                    : "-bottom-2 end-7 border-e-2 border-b-2"
+                    ? "end-7 -top-2 border-s-2 border-t-2"
+                    : "end-7 -top-2 border-s-2 border-t-2 md:top-auto md:-bottom-2 md:border-s-0 md:border-e-2 md:border-t-0 md:border-b-2"
             }`}
           />
         </aside>

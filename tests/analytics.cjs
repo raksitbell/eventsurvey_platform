@@ -27,14 +27,10 @@ require.extensions[".ts"] = (module, filename) =>
     }).outputText,
     filename,
   );
-process.env.AUTH_SESSION_SECRET = "test-only-key-do-not-use-for-deployment";
 const {
   getAnalytics,
   saveAnalyticsLayout,
 } = require("../src/services/event/analytics.ts");
-const {
-  issueVerifiedSession,
-} = require("../src/core/auth/verified-session.ts");
 const { csvReport, printReport } = require("../src/core/analytics/report.ts");
 const { parseFilters } = require("../src/core/analytics/policy.ts");
 function fixture() {
@@ -71,6 +67,7 @@ function fixture() {
       { role_id: "role-owner", permission: "manage_dashboard" },
       { role_id: "role-owner", permission: "manage_registration_form" },
       { role_id: "role-owner", permission: "manage_survey_form" },
+      { role_id: "role-owner", permission: "view_unmasked_pii" },
       { role_id: "role-sub", permission: "manage_dashboard" },
       { role_id: "role-sub", permission: "manage_registration_form" },
     ],
@@ -214,39 +211,31 @@ global.fetch = async (url, init = {}) => {
   return value ? Response.json(value) : new Response("{}", { status: 404 });
 };
 function request(user = "owner", params = "", effective = user) {
-  let token;
-  issueVerifiedSession(
-    {
-      cookies: {
-        set: (_name, value) => {
-          token = value;
-        },
-      },
-    },
-    user,
-  );
-  const hint = encodeURIComponent(
-    JSON.stringify({
-      userId: effective,
-      role: "event_owner",
-      realRole: user === "admin" ? "super_admin" : "event_owner",
-      impersonating: user !== effective,
-    }),
-  );
+  const role = effective === "sub" ? "sub_user" : "event_owner";
   return {
-    nextUrl: new URL(
-      "http://localhost/api/event/analytics?locale=en&" + params,
-    ),
-    cookies: {
-      get: (name) => ({
-        value: name === "eventsurvey_verified_session" ? token : hint,
-      }),
+    request: {
+      nextUrl: new URL(
+        "http://localhost/api/event/analytics?locale=en&" + params,
+      ),
+    },
+    session: {
+      realUserId: user,
+      userId: effective,
+      role,
+      realRole: user === "admin" ? "super_admin" : role,
+      impersonating: user !== effective,
+      expiresAt: Date.now() + 60000,
     },
   };
 }
+
+function loadAnalytics(...args) {
+  const { request: nextRequest, session } = request(...args);
+  return getAnalytics(nextRequest, session);
+}
 test("analytics scope, privacy, reports, grants and layout", async () => {
   db = fixture();
-  const data = await getAnalytics(request());
+  const data = await loadAnalytics();
   assert.equal(data.rows.length, 2);
   assert.equal(data.metrics.registrations, 1);
   assert.equal(data.widgets[0].value, 1);
@@ -255,18 +244,16 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
   assert.ok(!JSON.stringify(data).includes("PRIVATE"));
   assert.equal(db.audit_logs.length, 1);
   assert.ok(!JSON.stringify(db.audit_logs).includes("PRIVATE"));
-  const filtered = await getAnalytics(
-    request("owner", "formId=reg&from=2026-10-25&to=2026-10-25"),
+  const filtered = await loadAnalytics(
+    "owner",
+    "formId=reg&from=2026-10-25&to=2026-10-25",
   );
   assert.equal(filtered.rows.length, 1);
   assert.equal(filtered.metrics.total, 1);
   assert.equal(filtered.fields.length, 2);
-  assert.equal(
-    (await getAnalytics(request("owner", "to=2026-10-24"))).rows.length,
-    0,
-  );
+  assert.equal((await loadAnalytics("owner", "to=2026-10-24")).rows.length, 0);
   await assert.rejects(
-    getAnalytics(request("owner", "raw=true")),
+    loadAnalytics("owner", "raw=true"),
     (e) => e.status === 403,
   );
   assert.ok(!csvReport(data).includes("PRIVATE"));
@@ -275,67 +262,79 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
   assert.ok(!printReport(data).includes("PRIVATE"));
   for (const params of ["eventId=foreign", "formId=other"])
     await assert.rejects(
-      getAnalytics(request("owner", params)),
+      loadAnalytics("owner", params),
       (e) => e.status === 403,
     );
   await assert.rejects(
-    getAnalytics(request("sub", "raw=true")),
+    loadAnalytics("sub", "raw=true"),
     (e) => e.status === 403,
   );
   await assert.rejects(
-    getAnalytics(request("admin", "raw=true", "owner")),
+    loadAnalytics("admin", "raw=true", "owner"),
     (e) => e.status === 403,
   );
-  const unsignedHint = await getAnalytics(request("sub", "", "owner"));
-  assert.equal(unsignedHint.metrics.total, 1);
-  const tampered = request();
-  const get = tampered.cookies.get;
-  tampered.cookies.get = (name) =>
-    name === "eventsurvey_verified_session"
-      ? { value: "fake.fake" }
-      : get(name);
-  await assert.rejects(getAnalytics(tampered), (e) => e.status === 401);
-  const restricted = await getAnalytics(request("sub"));
+  const impersonated = await loadAnalytics("admin", "", "owner");
+  assert.equal(
+    impersonated.rows.find((row) => row.id === "r1").values.name,
+    "••••",
+  );
+  assert.equal(impersonated.permissions.manage, false);
+  assert.equal(db.audit_logs.at(-1).actor_user_id, "admin");
+  assert.equal(
+    JSON.parse(db.audit_logs.at(-1).description).effectiveUserId,
+    "owner",
+  );
+  const restricted = await loadAnalytics("sub");
   assert.deepEqual(
     restricted.forms.map((f) => f.id),
     ["reg"],
   );
   assert.equal(restricted.rows.length, 1);
   failAudit = true;
-  await assert.rejects(getAnalytics(request()));
+  await assert.rejects(loadAnalytics());
   failAudit = false;
   const edit = request();
-  edit.json = async () => ({
+  edit.request.json = async () => ({
     id: "layout",
     columns: 3,
     widgets: [{ id: "widget", title_th: "New", title_en: "New" }],
   });
-  await saveAnalyticsLayout(edit);
+  await saveAnalyticsLayout(edit.request, edit.session);
   assert.equal(db.dashboard_data[0].layout_json.columns, 3);
   const newWidget = {
     ...db.dashboard_widgets[0],
     id: "12345678-1234-1234-1234-123456789012",
   };
-  edit.json = async () => ({
+  edit.request.json = async () => ({
     id: "layout",
     columns: 2,
     widgets: [...db.dashboard_widgets, newWidget],
   });
-  await saveAnalyticsLayout(edit);
+  await saveAnalyticsLayout(edit.request, edit.session);
   assert.equal(db.dashboard_widgets.length, 2);
   const piiWidget = { ...newWidget, field_id: "name", form_id: "reg" };
-  edit.json = async () => ({ id: "layout", columns: 2, widgets: [piiWidget] });
-  await assert.rejects(saveAnalyticsLayout(edit), (e) => e.status === 403);
-  edit.json = async () => ({ id: "layout", columns: 2, widgets: [] });
-  await saveAnalyticsLayout(edit);
+  edit.request.json = async () => ({
+    id: "layout",
+    columns: 2,
+    widgets: [piiWidget],
+  });
+  await assert.rejects(
+    saveAnalyticsLayout(edit.request, edit.session),
+    (e) => e.status === 403,
+  );
+  edit.request.json = async () => ({ id: "layout", columns: 2, widgets: [] });
+  await saveAnalyticsLayout(edit.request, edit.session);
   assert.equal(db.dashboard_widgets.length, 0);
   db.role_permissions = db.role_permissions.filter(
     (row) =>
       row.role_id !== "role-sub" || row.permission !== "manage_dashboard",
   );
   const denied = request("sub");
-  denied.json = edit.json;
-  await assert.rejects(saveAnalyticsLayout(denied), (e) => e.status === 403);
+  denied.request.json = edit.request.json;
+  await assert.rejects(
+    saveAnalyticsLayout(denied.request, denied.session),
+    (e) => e.status === 403,
+  );
   for (const date of ["2026-02-30", "2026-99-99", "junk"])
     assert.throws(
       () => parseFilters(new URLSearchParams({ from: date })),

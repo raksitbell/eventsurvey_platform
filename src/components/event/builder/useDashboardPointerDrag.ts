@@ -54,53 +54,47 @@ export function useDashboardPointerDrag({
   const dropTargetRef = useRef<number | null>(null);
   const clearActivePointer = useRef<(() => void) | null>(null);
 
-  // Resolve drawer placement based on card size:
-  // - Small (colSpan === 1) & Medium (colSpan === 2): open on the side ("right" or "left")
-  // - Large (colSpan === 3): open on the top ("top")
-  // Then scroll so that the Widget Settings sits right below the sticky header alongside the focused Widget.
   const focusAndPositionDrawer = useCallback(
     (widgetId: string, overrideColSpan?: ColSpan) => {
       const cardEl = cardRefs.current.get(widgetId);
       if (!cardEl) return;
 
-      const targetWidget = widgets.find((w) => w.id === widgetId);
-      const colSpan =
-        overrideColSpan ?? resolveColSpan(targetWidget?.grid_span);
-
-      const HEADER_OFFSET = 88; // Sticky AppHeader (64px) + 24px margin
+      const widget = widgets.find((item) => item.id === widgetId);
+      const colSpan = overrideColSpan ?? resolveColSpan(widget?.grid_span);
       const cardRect = cardEl.getBoundingClientRect();
-      const canvasRect = canvasRef.current?.getBoundingClientRect() ?? cardRect;
-      const viewportW = globalThis.window.innerWidth;
+      const viewportWidth = globalThis.window.innerWidth;
+      const styles = globalThis.window.getComputedStyle(cardEl);
+      const gap = 14;
+      const viewportGutter = 16;
+      const drawerWidth =
+        colSpan === 2 ? Math.max(288, cardRect.width / 2 - 8) : 400;
+      const spaceOnLeft = cardRect.left - viewportGutter;
+      const spaceOnRight = viewportWidth - cardRect.right - viewportGutter;
+      const bestSide = spaceOnRight >= spaceOnLeft ? "right" : "left";
 
-      const rightSpace =
-        Math.min(viewportW - 16, canvasRect.right + 16) - cardRect.right;
-      const leftSpace = cardRect.left - Math.max(16, canvasRect.left - 16);
-
-      let nextPlacement: DrawerPlacement;
-      if (colSpan === 3) {
-        nextPlacement = "top";
-      } else {
-        nextPlacement = rightSpace >= leftSpace ? "right" : "left";
+      let nextPlacement: DrawerPlacement = "bottom";
+      if (viewportWidth >= 768) {
+        if (colSpan === 3) {
+          nextPlacement = "top";
+        } else if (Math.max(spaceOnLeft, spaceOnRight) >= drawerWidth + gap) {
+          nextPlacement =
+            styles.direction === "rtl"
+              ? bestSide === "left"
+                ? "right"
+                : "left"
+              : bestSide;
+        }
       }
-
       setDrawerPlacement(nextPlacement);
 
       globalThis.requestAnimationFrame(() => {
-        const updatedCardEl = cardRefs.current.get(widgetId);
         const drawerEl = drawerRefs.current.get(widgetId);
-        if (!updatedCardEl) return;
-
-        const cRect = updatedCardEl.getBoundingClientRect();
-        const drawerHeight = drawerEl?.offsetHeight ?? 320;
-        const currentScrollY = globalThis.window.scrollY;
-
-        const drawerDocTop =
-          nextPlacement === "top"
-            ? currentScrollY + cRect.top - drawerHeight - 16
-            : currentScrollY + cRect.top;
-
+        if (!drawerEl) return;
+        const stickyHeaderOffset = 88;
+        const top =
+          drawerEl.getBoundingClientRect().top + globalThis.window.scrollY;
         globalThis.window.scrollTo({
-          top: Math.max(0, drawerDocTop - HEADER_OFFSET),
+          top: Math.max(0, top - stickyHeaderOffset),
           behavior: "smooth",
         });
       });

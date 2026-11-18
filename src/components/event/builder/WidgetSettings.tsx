@@ -119,7 +119,10 @@ export default function WidgetSettings({
       </div>
 
       {/* Form Grid */}
-      <fieldset disabled={disabled} className="grid gap-3.5 sm:grid-cols-2">
+      <fieldset
+        disabled={disabled}
+        className="grid min-w-0 gap-3.5 sm:grid-cols-2 [&>div]:min-w-0"
+      >
         {/* 1. Widget Title */}
         <div>
           <Label htmlFor="widget-title">{t("builder.widgetTitle")}</Label>

@@ -1,80 +1,90 @@
-// noinspection ES6PreferShortImport
 import { NextResponse, type NextRequest } from "next/server";
-import { mockApi } from "@/core/api/mock-client";
+import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { isActiveMockUser } from "@/core/mock/map-user";
 import {
   getRolePermissions,
   hasPermission,
+  hasPlatformPermission,
 } from "@/core/mock/role-permissions";
+import { getActivePortalAccount } from "@/services/auth/session";
 import type { FormType } from "@/types/event/form";
 import type { MockPermissionCode, MockUser } from "@/types/mock";
-// noinspection ES6PreferShortImport
-import {
-  AUTH_SESSION_COOKIE,
-  parseAuthSessionCookie,
-  type AuthSessionCookie,
-} from "./cookie";
-// noinspection ES6PreferShortImport
+import { readAuthSession, type AuthSessionCookie } from "./cookie";
 import { canEnterAdminArea, canEnterEventArea } from "./permissions";
+import { authJson, rejectCrossOrigin } from "./route-response";
 
-/**
- * Authorization for /api/admin route handlers.
- *
- * `src/proxy.ts` only gates page navigations — its matcher excludes /api, and
- * an API route is reachable directly from curl with no browser involved. Every
- * handler that returns user data must therefore check the session itself.
- *
- * BR-008 / DR-007 / NFR-005: PII must not leave the API layer for a caller who
- * has no right to it, so "no valid session" and "wrong role" are decided here,
- * before any data is read.
- *
- * Returns a 401/403 response to send back, or null when the caller may proceed.
- */
-export function denyUnlessAdmin(request: NextRequest): NextResponse | null {
-  const sessionOrDeny = requireAdminSession(request);
-  if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
-  return null;
+export async function requireSessionActor(session: AuthSessionCookie | null) {
+  if (!session) return authJson({ error: "UNAUTHORIZED" }, 401);
+
+  try {
+    const realAccount = await getActivePortalAccount(session.realUserId);
+    if (!realAccount || realAccount.user.role !== session.realRole) {
+      return authJson({ error: "UNAUTHORIZED" }, 401);
+    }
+    return { session, realAccount };
+  } catch {
+    return authJson({ error: "SESSION_UNAVAILABLE" }, 503);
+  }
 }
 
-/**
- * Require a session that may enter the admin area.
- * Returns the session, or a 401/403 response.
- */
-export function requireAdminSession(
-  request: NextRequest,
-): AuthSessionCookie | NextResponse {
-  const session = parseAuthSessionCookie(
-    request.cookies.get(AUTH_SESSION_COOKIE)?.value,
-  );
+export async function requirePortalSession(session: AuthSessionCookie | null) {
+  const auth = await requireSessionActor(session);
+  if (auth instanceof NextResponse) return auth;
 
-  if (!session) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  const { realAccount } = auth;
+  if (!auth.session.impersonating) {
+    return { ...auth, impersonatedUser: null };
   }
-  if (!canEnterAdminArea(session.realRole, session.impersonating)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  try {
+    const [target, granted] = await Promise.all([
+      getActivePortalAccount(auth.session.userId),
+      hasPlatformPermission(realAccount.platformRoleId, "impersonate_event_user"),
+    ]);
+    if (!granted || !target || target.user.role !== auth.session.role) {
+      return authJson({ error: "UNAUTHORIZED" }, 401);
+    }
+    return { ...auth, impersonatedUser: target.user };
+  } catch {
+    return authJson({ error: "SESSION_UNAVAILABLE" }, 503);
   }
-  return session;
 }
 
-/**
- * Require a session that may enter the event area.
- * Returns the session, or a 401/403 response.
- */
-export function requireEventSession(
-  request: NextRequest,
-): AuthSessionCookie | NextResponse {
-  const session = parseAuthSessionCookie(
-    request.cookies.get(AUTH_SESSION_COOKIE)?.value,
-  );
-  if (!session) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+/** Gate protected BFF requests using the signed identity and current account. */
+export async function requireAdminSession(request: NextRequest) {
+  const crossOrigin =
+    request.method === "GET" || request.method === "HEAD"
+      ? null
+      : rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+  const session = readAuthSession(request);
+  if (session && !canEnterAdminArea(session.realRole, session.impersonating)) {
+    return authJson({ error: "FORBIDDEN" }, 403);
   }
+  const auth = await requireSessionActor(session);
+  if (auth instanceof NextResponse) return auth;
+  return { ...auth.session, platformRoleId: auth.realAccount.platformRoleId };
+}
+
+export async function denyUnlessAdmin(request: NextRequest) {
+  const auth = await requireAdminSession(request);
+  return auth instanceof NextResponse ? auth : null;
+}
+
+export async function requireEventSession(request: NextRequest) {
+  const crossOrigin =
+    request.method === "GET" || request.method === "HEAD"
+      ? null
+      : rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+  const session = readAuthSession(request);
   if (
+    session &&
     !canEnterEventArea(session.role, session.realRole, session.impersonating)
   ) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+    return authJson({ error: "FORBIDDEN" }, 403);
   }
-  return session;
+  const auth = await requirePortalSession(session);
+  return auth instanceof NextResponse ? auth : auth.session;
 }
 
 function formPermissionCode(
@@ -85,10 +95,7 @@ function formPermissionCode(
     : "manage_survey_form";
 }
 
-/**
- * Ensure the session user belongs to `eventId` (when provided) and holds the
- * matching form-manage permission via `role_permissions`.
- */
+/** Check the form-management permission in the user's current event. */
 export async function denyUnlessEventFormManager(
   userId: string,
   formType: FormType,
@@ -107,28 +114,34 @@ export async function denyUnlessEventPermission(
   permission: MockPermissionCode,
   eventId?: string,
 ): Promise<NextResponse | null> {
-  let mockUser: MockUser;
   try {
-    mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
-  } catch {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
-  if (!mockUser || !isActiveMockUser(mockUser) || !mockUser.event_id) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
-  if (eventId && mockUser.event_id !== eventId) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
+    const mockUser = await mockApi.get<MockUser>(
+      `/users/${encodeURIComponent(userId)}`,
+    );
+    if (
+      !mockUser ||
+      !isActiveMockUser(mockUser) ||
+      !mockUser.event_id ||
+      (eventId && mockUser.event_id !== eventId)
+    ) {
+      return authJson({ error: "FORBIDDEN" }, 403);
+    }
 
-  const permissions = await getRolePermissions(mockUser.role_id);
-  if (!hasPermission(permissions, permission)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+    const permissions = await getRolePermissions(mockUser.role_id);
+    if (!hasPermission(permissions, permission)) {
+      return authJson({ error: "FORBIDDEN" }, 403);
+    }
+  } catch (error) {
+    if (error instanceof MockApiError && error.status === 404) {
+      return authJson({ error: "FORBIDDEN" }, 403);
+    }
+    return authJson({ error: "SESSION_UNAVAILABLE" }, 503);
   }
   return null;
 }
 
-export function isAuthSession(
-  value: AuthSessionCookie | NextResponse,
-): value is AuthSessionCookie {
+export function isAuthSession<T extends AuthSessionCookie>(
+  value: T | NextResponse,
+): value is T {
   return !(value instanceof NextResponse);
 }

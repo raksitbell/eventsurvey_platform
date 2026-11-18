@@ -12,6 +12,7 @@ function fixture({ allowImpersonation = true } = {}) {
       "platform",
       {
         id: "platform",
+        display_name: "Fixture Platform Admin",
         system_role: "platform_admin",
         platform_role_id: "administrator",
         status: "active",
@@ -23,6 +24,7 @@ function fixture({ allowImpersonation = true } = {}) {
       "owner",
       {
         id: "owner",
+        display_name: "Fixture Event Owner",
         system_role: "event_user",
         event_id: "event",
         role_id: "event-admin",
@@ -99,6 +101,16 @@ function fixture({ allowImpersonation = true } = {}) {
         return { ok: true };
       },
     },
+    "@/services/event/analytics": {
+      async getAnalytics(_request, session) {
+        actions.push(["analytics", session.userId, session.realUserId]);
+        return { eventId: "event" };
+      },
+      async saveAnalyticsLayout(_request, session) {
+        actions.push(["layout", session.userId, session.realUserId]);
+        return { ok: true };
+      },
+    },
     "@/services/event/dashboard": {
       async publishDashboard(id, locale) {
         actions.push(["publish", id, locale]);
@@ -107,10 +119,8 @@ function fixture({ allowImpersonation = true } = {}) {
     },
   });
 
-  const auth = load("src/core/auth/verified-session.ts");
   const cookies = load("src/core/auth/cookie.ts");
   return {
-    ...auth,
     ...cookies,
     login: load("src/app/api/auth/login/route.ts").POST,
     logout: load("src/app/api/auth/logout/route.ts").POST,
@@ -119,6 +129,9 @@ function fixture({ allowImpersonation = true } = {}) {
     dashboardApi: load("src/app/api/event/dashboard/route.ts").POST,
     dataApi: load("src/app/api/event/data/route.ts").GET,
     trashApi: load("src/app/api/event/trash/route.ts").POST,
+    analyticsApi: load("src/app/api/event/analytics/route.ts").GET,
+    layoutApi: load("src/app/api/event/analytics/layout/route.ts").PATCH,
+    exportApi: load("src/app/api/event/analytics/export/route.ts").POST,
     actions,
     revokeGrant: () => {
       grant = false;
@@ -130,9 +143,19 @@ function cookieHeader(response) {
   return response.headers.get("set-cookie")?.split(";")[0] ?? "";
 }
 
-function signedCookie(env, id, options) {
+function signedCookie(env, id, expiresAt, role = "event_owner") {
   const response = new NextResponse();
-  env.issueVerifiedSession(response, id, options);
+  env.setAuthSessionCookie(
+    response,
+    {
+      realUserId: id,
+      userId: id,
+      realRole: role,
+      role,
+      impersonating: false,
+    },
+    expiresAt,
+  );
   return cookieHeader(response);
 }
 
@@ -147,8 +170,8 @@ function request(path, { cookie = "", method = "GET", body } = {}) {
   });
 }
 
-function routingCookie(env, userId) {
-  return `${env.AUTH_SESSION_COOKIE}=${encodeURIComponent(
+function routingCookie(userId) {
+  return `event_surway_session=${encodeURIComponent(
     JSON.stringify({
       userId,
       role: "event_owner",
@@ -160,9 +183,25 @@ function routingCookie(env, userId) {
 
 test("Dashboard APIs reject a missing verified session before calling services", async () => {
   const env = fixture();
-  const cookie = routingCookie(env, "owner");
+  const cookie = routingCookie("owner");
   const cases = [
     [env.dataApi, request("/api/event/data", { cookie })],
+    [env.analyticsApi, request("/api/event/analytics", { cookie })],
+    [
+      env.layoutApi,
+      request("/api/event/analytics/layout", {
+        cookie,
+        method: "PATCH",
+        body: {},
+      }),
+    ],
+    [
+      env.exportApi,
+      request("/api/event/analytics/export?format=csv", {
+        cookie,
+        method: "POST",
+      }),
+    ],
     [
       env.dashboardApi,
       request("/api/event/dashboard", {
@@ -189,7 +228,7 @@ test("Dashboard APIs reject a missing verified session before calling services",
 
 test("Dashboard uses the signed user, rejects expired or inactive sessions and keeps data private", async () => {
   const env = fixture();
-  const cookie = `${signedCookie(env, "owner")}; ${routingCookie(env, "other-owner")}`;
+  const cookie = `${signedCookie(env, "owner")}; ${routingCookie("other-owner")}`;
   const ownView = await env.dataApi(
     request("/api/event/data?locale=en", { cookie }),
   );
@@ -198,25 +237,31 @@ test("Dashboard uses the signed user, rejects expired or inactive sessions and k
   assert.deepEqual(await ownView.json(), { id: "owner", locale: "en" });
   assert.deepEqual(env.actions, [["view", "owner", "en"]]);
 
-  const expired = signedCookie(env, "owner", { expires: Date.now() - 1000 });
+  const expired = signedCookie(env, "owner", Date.now() - 1000);
   assert.equal(
     (await env.dataApi(request("/api/event/data", { cookie: expired }))).status,
     401,
   );
-  for (const id of ["suspended", "platform", "missing"]) {
+  for (const id of ["suspended", "missing"]) {
     const invalid = signedCookie(env, id);
     assert.equal(
       (await env.dataApi(request("/api/event/data", { cookie: invalid })))
         .status,
-      403,
+      401,
     );
   }
+  const platform = signedCookie(env, "platform", undefined, "super_admin");
+  assert.equal(
+    (await env.dataApi(request("/api/event/data", { cookie: platform })))
+      .status,
+    403,
+  );
   assert.equal(env.actions.length, 1);
 });
 
 test("Dashboard impersonation needs a current platform grant and stays read-only", async () => {
   const env = fixture();
-  const cookie = signedCookie(env, "platform");
+  const cookie = signedCookie(env, "platform", undefined, "super_admin");
   const start = await env.start(
     request("/api/auth/impersonation", {
       cookie,
@@ -246,15 +291,30 @@ test("Dashboard impersonation needs a current platform grant and stays read-only
       body: { id: "entry" },
     }),
   );
+  const analytics = await env.analyticsApi(
+    request("/api/event/analytics", { cookie: delegatedCookie }),
+  );
+  const layout = await env.layoutApi(
+    request("/api/event/analytics/layout", {
+      cookie: delegatedCookie,
+      method: "PATCH",
+      body: {},
+    }),
+  );
+  assert.equal(analytics.status, 200);
   assert.equal(publish.status, 403);
   assert.equal(restore.status, 403);
-  assert.deepEqual(env.actions, [["view", "owner", "th"]]);
+  assert.equal(layout.status, 403);
+  assert.deepEqual(env.actions, [
+    ["view", "owner", "th"],
+    ["analytics", "owner", "platform"],
+  ]);
 
   env.revokeGrant();
   assert.equal(
     (await env.dataApi(request("/api/event/data", { cookie: delegatedCookie })))
       .status,
-    403,
+    401,
   );
   const end = await env.stop(
     request("/api/auth/impersonation", {
@@ -263,10 +323,10 @@ test("Dashboard impersonation needs a current platform grant and stays read-only
     }),
   );
   assert.equal(end.status, 200);
-  const restored = await env.verifiedActor(
+  const restored = env.readAuthSession(
     request("/api/event/data", { cookie: cookieHeader(end) }),
   );
-  assert.equal(restored.user.id, "platform");
+  assert.equal(restored.userId, "platform");
   assert.equal(restored.impersonating, false);
 
   const startWithoutGrant = await env.start(
@@ -289,16 +349,14 @@ test("Login signs only exact active credentials even when mock users are unfilte
   );
   assert.equal(signIn.status, 200);
   assert.match(signIn.headers.get("set-cookie"), /HttpOnly/i);
-  assert.match(signIn.headers.get("set-cookie"), /SameSite=strict/i);
+  assert.match(signIn.headers.get("set-cookie"), /SameSite=lax/i);
   const { user } = await signIn.json();
   assert.equal(user.id, "owner");
   assert.equal(user.role, "event_owner");
   assert.equal(Object.hasOwn(user, "password"), false);
   const cookie = cookieHeader(signIn);
-  const verified = await env.verifiedActor(
-    request("/api/event/data", { cookie }),
-  );
-  assert.equal(verified.user.id, "owner");
+  const verified = env.readAuthSession(request("/api/event/data", { cookie }));
+  assert.equal(verified.userId, "owner");
 
   const incorrect = await env.login(
     request("/api/auth/login", {
@@ -313,7 +371,7 @@ test("Login signs only exact active credentials even when mock users are unfilte
 test("Logout clears the signed HttpOnly session", async () => {
   const env = fixture();
   const cookie = signedCookie(env, "owner");
-  const signOut = env.logout(
+  const signOut = await env.logout(
     request("/api/auth/logout", { cookie, method: "POST", body: {} }),
   );
   assert.equal(signOut.status, 200);
@@ -367,10 +425,10 @@ test("Production requires a configured signing secret and never issues an unsign
   assert.equal(signIn.status, 503);
   assert.equal(signIn.headers.has("set-cookie"), false);
   assert.deepEqual(await signIn.json(), {
-    error: "AUTH_SESSION_SECRET_REQUIRED",
+    error: "SESSION_UNAVAILABLE",
   });
 
   const view = await env.dataApi(request("/api/event/data", { cookie }));
-  assert.equal(view.status, 503);
+  assert.equal(view.status, 401);
   assert.deepEqual(env.actions, []);
 });

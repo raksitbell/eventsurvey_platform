@@ -37,7 +37,7 @@ function HoldScreen() {
 }
 
 export default function AuthGuard({ area, children }: AuthGuardProps) {
-  const { user, realUser, isImpersonating, isLoading } = useAuth();
+  const { user, realUser, isImpersonating, isLoading, authUnavailable } = useAuth();
   const router = useRouter();
   const t = useTranslations("errors.403");
 
@@ -50,9 +50,9 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
     }
 
     if (area !== "guest" && !user) {
-      router.replace("/login");
+      router.replace(authUnavailable ? "/error/503" : "/login");
     }
-  }, [area, isLoading, router, user]);
+  }, [area, authUnavailable, isLoading, router, user]);
 
   if (isLoading) {
     return <HoldScreen />;
@@ -84,7 +84,7 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
         title={t("title")}
         message={t("message")}
         backLabel={t("backHome")}
-        homeHref={getHomePathForRole(realUser.role)}
+        homeHref={getHomePathForRole(user.role)}
       />
     );
   }

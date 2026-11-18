@@ -3,19 +3,21 @@ import {
   requireAdminSession,
 } from "@/core/auth/api-guard";
 import { ServiceError } from "@/core/api/service-error";
+import { authJson } from "@/core/auth/route-response";
 import {
   adminEventStatusBodySchema,
   formatZodError,
 } from "@/core/validation/admin-events";
 import { routing, type Locale } from "@/i18n/routing";
 import { updateAdminEventStatus } from "@/services/admin/events";
+import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import { NextRequest, NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** PATCH /api/admin/events/[id]/status — start (scheduled→open) or close */
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const denied = requireAdminSession(request);
+  const denied = await requireAdminSession(request);
   if (!isAuthSession(denied)) return denied;
 
   const { id } = await context.params;
@@ -38,14 +40,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     : routing.defaultLocale;
 
   try {
+    const viewer = await getPlatformPiiViewer(denied);
     const data = await updateAdminEventStatus(
       id,
       parsed.data.action,
       denied.userId,
       locale,
       { force: parsed.data.force },
+      viewer,
     );
-    return NextResponse.json(data);
+    return authJson(data);
   } catch (error) {
     if (error instanceof ServiceError) {
       return NextResponse.json(

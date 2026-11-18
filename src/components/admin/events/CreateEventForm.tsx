@@ -7,7 +7,6 @@ import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
-import { fetchImpersonationTarget } from "@/core/auth";
 import { slugifyFromTitles } from "@/core/validation/admin-events";
 import { Link, useRouter } from "@/i18n/navigation";
 import type {
@@ -108,8 +107,17 @@ export default function CreateEventForm() {
 
       if (result.impersonateUserId) {
         await showSuccess(t("successTitle"), t("successCreated"), tc("ok"));
-        const target = await fetchImpersonationTarget(result.impersonateUserId);
-        await impersonate(target);
+        try {
+          await impersonate(result.impersonateUserId);
+        } catch {
+          await showAlert({
+            title: t("successTitle"),
+            message: t("errors.impersonationFailed"),
+            confirmLabel: tc("ok"),
+            variant: "warning",
+          });
+          router.push("/admin/events");
+        }
         return;
       }
 
@@ -128,7 +136,7 @@ export default function CreateEventForm() {
       if (result.inviteSent) {
         await showSuccess(
           t("successTitle"),
-          t("inviteSent", { email: result.event.adminEmail ?? adminEmail }),
+          t("inviteSent", { email: adminEmail.trim() }),
           tc("ok"),
         );
         router.push("/admin/events");

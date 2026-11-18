@@ -334,7 +334,6 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
                   isBeingDragged={isBeingDragged}
                   isDropTarget={isDropTarget}
                   isMenuOpen={isMenuOpen}
-                  drawerOpen={drawerOpen}
                   drawerPlacement={drawerPlacement}
                   onCardRef={(el) => {
                     if (el) cardRefs.current.set(widget.id, el);
@@ -345,7 +344,12 @@ function MainDashboardContent({ initial }: { initial: ReportingData }) {
                     else drawerRefs.current.delete(widget.id);
                   }}
                   onPointerDownCard={(e) => {
-                    if (!canEditCanvas || !e.isPrimary || e.button !== 0)
+                    if (
+                      !canEditCanvas ||
+                      isFocusedForEdit ||
+                      !e.isPrimary ||
+                      e.button !== 0
+                    )
                       return;
                     const targetEl = e.target as HTMLElement | null;
                     if (targetEl?.closest("[data-no-drag]")) return;
