@@ -88,7 +88,7 @@ export default function WidgetSettings({
           {/* 3-Way Content Alignment (Left | Center | Right for body content/chart only) */}
           <div
             role="group"
-            aria-label="Content alignment"
+            aria-label={t("builder.contentAlignment")}
             className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-100/90 p-1 dark:border-gray-700 dark:bg-gray-800"
           >
             {ALIGN_OPTIONS.map(({ value, labelKey, Icon }) => {

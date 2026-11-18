@@ -10,6 +10,7 @@ import {
   getDashboardLayout,
   getLayoutWidgets,
 } from "@/services/event/dashboard-layout";
+import { restoreDeletedForm } from "@/services/event/forms";
 import type { Locale } from "@/i18n/routing";
 import type {
   MockAnswerOptionSelection,
@@ -41,6 +42,12 @@ interface Trash {
   restore_allowed: boolean;
 }
 
+interface TrashEntry {
+  item: Trash;
+  form?: MockForm;
+  persisted: boolean;
+}
+
 export class ReportingError extends Error {
   constructor(
     public status: number,
@@ -59,6 +66,78 @@ async function loadOptionalTrash(eventId: string) {
     if (error instanceof MockApiError && error.status === 404) return [];
     throw error;
   }
+}
+
+function trashEntries(
+  items: Trash[],
+  forms: MockForm[],
+  eventId: string,
+): TrashEntry[] {
+  const activeItems = items.filter(
+    (item) => item.event_id === eventId && !item.restored_at,
+  );
+  const deniedFormIds = new Set(
+    activeItems
+      .filter((item) => item.resource_type === "form" && !item.restore_allowed)
+      .map((item) => item.resource_id),
+  );
+  const formsById = new Map(forms.map((form) => [form.id, form]));
+  const entries: TrashEntry[] = [];
+  const listedFormIds = new Set<string>();
+
+  for (const item of activeItems) {
+    if (item.resource_type !== "form") {
+      entries.push({ item, persisted: true });
+      continue;
+    }
+
+    const form = formsById.get(item.resource_id);
+    if (!form) continue;
+    // A persisted entry for an earlier deletion cannot restore a newer one.
+    if (
+      form.deleted_at &&
+      Date.parse(form.deleted_at) !== Date.parse(item.deleted_at)
+    ) {
+      continue;
+    }
+    if (listedFormIds.has(form.id)) continue;
+
+    entries.push({
+      form,
+      persisted: true,
+      item: { ...item, restore_allowed: !deniedFormIds.has(form.id) },
+    });
+    listedFormIds.add(form.id);
+  }
+
+  for (const form of forms) {
+    if (!form.deleted_at || listedFormIds.has(form.id)) continue;
+    entries.push({
+      form,
+      persisted: false,
+      item: {
+        id: `form:${encodeURIComponent(form.id)}:${form.deleted_at}`,
+        event_id: eventId,
+        resource_type: "form",
+        resource_id: form.id,
+        display_name: form.id,
+        deleted_by_user_id: form.updated_by,
+        deleted_at: form.deleted_at,
+        restored_at: null,
+        restore_allowed: !deniedFormIds.has(form.id),
+      },
+    });
+  }
+
+  return entries;
+}
+
+function trashExpiry(item: Trash) {
+  return Date.parse(item.deleted_at) + 30 * 86400000;
+}
+
+function canRestoreTrash({ item, form }: TrashEntry, now = Date.now()) {
+  return Boolean(form && item.restore_allowed && trashExpiry(item) > now);
 }
 
 function answerValue(
@@ -237,22 +316,25 @@ export async function getReportingData(
           const field = submissionFields.find(
             (row) => row.id === answer.field_id,
           )!;
-          const choiceIds = selections
-            .filter((selection) => selection.answer_id === answer.id)
-            .map((selection) => selection.option_id);
+          const choiceIds = new Set(
+            selections
+              .filter((selection) => selection.answer_id === answer.id)
+              .map((selection) => selection.option_id),
+          );
           const choices = options
             .filter(
               (option) =>
-                option.field_id === field.id && choiceIds.includes(option.id),
+                option.field_id === field.id && choiceIds.has(option.id),
             )
-            .map(
-              (option) =>
+            .map((option) => ({
+              id: option.id,
+              label:
                 localized(
                   optionTranslations.filter(
                     (row) => row.option_id === option.id,
                   ),
                 )?.label ?? option.id,
-            );
+            }));
           const hasValue =
             Boolean(
               answer.value_text ||
@@ -265,7 +347,15 @@ export async function getReportingData(
 
           return {
             field,
-            value: answerValue(answer, field, choices),
+            value: answerValue(
+              answer,
+              field,
+              choices.map((option) => option.label),
+            ),
+            selectedOptions:
+              choiceFieldIds.has(field.id) && !isReportingFieldPrivate(field)
+                ? choices
+                : undefined,
             hasValue,
           };
         });
@@ -293,10 +383,11 @@ export async function getReportingData(
             ),
           ),
         score: rating ? Number(rating.value) : null,
-        answers: answers.map(({ field, value }) => ({
+        answers: answers.map(({ field, value, selectedOptions }) => ({
           fieldId: field.id,
           label: fieldLabel(field.id),
           value,
+          ...(selectedOptions ? { selectedOptions } : {}),
         })),
       };
     })
@@ -349,69 +440,70 @@ export async function getReportingData(
               field.form_id === widget.source_form_id,
           )),
     ),
-    trash: trash.flatMap((item) => {
-      if (item.event_id !== event.id || item.restored_at) return [];
-      const expiresAt = new Date(Date.parse(item.deleted_at) + 30 * 86400000);
-      if (Number.isNaN(expiresAt.getTime())) return [];
-      const form = allowedForms.find((row) => row.id === item.resource_id);
-      if (item.resource_type === "form" && !form) return [];
+    trash: await Promise.all(
+      trashEntries(trash, allowedForms, event.id)
+        .filter(({ item }) => Number.isFinite(trashExpiry(item)))
+        .map(async (entry) => {
+          const { item, form, persisted } = entry;
+          let title = item.display_name;
+          if (form && !persisted) {
+            const translations = await mockApi.get<MockFormTranslation[]>(
+              `/form_translations?form_id=${q(form.id)}`,
+            );
+            const translation = localized(
+              translations.filter((row) => row.form_id === form.id),
+            );
+            title = translation?.title ?? title;
+          }
 
-      const deletedBy = eventUsers.find(
-        (user) =>
-          user.id === item.deleted_by_user_id && user.event_id === event.id,
-      )?.display_name;
-      return [
-        {
-          id: item.id,
-          name: item.resource_type === "form" ? item.display_name : "••••",
-          type: item.resource_type,
-          deletedBy: deletedBy ? maskName(deletedBy) : "—",
-          expiresAt: expiresAt.toISOString(),
-          canRestore:
-            item.resource_type === "form" &&
-            Boolean(form) &&
-            item.restore_allowed &&
-            expiresAt.getTime() > Date.now(),
-        },
-      ];
-    }),
+          const deletedBy = eventUsers.find(
+            (user) =>
+              user.id === item.deleted_by_user_id && user.event_id === event.id,
+          )?.display_name;
+          return {
+            id: item.id,
+            name: item.resource_type === "form" ? title : "••••",
+            type: item.resource_type,
+            deletedBy: deletedBy ? maskName(deletedBy) : "—",
+            expiresAt: new Date(trashExpiry(item)).toISOString(),
+            canRestore: canRestoreTrash(entry),
+          };
+        }),
+    ),
   };
 }
 
 export async function restoreTrash(
   userId: string,
-  locale: Locale,
+  _locale: Locale,
   id: unknown,
 ) {
   if (typeof id !== "string") throw new ReportingError(400, "Invalid item");
-  const data = await getReportingData(userId, locale);
-  if (!data.trash.some((item) => item.id === id && item.canRestore))
-    throw new ReportingError(403, "Restore not allowed");
+  const scope = await getDashboardScope(userId);
+  if (!scope) throw new ReportingError(403, "Forbidden");
 
-  const item = await mockApi.get<Trash>(`/trash_items/${q(id)}`);
-  const form = await mockApi.get<MockForm>(`/forms/${q(item.resource_id)}`);
-  if (
-    form.event_id !== data.eventId ||
-    item.event_id !== data.eventId ||
-    item.resource_type !== "form" ||
-    item.restored_at ||
-    !item.restore_allowed ||
-    !(Date.parse(item.deleted_at) + 30 * 86400000 > Date.now())
-  ) {
-    throw new ReportingError(403, "Forbidden");
+  const { event, canReadForm } = scope;
+  const [eventForms, items] = await Promise.all([
+    mockApi.get<MockForm[]>(`/forms?event_id=${q(event.id)}`),
+    loadOptionalTrash(event.id),
+  ]);
+  const allowedForms = eventForms.filter(
+    (form) => form.event_id === event.id && canReadForm(form.type),
+  );
+  const entry = trashEntries(items, allowedForms, event.id).find(
+    ({ item }) => item.id === id,
+  );
+  if (!entry?.form || !canRestoreTrash(entry)) {
+    throw new ReportingError(403, "Restore not allowed");
   }
 
   const now = new Date().toISOString();
-  if (form.deleted_at) {
-    await mockApi.patch(`/forms/${q(form.id)}`, {
-      deleted_at: null,
-      updated_at: now,
-      updated_by: userId,
+  await restoreDeletedForm(entry.form, userId, now);
+  if (entry.persisted) {
+    await mockApi.patch(`/trash_items/${q(entry.item.id)}`, {
+      restored_at: now,
+      restored_by_user_id: userId,
     });
   }
-  await mockApi.patch(`/trash_items/${q(id)}`, {
-    restored_at: now,
-    restored_by_user_id: userId,
-  });
   return { ok: true };
 }

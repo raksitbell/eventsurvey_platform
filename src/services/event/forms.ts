@@ -48,6 +48,7 @@ const CHOICE_TYPES = new Set<QuestionType>([
 interface FormCacheStore {
   records: Map<string, FormRecord>;
   deletedIds: Set<string>;
+  deletedAtById: Map<string, string>;
 }
 
 const CACHE_FILE_PATH = path.join(
@@ -64,19 +65,30 @@ function getCacheStore(): FormCacheStore {
     globalForForms.__esFormCacheStore = {
       records: new Map<string, FormRecord>(),
       deletedIds: new Set<string>(),
+      deletedAtById: new Map<string, string>(),
     };
   }
   const store = globalForForms.__esFormCacheStore;
+  store.deletedAtById ??= new Map();
   try {
     if (fs.existsSync(CACHE_FILE_PATH)) {
       const raw = JSON.parse(fs.readFileSync(CACHE_FILE_PATH, "utf8")) as {
         records?: Record<string, FormRecord>;
         deletedIds?: string[];
+        deletedAtById?: Record<string, string>;
       };
       if (Array.isArray(raw.deletedIds)) {
         for (const id of raw.deletedIds) {
           store.deletedIds.add(id);
           store.records.delete(id);
+          const savedStamp = raw.deletedAtById?.[id];
+          const currentStamp = store.deletedAtById.get(id);
+          if (
+            typeof savedStamp === "string" &&
+            (!currentStamp || Date.parse(savedStamp) > Date.parse(currentStamp))
+          ) {
+            store.deletedAtById.set(id, savedStamp);
+          }
         }
       }
       if (raw.records) {
@@ -98,6 +110,7 @@ function persistCacheStore(store: FormCacheStore): void {
     const payload = {
       records: Object.fromEntries(store.records.entries()),
       deletedIds: Array.from(store.deletedIds.values()),
+      deletedAtById: Object.fromEntries(store.deletedAtById.entries()),
     };
     fs.writeFileSync(CACHE_FILE_PATH, JSON.stringify(payload), "utf8");
   } catch {
@@ -108,19 +121,38 @@ function persistCacheStore(store: FormCacheStore): void {
 function saveCachedFormRecord(record: FormRecord): void {
   const store = getCacheStore();
   store.deletedIds.delete(record.id);
+  store.deletedAtById.delete(record.id);
   store.records.set(record.id, record);
   persistCacheStore(store);
 }
 
-function markCachedFormDeleted(id: string): void {
+function markCachedFormDeleted(id: string, stamp: string): void {
   const store = getCacheStore();
   store.records.delete(id);
   store.deletedIds.add(id);
+  store.deletedAtById.set(id, stamp);
   persistCacheStore(store);
 }
 
-function isCachedFormDeleted(id: string): boolean {
-  return getCacheStore().deletedIds.has(id);
+function clearCachedFormDeletion(id: string): void {
+  const store = getCacheStore();
+  if (store.deletedIds.delete(id)) {
+    store.deletedAtById.delete(id);
+    persistCacheStore(store);
+  }
+}
+
+function isCachedFormDeleted(form: MockForm): boolean {
+  const store = getCacheStore();
+  if (!store.deletedIds.has(form.id)) return false;
+  const deletedAt = store.deletedAtById.get(form.id);
+  // A live upstream record with a later update confirms a later write.
+  // Older mock replicas and legacy unversioned tombstones remain hidden.
+  if (deletedAt && Date.parse(form.updated_at) > Date.parse(deletedAt)) {
+    clearCachedFormDeletion(form.id);
+    return false;
+  }
+  return true;
 }
 
 function getCachedFormRecord(
@@ -229,9 +261,6 @@ function nullToNumber(n: number | null, fallback = 0): number {
 }
 
 async function getLiveForm(id: string): Promise<MockForm> {
-  if (isCachedFormDeleted(id)) {
-    throw new ServiceError("FORM_NOT_FOUND", 404);
-  }
   let form: MockForm | undefined;
   try {
     form = await mockApi.get<MockForm>(`/forms/${id}`);
@@ -260,7 +289,7 @@ async function getLiveForm(id: string): Promise<MockForm> {
     }
     throw new ServiceError("FORM_NOT_FOUND", 404);
   }
-  if (form.deleted_at) {
+  if (form.deleted_at || isCachedFormDeleted(form)) {
     throw new ServiceError("FORM_NOT_FOUND", 404);
   }
   return form;
@@ -325,7 +354,7 @@ async function findExistingLiveType(
   return existing.find(
     (row) =>
       !row.deleted_at &&
-      !isCachedFormDeleted(row.id) &&
+      !isCachedFormDeleted(row) &&
       row.id !== excludeFormId,
   );
 }
@@ -684,7 +713,7 @@ async function softDeleteFieldTree(
     `/field_options?field_id=${encodeURIComponent(fieldId)}`,
   );
   for (const option of options) {
-    if (!option.deleted_at) {
+    if (option.field_id === fieldId && !option.deleted_at) {
       await patchIgnore404(`/field_options/${option.id}`, {
         deleted_at: stamp,
       });
@@ -1295,21 +1324,18 @@ export async function listForms(
     `/forms?event_id=${encodeURIComponent(eventId)}`,
   );
   const allowed = new Set(allowedTypes);
-  const live = forms.filter(
-    (f) =>
-      f.event_id === eventId &&
-      !f.deleted_at &&
-      !isCachedFormDeleted(f.id) &&
-      allowed.has(f.type),
+  const eventForms = forms.filter((form) => form.event_id === eventId);
+  const live = eventForms.filter(
+    (form) =>
+      !form.deleted_at && allowed.has(form.type) && !isCachedFormDeleted(form),
   );
   const items: FormRecord[] = [];
-  const seenIds = new Set<string>();
+  const seenIds = new Set(eventForms.map((form) => form.id));
   const seenTypes = new Set<FormType>();
 
   for (const form of live) {
     const rec = await toFormRecord(form, event);
     items.push(rec);
-    seenIds.add(rec.id);
     seenTypes.add(rec.type);
   }
 
@@ -1553,7 +1579,7 @@ export async function runFormsCron(
 ): Promise<FormCronResult> {
   const forms = await mockApi.get<MockForm[]>("/forms");
   const live = forms.filter(
-    (form) => !form.deleted_at && !isCachedFormDeleted(form.id),
+    (form) => !form.deleted_at && !isCachedFormDeleted(form),
   );
   const stamp = new Date(nowMs).toISOString();
   const eventCache = new Map<string, MockEvent>();
@@ -1621,8 +1647,63 @@ export async function deleteForm(id: string, userId: string): Promise<void> {
       updated_by: userId,
       updated_at: stamp,
     });
-    markCachedFormDeleted(id);
+    markCachedFormDeleted(id, stamp);
   } catch (error) {
     await compensateOrThrow(() => restoreFormTree(snapshot), error);
   }
+}
+
+/** Restore only the children soft-deleted with this form. */
+export async function restoreDeletedForm(
+  form: MockForm,
+  userId: string,
+  restoredAt: string,
+): Promise<void> {
+  const deletedAt = form.deleted_at;
+  if (deletedAt) {
+    const fields = await mockApi.get<MockFormField[]>(
+      `/form_fields?form_id=${encodeURIComponent(form.id)}`,
+    );
+    for (const field of fields) {
+      if (field.form_id !== form.id || field.deleted_at !== deletedAt) continue;
+      const options = await mockApi.get<MockFieldOption[]>(
+        `/field_options?field_id=${encodeURIComponent(field.id)}`,
+      );
+      // Keep the field deleted until its options are restored so retries can
+      // resume after a failed option write.
+      for (const option of options) {
+        if (option.field_id === field.id && option.deleted_at === deletedAt) {
+          await mockApi.patch(`/field_options/${encodeURIComponent(option.id)}`, {
+            deleted_at: null,
+          });
+        }
+      }
+      await mockApi.patch(`/form_fields/${encodeURIComponent(field.id)}`, {
+        deleted_at: null,
+        updated_at: restoredAt,
+      });
+    }
+
+    const formPath = `/forms/${encodeURIComponent(form.id)}`;
+    try {
+      await mockApi.patch(formPath, {
+        deleted_at: null,
+        updated_at: restoredAt,
+        updated_by: userId,
+      });
+    } catch (error) {
+      // An upstream write can complete even if its response is lost.
+      const saved = await mockApi.get<MockForm>(formPath).catch(() => undefined);
+      if (
+        saved?.id !== form.id ||
+        saved.event_id !== form.event_id ||
+        saved.deleted_at !== null ||
+        saved.updated_at !== restoredAt ||
+        saved.updated_by !== userId
+      ) {
+        throw error;
+      }
+    }
+  }
+  clearCachedFormDeletion(form.id);
 }

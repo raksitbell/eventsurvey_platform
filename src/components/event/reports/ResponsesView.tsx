@@ -13,7 +13,11 @@ import { download, responseCsv } from "@/core/event/export";
 import type { ReportingData } from "@/types/event/reporting";
 export default function ResponsesView() {
   const { data, identityKey, errorStatus, reload } = useEventReporting();
-  const initialFormId = useSearchParams().get("formId") ?? "";
+  const searchParams = useSearchParams();
+  const initialFormId =
+    searchParams.get("scope") === "all"
+      ? ""
+      : searchParams.get("formId") || null;
 
   return (
     <ReportShell
@@ -38,7 +42,7 @@ function ResponseTable({
   initialFormId,
 }: {
   data: ReportingData;
-  initialFormId: string;
+  initialFormId: string | null;
 }) {
   const t = useTranslations("eventReports");
   const locale = useLocale();
@@ -49,9 +53,11 @@ function ResponseTable({
   const { isOpen, openModal, closeModal } = useModal();
   const defaultFormId =
     data.forms.find((form) => form.type === "survey")?.id ?? "";
-  const requestedFormId = data.forms.some((form) => form.id === initialFormId)
-    ? initialFormId
-    : defaultFormId;
+  const requestedFormId =
+    initialFormId === ""
+      ? ""
+      : (data.forms.find((form) => form.id === initialFormId)?.id ??
+        defaultFormId);
   const activeFormId = formFilter ?? requestedFormId;
   const activeForm = data.forms.find((form) => form.id === activeFormId);
   const baseRows = activeFormId
@@ -76,7 +82,7 @@ function ResponseTable({
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gray-900 p-6 text-white dark:bg-gray-800">
           <div>
             <h2 className="font-semibold">
-              {activeForm?.type === "survey" && !initialFormId
+              {activeForm?.type === "survey" && initialFormId === null
                 ? t("responses.heading")
                 : (activeForm?.title ?? t("responses.allHeading"))}
             </h2>

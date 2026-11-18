@@ -11,7 +11,12 @@ export interface ResponseRow {
   submittedAt: string;
   complete: boolean;
   score: number | null;
-  answers: { fieldId: string; label: string; value: string }[];
+  answers: {
+    fieldId: string;
+    label: string;
+    value: string;
+    selectedOptions?: { id: string; label: string }[];
+  }[];
 }
 export interface TrashRow {
   id: string;

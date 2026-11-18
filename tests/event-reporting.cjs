@@ -348,6 +348,133 @@ global.fetch = async (url, init = {}) => {
     aggregation: "average",
   };
   assert.equal(widgetData(rating, data).value, 0);
+  const asRow = (id, submittedAt, formId = "form-a") => ({
+    id,
+    formId,
+    submittedAt,
+    answers: [],
+  });
+  const historicalData = {
+    ...data,
+    eventStartsAt: "2026-10-07T17:00:00Z",
+    eventEndsAt: "2026-10-14T16:59:59Z",
+    responses: [
+      asRow("previous-first", "2026-09-30T17:00:00Z"),
+      asRow("current-first", "2026-10-07T17:00:00Z"),
+      asRow("current-last", "2026-10-14T16:59:59Z"),
+      asRow("next-day", "2026-10-14T17:00:00Z"),
+      asRow("other-form", "2026-10-07T17:00:00Z", "form-b"),
+    ],
+  };
+  const previousPeriod = {
+    ...widget,
+    widget_type: "comparison",
+    comparison_mode: "previous_period",
+  };
+  const fixedNow = Date.parse("2026-11-19T00:00:00Z");
+  const historical = widgetData(
+    { ...previousPeriod, date_from: "2026-10-08", date_to: "2026-10-14" },
+    historicalData,
+    fixedNow,
+  );
+  assert.equal(historical.value, 2);
+  assert.equal(historical.comparison, 100);
+  assert.deepEqual(
+    widgetData(previousPeriod, historicalData, fixedNow),
+    historical,
+  );
+  for (const date_range_days of [NaN, Infinity, "legacy", "7", 3]) {
+    assert.deepEqual(
+      widgetData({ ...previousPeriod, date_range_days }, historicalData, fixedNow),
+      historical,
+    );
+  }
+
+  const rolling = widgetData(
+    { ...previousPeriod, date_range_days: 7 },
+    {
+      ...data,
+      responses: [
+        asRow("previous-as-of-time", "2026-11-01T17:15:00Z"),
+        asRow("day-before-start", "2026-11-02T16:59:59Z"),
+        asRow("rolling-start", "2026-11-02T17:00:00Z"),
+        asRow("as-of-now", "2026-11-08T17:15:00Z"),
+        asRow("future-same-day", "2026-11-08T17:16:00Z"),
+      ],
+    },
+    Date.parse("2026-11-08T17:15:00Z"),
+  );
+  assert.deepEqual(rolling.dateRange, { from: "2026-11-03", to: "2026-11-09" });
+  assert.equal(rolling.value, 2);
+  assert.equal(rolling.comparison, 100);
+
+  const priorDb = db;
+  db = structuredClone(db);
+  db.form_fields.push(
+    { id: "choices", form_id: "form-a", type: "multiple_choice" },
+    {
+      id: "private-choices",
+      form_id: "form-a",
+      type: "multiple_choice",
+      contains_pii: true,
+    },
+  );
+  db.field_options.push(
+    { id: "option-a", field_id: "choices" },
+    { id: "option-b", field_id: "choices" },
+    { id: "private-option", field_id: "private-choices" },
+  );
+  db.field_option_translations.push(
+    { option_id: "option-a", locale_code: "en", label: "Alpha, extended" },
+    { option_id: "option-b", locale_code: "en", label: "Beta" },
+    { option_id: "private-option", locale_code: "en", label: "Sensitive option" },
+  );
+  db.form_submissions.push({
+    id: "response-c",
+    form_id: "form-a",
+    status: "submitted",
+    submitted_at: now,
+  });
+  db.submission_answers.push(
+    { id: "choice-a", submission_id: "response-a", field_id: "choices" },
+    { id: "choice-c", submission_id: "response-c", field_id: "choices" },
+    {
+      id: "private-choice",
+      submission_id: "response-a",
+      field_id: "private-choices",
+    },
+  );
+  db.answer_option_selections.push(
+    { answer_id: "choice-a", option_id: "option-a" },
+    { answer_id: "choice-a", option_id: "option-b" },
+    { answer_id: "choice-a", option_id: "option-a" },
+    { answer_id: "choice-c", option_id: "option-a" },
+    { answer_id: "private-choice", option_id: "private-option" },
+  );
+  const choiceData = await getReportingData("owner", "en");
+  db = priorDb;
+  const choices = choiceData.responses
+    .find((row) => row.id === "response-a")
+    .answers.find((answer) => answer.fieldId === "choices");
+  assert.equal(choices.value, "Alpha, extended, Beta");
+  assert.deepEqual(choices.selectedOptions, [
+    { id: "option-a", label: "Alpha, extended" },
+    { id: "option-b", label: "Beta" },
+  ]);
+  assert(!JSON.stringify(choiceData).includes("Sensitive option"));
+  assert(!JSON.stringify(choiceData).includes("private-option"));
+  const chart = widgetData(
+    {
+      ...widget,
+      widget_type: "chart",
+      source_field_id: "choices",
+      date_from: todayStr,
+      date_to: todayStr,
+    },
+    choiceData,
+  );
+  assert.deepEqual(chart.groups, [["Alpha, extended", 2], ["Beta", 1]]);
+
   const csv = responseCsv(
     [
       {
@@ -437,7 +564,10 @@ global.fetch = async (url, init = {}) => {
     submitted_at: "invalid",
   });
   assert.equal((await getReportingData("owner", "en")).responses.length, 1);
-  assert.deepEqual((await getReportingData("owner", "en")).trash, []);
+  const derivedTrash = (await getReportingData("owner", "en")).trash;
+  assert.deepEqual(derivedTrash.map((row) => [row.name, row.canRestore]), [
+    ["deleted-form", true],
+  ]);
   console.log(
     "Passed: event isolation, TH/EN binding, PII masking, zero ratings, deleted-response exclusion, restore permissions/expiry, dashboard permissions/source validation/persistence, aggregations, CSV escaping/formula protection.",
   );

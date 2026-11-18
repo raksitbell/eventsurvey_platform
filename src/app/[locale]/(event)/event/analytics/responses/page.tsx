@@ -4,14 +4,19 @@ import { redirect } from "@/i18n/navigation";
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ formId?: string | string[] }>;
+  searchParams: Promise<{
+    formId?: string | string[];
+    scope?: string | string[];
+  }>;
 }) {
-  const { formId } = await searchParams;
+  const { formId, scope } = await searchParams;
   redirect({
     href:
-      typeof formId === "string" && formId
-        ? `/event/responses?formId=${encodeURIComponent(formId)}`
-        : "/event/responses",
+      scope === "all"
+        ? "/event/responses?scope=all"
+        : typeof formId === "string" && formId
+          ? `/event/responses?formId=${encodeURIComponent(formId)}`
+          : "/event/responses",
     locale: await getLocale(),
   });
 }

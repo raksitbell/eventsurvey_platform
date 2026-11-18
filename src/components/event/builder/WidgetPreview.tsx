@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useTheme } from "@/context/ThemeContext";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { reportingDay, widgetData } from "@/core/event/widget-data";
+import { widgetData } from "@/core/event/widget-data";
 import {
   ArrowRightIcon,
   BoltIcon,
@@ -90,14 +90,8 @@ export default function WidgetPreview({
 
   const responsesHref = widget.source_form_id
     ? `/event/responses?formId=${encodeURIComponent(widget.source_form_id)}`
-    : "/event/responses";
-
-  const eventStartDate = data.eventStartsAt
-    ? reportingDay(data.eventStartsAt)
-    : "";
-  const eventEndDate = data.eventEndsAt ? reportingDay(data.eventEndsAt) : "";
-  const effectiveFrom = widget.date_from ?? eventStartDate;
-  const effectiveTo = widget.date_to ?? eventEndDate;
+    : "/event/responses?scope=all";
+  const { from, to } = result.dateRange;
 
   return (
     <div className="flex h-full flex-col justify-between">
@@ -144,11 +138,11 @@ export default function WidgetPreview({
             <ArrowRightIcon className="size-3.5 shrink-0 opacity-70" />
           </Link>
 
-          {(effectiveFrom || effectiveTo) && (
+          {(from || to) && (
             <span className="inline-flex items-center gap-1.5 rounded-xl bg-gray-100/80 px-2.5 py-1 text-theme-sm text-gray-500 dark:bg-gray-800/70 dark:text-gray-400">
               <CalendarDaysIcon className="size-4 shrink-0" />
               <span className="tabular-nums">
-                {effectiveFrom || "…"} – {effectiveTo || "…"}
+                {from ?? "…"} – {to ?? "…"}
               </span>
             </span>
           )}
