@@ -134,6 +134,27 @@ export async function getSubUsers(
   };
 }
 
+async function getEventMember(
+  eventId: string,
+  userId: string,
+): Promise<MockUser> {
+  let user: MockUser | null;
+  try {
+    user = await mockApi.get<MockUser | null>(`/users/${userId}`);
+  } catch (error) {
+    if (error instanceof MockApiError && error.status === 404) {
+      throw new ServiceError("USER_NOT_FOUND", 404);
+    }
+    throw error;
+  }
+
+  if (!user) throw new ServiceError("USER_NOT_FOUND", 404);
+  if (user.event_id !== eventId) {
+    throw new ServiceError("USER_NOT_IN_EVENT", 400);
+  }
+  return user;
+}
+
 /**
  * Update the permission matrix and custom role name for a sub-user.
  */
@@ -145,19 +166,7 @@ export async function updateSubUserPermissions(
 ): Promise<EventSubUserItem> {
   await assertEventAdmin(eventId, currentUserId);
 
-  let targetUser: MockUser;
-  try {
-    targetUser = await mockApi.get<MockUser>(`/users/${subUserId}`);
-  } catch (error) {
-    if (error instanceof MockApiError && error.status === 404) {
-      throw new ServiceError("USER_NOT_FOUND", 404);
-    }
-    throw error;
-  }
-
-  if (targetUser.event_id !== eventId) {
-    throw new ServiceError("USER_NOT_IN_EVENT", 400);
-  }
+  const targetUser = await getEventMember(eventId, subUserId);
 
   const now = new Date().toISOString();
   const serializedMatrix = serializePermissionMatrix(input.permissions);
@@ -348,6 +357,12 @@ export async function removeSubUser(
       "Event Admin cannot remove themselves",
     );
   }
+
+  const targetUser = await getEventMember(eventId, subUserId);
+  if (targetUser.system_role !== "event_user") {
+    throw new ServiceError("USER_NOT_IN_EVENT", 400);
+  }
+  if (targetUser.status === "removed" || targetUser.removed_at) return;
 
   const now = new Date().toISOString();
   await mockApi.patch<MockUser>(`/users/${subUserId}`, {
