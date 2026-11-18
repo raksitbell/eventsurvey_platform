@@ -26,8 +26,6 @@ export async function POST(request: NextRequest) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Forms cron failed";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: "Forms cron failed" }, { status: 502 });
   }
 }

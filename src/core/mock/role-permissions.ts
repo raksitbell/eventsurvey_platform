@@ -1,5 +1,10 @@
 import { mockApi } from "@/core/api/mock-client";
-import type { MockPermissionCode, MockRolePermission } from "@/types/mock";
+import type {
+  MockPermissionCode,
+  MockRolePermission,
+  MockPlatformPermissionCode,
+  MockPlatformRolePermission,
+} from "@/types/mock";
 
 /** Load permission codes granted to a role (empty when no role). */
 export async function getRolePermissions(
@@ -9,7 +14,7 @@ export async function getRolePermissions(
   const rows = await mockApi.get<MockRolePermission[]>(
     `/role_permissions?role_id=${encodeURIComponent(roleId)}`,
   );
-  return rows.map((row) => row.permission);
+  return rows.filter((row) => row.role_id === roleId).map((row) => row.permission);
 }
 
 export function hasPermission(
@@ -17,4 +22,17 @@ export function hasPermission(
   code: MockPermissionCode,
 ): boolean {
   return permissions.includes(code);
+}
+
+export async function hasPlatformPermission(
+  platformRoleId: string | null | undefined,
+  permission: MockPlatformPermissionCode,
+): Promise<boolean> {
+  if (!platformRoleId) return false;
+  const rows = await mockApi.get<MockPlatformRolePermission[]>(
+    `/platform_role_permissions?platform_role_id=${encodeURIComponent(platformRoleId)}`,
+  );
+  return rows.some(
+    (row) => row.platform_role_id === platformRoleId && row.permission === permission,
+  );
 }

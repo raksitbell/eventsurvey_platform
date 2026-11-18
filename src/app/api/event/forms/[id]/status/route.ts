@@ -12,7 +12,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /** PATCH /api/event/forms/[id]/status — draft ↔ scheduled (open/closed via cron) */
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const sessionOrDeny = requireEventSession(request);
+  const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   const { id } = await context.params;
@@ -27,9 +27,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to load form";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: "Failed to load form" }, { status: 502 });
   }
 
   let json: unknown;
@@ -69,9 +67,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to update form status";
-    const readOnly = /EROFS|read-only file system/i.test(message);
+    const readOnly =
+      error instanceof Error && /EROFS|read-only file system/i.test(error.message);
+    const message = readOnly ? "Mock API is read-only" : "Failed to update form status";
     return NextResponse.json(
       { error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR", message },
       { status: readOnly ? 503 : 502 },

@@ -4,19 +4,21 @@ import {
 } from "@/core/auth/api-guard";
 import { MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { authJson } from "@/core/auth/route-response";
 import {
   formatZodError,
   updateAdminEventBodySchema,
 } from "@/core/validation/admin-events";
 import { routing, type Locale } from "@/i18n/routing";
 import { getAdminEvent, updateAdminEvent } from "@/services/admin/events";
+import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import { NextRequest, NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** GET /api/admin/events/[id] */
 export async function GET(request: NextRequest, context: RouteContext) {
-  const denied = requireAdminSession(request);
+  const denied = await requireAdminSession(request);
   if (!isAuthSession(denied)) return denied;
 
   const { id } = await context.params;
@@ -26,8 +28,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     : routing.defaultLocale;
 
   try {
-    const data = await getAdminEvent(id, locale);
-    return NextResponse.json(data);
+    const viewer = await getPlatformPiiViewer(denied);
+    const data = await getAdminEvent(id, locale, viewer);
+    return authJson(data);
   } catch (error) {
     if (error instanceof ServiceError) {
       return NextResponse.json(
@@ -41,7 +44,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 /** PATCH /api/admin/events/[id] — edit draft titles/slug */
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const denied = requireAdminSession(request);
+  const denied = await requireAdminSession(request);
   if (!isAuthSession(denied)) return denied;
 
   const { id } = await context.params;
@@ -64,13 +67,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     : routing.defaultLocale;
 
   try {
+    const viewer = await getPlatformPiiViewer(denied);
     const data = await updateAdminEvent(
       id,
       parsed.data,
       denied.userId,
       locale,
+      viewer,
     );
-    return NextResponse.json(data);
+    return authJson(data);
   } catch (error) {
     if (error instanceof ServiceError) {
       return NextResponse.json(
@@ -82,12 +87,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       const readOnly =
         error.status >= 500 &&
         /EROFS|read-only file system/i.test(error.message);
-      return NextResponse.json(
-        {
-          error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR",
-          message: error.message,
-        },
-        { status: readOnly ? 503 : 502 },
+      return authJson(
+        { error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR" },
+        readOnly ? 503 : 502,
       );
     }
     return NextResponse.json(

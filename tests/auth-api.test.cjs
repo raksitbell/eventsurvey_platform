@@ -1,0 +1,305 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Node's standalone test runner loads compiled TypeScript. */
+const assert = require("node:assert/strict");
+const { test } = require("node:test");
+const { NextRequest } = require("next/server");
+const { loadSource } = require("./support/load-source.cjs");
+const { origin, password, setupMockData } = require("./support/mock-data.cjs");
+
+process.env.AUTH_SESSION_SECRET = "session-secret-only-for-offline-tests";
+process.env.MOCK_API_BASE_URL = origin;
+process.env.NODE_ENV = "production";
+
+const load = loadSource();
+const { AUTH_SESSION_COOKIE, parseAuthSessionCookie } = load("src/core/auth/cookie.ts");
+const { POST: login } = load("src/app/api/auth/login/route.ts");
+const { POST: logout } = load("src/app/api/auth/logout/route.ts");
+const { GET: getSession } = load("src/app/api/auth/session/route.ts");
+const { POST: startImpersonation, DELETE: stopImpersonation } = load("src/app/api/auth/impersonation/route.ts");
+const { GET: getAdminUsers } = load("src/app/api/admin/users/route.ts");
+const { GET: getAdminUser } = load("src/app/api/admin/users/[id]/route.ts");
+const { GET: getAdminEvents } = load("src/app/api/admin/events/route.ts");
+const { GET: getAdminEvent } = load("src/app/api/admin/events/[id]/route.ts");
+const { GET: getAssignableUsers } = load("src/app/api/admin/events/assignable-users/route.ts");
+const { GET: getWorkspace } = load("src/app/api/event/workspace/route.ts");
+const { GET: getForms } = load("src/app/api/event/forms/route.ts");
+const portal = "https://portal.example.test";
+
+function request(path, { cookie, method = "GET", body, origin = portal } = {}) {
+  const headers = new Headers();
+  if (cookie) headers.set("cookie", `${AUTH_SESSION_COOKIE}=${cookie}`);
+  if (method !== "GET") headers.set("origin", origin);
+  if (body !== undefined) headers.set("content-type", "application/json");
+  return new NextRequest(`${portal}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+function context(name, value) {
+  return { params: Promise.resolve({ [name]: value }) };
+}
+
+function cookieValue(response) {
+  const cookie = response.cookies.get(AUTH_SESSION_COOKIE);
+  assert.ok(cookie, "response must set the portal session cookie");
+  return cookie.value;
+}
+
+function assertNoStore(response) {
+  assert.match(response.headers.get("cache-control") ?? "", /\bno-store\b/i);
+}
+
+async function signIn(account) {
+  const response = await login(request("/api/auth/login", {
+    method: "POST",
+    body: { email: account.email, password },
+  }));
+  assert.equal(response.status, 200);
+  return { cookie: cookieValue(response), response };
+}
+
+async function assertDenied(response, status, path) {
+  assert.equal(response.status, status, path);
+  const body = await response.json();
+  assert.equal(typeof body.error, "string");
+  assert.equal("user" in body || "users" in body || "eventId" in body, false);
+}
+
+function assertNoPersonalDetails(body, accounts) {
+  const serialized = JSON.stringify(body);
+  for (const account of accounts) {
+    for (const value of [account.display_name, account.email, account.phone, account.password]) {
+      if (value) assert.equal(serialized.includes(value), false, `exposed fixture field of ${account.id}`);
+    }
+  }
+}
+
+test("login issues an expiring HttpOnly cookie and logout clears the browser session", async (t) => {
+  const { owner } = setupMockData(t);
+  const { cookie, response } = await signIn(owner);
+  const setCookie = response.headers.get("set-cookie");
+  assert.match(setCookie, /\bHttpOnly\b/i);
+  assert.match(setCookie, /\bSecure\b/i);
+  assert.match(setCookie, /\bSameSite=Lax\b/i);
+  assert.match(setCookie, /\bPath=\//i);
+  assertNoStore(response);
+  const { user } = await response.json();
+  assert.equal(user.id, owner.id);
+  assert.equal(user.email, owner.email);
+  assert.equal("password" in user, false);
+
+  const claims = parseAuthSessionCookie(cookie);
+  assert.equal(claims.userId, owner.id);
+  assert.equal(parseAuthSessionCookie(cookie, claims.expiresAt), null);
+
+  const sessionResponse = await getSession(request("/api/auth/session", { cookie }));
+  assert.equal(sessionResponse.status, 200);
+  assertNoStore(sessionResponse);
+  const snapshot = await sessionResponse.json();
+  assert.equal(snapshot.realUser.id, owner.id);
+  assert.equal(snapshot.impersonatedUser, null);
+
+  const logoutResponse = await logout(request("/api/auth/logout", { cookie, method: "POST" }));
+  assert.equal(logoutResponse.status, 200);
+  assert.equal(cookieValue(logoutResponse), "");
+  assert.match(logoutResponse.headers.get("set-cookie"), /\bMax-Age=0\b/i);
+  assertNoStore(logoutResponse);
+  await assertDenied(await getSession(request("/api/auth/session")), 401);
+});
+
+test("login denies a different origin before querying the account store", async (t) => {
+  const { owner, calls } = setupMockData(t);
+  await assertDenied(await login(request("/api/auth/login", {
+    method: "POST",
+    origin: "https://other.example.test",
+    body: { email: owner.email, password },
+  })), 403);
+  assert.deepEqual(calls, []);
+});
+
+test("protected BFF routes deny absent, invalid and insufficient portal sessions", async (t) => {
+  const { admin, owner, assistant, calls } = setupMockData(t);
+  for (const [path, methods, route] of [
+    ["/api/admin/overview", ["GET"]],
+    ["/api/admin/users", ["GET"]],
+    ["/api/admin/users/EventOwner", ["GET"], "/api/admin/users/[id]"],
+    ["/api/admin/events", ["GET", "POST"]],
+    ["/api/admin/events/event-a", ["GET", "PATCH"], "/api/admin/events/[id]"],
+    ["/api/admin/events/event-a/status", ["PATCH"], "/api/admin/events/[id]/status"],
+    ["/api/admin/events/assignable-users", ["GET"]],
+    ["/api/admin/events/cron", ["POST"]],
+    ["/api/event/workspace", ["GET"]],
+    ["/api/event/workspace/submit-approval", ["PATCH"]],
+    ["/api/event/forms?eventId=event-a", ["GET", "POST"], "/api/event/forms"],
+    ["/api/event/forms/form-a", ["GET", "PUT", "DELETE"], "/api/event/forms/[id]"],
+    ["/api/event/forms/form-a/status", ["PATCH"], "/api/event/forms/[id]/status"],
+  ]) {
+    const handlers = load(`src/app${route ?? path}/route.ts`);
+    for (const method of methods) {
+      await assertDenied(await handlers[method](request(path, { method })), 401, path);
+      await assertDenied(await handlers[method](request(path, { method, cookie: "invalid" })), 401, path);
+    }
+  }
+  assert.deepEqual(calls, [], "invalid sessions are rejected before upstream reads");
+
+  const { cookie: adm } = await signIn(admin);
+  const { cookie: own } = await signIn(owner);
+  const { cookie: team } = await signIn(assistant);
+  await assertDenied(await getAdminUsers(request("/api/admin/users", { cookie: own })), 403);
+  await assertDenied(await getWorkspace(request("/api/event/workspace", { cookie: adm })), 403);
+  await assertDenied(await getForms(request("/api/event/forms?eventId=event-a", { cookie: team })), 403);
+  await assertDenied(await getForms(request("/api/event/forms?eventId=event-b", { cookie: own })), 403);
+});
+
+test("workspace follows the authenticated account and suspended accounts lose access", async (t) => {
+  const { owner, otherOwner } = setupMockData(t);
+  const { cookie } = await signIn(owner);
+  const response = await getWorkspace(request(
+    `/api/event/workspace?locale=en&userId=${otherOwner.id}`,
+    { cookie },
+  ));
+  assert.equal(response.status, 200);
+  const workspace = await response.json();
+  assert.equal(workspace.eventId, owner.event_id);
+  assertNoPersonalDetails(workspace, [owner, otherOwner]);
+
+  owner.status = "suspended";
+  await assertDenied(await getWorkspace(request("/api/event/workspace", { cookie })), 401);
+});
+
+test("impersonation uses explicit authority, target scope and the original expiry", async (t) => {
+  const { admin, reviewer, owner, platformPermissions } = setupMockData(t);
+  const { cookie: adminCookie } = await signIn(admin);
+  const { cookie: reviewerCookie } = await signIn(reviewer);
+  const { cookie: ownerCookie } = await signIn(owner);
+  const impersonationPath = "/api/auth/impersonation";
+  for (const cookie of [reviewerCookie, ownerCookie]) {
+    const denied = await startImpersonation(request(impersonationPath, {
+      method: "POST", cookie, body: { userId: owner.id },
+    }));
+    await assertDenied(denied, 403);
+  }
+
+  const started = await startImpersonation(request(impersonationPath, {
+    method: "POST", cookie: adminCookie, body: { userId: owner.id },
+  }));
+  assert.equal(started.status, 200);
+  const impersonationCookie = cookieValue(started);
+  const snapshot = await started.json();
+  assert.equal(snapshot.realUser.id, admin.id);
+  assert.equal(snapshot.impersonatedUser.id, owner.id);
+  assertNoPersonalDetails(snapshot.impersonatedUser, [owner]);
+  assertNoStore(started);
+  await assertDenied(
+    await getAdminUsers(request("/api/admin/users", { cookie: impersonationCookie })),
+    403,
+  );
+  const workspace = await getWorkspace(request("/api/event/workspace", { cookie: impersonationCookie }));
+  assert.equal(workspace.status, 200);
+  assert.equal((await workspace.json()).eventId, owner.event_id);
+
+  const grant = platformPermissions.findIndex((row) => row.permission === "impersonate_event_user");
+  platformPermissions.splice(grant, 1);
+  await assertDenied(
+    await getWorkspace(request("/api/event/workspace", { cookie: impersonationCookie })),
+    401,
+  );
+
+  const restored = await stopImpersonation(request(impersonationPath, {
+    method: "DELETE", cookie: impersonationCookie,
+  }));
+  assert.equal(restored.status, 200);
+  const restoredClaims = parseAuthSessionCookie(cookieValue(restored));
+  assert.equal(restoredClaims.userId, admin.id);
+  assert.equal(restoredClaims.impersonating, false);
+  assert.equal(restoredClaims.expiresAt, parseAuthSessionCookie(adminCookie).expiresAt);
+  assert.equal((await restored.json()).impersonatedUser, null);
+});
+
+test("admin user and event responses mask fields until the viewer has the current PII grant", async (t) => {
+  const fixture = setupMockData(t);
+  const { cookie: adminCookie } = await signIn(fixture.admin);
+  const { cookie: reviewerCookie } = await signIn(fixture.reviewer);
+  const { owner, assistant, assignable, reviewer, platformPermissions } = fixture;
+  const paths = [
+    [getAdminUsers, "/api/admin/users"],
+    [getAdminUser, `/api/admin/users/${owner.id}`, context("id", owner.id)],
+    [getAdminEvents, "/api/admin/events"],
+    [getAdminEvent, "/api/admin/events/event-a", context("id", "event-a")],
+    [getAssignableUsers, "/api/admin/events/assignable-users"],
+  ];
+  for (const [handler, path, params] of paths) {
+    const response = await handler(request(path, { cookie: adminCookie }), params);
+    assert.equal(response.status, 200, path);
+    assertNoStore(response);
+    assertNoPersonalDetails(await response.json(), [owner, assistant, assignable, reviewer]);
+  }
+
+  const responseWithGrant = await getAdminUsers(request("/api/admin/users", { cookie: reviewerCookie }));
+  assert.equal(responseWithGrant.status, 200);
+  assertNoStore(responseWithGrant);
+  const unmasked = (await responseWithGrant.json()).users.find((user) => user.id === owner.id);
+  assert.equal(unmasked.name, owner.display_name);
+  assert.equal(unmasked.email, owner.email);
+  assert.equal("password" in unmasked, false);
+
+  platformPermissions.splice(platformPermissions.findIndex((row) => row.permission === "view_unmasked_pii"), 1);
+  const afterRevocation = await getAdminUsers(request("/api/admin/users", { cookie: reviewerCookie }));
+  assert.equal(afterRevocation.status, 200);
+  assertNoPersonalDetails(await afterRevocation.json(), [owner, assistant]);
+});
+
+test("upstream failure details stay in the API layer", async (t) => {
+  const { admin, owner, failures } = setupMockData(t);
+  const { cookie } = await signIn(admin);
+  failures.set("/users", `Request failed for ${owner.email}`);
+
+  const response = await getAdminUsers(request("/api/admin/users", { cookie }));
+  assert.equal(response.status, 502);
+  assertNoPersonalDetails(await response.json(), [owner]);
+});
+
+test("setup-password requires a current invitation and masks preview details", async (t) => {
+  const { invited, calls } = setupMockData(t);
+  const { issueSetupPasswordInvite, SETUP_PASSWORD_INVITE_DAYS } = load("src/core/auth/setup-password-invite.ts");
+  const { GET: previewInvite, POST: acceptInvite } = load("src/app/api/auth/setup-password/[userId]/route.ts");
+  const expired = issueSetupPasswordInvite(
+    invited.id,
+    Date.now() - (SETUP_PASSWORD_INVITE_DAYS + 1) * 86_400_000,
+  );
+
+  for (const invalid of ["invalid", expired]) {
+    await assertDenied(await previewInvite(
+      request(`/api/auth/setup-password/${invalid}`),
+      context("userId", invalid),
+    ), 404);
+  }
+  assert.deepEqual(calls, []);
+
+  const token = issueSetupPasswordInvite(invited.id);
+  const path = `/api/auth/setup-password/${token}`;
+  const invite = context("userId", token);
+  const response = await previewInvite(
+    request(path),
+    invite,
+  );
+  assert.equal(response.status, 200);
+  assertNoStore(response);
+  const preview = await response.json();
+  assert.equal(preview.userId, invited.id);
+  assertNoPersonalDetails(preview, [invited]);
+
+  const newPassword = "different-fixture-password";
+  const submission = {
+    method: "POST",
+    body: { password: newPassword, confirmPassword: newPassword },
+  };
+  const accepted = await acceptInvite(request(path, submission), invite);
+  assert.equal(accepted.status, 200);
+  assert.deepEqual(await accepted.json(), { ok: true });
+  assert.equal(invited.status, "active");
+  assert.equal(invited.password, newPassword);
+  await assertDenied(await acceptInvite(request(path, submission), invite), 410);
+  assert.equal(calls.filter(({ method }) => method === "PATCH").length, 1);
+});

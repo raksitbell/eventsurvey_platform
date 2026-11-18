@@ -1269,19 +1269,19 @@ async function compensateOrThrow(
     const message =
       originalError instanceof Error ? originalError.message : "Write failed";
     if (/EROFS|read-only file system/i.test(message)) {
-      throw new ServiceError("MOCK_READ_ONLY", 503, message);
+      throw new ServiceError("MOCK_READ_ONLY", 503, "Mock API is read-only");
     }
     throw new ServiceError(
       "FORM_WRITE_INCOMPLETE",
       502,
-      `${message}; automatic rollback also failed`,
+      "Form write failed and automatic rollback could not complete",
     );
   }
   if (
     originalError instanceof Error &&
     /EROFS|read-only file system/i.test(originalError.message)
   ) {
-    throw new ServiceError("MOCK_READ_ONLY", 503, originalError.message);
+    throw new ServiceError("MOCK_READ_ONLY", 503, "Mock API is read-only");
   }
   throw originalError;
 }

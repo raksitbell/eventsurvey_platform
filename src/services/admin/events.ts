@@ -1,5 +1,6 @@
 import { mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { maskEmail, maskName, mayViewPii, type PiiViewer } from "@/core/auth/pii";
 import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
 import { resolveEventTitle } from "@/core/mock/event-title";
 import { routing, type Locale } from "@/i18n/routing";
@@ -183,15 +184,19 @@ function toListItem(
   translations: MockEventTranslation[],
   users: MockUser[],
   locale: Locale,
+  viewer?: PiiViewer,
 ): AdminEventListItem {
   const admin = adminForEvent(users, event.id);
+  const canViewContact = admin && mayViewPii(viewer, admin.id);
+  const adminName = admin?.display_name ?? null;
+  const adminEmail = admin?.email ?? null;
   return {
     id: event.id,
     title: resolveEventTitle(translations, event.id, locale) ?? event.slug,
     slug: event.slug,
     status: event.status,
-    adminName: admin?.display_name ?? null,
-    adminEmail: admin?.email ?? null,
+    adminName: adminName && !canViewContact ? maskName(adminName) : adminName,
+    adminEmail: adminEmail && !canViewContact ? maskEmail(adminEmail) : adminEmail,
     adminUserId: admin?.id ?? null,
     startsAt: event.start_at ?? null,
     endsAt: event.end_at ?? null,
@@ -200,8 +205,16 @@ function toListItem(
   };
 }
 
+function toMemberContact(user: MockUser, viewer?: PiiViewer): AssignableAdmin {
+  const name = user.display_name ?? user.email ?? user.id;
+  const email = user.email;
+  if (mayViewPii(viewer, user.id)) return { id: user.id, name, email };
+  return { id: user.id, name: maskName(name), email: maskEmail(email) };
+}
+
 export async function listAdminEvents(
   query: ListAdminEventsQuery = {},
+  viewer?: PiiViewer,
 ): Promise<AdminEventsResponse> {
   const locale = query.locale ?? routing.defaultLocale;
   const { events, translations, users } = await loadEventBundle();
@@ -215,7 +228,7 @@ export async function listAdminEvents(
     .filter((event) =>
       overlapsRange(event.start_at, event.end_at, query.startDate, query.endDate),
     )
-    .map((event) => toListItem(event, translations, users, locale))
+    .map((event) => toListItem(event, translations, users, locale, viewer))
     .filter((item) => {
       if (!q) return true;
       return (
@@ -233,6 +246,7 @@ export async function listAdminEvents(
 export async function getAdminEvent(
   id: string,
   locale: Locale = routing.defaultLocale,
+  viewer?: PiiViewer,
 ): Promise<AdminEventDetail> {
   const [{ events, translations, users, banners }, roles] = await Promise.all([
     loadEventBundle(),
@@ -241,7 +255,7 @@ export async function getAdminEvent(
   const event = events.find((row) => row.id === id);
   if (!event) throw new ServiceError("EVENT_NOT_FOUND", 404);
 
-  const base = toListItem(event, translations, users, locale);
+  const base = toListItem(event, translations, users, locale, viewer);
   const translationViews: AdminEventTranslationView[] = translations
     .filter((row) => row.event_id === event.id)
     .sort((a, b) => a.display_order - b.display_order)
@@ -262,9 +276,7 @@ export async function getAdminEvent(
         !user.removed_at,
     )
     .map((user) => ({
-      id: user.id,
-      name: user.display_name ?? user.email ?? user.id,
-      email: user.email,
+      ...toMemberContact(user, viewer),
       status: user.status,
       roleName: user.role_id
         ? (roleById.get(user.role_id)?.name ?? null)
@@ -292,7 +304,9 @@ export async function getAdminEvent(
   };
 }
 
-export async function listAssignableAdmins(): Promise<AssignableAdmin[]> {
+export async function listAssignableAdmins(
+  viewer?: PiiViewer,
+): Promise<AssignableAdmin[]> {
   const users = await mockApi.get<MockUser[]>("/users");
   return users
     .filter(
@@ -302,11 +316,7 @@ export async function listAssignableAdmins(): Promise<AssignableAdmin[]> {
         user.status === "active" &&
         !user.removed_at,
     )
-    .map((user) => ({
-      id: user.id,
-      name: user.display_name ?? user.email ?? user.id,
-      email: user.email,
-    }))
+    .map((user) => toMemberContact(user, viewer))
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 }
 
@@ -365,6 +375,7 @@ export async function createAdminEvent(
   input: CreateAdminEventInput,
   platformAdminUserId: string,
   locale: Locale = routing.defaultLocale,
+  viewer?: PiiViewer,
 ): Promise<CreateAdminEventResult> {
   await assertSlugAvailable(input.slug);
 
@@ -511,7 +522,7 @@ export async function createAdminEvent(
     }
   }
 
-  const item = toListItem(event, translationRows, [adminUser], locale);
+  const item = toListItem(event, translationRows, [adminUser], locale, viewer);
 
   return {
     event: item,
@@ -526,6 +537,7 @@ export async function updateAdminEvent(
   input: UpdateAdminEventInput,
   actorUserId: string,
   locale: Locale = routing.defaultLocale,
+  viewer?: PiiViewer,
 ): Promise<AdminEventListItem> {
   let event: MockEvent;
   try {
@@ -599,7 +611,7 @@ export async function updateAdminEvent(
   await upsertTitle("en", titleEn);
 
   const { translations, users } = await loadEventBundle();
-  return toListItem(updated, translations, users, locale);
+  return toListItem(updated, translations, users, locale, viewer);
 }
 
 const STATUS_TRANSITIONS: Record<
@@ -620,6 +632,7 @@ export async function updateAdminEventStatus(
   actorUserId: string,
   locale: Locale = routing.defaultLocale,
   options: UpdateAdminEventStatusOptions = {},
+  viewer?: PiiViewer,
 ): Promise<AdminEventListItem> {
   const transition = STATUS_TRANSITIONS[action];
   let event: MockEvent;
@@ -671,7 +684,7 @@ export async function updateAdminEventStatus(
     ...(action === "close" ? { closes_at: now } : {}),
   });
   const { translations, users } = await loadEventBundle();
-  return toListItem(updated, translations, users, locale);
+  return toListItem(updated, translations, users, locale, viewer);
 }
 
 export type ScheduleEventInput = {

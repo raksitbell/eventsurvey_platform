@@ -31,12 +31,14 @@ export type MockPermissionCode =
   | "manage_event"
   | "manage_registration_form"
   | "manage_survey_form"
-  | "manage_sub_user";
+  | "manage_sub_user"
+  | "view_unmasked_pii";
 export type MockPlatformPermissionCode =
   | "manage_platform_users"
   | "manage_all_events"
   | "view_platform_overview"
-  | "impersonate_event_user";
+  | "impersonate_event_user"
+  | "view_unmasked_pii";
 
 export interface MockUser {
   id: string;

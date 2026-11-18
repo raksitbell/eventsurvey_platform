@@ -65,6 +65,8 @@
     "language": "Language",
     "signOut": "Sign out",
     "stopImpersonating": "Stop impersonating",
+    "signOutFailed": "Unable to sign out. Please try again.",
+    "stopImpersonatingFailed": "Unable to stop impersonating. Please try again.",
     "confirmSignOut": "Are you sure you want to sign out?",
     "confirmStopImpersonating": "Stop impersonating and return to the Super Admin account?"
   },
@@ -103,6 +105,7 @@
   "impersonation": {
     "banner": "Acting as {actingAs} ({role}). Signed in as {admin}.",
     "stop": "Stop impersonating",
+    "stopFailed": "Unable to stop impersonating. Please try again.",
     "confirmStop": "Stop impersonating and return to the Super Admin account?"
   },
   "adminHome": {
@@ -359,6 +362,7 @@
         "required": "Please fill in all required fields",
         "slugExists": "This slug is already taken",
         "emailExists": "This email is already in use",
+        "impersonationFailed": "The draft was saved, but the Event Workspace could not be opened.",
         "mailFailed": "Account created but email failed to send",
         "generic": "Failed to create event"
       }

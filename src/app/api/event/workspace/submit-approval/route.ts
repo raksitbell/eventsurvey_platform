@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
  * Event owner schedules the draft event (draft → scheduled). Path kept for compatibility.
  */
 export async function PATCH(request: NextRequest) {
-  const sessionOrDeny = requireEventSession(request);
+  const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   let json: unknown;

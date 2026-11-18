@@ -57,12 +57,17 @@
 npm install
 ```
 
-สร้างไฟล์ `.env.local` ใส่ที่อยู่ของ mock API:
+สร้างไฟล์ `.env.local` สำหรับ Mock API และ session
 
 ```bash
 MOCK_API_BASE_URL=https://eventmockapi.vercel.app
 NEXT_PUBLIC_API_BASE_URL=https://eventmockapi.vercel.app
+AUTH_SESSION_SECRET=<ค่าที่สร้างจาก openssl rand -hex 32>
 ```
+
+ใช้ secret สุ่มแยกตาม environment และตั้งค่าใน Vercel ก่อน deploy คุกกี้มีอายุ 8 ชั่วโมงและถูกล้างเมื่อออกจากระบบ การเปลี่ยน secret จะทำให้ session และลิงก์ตั้งรหัสผ่านที่ออกด้วยค่าเดิมหมดอายุ ผู้ใช้ demo ต้องเข้าสู่ระบบใหม่และต้องออกลิงก์ใหม่สำหรับคำเชิญเก่าที่ยังไม่ได้ใช้
+
+Mock API และบัญชีทดลองใช้สำหรับ development ด้วยข้อมูลจำลอง
 
 ```bash
 npm run dev
@@ -83,6 +88,7 @@ npm run dev
 | `npm run build` | สร้างไฟล์สำหรับขึ้นเซิร์ฟเวอร์จริง |
 | `npm run start` | รันเวอร์ชันที่ build แล้ว |
 | `npm run lint` | ตรวจโค้ดว่าผิดกฎที่ตั้งไว้ไหม |
+| `npm test` | รันชุดทดสอบสิทธิ์และการปกปิด PII ด้วยข้อมูลจำลอง |
 
 ---
 

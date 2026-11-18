@@ -7,13 +7,17 @@ import { useRouter } from "@/i18n/navigation";
 import { useEffect } from "react";
 
 export default function HomePage() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, authUnavailable } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
+    if (authUnavailable) {
+      router.replace("/error/503");
+      return;
+    }
     router.replace(user ? getHomePathForRole(user.role) : "/login");
-  }, [isLoading, router, user]);
+  }, [authUnavailable, isLoading, router, user]);
 
   return (
     <div

@@ -1,10 +1,16 @@
 import { mockApi } from "@/core/api/mock-client";
+import {
+  maskName,
+  mayViewPii,
+  projectUserPii,
+  type PiiViewer,
+} from "@/core/auth/pii";
 import { resolveEventTitle } from "@/core/mock/event-title";
 import {
   isActiveMockUser,
   mapMockUserToUser,
 } from "@/core/mock/map-user";
-import { getRolePermissions } from "@/core/mock/role-permissions";
+import { getActivePortalAccount } from "@/services/auth/session";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
   AdminUserListItem,
@@ -22,12 +28,6 @@ import type { User, UserRole } from "@/types/user";
 
 const PORTAL_ROLES: UserRole[] = ["super_admin", "event_owner", "sub_user"];
 
-function stripPassword(user: User): Omit<User, "password"> {
-  const safeUser = { ...user };
-  delete safeUser.password;
-  return safeUser;
-}
-
 function permissionsByRoleId(
   rows: MockRolePermission[],
 ): Map<string, MockPermissionCode[]> {
@@ -44,6 +44,7 @@ function permissionsByRoleId(
 export async function getBoundAdminUsers(
   role?: string,
   locale: Locale = routing.defaultLocale,
+  viewer?: PiiViewer,
 ): Promise<AdminUsersResponse> {
   const [mockUsers, events, translations, roles, rolePermissions] =
     await Promise.all([
@@ -88,7 +89,7 @@ export async function getBoundAdminUsers(
   }
 
   const bound: AdminUserListItem[] = portalUsers.map((user) => {
-    const safe = stripPassword(user);
+    const safe = projectUserPii(user, mayViewPii(viewer, user.id));
     const owner = user.ownerId ? usersById.get(user.ownerId) : null;
     const mock = mockUsers.find((row) => row.id === user.id);
     const eventId = mock?.event_id;
@@ -111,7 +112,9 @@ export async function getBoundAdminUsers(
       role: safe.role,
       status: safe.status,
       ownerId: safe.ownerId,
-      ownerName: owner?.name ?? null,
+      ownerName: owner
+        ? mayViewPii(viewer, owner.id) ? owner.name : maskName(owner.name)
+        : null,
       canViewSensitiveData: safe.canViewSensitiveData,
       eventName,
       customRoleName,
@@ -137,10 +140,6 @@ export async function getBoundAdminUsers(
 export async function getUserForImpersonation(
   userId: string,
 ): Promise<User | null> {
-  const mockUser = await mockApi.get<MockUser>(`/users/${userId}`);
-  if (!mockUser || !isActiveMockUser(mockUser)) return null;
-  const permissions = await getRolePermissions(mockUser.role_id);
-  const user = mapMockUserToUser(mockUser, permissions);
-  if (!user) return null;
-  return stripPassword(user) as User;
+  const account = await getActivePortalAccount(userId);
+  return account?.user ?? null;
 }

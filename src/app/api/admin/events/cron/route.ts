@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
  * Also closes forms whose closes_at has passed.
  */
 export async function POST(request: NextRequest) {
-  const denied = requireAdminSession(request);
+  const denied = await requireAdminSession(request);
   if (!isAuthSession(denied)) return denied;
 
   try {

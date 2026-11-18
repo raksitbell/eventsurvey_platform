@@ -1,7 +1,4 @@
-import {
-  AUTH_SESSION_COOKIE,
-  parseAuthSessionCookie,
-} from "@/core/auth/cookie";
+import { readAuthSession } from "@/core/auth/cookie";
 import {
   canEnterAdminArea,
   canEnterEventArea,
@@ -22,11 +19,7 @@ function isArea(pathname: string, area: string): boolean {
   return pathname === area || pathname.startsWith(`${area}/`);
 }
 
-/**
- * Gate /admin and /event before the App Router soft-navigates into those
- * layouts. Auth lives in localStorage; the client mirrors a small session
- * cookie so Edge middleware can redirect early (avoids 403-inside-/event hangs).
- */
+/** Use the signed session for navigation before handlers verify live access. */
 function authRedirect(request: NextRequest): NextResponse | null {
   const { pathname } = request.nextUrl;
 
@@ -38,15 +31,11 @@ function authRedirect(request: NextRequest): NextResponse | null {
     return null;
   }
 
-  const session = parseAuthSessionCookie(
-    request.cookies.get(AUTH_SESSION_COOKIE)?.value,
-  );
+  const session = readAuthSession(request);
 
   if (isArea(pathname, "/login")) {
     if (!session) return null;
     const home = getHomePathForRole(session.role);
-    // Never bounce /login → /login; that loop ends in ERR_TOO_MANY_REDIRECTS
-    // and the user cannot escape without clearing the cookie by hand.
     if (isArea(pathname, home)) return null;
     return NextResponse.redirect(new URL(home, request.url));
   }

@@ -1,14 +1,10 @@
 "use client";
 
 import GridShape from "@/components/common/GridShape";
-import {
-  AUTH_STORAGE_KEY,
-  getHomePathForRole,
-  readStoredUser,
-} from "@/core/auth";
+import { useAuth } from "@/context/AuthContext";
+import { getHomePathForRole } from "@/core/auth";
 import { Link } from "@/i18n/navigation";
 import Image from "next/image";
-import { useEffect, useState } from "react";
 
 type ErrorCode = "403" | "404" | "500" | "503";
 
@@ -17,15 +13,8 @@ interface ErrorPageProps {
   title: string;
   message: string;
   backLabel: string;
-  /** Prefer role home; falls back to stored session home or `/login` */
+  /** Prefer an explicit destination, then the active account home. */
   homeHref?: string;
-}
-
-function resolveHomeHref(fallback?: string): string {
-  if (fallback && fallback !== "/") return fallback;
-  const stored = readStoredUser(AUTH_STORAGE_KEY);
-  if (stored) return getHomePathForRole(stored.role);
-  return fallback === "/" ? "/login" : fallback || "/login";
 }
 
 export default function ErrorPage({
@@ -35,12 +24,10 @@ export default function ErrorPage({
   backLabel,
   homeHref,
 }: ErrorPageProps) {
-  // Don't read localStorage during render (SSR/client mismatch → hydration error)
-  const [href, setHref] = useState(homeHref && homeHref !== "/" ? homeHref : "/login");
-
-  useEffect(() => {
-    setHref(resolveHomeHref(homeHref));
-  }, [homeHref]);
+  const { user } = useAuth();
+  const href = homeHref && homeHref !== "/"
+    ? homeHref
+    : user ? getHomePathForRole(user.role) : "/login";
 
   return (
     <div className="relative z-1 flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-white p-6 dark:bg-gray-900">

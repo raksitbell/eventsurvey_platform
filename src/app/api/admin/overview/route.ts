@@ -1,10 +1,11 @@
 import { denyUnlessAdmin } from "@/core/auth/api-guard";
+import { authJson } from "@/core/auth/route-response";
 import { routing, type Locale } from "@/i18n/routing";
 import { getBoundAdminOverview } from "@/services/admin/overview";
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const denied = denyUnlessAdmin(request);
+  const denied = await denyUnlessAdmin(request);
   if (denied) return denied;
 
   try {
@@ -13,10 +14,8 @@ export async function GET(request: NextRequest) {
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
     const data = await getBoundAdminOverview(locale);
-    return NextResponse.json(data);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to load overview";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return authJson(data);
+  } catch {
+    return authJson({ error: "Failed to load overview" }, 502);
   }
 }

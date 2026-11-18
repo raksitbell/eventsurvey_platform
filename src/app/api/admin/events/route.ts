@@ -3,6 +3,7 @@ import {
   requireAdminSession,
 } from "@/core/auth/api-guard";
 import { ServiceError } from "@/core/api/service-error";
+import { authJson } from "@/core/auth/route-response";
 import {
   createAdminEventBodySchema,
   formatZodError,
@@ -12,13 +13,14 @@ import {
   createAdminEvent,
   listAdminEvents,
 } from "@/services/admin/events";
+import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import type { MockEventStatus } from "@/types/mock";
 import { NextRequest, NextResponse } from "next/server";
 
 /** GET /api/admin/events */
 export async function GET(request: NextRequest) {
-  const denied = requireAdminSession(request);
-  if (!isAuthSession(denied)) return denied;
+  const session = await requireAdminSession(request);
+  if (!isAuthSession(session)) return session;
 
   const params = request.nextUrl.searchParams;
   const requestedLocale = params.get("locale");
@@ -27,24 +29,26 @@ export async function GET(request: NextRequest) {
     : routing.defaultLocale;
 
   try {
-    const data = await listAdminEvents({
-      q: params.get("q") ?? undefined,
-      status: (params.get("status") as MockEventStatus | "all" | null) ?? "all",
-      startDate: params.get("startDate") ?? undefined,
-      endDate: params.get("endDate") ?? undefined,
-      locale,
-    });
-    return NextResponse.json(data);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to list events";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const viewer = await getPlatformPiiViewer(session);
+    const data = await listAdminEvents(
+      {
+        q: params.get("q") ?? undefined,
+        status: (params.get("status") as MockEventStatus | "all" | null) ?? "all",
+        startDate: params.get("startDate") ?? undefined,
+        endDate: params.get("endDate") ?? undefined,
+        locale,
+      },
+      viewer,
+    );
+    return authJson(data);
+  } catch {
+    return authJson({ error: "Failed to list events" }, 502);
   }
 }
 
 /** POST /api/admin/events */
 export async function POST(request: NextRequest) {
-  const sessionOrDeny = requireAdminSession(request);
+  const sessionOrDeny = await requireAdminSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   let json: unknown;
@@ -65,12 +69,14 @@ export async function POST(request: NextRequest) {
     : routing.defaultLocale;
 
   try {
+    const viewer = await getPlatformPiiViewer(sessionOrDeny);
     const data = await createAdminEvent(
       parsed.data,
       sessionOrDeny.userId,
       locale,
+      viewer,
     );
-    return NextResponse.json(data, { status: 201 });
+    return authJson(data, 201);
   } catch (error) {
     if (error instanceof ServiceError) {
       return NextResponse.json(
@@ -78,8 +84,6 @@ export async function POST(request: NextRequest) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to create event";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return authJson({ error: "Failed to create event" }, 502);
   }
 }

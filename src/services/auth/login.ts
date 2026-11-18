@@ -1,6 +1,5 @@
 import { PORTAL_ROLES } from "@/core/auth/constants";
 import { canAccessPortal } from "@/core/auth/permissions";
-import { sanitizeUser } from "@/core/auth/session";
 import { mockApi } from "@/core/api/mock-client";
 import {
   isActiveMockUser,
@@ -25,7 +24,10 @@ export async function loginWithMockCredentials(
   });
 
   const users = await mockApi.get<MockUser[]>(`/users?${params.toString()}`);
-  const matched = users.find(isActiveMockUser);
+  const matched = users.find(
+    (user) =>
+      isActiveMockUser(user) && user.email === email && user.password === password,
+  );
 
   if (!matched) {
     return { ok: false, error: "INVALID_CREDENTIALS" };
@@ -41,5 +43,5 @@ export async function loginWithMockCredentials(
     return { ok: false, error: "UNSUPPORTED_ROLE" };
   }
 
-  return { ok: true, user: sanitizeUser(user) };
+  return { ok: true, user };
 }
