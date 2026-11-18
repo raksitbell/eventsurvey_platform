@@ -651,6 +651,10 @@
       "untitledQuestion": "คำถามที่ไม่มีชื่อ"
     }
   },
+  "eventTeamWorkspace": {
+    "description": "จัดการสมาชิกและสิทธิ์ของอีเวนต์",
+    "backToOverview": "กลับหน้าภาพรวม"
+  },
   "team": {
     "pageTitle": "ทีมงานและสิทธิ์",
     "loading": "กำลังโหลดข้อมูลทีมงาน...",

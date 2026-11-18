@@ -651,6 +651,10 @@
       "untitledQuestion": "Untitled Question"
     }
   },
+  "eventTeamWorkspace": {
+    "description": "Manage event members and their permissions",
+    "backToOverview": "Back to overview"
+  },
   "team": {
     "pageTitle": "Team & Permissions",
     "loading": "Loading team members...",
