@@ -1,10 +1,11 @@
 "use client";
 
+import ParticipantFormActions from "@/components/event/participant/ParticipantFormActions";
 import {
   bannerLayouts,
   bannerObjectPosition,
 } from "@/core/event/banner-layout";
-import ParticipantFormActions from "@/components/event/participant/ParticipantFormActions";
+import type { EventContentTranslation } from "@/types/event/content";
 import type { ParticipantEventData } from "@/types/event/participant";
 import type { PublicEvent } from "@/types/event/public-event";
 import {
@@ -12,11 +13,12 @@ import {
   ClockIcon,
   MapPinIcon,
 } from "@heroicons/react/24/outline";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 
 interface ParticipantEventContentProps extends ParticipantEventData {
   formLinks?: PublicEvent["formLinks"];
+  translation: EventContentTranslation;
 }
 
 export default function ParticipantEventContent({
@@ -24,10 +26,10 @@ export default function ParticipantEventContent({
   branding,
   bannerUrl,
   formLinks,
+  translation,
 }: ParticipantEventContentProps) {
   const t = useTranslations("participantEvent");
   const display = useTranslations("participantDisplay");
-  const format = useFormatter();
   const banner = branding.banner?.url ?? bannerUrl;
   const cropPosition = bannerObjectPosition(branding.banner?.cropPosition);
   const { width, height } = bannerLayouts[branding.layout ?? "portrait"];
@@ -36,21 +38,27 @@ export default function ParticipantEventContent({
     branding.backgroundMode === "gradient"
       ? `linear-gradient(${branding.gradientAngle ?? 0}deg, ${branding.secondary}, ${branding.gradientEnd ?? branding.primary})`
       : undefined;
-  const date = (value: string) =>
-    format.dateTime(new Date(value), {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: "Asia/Bangkok",
-      calendar: "gregory",
-    });
-  const time = (value: string) =>
-    format.dateTime(new Date(value), {
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-      timeZone: "Asia/Bangkok",
-    });
+  const { localeCode, title, locationName, floorZone, description } =
+    translation;
+  const dateFormatter = new Intl.DateTimeFormat(localeCode, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Bangkok",
+    calendar: "gregory",
+  });
+  const timeFormatter = new Intl.DateTimeFormat(localeCode, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Asia/Bangkok",
+  });
+  const startDate = draft.startsAt
+    ? dateFormatter.format(new Date(draft.startsAt))
+    : null;
+  const endDate = draft.endsAt
+    ? dateFormatter.format(new Date(draft.endsAt))
+    : null;
   return (
     <main
       className="relative isolate flex-1 overflow-hidden bg-(--participant-surface) pb-6 @4xl/participant:py-11 dark:bg-(--participant-surface)"
@@ -87,7 +95,11 @@ export default function ParticipantEventContent({
           className={`flex w-full min-w-0 flex-col gap-2 px-4 pb-6 @4xl/participant:max-w-md @4xl/participant:pb-0 ${gradient || blurredBanner ? "rounded-preview-control bg-(--participant-surface) py-4 @4xl/participant:p-4 dark:bg-(--participant-surface)" : ""}`}
         >
           <h1 className="text-title-sm font-bold wrap-anywhere whitespace-pre-line text-(--participant-on-secondary) @4xl/participant:text-title-md dark:text-(--participant-on-secondary)">
-            {draft.eventName || t("namePending")}
+            {title.trim() ? (
+              <bdi lang={localeCode}>{title}</bdi>
+            ) : (
+              t("namePending")
+            )}
           </h1>
           <div className="flex items-start gap-2 text-xl font-bold text-(--participant-on-secondary) @4xl/participant:text-2xl dark:text-(--participant-on-secondary)">
             <MapPinIcon
@@ -95,9 +107,17 @@ export default function ParticipantEventContent({
               aria-hidden="true"
             />
             <div className="min-w-0 wrap-anywhere">
-              <p>{draft.locationName || t("locationPending")}</p>
-              {draft.locationDetail && (
-                <p className="text-base font-medium">{draft.locationDetail}</p>
+              <p>
+                {locationName?.trim() ? (
+                  <bdi lang={localeCode}>{locationName}</bdi>
+                ) : (
+                  t("locationPending")
+                )}
+              </p>
+              {floorZone?.trim() && (
+                <p className="text-base font-medium whitespace-pre-line">
+                  <bdi lang={localeCode}>{floorZone}</bdi>
+                </p>
               )}
             </div>
           </div>
@@ -107,12 +127,17 @@ export default function ParticipantEventContent({
               aria-hidden="true"
             />
             <p>
-              {draft.startsAt ? date(draft.startsAt) : t("datePending")}
-              {draft.endsAt &&
-                (!draft.startsAt ||
-                  date(draft.startsAt) !== date(draft.endsAt)) && (
-                  <> – {date(draft.endsAt)}</>
-                )}
+              {startDate ? (
+                <bdi lang={localeCode}>{startDate}</bdi>
+              ) : (
+                t("datePending")
+              )}
+              {endDate && startDate !== endDate && (
+                <>
+                  {" "}
+                  – <bdi lang={localeCode}>{endDate}</bdi>
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-start gap-2 text-xl font-bold text-(--participant-on-secondary) @4xl/participant:text-2xl dark:text-(--participant-on-secondary)">
@@ -120,16 +145,24 @@ export default function ParticipantEventContent({
               className="mt-0.5 size-6 shrink-0 @4xl/participant:size-7"
               aria-hidden="true"
             />
-            <p>
-              {draft.startsAt ? time(draft.startsAt) : "—"}
-              {draft.endsAt && <> – {time(draft.endsAt)}</>}
+            <p lang={localeCode} dir="auto">
+              {draft.startsAt
+                ? timeFormatter.format(new Date(draft.startsAt))
+                : "—"}
+              {draft.endsAt && (
+                <> – {timeFormatter.format(new Date(draft.endsAt))}</>
+              )}
             </p>
           </div>
-          {draft.description && (
+          {description?.trim() && (
             <div className="space-y-1 text-(--participant-on-secondary) dark:text-(--participant-on-secondary)">
               <h2 className="font-semibold">{display("about")}</h2>
-              <p className="wrap-anywhere whitespace-pre-line">
-                {draft.description}
+              <p
+                lang={localeCode}
+                dir="auto"
+                className="wrap-anywhere whitespace-pre-line"
+              >
+                {description}
               </p>
             </div>
           )}

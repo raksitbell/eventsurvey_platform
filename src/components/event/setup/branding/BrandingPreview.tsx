@@ -1,6 +1,9 @@
 "use client";
 
+import ParticipantPreviewLanguage from "@/components/event/participant/ParticipantPreviewLanguage";
 import ParticipantPreviewViewport from "@/components/event/participant/ParticipantPreviewViewport";
+import { participantPreviewHref } from "@/core/event/participant";
+import useParticipantPreviewLanguage from "@/hooks/useParticipantPreviewLanguage";
 import { Link } from "@/i18n/navigation";
 import type {
   ParticipantEventData,
@@ -18,12 +21,18 @@ export default function BrandingPreview({
 }: BrandingPreviewProps) {
   const t = useTranslations("eventBranding");
   const [device, setDevice] = useState<ParticipantDevice>("desktop");
+  const { content, translation, contentLocale, selectLanguage } =
+    useParticipantPreviewLanguage(data.draft);
   return (
     <section className="min-w-0 space-y-4 p-6 lg:border-s lg:border-event-border dark:lg:border-gray-700">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">
         {t("preview")}
       </h2>
-      <div role="group" aria-label={t("previewMode")} className="flex gap-2">
+      <div
+        role="group"
+        aria-label={t("previewMode")}
+        className="flex flex-wrap items-center gap-2"
+      >
         {(["desktop", "mobile"] as const).map((mode) => (
           <button
             key={mode}
@@ -35,6 +44,13 @@ export default function BrandingPreview({
             {t(mode)}
           </button>
         ))}
+        {content.translations.length > 1 && (
+          <ParticipantPreviewLanguage
+            content={content}
+            value={translation.localeCode}
+            onChange={selectLanguage}
+          />
+        )}
       </div>
       <div className="relative overflow-hidden rounded-xl bg-participant-page p-3 dark:bg-gray-950">
         <div
@@ -43,10 +59,15 @@ export default function BrandingPreview({
             device === "mobile" ? "mx-auto max-w-60" : "mx-auto max-w-md"
           }
         >
-          <ParticipantPreviewViewport {...data} device={device} />
+          <ParticipantPreviewViewport
+            {...data}
+            device={device}
+            contentLocale={contentLocale}
+            readOnly
+          />
         </div>
         <Link
-          href={`/preview/event?device=${device}`}
+          href={participantPreviewHref(device, "branding", contentLocale)}
           onClick={(event) => {
             if (!onOpen()) event.preventDefault();
           }}

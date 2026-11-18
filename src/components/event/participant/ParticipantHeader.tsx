@@ -14,11 +14,13 @@ interface ParticipantHeaderProps {
   branding: EventBranding;
   device: ParticipantDevice;
   readOnly?: boolean;
+  contentLocale?: string;
 }
 export default function ParticipantHeader({
   branding,
   device,
   readOnly = false,
+  contentLocale,
 }: ParticipantHeaderProps) {
   const wordmark = branding.identity === "wordmark" ? branding.wordmark : null;
   const asset =
@@ -85,7 +87,7 @@ export default function ParticipantHeader({
           className="dropdown-toggle flex items-center gap-1 rounded-lg px-2 py-1 text-base text-(--participant-on-primary) hover:bg-white/10 dark:text-(--participant-on-primary) dark:hover:bg-white/10"
         >
           <GlobeAltIcon className="size-4.5" aria-hidden="true" />
-          {locale.toUpperCase()}
+          {(readOnly ? (contentLocale ?? locale) : locale).toUpperCase()}
         </button>
         <Dropdown
           isOpen={open}

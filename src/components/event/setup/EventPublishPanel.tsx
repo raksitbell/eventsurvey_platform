@@ -8,14 +8,14 @@ import EventSetupActions from "@/components/event/setup/EventSetupActions";
 
 import PublishParticipantPreview from "@/components/event/setup/publish/PublishParticipantPreview";
 import Button from "@/components/ui/button/Button";
+import { contentLanguageName } from "@/core/event/content";
 import { selectSetupForms } from "@/core/event/form-summary";
 import { createSavedNavigation } from "@/core/event/draft";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import {
-  loadPublication,
+  loadEventPublication,
   publicationIssues,
-  publicationKey,
-  savePublication,
+  saveEventPublication,
 } from "@/core/event/publication";
 import { useConfirm } from "@/hooks/useConfirm";
 import useEventDraft from "@/hooks/useEventDraft";
@@ -38,10 +38,14 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     userId,
     locale,
   );
-  const key = publicationKey(userId, workspace.eventId, locale);
-  const [receipt] = useState(() =>
-    workspace.localPublishedAt ? loadPublication(key) : null,
-  );
+  const receipt = workspace.localPublishedAt
+    ? loadEventPublication(
+        userId,
+        workspace.eventId,
+        locale,
+        !!workspace.content,
+      )
+    : null;
   const formState = useEventFormSummaries(
     workspace.eventId,
     !receipt && (draft.hasRegistration || draft.hasSurvey),
@@ -62,7 +66,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         : null,
   };
   const issues = publicationIssues(draft, forms);
-  const [published, setPublished] = useState(!!receipt);
+  const published = !!workspace.localPublishedAt;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const save = () => {
@@ -89,7 +93,14 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           title: t("errorTitle"),
           subtitle: t("errorSubtitle"),
           message: t("errorBody"),
-          note: issues.map((issue) => t(`issues.${issue}`)).join("\n"),
+          note: issues
+            .map((issue) => {
+              if (typeof issue === "string") return t(`issues.${issue}`);
+              return t(`issues.${issue.key}`, {
+                language: contentLanguageName(issue.localeCode, locale),
+              });
+            })
+            .join("\n"),
           variant: "danger",
           showCancel: false,
           confirmLabel: t("fix"),
@@ -110,17 +121,16 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         return;
       // Commit one complete local snapshot only after all checks and confirmation.
       if (
-        !savePublication(key, {
+        !(await saveEventPublication(userId, workspace.eventId, locale, {
           publishedAt: new Date().toISOString(),
           draft,
           branding,
           forms,
-        })
+        }))
       ) {
         setError(true);
         return;
       }
-      setPublished(true);
       await confirm({
         appearance: "event",
         title: t("successTitle"),

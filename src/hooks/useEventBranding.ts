@@ -1,6 +1,6 @@
 "use client";
 
-import { loadPublication, publicationKey } from "@/core/event/publication";
+import { loadEventPublication } from "@/core/event/publication";
 import { useState } from "react";
 import {
   defaultEventBranding,
@@ -19,18 +19,20 @@ export default function useEventBranding(
   locale: string,
 ) {
   const readOnly = !canEditLocalEventSetup(workspace);
-  const key = eventBrandingKey(userId, workspace.eventId, locale);
-  const [branding, setBranding] = useState<EventBranding>(
-    () =>
-      (workspace.localPublishedAt
-        ? loadPublication(publicationKey(userId, workspace.eventId, locale))
-            ?.branding
-        : null) ??
-      (readOnly ? { ...defaultEventBranding } : loadEventBranding(key)),
+  const { eventId } = workspace;
+  const key = eventBrandingKey(userId, eventId, locale);
+  const [editedBranding, setBranding] = useState<EventBranding>(() =>
+    readOnly ? { ...defaultEventBranding } : loadEventBranding(key),
   );
   const [status, setStatus] = useState<DraftSaveStatus | "idle">("idle");
+  const readReceipt = () =>
+    loadEventPublication(userId, eventId, locale, !!workspace.content);
+  const branding = readOnly
+    ? ((workspace.localPublishedAt ? readReceipt()?.branding : null) ??
+      defaultEventBranding)
+    : editedBranding;
   const change = (changes: Partial<EventBranding>) => {
-    if (readOnly) return false;
+    if (readOnly || readReceipt()) return false;
     const next = { ...branding, ...changes };
     const result = saveEventBranding(key, next);
     setStatus(result);
@@ -40,6 +42,10 @@ export default function useEventBranding(
   };
   const save = () => {
     if (readOnly) return true;
+    if (readReceipt()) {
+      setStatus("error");
+      return false;
+    }
     const result = saveEventBranding(key, branding);
     setStatus(result);
     return result === "saved";

@@ -59,6 +59,7 @@ function DetailsForm(props: EventSetupPageProps) {
             <EventInformationFields
               statusLabel={statusLabel}
               draft={draft}
+              uiLocale={locale}
               readOnly={readOnly}
               onChange={change}
             />

@@ -12,6 +12,7 @@ interface ParticipantPreviewViewportProps extends ParticipantEventData {
   device: ParticipantDevice;
   fitContent?: boolean;
   readOnly?: boolean;
+  contentLocale?: string | null;
 }
 /** Render the shared screen at its real design viewport, then scale the entire viewport. */
 export default function ParticipantPreviewViewport({

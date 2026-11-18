@@ -1,7 +1,14 @@
 "use client";
 
+import {
+  participantPreviewHref,
+  participantPreviewReturnHref,
+} from "@/core/event/participant";
 import { Link } from "@/i18n/navigation";
-import type { ParticipantDevice } from "@/types/event/participant";
+import type {
+  ParticipantDevice,
+  ParticipantPreviewOrigin,
+} from "@/types/event/participant";
 import {
   ChevronLeftIcon,
   ComputerDesktopIcon,
@@ -12,14 +19,15 @@ import { useTranslations } from "next-intl";
 
 interface ParticipantPreviewToolbarProps {
   device: ParticipantDevice;
-  origin?: "branding" | "publish";
+  origin?: ParticipantPreviewOrigin;
+  contentLocale?: string | null;
 }
 export default function ParticipantPreviewToolbar({
   device,
   origin = "branding",
+  contentLocale,
 }: ParticipantPreviewToolbarProps) {
   const t = useTranslations("eventPreview");
-  const fromPublish = origin === "publish";
   const nextDevice = device === "desktop" ? "mobile" : "desktop";
   const DeviceIcon =
     nextDevice === "mobile" ? DevicePhoneMobileIcon : ComputerDesktopIcon;
@@ -47,14 +55,14 @@ export default function ParticipantPreviewToolbar({
         className="flex shrink-0 items-center justify-end gap-2"
       >
         <Link
-          href={`/preview/event?device=${nextDevice}${fromPublish ? "&from=publish" : ""}`}
+          href={participantPreviewHref(nextDevice, origin, contentLocale)}
           className="inline-flex h-10 items-center justify-center gap-1.5 rounded-preview-control border border-preview-border bg-preview-page px-2.25 text-preview-compact font-semibold text-participant-text @xl/preview:px-3.5 @xl/preview:text-preview-control dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
         >
           <DeviceIcon className="size-4.5" aria-hidden="true" />
           {t(nextDevice)}
         </Link>
         <Link
-          href={fromPublish ? "/event/publish" : "/event/branding"}
+          href={participantPreviewReturnHref(origin, contentLocale)}
           className="inline-flex h-10 items-center justify-center gap-1.5 rounded-preview-control border border-preview-border bg-white px-2.25 text-preview-compact font-semibold text-participant-text @xl/preview:px-3.5 @xl/preview:text-preview-control dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
         >
           <ChevronLeftIcon

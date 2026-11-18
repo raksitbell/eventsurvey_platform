@@ -1,6 +1,7 @@
 import Image from "next/image";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { bannerLayouts } from "@/core/event/banner-layout";
+import { contentLanguageName } from "@/core/event/content";
 import { toBangkokInput } from "@/core/i18n/bangkok-datetime";
 import type { PublishIssue } from "@/core/event/publication";
 import type { EventDraft } from "@/types/event/setup";
@@ -36,13 +37,18 @@ export default function PublishChecklist({
     details = useTranslations("eventHome.details"),
     publish = useTranslations("eventPublish"),
     labels = useTranslations("eventPublishedView");
+  const locale = useLocale();
   const logo =
     branding.identity === "wordmark" ? branding.wordmark : branding.logo;
   const rows = [
     {
       label: details("name"),
       value: draft.eventName,
-      ok: !issues.includes("eventName"),
+      ok: !issues.some(
+        (issue) =>
+          issue === "eventName" ||
+          (typeof issue !== "string" && issue.key === "contentTitle"),
+      ),
     },
     {
       label: details("startsAt"),
@@ -57,7 +63,11 @@ export default function PublishChecklist({
     {
       label: details("location"),
       value: draft.locationName,
-      ok: !issues.includes("location"),
+      ok: !issues.some(
+        (issue) =>
+          issue === "location" ||
+          (typeof issue !== "string" && issue.key === "contentVenue"),
+      ),
     },
     {
       label: setup("bannerRatio"),
@@ -146,14 +156,23 @@ export default function PublishChecklist({
         issues
           .filter(
             (issue) =>
+              typeof issue !== "string" ||
               !["eventName", "eventSchedule", "location"].includes(issue),
           )
           .map((issue) => (
             <p
-              key={issue}
+              key={
+                typeof issue === "string"
+                  ? issue
+                  : `${issue.key}:${issue.localeCode}`
+              }
               className="text-sm text-error-600 dark:text-error-400"
             >
-              {publish("issues." + issue)}
+              {typeof issue === "string"
+                ? publish(`issues.${issue}`)
+                : publish(`issues.${issue.key}`, {
+                    language: contentLanguageName(issue.localeCode, locale),
+                  })}
             </p>
           ))}
     </section>

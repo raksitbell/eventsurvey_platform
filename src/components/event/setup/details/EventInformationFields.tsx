@@ -1,62 +1,86 @@
 "use client";
-import EventLanguageDropdown from "@/components/event/workspace/EventLanguageDropdown";
-import type { Locale } from "@/i18n/routing";
-import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import EventLanguageDropdown from "@/components/event/setup/details/EventLanguageDropdown";
 import DateTimePicker from "@/components/form/DateTimePicker";
+import {
+  emptyEventTranslation,
+  getEventContent,
+  resolveEventTranslation,
+} from "@/core/event/content";
+import type { EventContentTranslation } from "@/types/event/content";
 import type { EventDraft } from "@/types/event/setup";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 interface Props {
   statusLabel: string;
   draft: EventDraft;
+  uiLocale: string;
   readOnly: boolean;
   onChange: (changes: Partial<EventDraft>) => void;
 }
-const emptyContent = {
-  eventName: "",
-  description: "",
-  locationName: "",
-  locationDetail: "",
-};
-
 export default function EventInformationFields({
   draft,
   statusLabel,
+  uiLocale,
   readOnly,
   onChange,
 }: Props) {
   const t = useTranslations("eventHome.details");
   const s = useTranslations("eventSetup");
   const v = useTranslations("eventSetupDesign");
-  const locale = useLocale() as Locale;
-  const [alternate, setAlternate] = useState(false);
-  const contentLocale = alternate ? (locale === "th" ? "en" : "th") : locale;
-  const content = alternate ? (draft.alternateContent ?? emptyContent) : draft;
-  function edit(key: keyof typeof emptyContent, value: string) {
-    if (alternate)
-      onChange({
-        alternateContent: {
-          ...emptyContent,
-          ...draft.alternateContent,
-          [key]: value,
-        },
-      });
-    else onChange({ [key]: value });
+  const [selectedLocale, setSelectedLocale] = useState<string>();
+  const content = getEventContent(draft, uiLocale);
+  const translation = resolveEventTranslation(content, selectedLocale);
+  const localizedInput = {
+    lang: translation.localeCode,
+    dir: "auto",
+    readOnly,
+  };
+
+  function edit(
+    key: Exclude<keyof EventContentTranslation, "localeCode">,
+    value: string,
+  ) {
+    onChange({
+      content: {
+        ...content,
+        translations: content.translations.map((item) =>
+          item.localeCode === translation.localeCode
+            ? { ...item, [key]: value }
+            : item,
+        ),
+      },
+    });
+  }
+  function add(localeCode: string) {
+    if (
+      readOnly ||
+      content.translations.some((item) => item.localeCode === localeCode)
+    )
+      return;
+    onChange({
+      content: {
+        ...content,
+        translations: [
+          ...content.translations,
+          emptyEventTranslation(localeCode),
+        ],
+      },
+    });
+    setSelectedLocale(localeCode);
   }
   return (
     <section className="es-info">
       <header className="es-info-heading">
         <h1 className="es-icon-label es-info-title">{t("information")}</h1>
         <EventLanguageDropdown
-          label={s("contentLanguage")}
-          value={contentLocale}
-          onChange={(language) => setAlternate(language !== locale)}
-          className="es-info-language"
-        >
-          <span>{v(contentLocale === "th" ? "languageTh" : "languageEn")}</span>
-          <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
-        </EventLanguageDropdown>
+          content={content}
+          selected={translation.localeCode}
+          uiLocale={uiLocale}
+          readOnly={readOnly}
+          onSelect={setSelectedLocale}
+          onAdd={add}
+        />
         <span className="es-info-status">
           <i aria-hidden="true" />
           {statusLabel}
@@ -68,10 +92,11 @@ export default function EventInformationFields({
           className="event-input"
           id="event-name"
           placeholder={v("namePlaceholder")}
-          value={content.eventName}
+          value={translation.title}
           maxLength={255}
-          readOnly={readOnly}
-          onChange={(e) => edit("eventName", e.target.value)}
+          {...localizedInput}
+          aria-required="true"
+          onChange={(e) => edit("title", e.target.value)}
         />
       </label>
       <label className="es-field es-description" htmlFor="event-description">
@@ -80,9 +105,9 @@ export default function EventInformationFields({
           className="event-input"
           id="event-description"
           placeholder={v("descriptionPlaceholder")}
-          value={content.description ?? ""}
+          value={translation.description ?? ""}
           maxLength={5000}
-          readOnly={readOnly}
+          {...localizedInput}
           onChange={(e) => edit("description", e.target.value)}
         />
       </label>
@@ -110,8 +135,9 @@ export default function EventInformationFields({
             id="event-location"
             placeholder={v("venuePlaceholder")}
             maxLength={500}
-            readOnly={readOnly}
-            value={content.locationName ?? ""}
+            {...localizedInput}
+            aria-required="true"
+            value={translation.locationName ?? ""}
             onChange={(e) => edit("locationName", e.target.value)}
           />
         </label>
@@ -122,9 +148,9 @@ export default function EventInformationFields({
             id="event-zone"
             placeholder={v("zonePlaceholder")}
             maxLength={500}
-            readOnly={readOnly}
-            value={content.locationDetail ?? ""}
-            onChange={(e) => edit("locationDetail", e.target.value)}
+            {...localizedInput}
+            value={translation.floorZone ?? ""}
+            onChange={(e) => edit("floorZone", e.target.value)}
           />
         </label>
       </div>

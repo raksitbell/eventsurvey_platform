@@ -1,5 +1,6 @@
 import type { MockEventStatus } from "@/types/mock";
 import type { UserRole } from "@/types/user";
+import type { EventContent } from "@/types/event/content";
 
 export interface EventWorkspace {
   eventId: string;
@@ -8,6 +9,7 @@ export interface EventWorkspace {
   /** Browser-only publication receipt; never sent to BFF. */
   localPublishedAt?: string;
   eventName: string;
+  content?: EventContent;
   eventStatus: MockEventStatus;
   userRole: UserRole;
   customRoleName: string | null;
@@ -21,6 +23,7 @@ export interface EventWorkspace {
   subUserCount: number;
   subUsers: { id: string; name: string }[];
   locationName: string | null;
+  locationDetail?: string;
   registrationCapacity?: number | null;
   surveyCapacity?: number | null;
   canEditEvent: boolean;

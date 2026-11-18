@@ -1,5 +1,6 @@
 import { canEditLocalEventSetup, restoreEventDraft } from "@/core/event/draft";
-import { loadPublication, publicationKey } from "@/core/event/publication";
+import { projectEventContent } from "@/core/event/content";
+import { loadEventPublication } from "@/core/event/publication";
 import type { EventWorkspace } from "@/types/event/workspace";
 
 /** An unpublished local setup is Draft even when the assigned server event is already open. */
@@ -18,14 +19,21 @@ export function restoreLocalEventWorkspace(
   locale: string,
 ): EventWorkspace {
   const publication = canEditLocalEventSetup(workspace)
-    ? loadPublication(publicationKey(userId, workspace.eventId, locale))
+    ? loadEventPublication(
+        userId,
+        workspace.eventId,
+        locale,
+        !!workspace.content,
+      )
     : null;
-  const restored = restoreEventDraft(workspace, userId, locale);
   return publication
-    ? {
-        ...restored,
-        ...publication.draft,
-        localPublishedAt: publication.publishedAt,
-      }
-    : restored;
+    ? projectEventContent(
+        {
+          ...workspace,
+          ...publication.draft,
+          localPublishedAt: publication.publishedAt,
+        },
+        locale,
+      )
+    : restoreEventDraft(workspace, userId, locale);
 }

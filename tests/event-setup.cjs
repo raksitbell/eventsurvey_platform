@@ -26,8 +26,15 @@ function load(relative) {
   return mod.exports;
 }
 const { normalizeEventAccess } = load("src/core/event/access.ts");
-const { eventDraftKey, eventDraftSchema, restoreEventDraft, saveEventDraft } =
+const { eventDraftKey, eventDraftV2Key, eventDraftSchema, restoreEventDraft, saveEventDraft } =
   load("src/core/event/draft.ts");
+const {
+  emptyEventTranslation,
+  eventContentSchema,
+  getEventContent,
+  normalizeContentLocale,
+  resolveEventTranslation,
+} = load("src/core/event/content.ts");
 const { fromBangkokInput, toBangkokInput } = load(
   "src/core/i18n/bangkok-datetime.ts",
 );
@@ -244,6 +251,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
       return {
         id: "event-a",
         slug: "event",
+        default_locale: "TH",
         status: "draft",
         start_at: "2026-11-09T02:00:00Z",
         end_at: "2026-11-09T10:00:00Z",
@@ -257,6 +265,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
         {
           event_id: "event-a",
           locale_code: "th",
+          display_order: 1,
           title: "กิจกรรม",
           description: "รายละเอียด",
           location_name: "กรุงเทพ",
@@ -264,9 +273,19 @@ test("workspace binding returns localized safe DTOs and only active assistants",
         {
           event_id: "event-a",
           locale_code: "en",
+          display_order: 3,
           title: "Event",
           description: "Description",
           location_name: "Bangkok",
+        },
+        {
+          event_id: "event-a",
+          locale_code: "FR",
+          display_order: 2,
+          title: "Salon",
+          description: null,
+          location_name: "Bangkok",
+          floor_zone: "2e étage",
         },
       ];
     if (url.pathname === "/roles")
@@ -288,6 +307,12 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   const { getEventWorkspace } = load("src/services/event/workspace.ts");
   const workspace = await getEventWorkspace("owner", "th");
   assert.equal(workspace.eventName, "กิจกรรม");
+  assert.equal(workspace.content.defaultLocale, "th");
+  assert.deepEqual(
+    workspace.content.translations.map(({ localeCode }) => localeCode),
+    ["th", "fr", "en"],
+  );
+  assert.equal(workspace.content.translations[1].floorZone, "2e étage");
   assert.equal(workspace.registrationCapacity, 200);
   assert.equal(workspace.canEditEvent, true);
   assert.deepEqual(workspace.subUsers, [
@@ -860,8 +885,10 @@ test("Color Picker translations have matching nested keys", () => {
   assert.equal(th.done, "เสร็จสิ้น");
 });
 
-const { publicationIssues, publicationKey, savePublication, loadPublication } =
-  load("src/core/event/publication.ts");
+const {
+  publicationIssues, publicationKey, publicationV2Key, savePublication,
+  saveEventPublication, loadEventPublication, loadPublication,
+} = load("src/core/event/publication.ts");
 const { canEditLocalEventSetup } = load("src/core/event/draft.ts");
 const { setupFormStatus, selectSetupForms } = load(
   "src/core/event/form-summary.ts",
@@ -1622,6 +1649,7 @@ function setupStep(kind, options = {}) {
     "@/components/event/setup/EventSetupActions": { default: setupActions },
     "@/components/ui/button/Button": { default: setupButton },
     "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
+    "@/core/event/content": load("src/core/event/content.ts"),
     "@/core/event/draft": load("src/core/event/draft.ts"),
     "@/core/event/publication": load("src/core/event/publication.ts"),
     "@/hooks/useEventDraft": {
@@ -1855,11 +1883,20 @@ test("Publish does not create a receipt or report success after cancellation, st
 
 test("Publish Full Preview link only navigates after its local save succeeds", () => {
   const Viewport = () => null;
+  const content = getEventContent(seed, "th");
   const Preview = compileSetupComponent(
     "src/components/event/setup/publish/PublishParticipantPreview.tsx",
     {
       "@/components/event/participant/ParticipantPreviewViewport": {
         default: Viewport,
+      },
+      "@/components/event/participant/ParticipantPreviewLanguage": { default: () => null },
+      "@/core/event/participant": load("src/core/event/participant.ts"),
+      "@/hooks/useParticipantPreviewLanguage": {
+        default: () => ({
+          content, translation: content.translations[0], contentLocale: "th",
+          selectLanguage() {},
+        }),
       },
       "@/i18n/navigation": { Link: () => null },
       "next-intl": { useTranslations: () => (key) => key },
@@ -1880,10 +1917,11 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
     const viewport = findSetupElement(screen, (node) => node.type === Viewport);
     assert.equal(viewport.props.device, "desktop");
     assert.equal(viewport.props.readOnly, true);
+    assert.equal(viewport.props.contentLocale, "th");
     const link = findSetupElement(screen, (node) =>
       node.props?.href?.startsWith("/preview/event"),
     );
-    assert.equal(link.props.href, "/preview/event?from=publish");
+    assert.equal(link.props.href, "/preview/event?device=desktop&from=publish&lang=th");
     link.props.onClick({
       preventDefault() {
         prevented = true;
@@ -1900,9 +1938,10 @@ test("Event information configuration preserves field bindings, limits, labels, 
     "src/components/event/setup/details/EventInformationFields.tsx",
     {
       "@/components/form/DateTimePicker": { default: placeholder },
-      "@/components/event/workspace/EventLanguageDropdown": {
+      "@/components/event/setup/details/EventLanguageDropdown": {
         default: placeholder,
       },
+      "@/core/event/content": load("src/core/event/content.ts"),
       "@/components/form/Label": { default: placeholder },
       "@/components/form/input/InputField": { default: placeholder },
       react: { useState: (v) => [v, () => {}] },
@@ -1916,13 +1955,15 @@ test("Event information configuration preserves field bindings, limits, labels, 
     const changes = [];
     const screen = Fields({
       draft: seed,
+      uiLocale: "th",
       readOnly,
       onChange: (value) => changes.push(value),
     });
-    for (const [field, id, maxLength] of [
-      ["eventName", "event-name", 255],
-      ["description", "event-description", 5000],
-      ["locationName", "event-location", 500],
+    for (const [field, id, maxLength, source] of [
+      ["title", "event-name", 255, "eventName"],
+      ["description", "event-description", 5000, "description"],
+      ["locationName", "event-location", 500, "locationName"],
+      ["floorZone", "event-zone", 500, "locationDetail"],
       ["startsAt", "event-start"],
       ["endsAt", "event-end"],
     ]) {
@@ -1930,12 +1971,13 @@ test("Event information configuration preserves field bindings, limits, labels, 
       assert.equal(input.props.readOnly, readOnly);
       if (maxLength) {
         assert.equal(input.props.maxLength, maxLength);
-        assert.equal(input.props.value, seed[field] ?? "");
+        assert.equal(input.props.value, seed[source] ?? "");
         assert.ok(
           findSetupElement(screen, (node) => node.props?.htmlFor === id),
         );
         input.props.onChange({ target: { value: "Updated" } });
-        assert.deepEqual(changes.at(-1), { [field]: "Updated" });
+        assert.equal(changes.at(-1).content.translations[0][field], "Updated");
+        assert.equal(changes.at(-1).content.translations[0].localeCode, "th");
       } else {
         assert.equal(input.props.value, null);
         input.props.onChange("2027-01-01T03:00:00.000Z");
@@ -2164,5 +2206,317 @@ test("the published workspace exposes Team navigation to owners only and highlig
   assert.equal(
     findSetupElement(render("event_owner", null, "/event"), team),
     null,
+  );
+});
+
+function multilingualDraft() {
+  return {
+    ...publishDraft,
+    hasRegistration: false,
+    hasSurvey: false,
+    surveyAccess: null,
+    content: {
+      defaultLocale: "th",
+      translations: [
+        {
+          ...emptyEventTranslation("th"),
+          title: "งานหนังสือ",
+          locationName: "กรุงเทพ",
+        },
+        {
+          ...emptyEventTranslation("en"),
+          title: "Book Fair",
+          locationName: "Bangkok",
+        },
+        {
+          ...emptyEventTranslation("ko"),
+          title: "도서전",
+          locationName: "방콕",
+          floorZone: "2층",
+        },
+      ],
+    },
+  };
+}
+
+test("Event content accepts ISO 639-1 languages, normalizes casing, and rejects duplicates and invalid defaults", () => {
+  assert.equal(normalizeContentLocale(" DE "), "de");
+  for (const bad of ["jp", "ZZ", "fr-CA", "deu", "", null, ["ko"]])
+    assert.equal(normalizeContentLocale(bad), null);
+  const { content } = multilingualDraft();
+  const last = content.translations.at(-1);
+  assert.equal(
+    eventContentSchema.parse({
+      ...content,
+      defaultLocale: "KO",
+      translations: [
+        ...content.translations.slice(0, -1),
+        { ...last, localeCode: "KO" },
+      ],
+    }).defaultLocale,
+    "ko",
+  );
+  assert.equal(
+    eventContentSchema.safeParse({
+      ...content,
+      translations: [...content.translations, { ...last, localeCode: "KO" }],
+    }).success,
+    false,
+  );
+  assert.equal(
+    eventContentSchema.safeParse({ ...content, defaultLocale: "de" }).success,
+    false,
+  );
+  assert.equal(resolveEventTranslation(content, "KO").floorZone, "2층");
+  assert.equal(resolveEventTranslation(content, "fr").title, "งานหนังสือ");
+  assert.equal(resolveEventTranslation(content, "en").floorZone, null);
+});
+
+test("Shared Draft restores every language across portal locales and responds to scoped save and storage events", (t) => {
+  const values = storage(t);
+  const target = setupWindow(t);
+  const base = multilingualDraft();
+  const key = eventDraftV2Key("owner", seed.eventId);
+  let restored;
+  const unsubscribe = subscribeToEventSetup([key], () => {
+    restored = restoreLocalEventWorkspace(base, "owner", "en");
+  });
+  t.after(unsubscribe);
+  const draft = {
+    ...base,
+    content: {
+      ...base.content,
+      translations: [...base.content.translations, emptyEventTranslation("de")],
+    },
+  };
+  assert.equal(saveEventDraft(key, draft), "saved");
+  assert.equal(restored.eventName, "Book Fair");
+  assert.equal(restored.content.translations.at(-1).localeCode, "de");
+  assert.equal(
+    restoreLocalEventWorkspace(base, "owner", "th").eventName,
+    "งานหนังสือ",
+  );
+  assert.equal(
+    restoreLocalEventWorkspace(base, "other-user", "en").content.translations
+      .length,
+    3,
+  );
+  assert.equal(
+    restoreLocalEventWorkspace({ ...base, eventId: "other" }, "owner", "en")
+      .content.translations.length,
+    3,
+  );
+  const invalid = {
+    ...draft,
+    content: { ...draft.content, defaultLocale: "zz" },
+  };
+  assert.equal(saveEventDraft(key, invalid), "invalid");
+  assert.equal(restored.content.translations.length, 4);
+  values.set(key, JSON.stringify(base));
+  dispatchStorage(target, key, globalThis.localStorage);
+  assert.equal(restored.content.translations.length, 3);
+});
+
+test("V1 Draft migration keeps localized text and uses the default locale copy for shared settings", (t) => {
+  const values = storage(t);
+  const base = multilingualDraft();
+  const thKey = eventDraftKey("owner", seed.eventId, "th");
+  const enKey = eventDraftKey("owner", seed.eventId, "en");
+  assert.equal(
+    saveEventDraft(thKey, {
+      ...publishDraft,
+      isPrivate: true,
+      eventName: "แก้ภาษาไทย",
+    }),
+    "saved",
+  );
+  assert.equal(
+    saveEventDraft(enKey, {
+      ...publishDraft,
+      isPrivate: false,
+      eventName: "Edited English",
+    }),
+    "saved",
+  );
+  const originals = [values.get(thKey), values.get(enKey)];
+  const restored = restoreEventDraft(base, "owner", "en");
+  assert.equal(restored.eventName, "Edited English");
+  assert.equal(restored.isPrivate, true);
+  assert.equal(
+    resolveEventTranslation(restored.content, "th").title,
+    "แก้ภาษาไทย",
+  );
+  assert.equal(
+    resolveEventTranslation(restored.content, "ko").floorZone,
+    "2층",
+  );
+  assert.deepEqual([values.get(thKey), values.get(enKey)], originals);
+});
+
+test("V1 fallback text does not manufacture a new translation when only shared settings were saved", (t) => {
+  storage(t);
+  const base = multilingualDraft();
+  base.content.translations.splice(1, 1);
+  const thai = resolveEventTranslation(base.content, "th");
+  const legacy = {
+    ...publishDraft,
+    isPrivate: true,
+    eventName: thai.title,
+    description: thai.description,
+    locationName: thai.locationName,
+  };
+  assert.equal(
+    saveEventDraft(eventDraftKey("owner", seed.eventId, "en"), legacy),
+    "saved",
+  );
+  const restored = restoreEventDraft(base, "owner", "th");
+  assert.equal(restored.isPrivate, true);
+  assert.deepEqual(
+    restored.content.translations.map(({ localeCode }) => localeCode),
+    ["th", "ko"],
+  );
+});
+
+test("Legacy bilingual records restore their actual alternate text and floor or zone", (t) => {
+  storage(t);
+  const base = multilingualDraft();
+  const legacy = {
+    ...publishDraft,
+    eventName: "งานไทย",
+    locationName: "กรุงเทพ",
+    locationDetail: "ชั้น 1",
+    alternateContent: {
+      eventName: "Previously entered English",
+      description: "English event description",
+      locationName: "Bangkok",
+      locationDetail: "Hall A",
+    },
+  };
+  assert.equal(
+    saveEventDraft(eventDraftKey("owner", seed.eventId, "th"), legacy),
+    "saved",
+  );
+  const restored = restoreEventDraft(base, "owner", "en");
+  assert.equal(restored.eventName, "Previously entered English");
+  assert.equal(restored.locationDetail, "Hall A");
+  assert.equal(resolveEventTranslation(restored.content, "th").floorZone, "ชั้น 1");
+  assert.equal(
+    saveEventDraft(eventDraftKey("owner", seed.eventId, "en"), {
+      ...publishDraft,
+      eventName: "Explicit English draft",
+      locationName: "Bangkok",
+      locationDetail: "Hall B",
+    }),
+    "saved",
+  );
+  const explicit = restoreEventDraft(base, "owner", "en");
+  assert.equal(explicit.eventName, "Explicit English draft");
+  assert.equal(explicit.locationDetail, "Hall B");
+});
+
+test("Publishing reports missing fields per language and freezes the full multilingual content", async (t) => {
+  storage(t);
+  const base = multilingualDraft();
+  const forms = { registration: null, survey: null };
+  const incomplete = {
+    ...base,
+    content: {
+      ...base.content,
+      translations: [...base.content.translations, emptyEventTranslation("de")],
+    },
+  };
+  assert.deepEqual(publicationIssues(incomplete, forms), [
+    { key: "contentTitle", localeCode: "de" },
+    { key: "contentVenue", localeCode: "de" },
+  ]);
+  const receipt = {
+    publishedAt: "2027-01-01T01:00:00.000Z",
+    draft: base,
+    branding: defaultEventBranding,
+    forms,
+  };
+  assert.equal(
+    await saveEventPublication("owner", seed.eventId, "en", {
+      ...receipt,
+      draft: incomplete,
+    }),
+    false,
+  );
+  assert.equal(
+    await saveEventPublication("owner", seed.eventId, "en", receipt),
+    true,
+  );
+  assert.equal(
+    await saveEventPublication("owner", seed.eventId, "th", receipt),
+    false,
+  );
+  assert.deepEqual(
+    loadPublication(publicationV2Key("owner", seed.eventId)).draft.content,
+    base.content,
+  );
+  saveEventDraft(eventDraftV2Key("owner", seed.eventId), incomplete);
+  const published = restoreLocalEventWorkspace(base, "owner", "th");
+  assert.equal(published.eventStatus, base.eventStatus);
+  assert.equal(published.localPublishedAt, receipt.publishedAt);
+  assert.equal(canEditLocalEventSetup(published), false);
+  assert.equal(
+    restoreLocalEventWorkspace(base, "owner", "en").eventName,
+    "Book Fair",
+  );
+  assert.equal(loadEventPublication("other-user", seed.eventId, "en"), null);
+  assert.deepEqual(published.content, base.content);
+});
+
+test("Legacy publication remains frozen and available to the shared setup across UI locales", (t) => {
+  const values = storage(t);
+  const base = multilingualDraft();
+  const key = publicationKey("owner", seed.eventId, "en");
+  const { content, ...legacy } = base;
+  const receipt = {
+    publishedAt: "2027-01-01T01:00:00.000Z",
+    draft: { ...legacy, eventName: "Originally published" },
+    branding: defaultEventBranding,
+    forms: { registration: null, survey: null },
+  };
+  values.set(key, JSON.stringify(receipt));
+  const raw = values.get(key);
+  const published = restoreLocalEventWorkspace(
+    { ...base, content },
+    "owner",
+    "th",
+  );
+  assert.equal(published.eventName, "Originally published");
+  assert.equal(published.localPublishedAt, receipt.publishedAt);
+  assert.equal(canEditLocalEventSetup(published), false);
+  assert.deepEqual(
+    published.content.translations.map(({ localeCode }) => localeCode),
+    ["en"],
+  );
+  assert.equal(values.get(key), raw);
+});
+
+test("Full Preview keeps valid content language through both devices and bounded origins", () => {
+  const { participantPreviewHref, participantPreviewReturnHref } = load(
+    "src/core/event/participant.ts",
+  );
+  assert.equal(
+    participantPreviewHref("mobile", "publish", " DE "),
+    "/preview/event?device=mobile&from=publish&lang=de",
+  );
+  assert.equal(
+    participantPreviewHref("desktop", "branding", "ko"),
+    "/preview/event?device=desktop&lang=ko",
+  );
+  assert.equal(
+    participantPreviewHref("desktop", "publish", "zz"),
+    "/preview/event?device=desktop&from=publish",
+  );
+  assert.equal(
+    participantPreviewReturnHref("branding", "fr"),
+    "/event/branding?lang=fr",
+  );
+  assert.equal(
+    participantPreviewReturnHref("publish", "en-CA"),
+    "/event/publish",
   );
 });

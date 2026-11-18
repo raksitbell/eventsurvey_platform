@@ -9,7 +9,7 @@ import EventSetupBoundary, {
 } from "@/components/event/setup/EventSetupBoundary";
 import Button from "@/components/ui/button/Button";
 import { api } from "@/core/api";
-import { loadPublication, publicationKey } from "@/core/event/publication";
+import { loadEventPublication } from "@/core/event/publication";
 import useEventDisplayDate from "@/hooks/useEventDisplayDate";
 import { Link } from "@/i18n/navigation";
 import type { EventShareResponse } from "@/types/event/public-event";
@@ -289,7 +289,12 @@ function ShareLinksSection() {
 function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventSetup");
   const local = workspace.localPublishedAt
-    ? loadPublication(publicationKey(userId, workspace.eventId, locale))
+    ? loadEventPublication(
+        userId,
+        workspace.eventId,
+        locale,
+        !!workspace.content,
+      )
     : null;
   if (
     !local &&
@@ -301,7 +306,6 @@ function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
         {t("backWorkspace")}
       </Link>
     );
-  const data = local?.draft ?? workspace;
   return (
     <article className="published-event published-event--qr">
       <PublicationHeading
@@ -309,7 +313,7 @@ function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
         closed={workspace.eventStatus === "closed" && !local}
       />
       <PublishedEventSummary
-        draft={data}
+        draft={workspace}
         branding={local?.branding}
         bannerUrl={workspace.bannerUrl}
       />

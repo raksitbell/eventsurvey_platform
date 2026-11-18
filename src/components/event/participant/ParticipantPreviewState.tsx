@@ -1,19 +1,26 @@
 "use client";
 
 import ParticipantPreviewToolbar from "@/components/event/participant/ParticipantPreviewToolbar";
-import type { ParticipantDevice } from "@/types/event/participant";
+import type {
+  ParticipantDevice,
+  ParticipantPreviewOrigin,
+} from "@/types/event/participant";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 
 interface ParticipantPreviewStateProps {
   device: ParticipantDevice;
-  origin?: "branding" | "publish";
+  origin?: ParticipantPreviewOrigin;
+  contentLocale?: string | null;
+  languageControl?: ReactNode;
   children: ReactNode;
 }
 export default function ParticipantPreviewState({
   device,
   origin = "branding",
+  contentLocale,
+  languageControl,
   children,
 }: ParticipantPreviewStateProps) {
   const t = useTranslations("eventPreview");
@@ -25,7 +32,16 @@ export default function ParticipantPreviewState({
     <div
       className={`@container/preview mx-auto flex h-dvh w-full flex-col overflow-hidden bg-white dark:bg-gray-950 ${device === "mobile" ? "max-w-participant-mobile" : "max-w-participant-desktop"}`}
     >
-      <ParticipantPreviewToolbar device={device} origin={origin} />
+      <ParticipantPreviewToolbar
+        device={device}
+        origin={origin}
+        contentLocale={contentLocale}
+      />
+      {languageControl && (
+        <div className="flex shrink-0 justify-end border-b border-preview-border bg-preview-page px-3 py-1.5 @xl/preview:px-6 dark:border-gray-700 dark:bg-gray-900">
+          {languageControl}
+        </div>
+      )}
       <div
         ref={viewport}
         role="region"

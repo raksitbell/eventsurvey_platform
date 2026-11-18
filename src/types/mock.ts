@@ -136,6 +136,7 @@ export interface MockEventTranslation {
   title: string;
   description: string | null;
   location_name: string | null;
+  floor_zone?: string | null;
   address_text: string | null;
   created_at: string;
   updated_at: string;

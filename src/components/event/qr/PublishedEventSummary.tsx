@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { resolveEventTranslation } from "@/core/event/content";
 import type { EventBranding } from "@/types/event/branding";
 import type { EventDraft } from "@/types/event/setup";
 import WorkspaceIcon from "@/components/event/workspace/WorkspaceIcon";
@@ -46,8 +47,17 @@ export default function PublishedEventSummary({
 }: PublishedDataProps) {
   const t = useTranslations("eventPublishedView");
   const setup = useTranslations("eventSetup");
+  const locale = useLocale();
   const date = useEventDisplayDate();
   const src = branding?.banner?.url ?? bannerUrl;
+  const content = draft.content;
+  const active = content ? resolveEventTranslation(content, locale) : null;
+  const alternate = content?.translations.find(
+    (row) => row.localeCode !== active?.localeCode && row.title.trim(),
+  );
+  const secondaryTitle = content
+    ? alternate?.title
+    : draft.alternateContent?.eventName;
   return (
     <div className="published-event__summary">
       <div className="published-event__banner">
@@ -65,8 +75,10 @@ export default function PublishedEventSummary({
       </div>
       <div className="published-event__identity">
         <h2>{draft.eventName || setup("unnamed")}</h2>
-        {draft.alternateContent?.eventName && (
-          <p>{draft.alternateContent.eventName}</p>
+        {secondaryTitle && (
+          <p lang={alternate?.localeCode} dir="auto">
+            {secondaryTitle}
+          </p>
         )}
         <div className="published-event__label">
           <WorkspaceIcon name="icon-outline-user-group" size={16} />

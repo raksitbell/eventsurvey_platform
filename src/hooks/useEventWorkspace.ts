@@ -2,8 +2,12 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
-import { publicationKey } from "@/core/event/publication";
-import { eventDraftKey } from "@/core/event/draft";
+import { publicationKey, publicationV2Key } from "@/core/event/publication";
+import {
+  eventDraftKey,
+  eventDraftV2Key,
+  legacyEventSetupLocales,
+} from "@/core/event/draft";
 import { subscribeToEventSetup } from "@/core/event/local-events";
 import { restoreLocalEventWorkspace } from "@/core/event/workspace";
 import type { EventWorkspace } from "@/types/event/workspace";
@@ -42,14 +46,23 @@ export default function useEventWorkspace() {
             identity,
           });
         };
-        if (workspace)
+        if (workspace) {
+          const eventId = workspace.eventId;
+          const legacyLocales = workspace.content
+            ? legacyEventSetupLocales
+            : [locale];
           unsubscribe = subscribeToEventSetup(
             [
-              eventDraftKey(userId, workspace.eventId, locale),
-              publicationKey(userId, workspace.eventId, locale),
+              eventDraftV2Key(userId, eventId),
+              publicationV2Key(userId, eventId),
+              ...legacyLocales.flatMap((language) => [
+                eventDraftKey(userId, eventId, language),
+                publicationKey(userId, eventId, language),
+              ]),
             ],
             refreshLocalSetup,
           );
+        }
         refreshLocalSetup();
       })
       .catch(() => {

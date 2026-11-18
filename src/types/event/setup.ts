@@ -2,9 +2,11 @@ import type { EventWorkspace } from "@/types/event/workspace";
 
 export type EventDraft = Pick<
   EventWorkspace,
+  | "content"
   | "eventName"
   | "description"
   | "locationName"
+  | "locationDetail"
   | "startsAt"
   | "endsAt"
   | "isPrivate"
@@ -14,7 +16,6 @@ export type EventDraft = Pick<
   | "registrationCapacity"
   | "surveyCapacity"
 > & {
-  locationDetail?: string;
   surveyCloseMode?: "event" | "week" | "fortnight" | "custom";
   surveyCustomClose?: string | null;
   alternateContent?: {

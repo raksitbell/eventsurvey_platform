@@ -1,6 +1,11 @@
 import { z } from "zod";
-import { eventDraftSchema } from "@/core/event/draft";
+import {
+  eventDraftSchema,
+  legacyDraftContent,
+  legacyEventSetupLocales,
+} from "@/core/event/draft";
 import { eventBrandingSchema } from "@/core/event/branding";
+import { projectEventContent } from "@/core/event/content";
 import { notifyEventSetupSaved } from "@/core/event/local-events";
 import type { EventDraft } from "@/types/event/setup";
 import type { FormType } from "@/types/event/form";
@@ -132,6 +137,10 @@ export function publicationKey(
 ) {
   return `eventsurvey:event-publication:v1:${userId}:${eventId}:${locale}`;
 }
+export function publicationV2Key(userId: string, eventId: string) {
+  return `eventsurvey:event-publication:v2:${encodeURIComponent(userId)}:${encodeURIComponent(eventId)}`;
+}
+
 export function loadPublication(key: string): LocalPublication | null {
   try {
     const raw = globalThis.localStorage.getItem(key);
@@ -142,6 +151,42 @@ export function loadPublication(key: string): LocalPublication | null {
     return null;
   }
 }
+
+export function loadEventPublication(
+  userId: string,
+  eventId: string,
+  locale: string,
+  multilingual = true,
+): LocalPublication | null {
+  const shared = loadPublication(publicationV2Key(userId, eventId));
+  if (shared?.draft.content) return shared;
+  if (!multilingual)
+    return loadPublication(publicationKey(userId, eventId, locale));
+
+  // Both old locale keys could contain receipts. Keep the first publication
+  // authoritative across portal locales and never merge draft text into it.
+  const legacy = legacyEventSetupLocales
+    .flatMap((language) => {
+      const receipt = loadPublication(
+        publicationKey(userId, eventId, language),
+      );
+      return receipt ? [{ language, receipt }] : [];
+    })
+    .sort(
+      (a, b) =>
+        Date.parse(a.receipt.publishedAt) - Date.parse(b.receipt.publishedAt),
+    )[0];
+  if (!legacy) return null;
+  const { receipt, language } = legacy;
+  return {
+    ...receipt,
+    draft: {
+      ...receipt.draft,
+      content: legacyDraftContent(receipt.draft, language),
+    },
+  };
+}
+
 export function savePublication(key: string, value: unknown): boolean {
   const parsed = publicationSchema.safeParse(value);
   if (
@@ -151,14 +196,46 @@ export function savePublication(key: string, value: unknown): boolean {
   )
     return false;
   try {
-    globalThis.localStorage.setItem(key, JSON.stringify(parsed.data));
+    globalThis.localStorage.setItem(
+      key,
+      JSON.stringify({
+        ...parsed.data,
+        draft: projectEventContent(parsed.data.draft),
+      }),
+    );
     notifyEventSetupSaved(key);
     return true;
   } catch {
     return false;
   }
 }
-export type PublishIssue =
+
+export async function saveEventPublication(
+  userId: string,
+  eventId: string,
+  locale: string,
+  value: Omit<LocalPublication, "forms"> & { forms: MinimalForms },
+): Promise<boolean> {
+  const sharedKey = publicationV2Key(userId, eventId);
+  const multilingual = !!value.draft.content;
+  const key = multilingual
+    ? sharedKey
+    : publicationKey(userId, eventId, locale);
+  const write = () =>
+    !loadEventPublication(userId, eventId, locale, multilingual) &&
+    savePublication(key, value);
+
+  // Hold a single browser lock across the receipt check and write when Web
+  // Locks are available. Both operations stay synchronous inside the lock.
+  try {
+    const locks = globalThis.navigator?.locks;
+    return locks ? await locks.request(sharedKey, write) : write();
+  } catch {
+    return false;
+  }
+}
+
+type SharedPublishIssue =
   | "eventName"
   | "location"
   | "eventSchedule"
@@ -167,14 +244,33 @@ export type PublishIssue =
   | "uniqueField"
   | "whitelist"
   | "capacity";
+export type PublishIssue =
+  | SharedPublishIssue
+  | { key: "contentTitle" | "contentVenue"; localeCode: string };
 /** Validate read-only BFF form definitions; form editing belongs to the Form team's branch. */
 export function publicationIssues(
   draft: EventDraft,
   forms: MinimalForms,
 ): PublishIssue[] {
-  const issues = new Set<PublishIssue>();
-  if (!draft.locationName?.trim()) issues.add("location");
-  if (!draft.eventName.trim()) issues.add("eventName");
+  const issues = new Set<SharedPublishIssue>();
+  const languageIssues: PublishIssue[] = [];
+  if (draft.content) {
+    for (const row of draft.content.translations) {
+      if (!row.title.trim())
+        languageIssues.push({
+          key: "contentTitle",
+          localeCode: row.localeCode,
+        });
+      if (!row.locationName?.trim())
+        languageIssues.push({
+          key: "contentVenue",
+          localeCode: row.localeCode,
+        });
+    }
+  } else {
+    if (!draft.locationName?.trim()) issues.add("location");
+    if (!draft.eventName.trim()) issues.add("eventName");
+  }
   if (
     !draft.startsAt ||
     !draft.endsAt ||
@@ -248,5 +344,5 @@ export function publicationIssues(
   ])
     if (capacity != null && (!Number.isInteger(capacity) || capacity <= 0))
       issues.add("capacity");
-  return [...issues];
+  return [...languageIssues, ...issues];
 }

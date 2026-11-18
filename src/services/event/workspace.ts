@@ -1,9 +1,15 @@
 import { mockApi } from "@/core/api/mock-client";
-import { resolveEventTitle } from "@/core/mock/event-title";
+import {
+  eventContentSchema,
+  getEventContent,
+  normalizeContentLocale,
+  resolveEventTranslation,
+} from "@/core/event/content";
 import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import { routing, type Locale } from "@/i18n/routing";
 import type { EventWorkspace } from "@/types/event/workspace";
+import type { EventContent } from "@/types/event/content";
 import type {
   MockEvent,
   MockEventBanner,
@@ -12,6 +18,51 @@ import type {
   MockRole,
   MockUser,
 } from "@/types/mock";
+
+function bindEventContent(
+  event: MockEvent,
+  rows: MockEventTranslation[],
+): EventContent {
+  const translations: EventContent["translations"] = [];
+  const seen = new Set<string>();
+  for (const row of [...rows].sort(
+    (a, b) => (a.display_order ?? Infinity) - (b.display_order ?? Infinity),
+  )) {
+    const localeCode = normalizeContentLocale(row.locale_code);
+    if (row.event_id !== event.id || !localeCode || seen.has(localeCode))
+      continue;
+    const parsed = eventContentSchema.safeParse({
+      defaultLocale: localeCode,
+      translations: [
+        {
+          localeCode,
+          title: row.title,
+          description: row.description ?? null,
+          locationName: row.location_name ?? null,
+          floorZone: row.floor_zone ?? null,
+        },
+      ],
+    });
+    if (parsed.success) {
+      seen.add(localeCode);
+      translations.push(parsed.data.translations[0]);
+    }
+  }
+
+  const defaultLocale = normalizeContentLocale(event.default_locale);
+  if (!translations.length) {
+    return getEventContent(
+      { eventName: event.slug, description: null, locationName: null },
+      defaultLocale ?? routing.defaultLocale,
+    );
+  }
+  return {
+    defaultLocale:
+      (defaultLocale && seen.has(defaultLocale) ? defaultLocale : null) ??
+      translations[0].localeCode,
+    translations,
+  };
+}
 
 /** Resolve the single event workspace for an event_owner or sub_user */
 export async function getEventWorkspace(
@@ -54,8 +105,8 @@ export async function getEventWorkspace(
 
   if (!event) return null;
 
-  const eventName =
-    resolveEventTitle(translations, eventId, locale) ?? event.slug;
+  const content = bindEventContent(event, translations);
+  const translation = resolveEventTranslation(content, locale);
 
   const customRole =
     user.role === "sub_user" && mockUser.role_id
@@ -64,10 +115,6 @@ export async function getEventWorkspace(
         ) ?? null)
       : null;
 
-  const translation =
-    translations.find((row) => row.locale_code === locale) ??
-    translations.find((row) => row.locale_code === routing.defaultLocale) ??
-    translations[0];
   const memberRoles = await Promise.all(
     [
       ...new Set(
@@ -103,8 +150,10 @@ export async function getEventWorkspace(
     canEditEvent:
       event.status === "draft" && permissions.includes("manage_event"),
     surveyAccess: event.survey_access,
-    description: translation?.description ?? null,
-    locationName: translation?.location_name ?? null,
+    content,
+    description: translation.description,
+    locationName: translation.locationName,
+    locationDetail: translation.floorZone ?? undefined,
     startsAt: event.start_at,
     endsAt: event.end_at,
     isPrivate: event.is_private,
@@ -114,7 +163,7 @@ export async function getEventWorkspace(
     subUserCount: subUsers.length,
     subUsers: user.role === "event_owner" ? subUsers : [],
     eventId: event.id,
-    eventName,
+    eventName: translation.title,
     eventStatus: event.status,
     userRole: user.role,
     customRoleName: customRole?.name ?? null,

@@ -65,6 +65,10 @@
   justify-content: center;
   gap: 5px;
 }
+.es-content-language {
+  position: relative;
+  flex-shrink: 0;
+}
 .es-info-status i {
   inline-size: 10px;
   block-size: 10px;
@@ -245,7 +249,11 @@
 }
 @media (max-width: 639px) {
   .es-info-heading {
+    position: relative;
     flex-wrap: wrap;
+  }
+  .es-content-language {
+    position: static;
   }
   .es-info-heading h1 {
     flex: 1 0 100%;
