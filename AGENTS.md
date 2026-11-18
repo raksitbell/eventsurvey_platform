@@ -227,10 +227,15 @@ Current `dev` mock → portal role map: `system_role=platform_admin` → `super_
 - `main` is behind the current `dev` event work. Keep `dev`'s existing invite/mail dependencies; do not remove `nodemailer` or its types just because older feature branches omit them.
 - Follow the published Dashboard's static-analysis conventions in new components: explicit React type imports, `globalThis.document`/`globalThis.localStorage` for browser APIs, no duplicate object properties, and imports only from actual exported symbols. Shared primitives must remain additive; avoid changing defaults used by other features.
 
-## Don'ts
+## Git and GitHub workflow
 
 - Call a change request a **Pull Request (PR)**, never a Merge Request or MR — MR is GitLab's term for the same thing, and this project is on GitHub. Reference one as `#12` or `owner/repo#12`.
-- When asked to commit, create a local commit only. Never run `git push` or create, update, reopen, merge, or close a PR; the user alone performs all remote Git and GitHub actions.
+- Make and verify changes on the agreed feature branch. Commit there before handing it off for a PR.
+- Deliver feature branches through GitHub. Push the feature branch, open a PR with the agreed target as its base, then merge through GitHub after review. A request to merge a feature branch into a target branch follows this workflow. Keep the local target branch free of feature commits while preparing the PR. Use `git merge-tree` or an isolated integration worktree to check merge compatibility.
+- The agent prepares and commits changes locally. The user alone performs remote Git and GitHub actions, including pushing branches and creating, updating, reopening, merging, or closing PRs.
+
+## Don'ts
+
 - Don't install new packages without asking the user — TailAdmin usually already ships the component. Five template packages are installed but unused (`@fullcalendar/react`, `@react-jvectormap/core`, `@react-jvectormap/world`, `simplebar-react`, `react-dropzone`); don't remove them without asking either.
 - Don't hand-roll a component that TailAdmin free already ships — copy theirs in and adapt it instead.
 - Don't import `Link`, `useRouter`, `usePathname`, or `redirect` from `next/link` or `next/navigation` — always use `@/i18n/navigation`.
