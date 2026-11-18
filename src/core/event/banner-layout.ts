@@ -5,3 +5,7 @@ export const bannerLayouts = {
 } as const;
 
 export type BannerLayout = keyof typeof bannerLayouts;
+
+export function bannerObjectPosition(position?: number) {
+  return position === undefined ? undefined : `${position}% ${position}%`;
+}

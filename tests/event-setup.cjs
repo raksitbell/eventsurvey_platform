@@ -351,7 +351,8 @@ const {
   IMAGE_MAX_INPUT_BYTES,
   imageUploadError,
   fitImageDimensions,
-  convertImageToWebp,
+  prepareBrandingImage,
+  IMAGE_MAX_SAVED_BYTES,
 } = load("src/utils/image-upload.ts");
 test("image uploads accept shared PNG/JPG and supported types strictly below 10 MiB", () => {
   for (const type of [
@@ -503,87 +504,172 @@ function imageBrowser(t, options = {}) {
   );
   return { calls, canvas };
 }
-test("image utility returns WebP data, keeps alpha/orientation and releases bitmap/canvas resources", async (t) => {
-  const { calls, canvas } = imageBrowser(t);
-  const result = await convertImageToWebp(
-    new File(["input"], "photo.JPG", { type: "image/jpeg" }),
-  );
-  assert.equal(result.name, "photo.webp");
-  assert.match(result.url, /^data:image\/webp;base64,/);
-  assert.equal(result.type, "image/webp");
-  assert.equal(result.size, 60);
-  assert.deepEqual(
-    { width: result.width, height: result.height },
-    { width: 1200, height: 1600 },
-  );
-  assert.deepEqual(calls.alpha, { alpha: true });
+test("small supported images keep their exact bytes, filename and type without encoding", async (t) => {
+  const { calls } = imageBrowser(t);
+  for (const [type, ext] of [
+    ["image/png", "png"],
+    ["image/jpeg", "jpg"],
+    ["image/webp", "webp"],
+    ["image/avif", "avif"],
+    ["image/gif", "gif"],
+    ["image/bmp", "bmp"],
+    ["image/svg+xml", "svg"],
+  ]) {
+    const name = `source.${ext}`;
+    assert.deepEqual(
+      await prepareBrandingImage(new File(["original"], name, { type })),
+      { name, url: `data:${type};base64,b3JpZ2luYWw=` },
+    );
+  }
   assert.equal(calls.orientation, "from-image");
+  assert.equal(calls.encodes.length, 0);
+  assert.equal(calls.closed, 7);
+});
+test("an optimized JPEG keeps its type, reducing quality then dimensions", async (t) => {
+  const { calls, canvas } = imageBrowser(t, {
+    sizes: [450000, 430000, 400000, 270000],
+  });
+  const input = new File([new Uint8Array(500000)], "banner.JPG", {
+    type: "image/jpeg",
+  });
+  const result = await prepareBrandingImage(input, { maxDimension: 1600 });
+  assert.equal(result.name, input.name);
+  assert.match(result.url, /^data:image\/jpeg;base64,/);
+  assert.equal(Buffer.from(result.url.split(",")[1], "base64").length, 270000);
+  assert.equal(calls.encodes.length, 4);
+  assert.ok(calls.encodes[1].quality < calls.encodes[0].quality);
+  assert.ok(calls.encodes[3].width < calls.encodes[0].width);
+  assert.ok(calls.encodes.every((item) => item.type === input.type));
   assert.deepEqual(calls.draws[0], [0, 0, 1200, 1600]);
   assert.equal(calls.closed, 1);
   assert.deepEqual([canvas.width, canvas.height], [0, 0]);
 });
-test("image compression reduces quality then dimensions and respects its output budget", async (t) => {
-  const { calls } = imageBrowser(t, { sizes: [200, 200, 200, 200, 60] });
-  const result = await convertImageToWebp(
-    new File(["input"], "banner.png", { type: "image/png" }),
-    { maxOutputBytes: 100 },
+test("PNG optimization retains alpha and resizes the full image without baking the crop", async (t) => {
+  const { calls } = imageBrowser(t, { width: 2400, height: 1600 });
+  const image = await prepareBrandingImage(
+    new File([new Uint8Array(500000)], "banner.png", { type: "image/png" }),
+    { minimumSize: { width: 1920, height: 1080 } },
   );
-  assert.equal(result.size, 60);
-  assert.equal(calls.encodes.length, 5);
-  assert.ok(calls.encodes[1].quality < calls.encodes[0].quality);
-  assert.ok(calls.encodes[4].width < calls.encodes[0].width);
-  assert.ok(calls.encodes.every((c) => c.type === "image/webp"));
-});
-test("unsupported WebP output is rejected instead of saving a PNG with a webp filename", async (t) => {
-  const { calls } = imageBrowser(t, { outputType: "image/png" });
+  assert.match(image.url, /^data:image\/png;base64,/);
+  assert.deepEqual(calls.alpha, { alpha: true });
+  assert.deepEqual(calls.draws[0], [0, 0, 2400, 1600]);
   await assert.rejects(
-    convertImageToWebp(new File(["input"], "logo.png", { type: "image/png" })),
-    { code: "fileConvert" },
+    prepareBrandingImage(
+      new File(["original"], "banner.png", { type: "image/png" }),
+      {
+        minimumSize: { width: 2401, height: 1600 },
+      },
+    ),
+    { code: "cropSize" },
   );
-  assert.equal(calls.closed, 1);
 });
-test("image conversion has a bounded retry count and reports oversized output", async (t) => {
-  const { calls } = imageBrowser(t, { sizes: [200] });
+test("an oversized banner is rejected if optimization cannot meet the selected minimum", async (t) => {
+  const { calls } = imageBrowser(t, {
+    width: 2400,
+    height: 1350,
+    sizes: [IMAGE_MAX_SAVED_BYTES + 1],
+  });
   await assert.rejects(
-    convertImageToWebp(new File(["input"], "logo.png", { type: "image/png" }), {
-      maxOutputBytes: 100,
-    }),
+    prepareBrandingImage(
+      new File([new Uint8Array(2 * IMAGE_MAX_SAVED_BYTES)], "banner.png", {
+        type: "image/png",
+      }),
+      { minimumSize: { width: 1920, height: 1080 } },
+    ),
     { code: "fileOutputSize" },
   );
-  assert.equal(calls.encodes.length, 16);
-  assert.equal(calls.closed, 1);
+  assert.deepEqual(
+    calls.encodes.map(({ width, height }) => [width, height]),
+    [
+      [2400, 1350],
+      [1920, 1080],
+    ],
+  );
 });
-test("cancelled conversion cannot return a result and still closes its decoded bitmap", async (t) => {
+test("optimization ignores mismatched MIME and keeps the original only within the storage cap", async (t) => {
+  const { calls } = imageBrowser(t, { outputType: "image/png" });
+  const file = new File([new Uint8Array(450000)], "logo.jpg", {
+    type: "image/jpeg",
+  });
+  const result = await prepareBrandingImage(file);
+  assert.equal(result.name, file.name);
+  assert.match(result.url, /^data:image\/jpeg;base64,/);
+  assert.equal(
+    Buffer.from(result.url.split(",")[1], "base64").length,
+    file.size,
+  );
+  for (const type of ["image/jpeg", "image/webp"]) {
+    await assert.rejects(
+      prepareBrandingImage(
+        new File([new Uint8Array(IMAGE_MAX_SAVED_BYTES + 1)], "too-large", {
+          type,
+        }),
+      ),
+      { code: "fileOutputSize" },
+    );
+  }
+  assert.equal(calls.encodes.length, 2);
+  assert.equal(calls.closed, 3);
+});
+test("cancelled preparation cannot return a result and closes its decoded bitmap", async (t) => {
   const controller = new AbortController();
   const { calls } = imageBrowser(t, { abortOnDecode: controller });
   await assert.rejects(
-    convertImageToWebp(new File(["input"], "logo.png", { type: "image/png" }), {
-      signal: controller.signal,
-    }),
+    prepareBrandingImage(
+      new File(["input"], "logo.png", { type: "image/png" }),
+      {
+        signal: controller.signal,
+      },
+    ),
     { code: "aborted" },
   );
   assert.equal(calls.closed, 1);
   assert.equal(calls.encodes.length, 0);
 });
-test("SVG/browser decoder fallback revokes its object URL after conversion", async (t) => {
+test("SVG/browser decoder fallback saves the SVG and revokes its object URL", async (t) => {
   const { calls } = imageBrowser(t, { bitmapError: true });
-  const result = await convertImageToWebp(
+  const result = await prepareBrandingImage(
     new File(["input"], "logo.svg", { type: "image/svg+xml" }),
   );
-  assert.equal(result.name, "logo.webp");
+  assert.equal(result.name, "logo.svg");
+  assert.match(result.url, /^data:image\/svg\+xml;base64,/);
   assert.deepEqual(calls.revoked, calls.urls);
   assert.equal(calls.imageCleared, true);
 });
 test("unreadable image fallback reports an error and never leaks its temporary URL", async (t) => {
   const { calls } = imageBrowser(t, { bitmapError: true, decodeError: true });
   await assert.rejects(
-    convertImageToWebp(
+    prepareBrandingImage(
       new File(["not-image"], "broken.png", { type: "image/png" }),
     ),
     { code: "fileRead" },
   );
   assert.deepEqual(calls.revoked, calls.urls);
   assert.equal(calls.encodes.length, 0);
+});
+test("same-format Branding images and banner crop position survive a local save", (t) => {
+  storage(t);
+  const key = eventBrandingKey("owner", "event-a", "th");
+  const value = {
+    ...defaultEventBranding,
+    layout: "landscape",
+    logo: { name: "logo.avif", url: "data:image/avif;base64,YQ==" },
+    banner: {
+      name: "banner.gif",
+      url: "data:image/gif;base64,YQ==",
+      cropPosition: 0,
+    },
+  };
+  assert.equal(saveEventBranding(key, value), "saved");
+  assert.deepEqual(loadEventBranding(key), value);
+  assert.equal(
+    saveEventBranding(key, {
+      ...value,
+      banner: { ...value.banner, cropPosition: 101 },
+    }),
+    "invalid",
+  );
+  assert.deepEqual(loadEventBranding(key), value);
 });
 test("a quota failure while replacing an image preserves the previously saved branding", (t) => {
   const values = storage(t);

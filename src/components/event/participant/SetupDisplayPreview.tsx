@@ -1,4 +1,5 @@
 "use client";
+import { bannerObjectPosition } from "@/core/event/banner-layout";
 
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
@@ -63,7 +64,12 @@ export default function SetupDisplayPreview({
         <div
           aria-hidden="true"
           className="setup-display-stage__blur"
-          style={{ backgroundImage: `url(${JSON.stringify(banner)})` }}
+          style={{
+            backgroundImage: `url(${JSON.stringify(banner)})`,
+            backgroundPosition: bannerObjectPosition(
+              branding.banner?.cropPosition,
+            ),
+          }}
         />
       )}
       <div

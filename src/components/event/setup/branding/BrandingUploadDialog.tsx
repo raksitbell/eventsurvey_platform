@@ -7,7 +7,7 @@ import {
   IMAGE_MAX_INPUT_BYTES,
   IMAGE_UPLOAD_ACCEPT,
   ImageUploadError,
-  convertImageToWebp,
+  prepareBrandingImage,
 } from "@/utils/image-upload";
 import type { BrandingImage, BrandingMediaKind } from "@/types/event/branding";
 import { useTranslations } from "next-intl";
@@ -35,8 +35,8 @@ export default function BrandingUploadDialog({
   const [selected, setSelected] = useState<BrandingImage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const conversion = useRef<AbortController | null>(null);
-  useEffect(() => () => conversion.current?.abort(), []);
+  const preparation = useRef<AbortController | null>(null);
+  useEffect(() => () => preparation.current?.abort(), []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     multiple: false,
     maxFiles: 1,
@@ -45,8 +45,8 @@ export default function BrandingUploadDialog({
       ? { "image/png": [".png"], "image/svg+xml": [".svg"] }
       : IMAGE_UPLOAD_ACCEPT,
     onDropRejected: (rejected) => {
-      conversion.current?.abort();
-      conversion.current = null;
+      preparation.current?.abort();
+      preparation.current = null;
       setBusy(false);
       setSelected(null);
       setError(
@@ -64,27 +64,24 @@ export default function BrandingUploadDialog({
     onDropAccepted: async (files) => {
       const file = files[0];
       if (!file) return;
-      conversion.current?.abort();
+      preparation.current?.abort();
       const controller = new AbortController();
-      conversion.current = controller;
+      preparation.current = controller;
       setBusy(true);
       setError(null);
       setSelected(null);
       try {
-        const { name, url } = await convertImageToWebp(file, {
-          maxWidth: kind === "logo" ? 512 : 1600,
-          maxHeight: kind === "logo" ? 512 : 1600,
+        const { name, url } = await prepareBrandingImage(file, {
+          maxDimension: kind === "logo" ? 512 : 2560,
           signal: controller.signal,
         });
-        if (conversion.current === controller && !controller.signal.aborted)
+        if (preparation.current === controller && !controller.signal.aborted)
           setSelected({ name, url });
       } catch (error) {
-        if (conversion.current === controller && !controller.signal.aborted)
-          setError(
-            error instanceof ImageUploadError ? error.code : "fileConvert",
-          );
+        if (preparation.current === controller && !controller.signal.aborted)
+          setError(error instanceof ImageUploadError ? error.code : "fileRead");
       } finally {
-        if (conversion.current === controller) setBusy(false);
+        if (preparation.current === controller) setBusy(false);
       }
     },
   });

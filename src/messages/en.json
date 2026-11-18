@@ -777,11 +777,11 @@
     "remove": "Remove {name}",
     "chooseFile": "Click to choose a file",
     "dropFile": "Or drag and drop a file here",
-    "fileLimit": "Images under 10 MB are converted to WebP before saving in this browser.",
+    "fileLimit": "Images under 10 MB are saved in this browser in their original format.",
     "fileType": "Unsupported image type. Choose PNG, JPG, WebP, AVIF, GIF, BMP or SVG.",
     "fileSize": "Choose a non-empty image strictly smaller than 10 MB.",
     "fileRead": "Could not read this image. Please try another file.",
-    "reading": "Converting and compressing image to WebP…",
+    "reading": "Preparing image…",
     "cancel": "Cancel",
     "useImage": "Use this image",
     "preview": "Participant preview",
@@ -828,8 +828,7 @@
       "native": "Open browser color picker"
     },
     "fileCount": "Choose one image at a time.",
-    "fileConvert": "Unable to convert this image to WebP in this browser. Try another image or browser.",
-    "fileOutputSize": "Unable to compress this image to fit its storage budget. Try another image.",
+    "fileOutputSize": "This image exceeds the 1 MB storage limit for each image. Choose a smaller file.",
     "fileStorage": "Unable to save this image. Browser storage may be full. Your previous image is unchanged."
   },
   "participantEvent": {

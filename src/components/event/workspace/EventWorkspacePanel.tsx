@@ -14,9 +14,7 @@ function WorkspaceCard({ workspace, userId, locale }: EventSetupPageProps) {
   const { branding } = useEventBranding(workspace, userId, locale);
   if (workspace.localPublishedAt)
     return <PublishedOverview workspace={workspace} branding={branding} />;
-  return (
-    <EventWorkspaceCard workspace={workspace} banner={branding.banner?.url} />
-  );
+  return <EventWorkspaceCard workspace={workspace} banner={branding.banner} />;
 }
 export default function EventWorkspacePanel() {
   const t = useTranslations("eventHome");

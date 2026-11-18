@@ -4,6 +4,9 @@ export interface BrandingImage {
   name: string;
   url: string;
 }
+export interface BrandingBanner extends BrandingImage {
+  cropPosition?: number;
+}
 export interface EventBranding {
   layout?: "portrait" | "square" | "landscape";
   organizer?: string;
@@ -20,5 +23,5 @@ export interface EventBranding {
   secondary: string;
   accent: string;
   logo: BrandingImage | null;
-  banner: BrandingImage | null;
+  banner: BrandingBanner | null;
 }

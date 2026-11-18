@@ -4,21 +4,25 @@ import { useTranslations } from "next-intl";
 import BrandingDialogFrame from "./BrandingDialogFrame";
 import BrandingIcon from "./BrandingIcon";
 import styles from "./BrandingDialog.module.css";
-import { bannerLayouts, type BannerLayout } from "@/core/event/banner-layout";
+import {
+  bannerLayouts,
+  bannerObjectPosition,
+  type BannerLayout,
+} from "@/core/event/banner-layout";
 import {
   imageUploadError,
-  convertImageToWebp,
+  prepareBrandingImage,
   ImageUploadError,
   IMAGE_UPLOAD_ACCEPT,
 } from "@/utils/image-upload";
-import type { BrandingImage } from "@/types/event/branding";
+import type { BrandingBanner } from "@/types/event/branding";
 import Image from "next/image";
 
 interface Props {
-  initialBanner?: string;
+  initialBanner?: Omit<BrandingBanner, "name"> & { name?: string };
   layout: BannerLayout;
   onClose: () => void;
-  onApply: (image: BrandingImage) => boolean;
+  onApply: (image: BrandingBanner) => boolean;
 }
 export default function BannerCropDialog({
   layout,
@@ -32,6 +36,9 @@ export default function BannerCropDialog({
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
   const originalLoad = useRef<AbortController | null>(null);
+  const originalFile = useRef<File | null>(null);
+  const initialUrl = initialBanner?.url;
+  const initialName = initialBanner?.name;
   const drag = useRef<{
     start: number;
     position: number;
@@ -43,7 +50,7 @@ export default function BannerCropDialog({
   const [preview, setPreview] = useState<{ file: File; url: string } | null>(
     null,
   );
-  const [position, setPosition] = useState(50);
+  const [position, setPosition] = useState(initialBanner?.cropPosition ?? 50);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const active = useRef<AbortController | null>(null);
@@ -56,19 +63,22 @@ export default function BannerCropDialog({
   }, [file]);
   useEffect(() => () => active.current?.abort(), []);
   useEffect(() => {
-    if (!initialBanner) return;
+    if (!initialUrl) return;
     const controller = new AbortController();
     originalLoad.current = controller;
-    fetch(initialBanner, { signal: controller.signal })
+    fetch(initialUrl, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("fileRead");
         return res.blob();
       })
       .then((blob) => {
         if (controller.signal.aborted) return;
-        setFile(
-          (old) => old ?? new File([blob], "banner.webp", { type: blob.type }),
-        );
+        const extension = IMAGE_UPLOAD_ACCEPT[blob.type]?.[0] ?? "";
+        const loaded = new File([blob], initialName ?? `banner${extension}`, {
+          type: blob.type,
+        });
+        originalFile.current = loaded;
+        setFile((old) => old ?? loaded);
       })
       .catch(() => {
         if (!controller.signal.aborted) {
@@ -77,7 +87,7 @@ export default function BannerCropDialog({
         }
       });
     return () => controller.abort();
-  }, [initialBanner]);
+  }, [initialName, initialUrl]);
   const size = bannerLayouts[layout];
   async function apply() {
     if (!file || busy) return;
@@ -86,17 +96,19 @@ export default function BannerCropDialog({
     setBusy(true);
     setError("");
     try {
-      const { url, name } = await convertImageToWebp(file, {
-        crop: { ...size, position: position / 100 },
-        maxWidth: size.width,
-        maxHeight: size.height,
+      const { url, name } = await prepareBrandingImage(file, {
+        minimumSize: size,
+        optimize: file !== originalFile.current || !initialName,
         signal: controller.signal,
       });
-      if (!controller.signal.aborted && !onApply({ url, name }))
+      if (
+        !controller.signal.aborted &&
+        !onApply({ url, name, cropPosition: position })
+      )
         setError("fileStorage");
     } catch (e) {
       if (!controller.signal.aborted)
-        setError(e instanceof ImageUploadError ? e.code : "fileConvert");
+        setError(e instanceof ImageUploadError ? e.code : "fileRead");
     } finally {
       if (!controller.signal.aborted) setBusy(false);
     }
@@ -110,7 +122,9 @@ export default function BannerCropDialog({
       disabled={busy}
       tabIndex={cropping ? -1 : undefined}
       aria-label={b("chooseFile")}
-      accept={Object.keys(IMAGE_UPLOAD_ACCEPT).join(",")}
+      accept={Object.entries(IMAGE_UPLOAD_ACCEPT)
+        .flatMap(([type, extensions]) => [type, ...extensions])
+        .join(",")}
       onChange={(event) => {
         const next = event.target.files?.[0];
         if (!next) return;
@@ -209,7 +223,7 @@ export default function BannerCropDialog({
                     src={url}
                     alt={file.name}
                     className="object-cover"
-                    style={{ objectPosition: `${position}% ${position}%` }}
+                    style={{ objectPosition: bannerObjectPosition(position) }}
                   />
                 )}
               </div>

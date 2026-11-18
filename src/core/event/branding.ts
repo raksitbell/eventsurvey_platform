@@ -3,21 +3,19 @@ import type { EventBranding } from "@/types/event/branding";
 import type { DraftSaveStatus } from "@/types/event/setup";
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i);
-const image = z
-  .object({
-    name: z.string().max(255),
-    url: z
-      .string()
-      .max(1500000)
-      .regex(/^data:image\/(png|jpeg|webp|svg\+xml);base64,/),
-  })
-  .nullable();
+const image = z.object({
+  name: z.string().max(255),
+  url: z
+    .string()
+    .max(1_500_000)
+    .regex(/^data:image\/(png|jpeg|webp|avif|gif|bmp|svg\+xml);base64,/),
+});
 export const eventBrandingSchema = z.object({
   layout: z.enum(["portrait", "square", "landscape"]).optional(),
   organizer: z.string().max(255).optional(),
   tagline: z.string().max(500).optional(),
   identity: z.enum(["icon", "wordmark"]).optional(),
-  wordmark: image.optional(),
+  wordmark: image.nullable().optional(),
   backgroundMode: z.enum(["solid", "gradient", "blur"]).optional(),
   gradientEnd: color.optional(),
   gradientAngle: z.union([z.literal(0), z.literal(90)]).optional(),
@@ -35,8 +33,10 @@ export const eventBrandingSchema = z.object({
   primary: color,
   secondary: color,
   accent: color,
-  logo: image,
-  banner: image,
+  logo: image.nullable(),
+  banner: image
+    .extend({ cropPosition: z.number().min(0).max(100).optional() })
+    .nullable(),
 });
 export const defaultEventBranding: EventBranding = {
   primary: "#AE85D1",

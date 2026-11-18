@@ -1,3 +1,4 @@
+import { bannerObjectPosition } from "@/core/event/banner-layout";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { eventColorForeground } from "@/core/event/participant-colors";
@@ -42,6 +43,9 @@ export default function BrandingMaterialPreview({
           fill
           unoptimized
           className="-z-1 scale-110 object-cover opacity-60 blur-lg"
+          style={{
+            objectPosition: bannerObjectPosition(branding.banner?.cropPosition),
+          }}
         />
       )}
       <header style={chrome(branding.primary)}>

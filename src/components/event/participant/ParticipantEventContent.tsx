@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  bannerLayouts,
+  bannerObjectPosition,
+} from "@/core/event/banner-layout";
 import { participantFormActions } from "@/core/event/participant";
 import type { ParticipantEventData } from "@/types/event/participant";
 import {
@@ -17,6 +21,8 @@ export default function ParticipantEventContent({
   const t = useTranslations("participantEvent");
   const format = useFormatter();
   const banner = branding.banner?.url ?? bannerUrl;
+  const cropPosition = bannerObjectPosition(branding.banner?.cropPosition);
+  const { width, height } = bannerLayouts[branding.layout ?? "portrait"];
   const date = (value: string) =>
     format.dateTime(new Date(value), {
       day: "numeric",
@@ -36,7 +42,10 @@ export default function ParticipantEventContent({
   return (
     <main className="flex-1 bg-(--participant-surface) pb-6 @4xl/participant:py-11 dark:bg-(--participant-surface)">
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-2 bg-transparent @4xl/participant:flex-row @4xl/participant:gap-10 @4xl/participant:bg-transparent dark:bg-transparent dark:@4xl/participant:bg-transparent">
-        <div className="aspect-3/4 w-full shrink-0 overflow-hidden bg-(--participant-primary) @4xl/participant:w-(--container-participant-banner)">
+        <div
+          className="aspect-3/4 w-full shrink-0 overflow-hidden bg-(--participant-primary) @4xl/participant:w-(--container-participant-banner)"
+          style={cropPosition ? { aspectRatio: width / height } : undefined}
+        >
           {banner && (
             <Image
               src={banner}
@@ -45,6 +54,7 @@ export default function ParticipantEventContent({
               height={600}
               unoptimized
               className="size-full object-cover"
+              style={{ objectPosition: cropPosition }}
             />
           )}
         </div>

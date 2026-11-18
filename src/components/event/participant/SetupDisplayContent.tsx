@@ -1,3 +1,4 @@
+import { bannerObjectPosition } from "@/core/event/banner-layout";
 import Image from "next/image";
 import EventDisplayBanner from "@/components/participant/EventDisplayBanner";
 import PublicationIcon from "@/components/event/qr/PublicationIcon";
@@ -40,7 +41,12 @@ export default function SetupDisplayContent({
             width={1920}
             height={1200}
             unoptimized
-            className={`participant-banner participant-banner--${layout} border-none! object-contain`}
+            className={`participant-banner participant-banner--${layout} border-none! ${branding.banner?.cropPosition === undefined ? "object-contain" : "object-cover"}`}
+            style={{
+              objectPosition: bannerObjectPosition(
+                branding.banner?.cropPosition,
+              ),
+            }}
           />
         ) : (
           <EventDisplayBanner layout={layout} label={s("noBanner")} />

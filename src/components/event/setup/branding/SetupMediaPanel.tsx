@@ -5,7 +5,11 @@ import BrandingIcon from "./BrandingIcon";
 import styles from "./SetupMedia.module.css";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
-import { bannerLayouts, type BannerLayout } from "@/core/event/banner-layout";
+import {
+  bannerLayouts,
+  bannerObjectPosition,
+  type BannerLayout,
+} from "@/core/event/banner-layout";
 import type { EventBranding } from "@/types/event/branding";
 import { useModal } from "@/hooks/useModal";
 import BannerCropDialog from "./BannerCropDialog";
@@ -73,6 +77,11 @@ export default function SetupMediaPanel({
                 src={src}
                 alt={t("bannerRatio")}
                 className="size-full object-cover"
+                style={{
+                  objectPosition: bannerObjectPosition(
+                    branding.banner?.cropPosition,
+                  ),
+                }}
               />
             ) : (
               <>
@@ -130,7 +139,9 @@ export default function SetupMediaPanel({
       </Button>
       {upload.isOpen && (
         <BannerCropDialog
-          initialBanner={pending ? (src ?? undefined) : undefined}
+          initialBanner={
+            pending && src ? (branding.banner ?? { url: src }) : undefined
+          }
           layout={pending ?? layout}
           onClose={upload.closeModal}
           onApply={(banner) => {
