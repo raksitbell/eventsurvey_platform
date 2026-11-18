@@ -33,7 +33,7 @@ export default function EventSetupActions({
     <footer
       className={
         saveDraft
-          ? "sticky bottom-0 z-9 mt-auto bg-white py-3 dark:bg-gray-900"
+          ? "es-setup-actionbar sticky bottom-0 z-9 mt-auto bg-white dark:bg-gray-900"
           : "mt-auto space-y-3"
       }
     >

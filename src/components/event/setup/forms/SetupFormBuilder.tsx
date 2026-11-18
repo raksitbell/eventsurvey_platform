@@ -21,17 +21,16 @@ function Builder({
       ? workspace.canManageWhitelist
       : workspace.canManageSurveyForm;
   return (
-    <section className="event-sheet space-y-4">
-      <Link
-        href="/event/details"
-        className="event-option inline-flex items-center gap-2"
-      >
+    <section className="es-builder-frame">
+      {enabled && permitted && canEditLocalEventSetup(workspace) && (
+        <div className="es-builder-canvas">
+          <FormBuilder type={type} />
+        </div>
+      )}
+      <Link href="/event/details" className="es-builder-back">
         <ArrowLeftIcon className="size-4 rtl:rotate-180" />
         {t("backSetup")}
       </Link>
-      {enabled && permitted && canEditLocalEventSetup(workspace) && (
-        <FormBuilder type={type} />
-      )}
     </section>
   );
 }

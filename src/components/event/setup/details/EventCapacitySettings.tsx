@@ -1,211 +1,147 @@
 "use client";
 
-import Button from "@/components/ui/button/Button";
-import { Modal } from "@/components/ui/modal";
-import Radio from "@/components/form/input/Radio";
-import Input from "@/components/form/input/InputField";
-import Label from "@/components/form/Label";
-import type { EventDraft } from "@/types/event/setup";
+import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { useModal } from "@/hooks/useModal";
-import {
-  AdjustmentsHorizontalIcon,
-  ChevronRightIcon,
-} from "@heroicons/react/24/outline";
+import { useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
 
-interface EventCapacitySettingsProps {
-  draft: EventDraft;
+interface Props {
+  kind: "registration" | "survey";
+  capacity: number | null;
   readOnly: boolean;
-  onChange: (changes: Partial<EventDraft>) => void;
+  onChange: (value: number | null) => void;
 }
 
-export default function EventCapacitySettings(
-  props: EventCapacitySettingsProps,
-) {
-  const { draft, readOnly, onChange } = props;
+export default function EventCapacitySettings({
+  kind,
+  capacity,
+  readOnly,
+  onChange,
+}: Props) {
   const t = useTranslations("eventHome.details.capacity");
+  const v = useTranslations("eventSetupDesign");
   const { isOpen, openModal, closeModal } = useModal();
+  const [custom, setCustom] = useState("");
+  const [invalid, setInvalid] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
+  const id = useId();
   const close = () => {
     closeModal();
     trigger.current?.focus();
   };
-  const limit = (value: number | null | undefined) =>
-    value == null ? t("unlimited") : value.toLocaleString();
-  const summary = [
-    draft.hasRegistration &&
-      t("registrationSummary", { limit: limit(draft.registrationCapacity) }),
-    draft.hasSurvey &&
-      t("surveySummary", {
-        limit: limit(
-          draft.surveyAccess === "registered_only"
-            ? draft.registrationCapacity
-            : draft.surveyCapacity,
-        ),
-      }),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return (
-    <>
-      <button
-        ref={trigger}
-        type="button"
-        onClick={openModal}
-        aria-haspopup="dialog"
-        aria-expanded={isOpen}
-        className="flex min-h-14 w-full items-center gap-2 rounded-lg border border-event-tile bg-event-subtle px-3 py-2 text-start focus-visible:ring-2 focus-visible:ring-event-action dark:border-gray-700 dark:bg-gray-800"
-      >
-        <AdjustmentsHorizontalIcon
-          className="size-4.5 shrink-0 text-event-action dark:text-brand-400"
-          aria-hidden="true"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block text-theme-sm text-gray-800 dark:text-gray-200">
-            {t("title")}
-          </span>
-          <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-            {summary}
-          </span>
-        </span>
-        <ChevronRightIcon
-          className="size-4 shrink-0 text-event-action rtl:rotate-180 dark:text-brand-400"
-          aria-hidden="true"
-        />
-      </button>
-      <Modal isOpen={isOpen} onClose={close} showCloseButton={false}>
-        {isOpen && (
-          <CapacityEditor
-            draft={draft}
-            readOnly={readOnly}
-            onChange={(changes) => {
-              onChange(changes);
-              close();
-            }}
-            onClose={close}
-          />
-        )}
-      </Modal>
-    </>
-  );
-}
-
-function CapacityEditor({
-  draft,
-  readOnly,
-  onChange,
-  onClose,
-}: EventCapacitySettingsProps & { onClose: () => void }) {
-  const t = useTranslations("eventHome.details.capacity");
-  const [limits, setLimits] = useState({
-    registrationCapacity: draft.registrationCapacity ?? null,
-    surveyCapacity: draft.surveyCapacity ?? null,
-  });
-  const [error, setError] = useState(false);
-  const shared = draft.hasSurvey && draft.surveyAccess === "registered_only";
-  const keys = [
-    draft.hasRegistration ? "registrationCapacity" : null,
-    draft.hasSurvey && !shared ? "surveyCapacity" : null,
-  ].filter((key): key is keyof typeof limits => key !== null);
-  const save = () => {
-    if (
-      keys.some(
-        (key) =>
-          limits[key] !== null &&
-          (!Number.isSafeInteger(limits[key]) || limits[key]! <= 0),
-      )
-    ) {
-      setError(true);
+  const open = () => {
+    setInvalid(false);
+    setCustom(capacity?.toString() ?? "");
+    openModal();
+  };
+  const choose = (value: number) => {
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      setInvalid(true);
       return;
     }
-    onChange(limits);
+    onChange(value);
+    close();
   };
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-900 dark:text-white/90">
-        {t("title")}
-      </h2>
-      {keys.map((key) => (
-        <fieldset
-          key={key}
-          disabled={readOnly}
-          className="space-y-3 rounded-xl border border-event-tile bg-event-subtle p-4 dark:border-gray-700 dark:bg-gray-800"
+    <fieldset
+      disabled={readOnly}
+      className="es-capacity"
+      onKeyDown={(e) => {
+        if (isOpen && e.key === "Escape") {
+          e.stopPropagation();
+          close();
+        }
+      }}
+    >
+      <legend>
+        {kind === "registration" ? v("registrationLimit") : t("surveyCapacity")}
+      </legend>
+      <div className="es-capacity-options">
+        <button
+          type="button"
+          className="event-option"
+          aria-pressed={capacity == null}
+          onClick={() => {
+            closeModal();
+            onChange(null);
+          }}
         >
-          <legend className="text-theme-sm font-semibold text-gray-800 dark:text-gray-200">
-            {t(key)}
-          </legend>
-          <div className="grid grid-cols-2 gap-2">
-            <Radio
-              id={`${key}-unlimited`}
-              name={key}
-              value="unlimited"
-              checked={limits[key] === null}
-              label={t("unlimited")}
-              disabled={readOnly}
-              onChange={() => setLimits((value) => ({ ...value, [key]: null }))}
-            />
-            <Radio
-              id={`${key}-limited`}
-              name={key}
-              value="limited"
-              checked={limits[key] !== null}
-              label={t("limited")}
-              disabled={readOnly}
-              onChange={() => setLimits((value) => ({ ...value, [key]: 1 }))}
-            />
-          </div>
-          {limits[key] !== null && (
-            <div>
-              <Label htmlFor={`${key}-number`}>{t("maximum")}</Label>
-              <Input
-                id={`${key}-number`}
-                type="number"
-                min={1}
-                step={1}
-                value={Number.isNaN(limits[key]) ? "" : limits[key]!}
-                readOnly={readOnly}
-                onChange={(event) => {
-                  setError(false);
-                  setLimits((value) => ({
-                    ...value,
-                    [key]:
-                      event.target.value === ""
-                        ? NaN
-                        : Number(event.target.value),
-                  }));
-                }}
-              />
-            </div>
-          )}
-        </fieldset>
-      ))}
-      {shared && (
-        <p className="text-theme-sm text-gray-600 dark:text-gray-300">
-          {t("shared")}
-        </p>
-      )}
-      {error && (
-        <p
-          role="alert"
-          className="text-theme-sm text-error-600 dark:text-error-400"
+          {t("unlimited")}
+        </button>
+        <button
+          type="button"
+          className="event-option dropdown-toggle"
+          ref={trigger}
+          aria-controls={isOpen ? id : undefined}
+          aria-expanded={isOpen}
+          aria-pressed={capacity != null}
+          onClick={() => (isOpen ? close() : open())}
         >
-          {t("invalid")}
-        </p>
-      )}
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={onClose}>
-          {t(readOnly ? "close" : "cancel")}
-        </Button>
-        {!readOnly && (
-          <Button
-            className="bg-event-action dark:bg-event-action"
-            onClick={save}
-          >
-            {t("save")}
-          </Button>
-        )}
+          {t("limited")}
+        </button>
       </div>
-    </div>
+      {capacity != null && (
+        <button
+          type="button"
+          className="es-limit-value dropdown-toggle"
+          onClick={open}
+        >
+          <span>{capacity}</span>
+          <span>{v("people")}</span>
+        </button>
+      )}
+      <Dropdown
+        isOpen={isOpen}
+        onClose={closeModal}
+        className="es-limit-popover"
+      >
+        <div id={id} role="group" aria-labelledby={id + "-title"}>
+          <header>
+            <strong id={id + "-title"}>
+              {kind === "registration" ? v("registrants") : t("surveyCapacity")}
+            </strong>
+            <button type="button" aria-label={t("close")} onClick={close}>
+              ×
+            </button>
+          </header>
+          <small>{v("positive")}</small>
+          {[100, 200, 500].map((n) => (
+            <button
+              type="button"
+              className="es-limit-preset"
+              key={n}
+              onClick={() => choose(n)}
+            >
+              {v("peopleCount", { count: n })}
+            </button>
+          ))}
+          <div className="es-limit-custom">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              aria-label={t("maximum")}
+              aria-invalid={invalid}
+              value={custom}
+              placeholder={t("maximum")}
+              onChange={(e) => {
+                setCustom(e.target.value);
+                setInvalid(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  choose(Number(custom));
+                }
+              }}
+            />
+            <button type="button" onClick={() => choose(Number(custom))}>
+              {t("save")}
+            </button>
+          </div>
+          {invalid && <small role="alert">{t("invalid")}</small>}
+        </div>
+      </Dropdown>
+    </fieldset>
   );
 }

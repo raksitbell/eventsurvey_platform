@@ -1,10 +1,11 @@
 import Image from "next/image";
 import EventDisplayBanner from "@/components/participant/EventDisplayBanner";
-import { CalendarDaysIcon, MapPinIcon } from "@heroicons/react/24/outline";
+import PublicationIcon from "@/components/event/qr/PublicationIcon";
 import type { ParticipantEventData } from "@/types/event/participant";
 import { participantColors } from "@/core/event/participant-colors";
 import type { CSSProperties } from "react";
-import { useFormatter, useTranslations } from "next-intl";
+import useEventDisplayDate from "@/hooks/useEventDisplayDate";
+import { useTranslations } from "next-intl";
 import "@/components/participant/event-display.css";
 import "./setup-display.css";
 
@@ -12,18 +13,12 @@ export default function SetupDisplayContent({
   draft,
   branding,
   bannerUrl,
-}: ParticipantEventData) {
+  compact,
+}: ParticipantEventData & { compact: boolean }) {
   const t = useTranslations("participantDisplay"),
     s = useTranslations("eventSetup");
-  const fmt = useFormatter();
-  const date = (v: string | null) =>
-    v
-      ? fmt.dateTime(new Date(v), {
-          dateStyle: "medium",
-          timeStyle: "short",
-          timeZone: "Asia/Bangkok",
-        })
-      : "—";
+  const labels = useTranslations("eventPublishedView");
+  const date = useEventDisplayDate();
   const logo =
     branding.identity === "wordmark" ? branding.wordmark : branding.logo;
   const layout = branding.layout ?? "portrait";
@@ -45,7 +40,7 @@ export default function SetupDisplayContent({
             width={1920}
             height={1200}
             unoptimized
-            className={`participant-banner participant-banner--${layout} border-none! object-cover`}
+            className={`participant-banner participant-banner--${layout} border-none! object-contain`}
           />
         ) : (
           <EventDisplayBanner layout={layout} label={s("noBanner")} />
@@ -76,32 +71,58 @@ export default function SetupDisplayContent({
                         }
                       />
                     )}
-                    {branding.identity !== "wordmark" && (
+                    {!logo && branding.organizer && (
+                      <span aria-hidden="true" className="participant-avatar">
+                        {Array.from(branding.organizer.trim())[0]}
+                      </span>
+                    )}
+                    {(branding.identity !== "wordmark" || !logo) && (
                       <div>
                         <strong>{branding.organizer}</strong>
                         {branding.tagline && <p>{branding.tagline}</p>}
                       </div>
                     )}
                   </div>
-                  {branding.channels?.map((channel, i) => (
-                    <span key={i} className="participant-social">
-                      {channel.platform} · {new URL(channel.url).hostname}
-                    </span>
-                  ))}
+                  <div className="participant-socials">
+                    {branding.channels?.map((channel, i) => {
+                      const platform = channel.platform.toLowerCase();
+                      const icon = platform === "x" ? "twitter" : platform;
+                      const url = new URL(channel.url);
+                      return (
+                        <span key={i} className="participant-social">
+                          {["facebook", "twitter", "instagram"].includes(
+                            icon,
+                          ) ? (
+                            <PublicationIcon name={icon} size={24} />
+                          ) : (
+                            channel.platform
+                          )}
+                          {url.pathname.split("/").filter(Boolean).pop() ||
+                            url.hostname}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               </>
             ) : null}
             <div className="participant-divider" />
             <div className="participant-metadata">
               <div className="participant-meta-item">
-                <CalendarDaysIcon className="size-8 shrink-0" />
+                <span className="participant-meta-icon">
+                  <PublicationIcon name="calendar" size={32} />
+                </span>
                 <div>
-                  <strong>{date(draft.startsAt)}</strong>
-                  <span>{date(draft.endsAt)}</span>
+                  <strong>
+                    {labels("starts", { date: date(draft.startsAt) })}
+                  </strong>
+                  <span>{labels("ends", { date: date(draft.endsAt) })}</span>
                 </div>
               </div>
               <div className="participant-meta-item">
-                <MapPinIcon className="size-8 shrink-0" />
+                <span className="participant-meta-icon">
+                  <PublicationIcon name="venue" size={32} />
+                </span>
                 <div>
                   <strong>{draft.locationName}</strong>
                   <span>{draft.locationDetail}</span>
@@ -119,7 +140,7 @@ export default function SetupDisplayContent({
               </div>
             )}
           </section>
-          {forms.length > 0 && (
+          {forms.length ? (
             <section
               className={`participant-qr participant-card ${layout === "landscape" ? "participant-qr--vertical" : ""}`}
             >
@@ -134,6 +155,23 @@ export default function SetupDisplayContent({
                   />
                 </div>
               ))}
+            </section>
+          ) : (
+            <section
+              className={`participant-qr participant-card setup-display__empty-qr ${layout === "landscape" ? "participant-qr--vertical" : ""}`}
+            >
+              <PublicationIcon name="qr" size={compact ? 59 : 32} />
+              {compact ? (
+                <p>{labels("qrPending")}</p>
+              ) : (
+                <>
+                  <h2>{labels("qrUnavailable")}</h2>
+                  <p>{labels("qrNotice")}</p>
+                  <small>
+                    {labels("registration")} · {labels("survey")}
+                  </small>
+                </>
+              )}
             </section>
           )}
         </div>

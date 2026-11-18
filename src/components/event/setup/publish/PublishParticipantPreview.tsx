@@ -9,13 +9,11 @@ export default function PublishParticipantPreview({
 }: ParticipantEventData & { onOpen: () => boolean }) {
   const t = useTranslations("eventSetup");
   return (
-    <section className="min-w-0 space-y-3 rounded-xl border border-event-border p-4 dark:border-gray-700">
+    <section className="publish-card publish-preview">
       <h2 className="font-semibold">{t("displayPreview")}</h2>
-      <div className="mx-auto max-h-150 max-w-sm overflow-auto rounded-xl">
-        <SetupDisplayPreview {...data} compact />
-      </div>
+      <SetupDisplayPreview {...data} compact />
       <Link
-        className="inline-block text-sm text-event-action underline dark:text-brand-300"
+        className="publish-preview__link"
         href="/preview/event?from=publish"
         onClick={(event) => {
           if (!onOpen()) event.preventDefault();

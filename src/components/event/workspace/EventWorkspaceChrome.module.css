@@ -1,0 +1,268 @@
+/* Event Admin sidebar and header, component instances in 844:1413. */
+.sidebar {
+  --es-platform-sidebar-background: var(--color-event-sidebar);
+  --es-platform-sidebar-text-strong: var(--color-white);
+  --es-platform-sidebar-text-default: #ebe1f4;
+  --es-platform-sidebar-text-muted: #b5b3b7;
+  --es-platform-sidebar-action-active: #8365a0;
+  position: fixed;
+  z-index: var(--z-index-99999, 99999);
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 280px;
+  max-inline-size: calc(100vw - 44px);
+  padding-inline: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  color: var(--es-platform-sidebar-text-strong);
+  background: var(--es-platform-sidebar-background);
+  font-family: var(--workspace-font-outfit, inherit);
+  transition:
+    width 200ms,
+    translate 200ms;
+}
+.sidebar[data-expanded="false"] {
+  inline-size: 90px;
+}
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  height: 96px;
+}
+.mark {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--color-white);
+}
+.wordmark {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.wordmark strong {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 21px;
+  letter-spacing: 2.52px;
+}
+.wordmark small {
+  color: rgb(255 255 255 / 72%);
+  font-family: var(
+    --workspace-font-ui-inter,
+    var(--overview-font-inter, Inter),
+    "Noto Sans Thai",
+    sans-serif
+  );
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 16px;
+}
+.section {
+  height: 28.5px;
+  padding-inline: 12px;
+  color: var(--es-platform-sidebar-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: 1.76px;
+}
+.item {
+  display: flex;
+  width: 100%;
+  height: 44px;
+  gap: 12px;
+  align-items: center;
+  padding-inline: 12px;
+  border-radius: var(--radius-full, 9999px);
+  color: var(--es-platform-sidebar-text-default);
+  text-align: start;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.item img,
+.item svg {
+  flex: none;
+}
+.item[aria-current="page"] {
+  background: var(--es-platform-sidebar-action-active);
+  color: var(--es-platform-sidebar-text-strong);
+}
+.item:enabled:hover,
+a.item:hover {
+  background: var(--es-platform-sidebar-action-active);
+}
+.item:disabled {
+  cursor: default;
+}
+.sidebar[data-expanded="false"] :is(.item, .brand) {
+  justify-content: center;
+}
+
+.header {
+  --es-workspace-header-border: #e9e3ef;
+  --es-workspace-toggle-bg: #f7f4fa;
+  --es-workspace-toggle-border: #e5dfeb;
+  --es-workspace-profile-bg: #8569a4;
+  --es-workspace-profile-text: #2c2636;
+  --es-workspace-profile-role: #80788c;
+  position: sticky;
+  z-index: var(--z-index-99, 99);
+  inset-block-start: 0;
+  display: flex;
+  height: 76px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-inline: 24px;
+  background: var(--color-white);
+  color: var(--color-participant-text);
+  box-shadow: inset 0 -1px var(--es-workspace-header-border);
+}
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.toggle {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  cursor: pointer;
+  place-items: center;
+  border: 1px solid var(--es-workspace-toggle-border);
+  border-radius: 12px;
+  background: var(--es-workspace-toggle-bg);
+}
+.language {
+  position: relative;
+  display: flex;
+  width: 64px;
+  height: 32px;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  font-family: var(
+    --workspace-font-ui-inter,
+    var(--overview-font-inter, Inter),
+    "Noto Sans Thai",
+    sans-serif
+  );
+  font-size: 16px;
+  line-height: 24px;
+}
+.language span {
+  width: 27px;
+  text-align: center;
+}
+.language select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.language:focus-within,
+.account:focus-visible,
+.toggle:focus-visible,
+.item:focus-visible,
+.brand:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+}
+.account {
+  display: flex;
+  width: 204px;
+  height: 48px;
+  gap: 10px;
+  align-items: center;
+  padding-inline: 8px;
+  text-align: start;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.account:hover,
+.language:hover {
+  background: var(--es-workspace-toggle-bg);
+}
+.avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--es-workspace-profile-bg);
+  color: var(--color-white);
+  font-family: var(--workspace-font-outfit, inherit);
+  font-size: 14px;
+  font-weight: 600;
+}
+.identity {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--es-workspace-profile-text);
+  font-family: var(--workspace-font-outfit, inherit);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.identity span,
+.identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.identity small {
+  color: var(--es-workspace-profile-role);
+  font-family: var(
+    --workspace-font-ui-inter,
+    var(--overview-font-inter, Inter),
+    "Noto Sans Thai",
+    sans-serif
+  );
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 15px;
+}
+:global(.dark) .header {
+  --es-workspace-header-border: var(--color-gray-700);
+  --es-workspace-toggle-bg: var(--color-gray-800);
+  --es-workspace-toggle-border: var(--color-gray-600);
+  --es-workspace-profile-text: var(--color-gray-100);
+  --es-workspace-profile-role: var(--color-gray-300);
+  color: var(--color-gray-100);
+  background: var(--color-gray-900);
+}
+:global(.dark) .header :is(.language, .toggle, .account) img {
+  filter: brightness(0) invert(1);
+}
+@media (max-width: 639px) {
+  .header {
+    padding-inline: 16px;
+  }
+  .account {
+    width: auto;
+  }
+  .identity {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+}

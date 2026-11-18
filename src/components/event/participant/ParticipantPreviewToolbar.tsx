@@ -1,5 +1,6 @@
 "use client";
 
+import PublicationIcon from "@/components/event/qr/PublicationIcon";
 import { Link } from "@/i18n/navigation";
 import type { ParticipantDevice } from "@/types/event/participant";
 import {
@@ -22,16 +23,13 @@ export default function ParticipantPreviewToolbar({
   const setup = useTranslations("eventSetup");
   if (origin === "publish")
     return (
-      <header className="flex h-16 shrink-0 items-center gap-4 border-b border-event-border bg-white px-4 dark:border-gray-700 dark:bg-gray-900">
-        <Link
-          href="/event/publish"
-          className="event-option flex items-center gap-2"
-        >
-          <ChevronLeftIcon className="size-4 rtl:rotate-180" />
+      <header className="publish-full-toolbar">
+        <Link href="/event/publish" className="publish-full-toolbar__back">
+          <PublicationIcon name="back-fullscreen" size={18} directional />
           {setup("backSummary")}
         </Link>
-        <strong className="min-w-0 text-sm">{setup("previewTitle")}</strong>
-        <span className="ms-auto hidden text-sm sm:block">Preview</span>
+        <strong>{setup("previewTitle")}</strong>
+        <span>Preview</span>
       </header>
     );
   const nextDevice = device === "desktop" ? "mobile" : "desktop";

@@ -1,6 +1,7 @@
 "use client";
+
+import Image from "next/image";
 import WhitelistDialog from "@/components/event/whitelist/WhitelistDialog";
-import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
 import Table, {
   TableBody,
@@ -19,6 +20,7 @@ import type {
 } from "@/types/event/whitelist";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
+
 interface WhitelistImportDialogProps {
   entries: WhitelistEntry[];
   onUse: (entries: WhitelistEntry[]) => void;
@@ -29,11 +31,13 @@ export default function WhitelistImportDialog({
   onUse,
   onClose,
 }: WhitelistImportDialogProps) {
-  const t = useTranslations("eventWhitelist");
+  const t = useTranslations("eventWhitelist"),
+    view = useTranslations("eventWhitelistImport");
   const [preview, setPreview] = useState<WhitelistImportPreview | null>(null);
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failedFile, setFailedFile] = useState<string | null>(null);
   const sequence = useRef(0);
+  const fileInput = useRef<HTMLInputElement>(null);
   useEffect(
     () => () => {
       sequence.current++;
@@ -43,159 +47,153 @@ export default function WhitelistImportDialog({
   const read = async (file: File) => {
     const request = ++sequence.current;
     setBusy(true);
-    setError(false);
+    setFailedFile(null);
     try {
       const rows = await readWhitelistFile(file);
       if (request === sequence.current)
         setPreview(previewWhitelistImport(rows, file.name, entries));
     } catch {
-      if (request === sequence.current) setError(true);
+      if (request === sequence.current) setFailedFile(file.name);
     } finally {
       if (request === sequence.current) setBusy(false);
     }
   };
+  const choose = () => {
+    setPreview(null);
+    setFailedFile(null);
+  };
+  const invalid = !!preview?.columnMismatch || failedFile !== null;
+  const fileName = preview?.fileName ?? failedFile;
+  const reason = failedFile
+    ? t("fileError")
+    : preview?.idColumn
+      ? view("duplicateHeaders")
+      : view("missingEmail");
   return (
-    <WhitelistDialog
-      title={t(
-        preview
-          ? preview.columnMismatch
-            ? "columnMismatch"
-            : "columnCheck"
-          : "importTitle",
-      )}
-      onClose={onClose}
-    >
-      {!preview ? (
-        <>
-          <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-            {t("fileTypes")}
-          </p>
-          <Input
-            type="file"
-            accept={WHITELIST_IMPORT_ACCEPT}
-            disabled={busy}
-            aria-label={t("chooseFile")}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void read(file);
-              event.target.value = "";
-            }}
-          />
-          {busy && (
-            <p
-              role="status"
-              className="text-theme-sm text-gray-500 dark:text-gray-400"
-            >
-              {t("reading")}
-            </p>
-          )}
-          {error && (
-            <p
-              role="alert"
-              className="text-theme-sm text-error-600 dark:text-error-400"
-            >
-              {t("fileError")}
-            </p>
-          )}
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={onClose}>
-              {t("cancel")}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="text-theme-sm wrap-anywhere text-gray-500 dark:text-gray-400">
-            {preview.fileName}
-          </p>
-          <div className="overflow-x-auto">
-            <Table className="text-start text-theme-xs text-gray-600 dark:text-gray-300">
-              <TableHeader className="bg-participant-page dark:bg-gray-800">
-                <TableRow>
-                  {["expectedColumn", "fileColumn", "checkResult"].map(
-                    (key) => (
-                      <TableCell
-                        key={key}
-                        isHeader
-                        className="px-3 py-3 text-start"
-                      >
-                        {t(key)}
-                      </TableCell>
-                    ),
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[
-                  {
-                    label: "uniqueIdRequired",
-                    column: preview.idColumn,
-                    ok: !!preview.idColumn && !preview.columnMismatch,
-                  },
-                  {
-                    label: "optionalNameColumn",
-                    column: preview.nameColumn,
-                    ok: true,
-                  },
-                ].map((row) => (
-                  <TableRow
-                    key={row.label}
-                    className="bg-participant-page dark:bg-gray-800"
-                  >
-                    <TableCell className="px-3 py-3">{t(row.label)}</TableCell>
-                    <TableCell className="px-3 py-3 wrap-anywhere">
-                      {row.column || "—"}
-                    </TableCell>
-                    <TableCell
-                      className={`px-3 py-3 ${row.ok ? "text-success-700 dark:text-success-300" : "text-error-600 dark:text-error-400"}`}
-                    >
-                      {t(
-                        row.ok
-                          ? row.column
-                            ? "matched"
-                            : "optionalMissing"
-                          : "missing",
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          {!preview.columnMismatch && (
-            <p className="text-theme-xs font-bold text-gray-500 dark:text-gray-400">
-              {t("importSummary", {
-                valid: preview.entries.length,
-                invalid: preview.invalidCount,
+    <WhitelistDialog title={view("manage")} onClose={onClose}>
+      <section className="whitelist-import-body" aria-busy={busy}>
+        <h3>
+          {view(invalid ? "invalid" : preview ? "preview" : "importFile")}
+        </h3>
+        {invalid ? (
+          <>
+            <p className="whitelist-import-file-name">{fileName}</p>
+            <div className="whitelist-import-error" role="alert">
+              <Image
+                alt=""
+                src="/images/event-whitelist/error.svg"
+                width={22}
+                height={22}
+              />
+              <div>
+                <strong>{reason}</strong>
+                <small>{view("notSaved")}</small>
+              </div>
+            </div>
+          </>
+        ) : preview ? (
+          <>
+            <p className="whitelist-import-file-name">
+              {view("fileSummary", {
+                file: preview.fileName,
+                count: preview.entries.length,
               })}
             </p>
-          )}
-          <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-            {t(preview.columnMismatch ? "columnsRequired" : "replaceHint")}
-          </p>
-          <footer className="flex flex-wrap justify-end gap-3">
-            <Button variant="outline" onClick={onClose}>
-              {t("cancel")}
-            </Button>
-            {preview.columnMismatch ? (
-              <Button
-                onClick={() => setPreview(null)}
-                className="bg-event-action! hover:bg-event-action/90! dark:bg-event-action"
+            <div className="whitelist-import-preview">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableCell isHeader>{view("email")}</TableCell>
+                    <TableCell isHeader>{view("name")}</TableCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {preview.entries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>{entry.uniqueId}</TableCell>
+                      <TableCell>{entry.name || "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {(preview.invalidCount > 0 || !preview.entries.length) && (
+              <p role="status" className="whitelist-import-note">
+                {t("importSummary", {
+                  valid: preview.entries.length,
+                  invalid: preview.invalidCount,
+                })}
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="whitelist-import-pickers">
+              <input
+                ref={fileInput}
+                type="file"
+                accept={WHITELIST_IMPORT_ACCEPT}
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void read(file);
+                  event.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => fileInput.current?.click()}
               >
-                {t("chooseAgain")}
-              </Button>
-            ) : (
+                <Image
+                  alt=""
+                  src="/images/event-whitelist/file.svg"
+                  width={25}
+                  height={25}
+                />
+                {view("chooseCsv")}
+              </button>
+              <button type="button" disabled>
+                <Image
+                  alt=""
+                  src="/images/event-whitelist/file.svg"
+                  width={25}
+                  height={25}
+                />
+                XLSX
+              </button>
+            </div>
+            {busy && (
+              <p role="status" className="whitelist-import-note">
+                {t("reading")}
+              </p>
+            )}
+          </>
+        )}
+      </section>
+      <footer className="whitelist-import-footer">
+        {invalid && <p>{view("errorFooter", { reason })}</p>}
+        <div>
+          <Button
+            variant="outline"
+            onClick={preview && !invalid ? choose : onClose}
+          >
+            {view("back")}
+          </Button>
+          {invalid ? (
+            <Button onClick={choose}>{view("chooseAgain")}</Button>
+          ) : (
+            preview && (
               <Button
                 disabled={!preview.entries.length}
                 onClick={() => onUse(preview.entries)}
-                className="bg-event-action! hover:bg-event-action/90! dark:bg-event-action"
               >
-                {t("useFile")}
+                {view("import")}
               </Button>
-            )}
-          </footer>
-        </>
-      )}
+            )
+          )}
+        </div>
+      </footer>
     </WhitelistDialog>
   );
 }

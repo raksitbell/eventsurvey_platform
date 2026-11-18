@@ -3,16 +3,112 @@ import EventSetupBoundary, {
   type EventSetupPageProps,
 } from "@/components/event/setup/EventSetupBoundary";
 import Image from "next/image";
-import Button from "@/components/ui/button/Button";
 import { Link } from "@/i18n/navigation";
-import { useFormatter, useTranslations } from "next-intl";
-import { QrCodeIcon } from "@heroicons/react/24/outline";
+import { useTranslations } from "next-intl";
 import { loadPublication, publicationKey } from "@/core/event/publication";
 import { surveyClosingTime } from "@/core/event/schedule";
+import type { EventDraft } from "@/types/event/setup";
+import PublicationIcon from "./PublicationIcon";
+import PublishedEventSummary, {
+  PublicationHeading,
+} from "./PublishedEventSummary";
+import useEventDisplayDate from "@/hooks/useEventDisplayDate";
 
-function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
+type ShareKind = "event" | "registration" | "survey";
+
+function ShareActions({ eventPage }: { eventPage: boolean }) {
+  const t = useTranslations("eventSetup");
+  const p = useTranslations("eventPublishedView");
+  const copy = (
+    <button type="button" disabled className="published-qr__primary">
+      <PublicationIcon name="copy" />
+      {eventPage ? t("copyUrl") : p("copyUrl")}
+    </button>
+  );
+  const download = (
+    <button type="button" disabled>
+      <PublicationIcon name="download" />
+      {t("downloadQr")}
+    </button>
+  );
+  return (
+    <div className="published-qr__buttons">
+      {eventPage ? copy : download}
+      {eventPage ? download : copy}
+      {eventPage && (
+        <button type="button" disabled>
+          <PublicationIcon name="external" />
+          {t("openEvent")}
+        </button>
+      )}
+    </div>
+  );
+}
+function ShareCard({ kind, draft }: { kind: ShareKind; draft: EventDraft }) {
   const t = useTranslations("eventSetup"),
-    f = useFormatter();
+    p = useTranslations("eventPublishedView");
+  const date = useEventDisplayDate();
+  const design = useTranslations("eventSetupDesign");
+  const eventPage = kind === "event";
+  const range = kind === "survey" ? surveyClosingTime(draft) : draft.endsAt;
+  const art = (
+    <div className="published-qr__art">
+      <Image
+        src={`/images/event-publication/${kind}-qr-sample.svg`}
+        alt={p("sampleQr")}
+        width={eventPage ? 132 : 164}
+        height={eventPage ? 132 : 164}
+      />
+    </div>
+  );
+  const field = (
+    <div className="published-qr__field">
+      <PublicationIcon name="link" />
+      <input aria-label={t("copyUrl")} value="" readOnly disabled />
+    </div>
+  );
+  return (
+    <section
+      className={`published-qr__card ${eventPage ? "published-qr__card--event" : "published-qr__card--form"}`}
+    >
+      {eventPage ? (
+        <>
+          {art}
+          <div className="published-qr__details">
+            <h2>{t("eventQr")}</h2>
+            <p>{p("shareEventHint")}</p>
+            {field}
+          </div>
+        </>
+      ) : (
+        <>
+          <header className="published-qr__form-heading">
+            <span>
+              <PublicationIcon name="qr" size={20} />
+            </span>
+            <div>
+              <h2>{p(kind)}</h2>
+              <p>
+                {date(draft.startsAt, false)} – {date(range, false)}
+                {kind === "survey" &&
+                range &&
+                draft.endsAt &&
+                new Date(range) > new Date(draft.endsAt)
+                  ? " · " + design("postSurvey")
+                  : ""}
+              </p>
+            </div>
+          </header>
+          {art}
+          {field}
+        </>
+      )}
+      <ShareActions eventPage={eventPage} />
+    </section>
+  );
+}
+function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
+  const t = useTranslations("eventSetup");
   const local = workspace.localPublishedAt
     ? loadPublication(publicationKey(userId, workspace.eventId, locale))
     : null;
@@ -22,103 +118,26 @@ function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
     workspace.eventStatus !== "closed"
   )
     return (
-      <div className="event-sheet">
-        <Link href="/event">{t("backWorkspace")}</Link>
-      </div>
+      <Link href="/event" className="event-option">
+        {t("backWorkspace")}
+      </Link>
     );
-  const banner = local?.branding.banner?.url ?? workspace.bannerUrl;
   const data = local?.draft ?? workspace;
-  const date = (v: string | null) =>
-    v
-      ? f.dateTime(new Date(v), {
-          dateStyle: "medium",
-          timeStyle: "short",
-          timeZone: "Asia/Bangkok",
-        })
-      : "—";
   return (
-    <article className="event-sheet space-y-5">
-      <header className="flex items-center justify-between">
-        <h1 className="text-title-sm font-bold">{t("qrTitle")}</h1>
-        <span className="rounded-full bg-success-50 px-3 py-1 text-success-700 dark:bg-success-900 dark:text-success-200">
-          {t(
-            workspace.eventStatus === "closed" && !local
-              ? "closed"
-              : "published",
-          )}
-        </span>
-      </header>
-      <div className="event-section flex flex-wrap items-center justify-between gap-4">
-        {banner && (
-          <Image
-            src={banner}
-            alt=""
-            unoptimized
-            width={76}
-            height={100}
-            className="h-24 w-18 rounded-lg object-cover"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-semibold wrap-anywhere">
-            {data.eventName}
-          </h2>
-          {local?.branding.organizer && (
-            <p className="mt-1 text-sm">{local.branding.organizer}</p>
-          )}
-        </div>
-        <div className="space-y-1 text-sm">
-          <strong>{t("dateTime")}</strong>
-          <p>{date(data.startsAt)}</p>
-          <p>{date(data.endsAt)}</p>
-        </div>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {[
-          "event",
-          ...(data.hasRegistration ? ["registration"] : []),
-          ...(data.hasSurvey ? ["survey"] : []),
-        ].map((kind) => (
-          <section
-            key={kind}
-            className={`event-section flex flex-col gap-3 ${kind === "event" ? "sm:col-span-2" : ""}`}
-          >
-            <h2 className="font-semibold">
-              {t(kind === "event" ? "eventQr" : kind)}
-            </h2>
-            {kind !== "event" && (
-              <p className="text-sm">
-                {date(data.startsAt)} –{" "}
-                {date(
-                  kind === "survey" ? surveyClosingTime(data) : data.endsAt,
-                )}
-              </p>
-            )}
-            <QrCodeIcon
-              aria-hidden
-              className="mx-auto size-28 rounded-lg border border-event-border bg-white p-6 text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500"
-            />
-            <input
-              className="event-input"
-              aria-label={t("copyUrl")}
-              value=""
-              disabled
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" disabled>
-                {t("copyUrl")}
-              </Button>
-              <Button variant="outline" disabled>
-                {t("downloadQr")}
-              </Button>
-              {kind === "event" && (
-                <Button variant="outline" disabled>
-                  {t("openEvent")}
-                </Button>
-              )}
-            </div>
-          </section>
-        ))}
+    <article className="published-event published-event--qr">
+      <PublicationHeading
+        title={t("qrTitle")}
+        closed={workspace.eventStatus === "closed" && !local}
+      />
+      <PublishedEventSummary
+        draft={data}
+        branding={local?.branding}
+        bannerUrl={workspace.bannerUrl}
+      />
+      <ShareCard kind="event" draft={data} />
+      <div className="published-event__pair">
+        {data.hasRegistration && <ShareCard kind="registration" draft={data} />}
+        {data.hasSurvey && <ShareCard kind="survey" draft={data} />}
       </div>
     </article>
   );

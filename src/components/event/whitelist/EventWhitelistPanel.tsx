@@ -2,17 +2,23 @@
 import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import WhitelistTable from "@/components/event/whitelist/WhitelistTable";
-import WhitelistEntryDialog from "@/components/event/whitelist/WhitelistEntryDialog";
+import WhitelistEntryRow from "@/components/event/whitelist/WhitelistEntryRow";
+import type { WhitelistEntryDraft } from "@/components/event/whitelist/WhitelistEntryRow";
+import type { WhitelistRowIssue } from "@/types/event/whitelist";
 import WhitelistImportDialog from "@/components/event/whitelist/WhitelistImportDialog";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
-import { replaceWhitelist } from "@/core/event/whitelist";
+import {
+  replaceWhitelist,
+  normalizeWhitelistId,
+  whitelistEntryIssue,
+} from "@/core/event/whitelist";
 import useEventWhitelist from "@/hooks/useEventWhitelist";
 import { useModal } from "@/hooks/useModal";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 export function WhitelistPage({
   workspace,
   userId,
@@ -21,17 +27,39 @@ export function WhitelistPage({
 }: EventSetupPageProps & { onClose?: () => void }) {
   const t = useTranslations("eventWhitelist"),
     router = useRouter();
+  const view = useTranslations("eventWhitelistDesign");
   const { entries, change, save, readOnly, dirty, error } = useEventWhitelist(
     workspace,
     userId,
     locale,
   );
-  const add = useModal(),
-    upload = useModal();
+  const upload = useModal();
+  const formId = useId();
+  const [entry, setEntry] = useState<WhitelistEntryDraft | null>(null);
+  const [entryIssue, setEntryIssue] = useState<WhitelistRowIssue | null>(null);
+  const pendingDialog = useRef(false);
+  const labels = useTranslations("eventWhitelistImport");
+  const hasChanges = dirty || Boolean(entry?.uniqueId || entry?.name);
+  const stageEntry = () => {
+    if (!entry || readOnly) return;
+    const issue = whitelistEntryIssue(entry.uniqueId, entries);
+    setEntryIssue(issue);
+    if (issue) return;
+    change([
+      ...entries,
+      {
+        id: crypto.randomUUID(),
+        uniqueId: normalizeWhitelistId(entry.uniqueId),
+        name: entry.name.trim(),
+        status: "available",
+      },
+    ]);
+    setEntry(null);
+  };
   const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (!dirty) return;
+    if (!hasChanges) return;
     // MDN: event.preventDefault() is the standard way to trigger the browser
     // unsaved-changes prompt. event.returnValue is deprecated in lib.dom.d.ts.
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -39,20 +67,54 @@ export function WhitelistPage({
     };
     globalThis.addEventListener("beforeunload", beforeUnload);
     return () => globalThis.removeEventListener("beforeunload", beforeUnload);
-  }, [dirty]);
+  }, [hasChanges]);
   const back = async () => {
-    if (
-      !dirty ||
-      (await confirm({
-        title: t("unsavedTitle"),
-        message: t("unsavedBody"),
-        confirmLabel: t("leave"),
-        cancelLabel: t("cancel"),
-        variant: "warning",
-      }))
-    ) {
+    if (pendingDialog.current) return;
+    pendingDialog.current = true;
+    try {
+      if (
+        hasChanges &&
+        !(await confirm({
+          title: t("unsavedTitle"),
+          message: t("unsavedBody"),
+          confirmLabel: t("leave"),
+          cancelLabel: t("cancel"),
+          variant: "warning",
+          appearance: "event",
+        }))
+      )
+        return;
       if (onClose) onClose();
       else router.push("/event/details");
+    } finally {
+      pendingDialog.current = false;
+    }
+  };
+  const remove = async (id: string) => {
+    const target = entries.find((item) => item.id === id);
+    if (
+      readOnly ||
+      pendingDialog.current ||
+      !target ||
+      target.status === "joined"
+    )
+      return;
+    pendingDialog.current = true;
+    try {
+      if (
+        await confirm({
+          appearance: "event",
+          title: labels("deleteTitle"),
+          subtitle: target.name,
+          message: target.uniqueId,
+          note: labels("deleteBody"),
+          confirmLabel: labels("delete"),
+          cancelLabel: t("cancel"),
+        })
+      )
+        change(entries.filter((item) => item.id !== id));
+    } finally {
+      pendingDialog.current = false;
     }
   };
   const persist = async () => {
@@ -78,16 +140,6 @@ export function WhitelistPage({
   };
   const dialogs = (
     <>
-      {add.isOpen && !readOnly && (
-        <WhitelistEntryDialog
-          entries={entries}
-          onClose={add.closeModal}
-          onAdd={(entry) => {
-            change([...entries, entry]);
-            add.closeModal();
-          }}
-        />
-      )}
       {upload.isOpen && !readOnly && (
         <WhitelistImportDialog
           entries={entries}
@@ -101,53 +153,48 @@ export function WhitelistPage({
     </>
   );
   const content = (
-    <div className="flex min-h-96 flex-col gap-4 rounded-2xl bg-participant-page p-4 sm:p-6 dark:bg-gray-950">
-      <header className="space-y-1.5">
-        <p className="text-theme-xs font-bold text-event-action dark:text-brand-400">
-          {t("eyebrow")}
-        </p>
-        <h1
-          id="setup-whitelist-title"
-          className="text-title-sm font-bold text-gray-900 dark:text-gray-100"
-        >
-          {t("title")}
-        </h1>
-        <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-          {t("description")}
-        </p>
-      </header>
-      <div className="flex flex-wrap items-center gap-4 py-1">
-        <Button
-          disabled={readOnly || busy}
-          onClick={upload.openModal}
-          className="min-w-48 bg-event-action! hover:bg-event-action/90! dark:bg-event-action"
-        >
-          {t("import")}
-        </Button>
-        <Button
-          disabled={readOnly || busy}
-          variant="outline"
-          onClick={add.openModal}
-        >
-          {t("addManually")}
-        </Button>
-        <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-          {t("uniqueKind")}
-        </p>
+    <div className="es-list-page" data-inline-edit={entry ? true : undefined}>
+      <div className="es-list-content">
+        <header className="es-list-heading">
+          <div>
+            <h1 id="setup-whitelist-title">{view("title")}</h1>
+            <p>{view("description")}</p>
+          </div>
+          <span className="es-list-private">{view("private")}</span>
+          {onClose && (
+            <button
+              type="button"
+              className="es-list-close"
+              aria-label={t("close")}
+              onClick={() => void back()}
+            />
+          )}
+        </header>
+        <WhitelistTable
+          entries={entries}
+          readOnly={readOnly || busy || !!entry}
+          onImport={upload.openModal}
+          onAdd={() => {
+            setEntryIssue(null);
+            setEntry({ uniqueId: "", name: "" });
+          }}
+          editor={
+            entry && (
+              <WhitelistEntryRow
+                formId={formId}
+                value={entry}
+                issue={entryIssue}
+                onChange={(value) => {
+                  setEntry(value);
+                  setEntryIssue(null);
+                }}
+              />
+            )
+          }
+          onDelete={(id) => void remove(id)}
+        />
+        <p className="es-list-policy">{view("policy")}</p>
       </div>
-      <WhitelistTable
-        entries={entries}
-        onDelete={
-          readOnly
-            ? undefined
-            : (id) =>
-                change(
-                  entries.filter(
-                    (entry) => entry.id !== id || entry.status === "joined",
-                  ),
-                )
-        }
-      />
       {error && (
         <p
           role="alert"
@@ -156,33 +203,65 @@ export function WhitelistPage({
           {t("storageError")}
         </p>
       )}
-      <footer className="mt-auto flex flex-wrap justify-end gap-3 pt-12">
-        <Button disabled={busy} variant="outline" onClick={() => void back()}>
-          {t(onClose ? "cancel" : "back")}
-        </Button>
-        <Button
-          disabled={readOnly || busy}
-          onClick={() => void persist()}
-          className="min-w-48 bg-event-action! hover:bg-event-action/90! dark:bg-event-action"
+      {entry ? (
+        <form
+          id={formId}
+          className="es-list-footer whitelist-inline-footer"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            stageEntry();
+          }}
         >
-          {t("save")}
-        </Button>
-      </footer>
+          {entryIssue && (
+            <p id={formId + "-issue"} role="alert">
+              {t("errors." + entryIssue)}
+            </p>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => {
+              setEntry(null);
+              setEntryIssue(null);
+            }}
+          >
+            {t("cancel")}
+          </Button>
+          <Button type="submit" className="bg-event-action! text-white!">
+            {t("addEntry")}
+          </Button>
+        </form>
+      ) : (
+        <footer className="es-list-footer">
+          <Button disabled={busy} variant="outline" onClick={() => void back()}>
+            {t(onClose ? "cancel" : "back")}
+          </Button>
+          <Button
+            disabled={readOnly || busy}
+            onClick={() => void persist()}
+            className="es-list-save bg-event-action! hover:bg-event-action/90!"
+          >
+            {t("save")}
+          </Button>
+        </footer>
+      )}
       {dialogs}
     </div>
   );
-  if (onClose && !add.isOpen && !upload.isOpen)
+  if (onClose && !upload.isOpen)
     return (
       <Modal
         isOpen
         onClose={() => void back()}
         labelledBy="setup-whitelist-title"
-        className="max-h-full max-w-4xl overflow-y-auto"
+        className="es-list-modal"
+        showCloseButton={false}
+        backdropClassName="bg-black/50"
       >
         {content}
       </Modal>
     );
-  if (onClose && (add.isOpen || upload.isOpen)) return dialogs;
+  if (onClose && upload.isOpen) return dialogs;
   return content;
 }
 export default function EventWhitelistPanel() {

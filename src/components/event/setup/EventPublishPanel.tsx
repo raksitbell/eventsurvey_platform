@@ -141,15 +141,15 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         event.preventDefault();
         void publish();
       }}
-      className="event-sheet flex min-h-160 flex-col gap-5"
+      className="publish-view"
     >
-      <header className="space-y-1">
+      <header className="publish-heading">
         <h1 className="text-title-sm font-bold">{s("preview")}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {s("previewHint")}
         </p>
       </header>
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="publish-grid">
         <PublishParticipantPreview
           draft={draft}
           branding={branding}
@@ -161,6 +161,8 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           branding={branding}
           issues={issues}
           loading={formState.loading}
+          canEdit={!busy && !readOnly && !published}
+          onEdit={() => navigate("/event/details")}
         />
       </div>
       <EventSetupActions

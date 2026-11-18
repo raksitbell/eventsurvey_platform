@@ -25,6 +25,7 @@ export default function EventAccessSettings({
 }: Props) {
   const t = useTranslations("eventHome.details");
   const s = useTranslations("eventSetup");
+  const v = useTranslations("eventSetupDesign");
   const { confirm } = useConfirm();
   async function toggleRegistration(value: boolean) {
     if (!value && draft.isPrivate) return;
@@ -43,7 +44,7 @@ export default function EventAccessSettings({
     onChange({ hasRegistration: value });
   }
   return (
-    <section className="space-y-4">
+    <section className="es-access">
       <fieldset disabled={readOnly} className="grid grid-cols-2 gap-2">
         <legend className="mb-2 font-semibold">{s("access")}</legend>
         {([false, true] as const).map((value) => (
@@ -69,10 +70,13 @@ export default function EventAccessSettings({
         const enabled = registration ? draft.hasRegistration : draft.hasSurvey;
         const label = t(registration ? "hasRegistration" : "hasSurvey");
         return (
-          <div key={kind} className="event-section space-y-3">
+          <div key={kind} className="es-feature space-y-3">
             <div className="flex items-center justify-between">
-              <label htmlFor={kind + "-on"} className="font-medium">
-                {label}
+              <label
+                htmlFor={kind + "-on"}
+                className={`es-icon-label es-${kind}-label`}
+              >
+                {v(registration ? "registrationForm" : "survey")}
               </label>
               <Switch
                 id={kind + "-on"}
@@ -88,31 +92,8 @@ export default function EventAccessSettings({
                 }
               />
             </div>
-            {enabled && (
-              <Button
-                variant="outline"
-                disabled={
-                  readOnly ||
-                  !(registration
-                    ? workspace.canManageWhitelist
-                    : workspace.canManageSurveyForm)
-                }
-                onClick={() => onOpenBuilder(kind)}
-              >
-                {s(registration ? "buildRegistration" : "buildSurvey")}
-              </Button>
-            )}
-            {registration && draft.isPrivate && enabled && (
-              <Button
-                variant="outline"
-                disabled={!workspace.canManageWhitelist}
-                onClick={onOpenWhitelist}
-              >
-                {t("manageWhitelist")}
-              </Button>
-            )}
             {!registration && enabled && (
-              <label className="flex items-center gap-2 text-sm">
+              <label className="es-survey-requirement">
                 <input
                   type="checkbox"
                   checked={draft.surveyAccess === "registered_only"}
@@ -128,16 +109,53 @@ export default function EventAccessSettings({
                 {s("registeredOnly")}
               </label>
             )}
+            {enabled && (
+              <Button
+                variant="outline"
+                className="es-builder-link"
+                disabled={
+                  readOnly ||
+                  !(registration
+                    ? workspace.canManageWhitelist
+                    : workspace.canManageSurveyForm)
+                }
+                onClick={() => onOpenBuilder(kind)}
+              >
+                {s(registration ? "buildRegistration" : "buildSurvey")}
+              </Button>
+            )}
+            {enabled &&
+              (registration || draft.surveyAccess !== "registered_only") && (
+                <EventCapacitySettings
+                  kind={kind}
+                  readOnly={readOnly}
+                  capacity={
+                    (registration
+                      ? draft.registrationCapacity
+                      : draft.surveyCapacity) ?? null
+                  }
+                  onChange={(limit) =>
+                    onChange(
+                      registration
+                        ? { registrationCapacity: limit }
+                        : { surveyCapacity: limit },
+                    )
+                  }
+                />
+              )}
+            {registration && draft.isPrivate && enabled && (
+              <Button
+                variant="outline"
+                className="es-whitelist-link"
+                disabled={!workspace.canManageWhitelist}
+                onClick={onOpenWhitelist}
+              >
+                {t("manageWhitelist")}
+              </Button>
+            )}
           </div>
         );
       })}
-      {(draft.hasRegistration || draft.hasSurvey) && (
-        <EventCapacitySettings
-          draft={draft}
-          readOnly={readOnly}
-          onChange={onChange}
-        />
-      )}
     </section>
   );
 }

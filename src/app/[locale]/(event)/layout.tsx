@@ -10,6 +10,11 @@ import EventWorkspaceHeader from "@/components/event/workspace/EventWorkspaceHea
 import { usePathname } from "@/i18n/navigation";
 import Backdrop from "@/layout/Backdrop";
 import React from "react";
+import {
+  eventInter,
+  eventThai,
+} from "@/components/event/setup/event-admin-fonts";
+import "@/components/event/setup/event-admin-design.css";
 
 function EventShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -37,16 +42,23 @@ function EventShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div
-        className={`min-h-screen xl:flex dark:bg-gray-950 ${isSetup ? "event-workspace-background" : "bg-gray-50"}`}
+        className={`min-h-screen xl:flex dark:bg-gray-950 ${isSetup ? eventInter.variable + " " + eventThai.variable + " event-admin-shell" : "bg-gray-50"}`}
       >
         {isSetup ? <EventWorkspaceSidebar /> : <AppSidebar />}
         <Backdrop />
         <div
-          className={`flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin}`}
+          data-screen={isSetup ? pathname : undefined}
+          className={`flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin} ${isSetup ? "event-admin-main" : ""}`}
         >
           <ImpersonationBanner />
           {isSetup ? <EventWorkspaceHeader /> : <AppHeader />}
-          <div className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6">
+          <div
+            className={
+              isSetup
+                ? "event-admin-body"
+                : "mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6"
+            }
+          >
             {children}
           </div>
         </div>

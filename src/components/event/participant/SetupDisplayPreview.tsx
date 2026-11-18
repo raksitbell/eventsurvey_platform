@@ -1,7 +1,10 @@
 "use client";
-import SetupDisplayContent from "./SetupDisplayContent";
-import type { ParticipantEventData } from "@/types/event/participant";
+
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { defaultEventBranding } from "@/core/event/branding";
+import type { ParticipantEventData } from "@/types/event/participant";
+import SetupDisplayContent from "./SetupDisplayContent";
 
 export default function SetupDisplayPreview({
   draft,
@@ -10,52 +13,74 @@ export default function SetupDisplayPreview({
   compact = false,
 }: ParticipantEventData & { compact?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  const scene = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number | null>(null);
+  const landscape = branding.layout === "landscape";
+  const width = landscape ? 1920 : 1080;
+  const height = landscape ? 1080 : 1920;
   useEffect(() => {
-    if (!box.current) return;
-    const observer = new ResizeObserver(([entry]) =>
-      setWidth(entry.contentRect.width),
-    );
-    observer.observe(box.current);
+    const container = box.current,
+      artwork = scene.current;
+    if (!container || !artwork) return;
+    const resize = () => {
+      const byWidth = container.clientWidth / width;
+      setScale(
+        compact
+          ? Math.min(
+              byWidth,
+              (container.clientHeight * 0.97344) / artwork.offsetHeight,
+            )
+          : Math.min(1, byWidth),
+      );
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    observer.observe(artwork);
     return () => observer.disconnect();
-  }, []);
-  const layout = branding.layout ?? "portrait";
-  const src = branding.banner?.url ?? bannerUrl;
-  const base = compact
-    ? layout === "landscape"
-      ? 1920
-      : 1080
-    : layout === "landscape"
-      ? 1140
-      : 850;
-  const zoom = width ? Math.min(1, width / base) : 1;
-  return (
-    <div
-      ref={box}
-      className="relative isolate w-full overflow-hidden rounded-lg bg-event-tile dark:bg-gray-800"
-      style={{
+  }, [compact, width]);
+  const banner = branding.banner?.url ?? bannerUrl;
+  const defaultMat =
+    !branding.backgroundMode &&
+    branding.secondary.toLowerCase() ===
+      defaultEventBranding.secondary.toLowerCase();
+  const background: CSSProperties = defaultMat
+    ? {}
+    : {
         backgroundColor: branding.secondary,
         backgroundImage:
           branding.backgroundMode === "gradient"
             ? `linear-gradient(${branding.gradientAngle ?? 0}deg, ${branding.secondary}, ${branding.gradientEnd ?? branding.primary})`
-            : undefined,
-      }}
+            : "none",
+      };
+  return (
+    <div
+      ref={box}
+      className={`setup-display-stage ${compact ? "setup-display-stage--compact" : "setup-display-stage--full"}`}
+      style={background}
     >
-      {branding.backgroundMode === "blur" && src && (
+      {branding.backgroundMode === "blur" && banner && (
         <div
-          aria-hidden
-          className="absolute inset-0 -z-1 scale-110 bg-cover bg-center opacity-70 blur-xl"
-          style={{ backgroundImage: `url(${JSON.stringify(src)})` }}
+          aria-hidden="true"
+          className="setup-display-stage__blur"
+          style={{ backgroundImage: `url(${JSON.stringify(banner)})` }}
         />
       )}
       <div
-        className="mx-auto"
-        style={{ width: Math.min(base, width / zoom || base), zoom }}
+        ref={scene}
+        className="setup-display-stage__art"
+        style={{
+          width,
+          minHeight: height,
+          zoom: scale ?? 1,
+          visibility: scale === null ? "hidden" : undefined,
+        }}
       >
         <SetupDisplayContent
           draft={draft}
           branding={branding}
           bannerUrl={bannerUrl}
+          compact={compact}
         />
       </div>
     </div>

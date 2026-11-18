@@ -1,15 +1,11 @@
 "use client";
-import useEventWorkspace from "@/hooks/useEventWorkspace";
+
 import Image from "next/image";
-import { useSidebar } from "@/context/SidebarContext";
-import { Link, usePathname } from "@/i18n/navigation";
-import {
-  ChartBarIcon,
-  ClockIcon,
-  QrCodeIcon,
-  Squares2X2Icon,
-} from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
+import { useSidebar } from "@/context/SidebarContext";
+import useEventWorkspace from "@/hooks/useEventWorkspace";
+import { Link, usePathname } from "@/i18n/navigation";
+import styles from "./EventWorkspaceChrome.module.css";
 
 export default function EventWorkspaceSidebar() {
   const { workspace } = useEventWorkspace();
@@ -18,73 +14,107 @@ export default function EventWorkspaceSidebar() {
     workspace?.eventStatus === "open" ||
     workspace?.eventStatus === "closed";
   const t = useTranslations("eventSetup");
-  const path = usePathname();
+  const pathname = usePathname();
   const { isExpanded, isHovered, isMobileOpen, setIsHovered } = useSidebar();
   const expanded = isExpanded || isHovered || isMobileOpen;
   const items = [
-    { label: t("overview"), Icon: Squares2X2Icon, href: "/event" },
-    { label: t("activity"), Icon: ClockIcon, href: null },
+    {
+      label: published ? "Overview" : t("overview"),
+      icon: (
+        <Image
+          src="/images/event-workspace/frame.svg"
+          width={20}
+          height={20}
+          alt=""
+        />
+      ),
+      href: "/event",
+    },
+    {
+      label: t("activity"),
+      icon: (
+        <Image
+          src="/images/event-workspace/heroicon.svg"
+          width={20}
+          height={20}
+          alt=""
+        />
+      ),
+      href: null,
+    },
     ...(published
       ? [
-          { label: t("dashboard"), Icon: ChartBarIcon, href: null },
-          { label: t("qrTitle"), Icon: QrCodeIcon, href: "/event/qr" },
+          {
+            label: t("dashboard"),
+            icon: (
+              <Image
+                src="/images/event-workspace/dashboard-nav.svg"
+                width={20}
+                height={20}
+                alt=""
+              />
+            ),
+            href: null,
+          },
+          {
+            label: t("qrTitle"),
+            icon: (
+              <Image
+                src="/images/event-workspace/qr-nav.svg"
+                width={20}
+                height={20}
+                alt=""
+              />
+            ),
+            href: "/event/qr",
+          },
         ]
       : []),
   ];
+
   return (
     <aside
+      id="event-workspace-sidebar"
+      data-expanded={expanded}
       onMouseEnter={() => {
         if (!isExpanded) setIsHovered(true);
       }}
       onMouseLeave={() => setIsHovered(false)}
-      className={`fixed inset-y-0 start-0 z-99999 flex flex-col gap-7 bg-event-sidebar px-4 py-7 text-white transition-all dark:bg-gray-950 ${expanded ? "w-70" : "w-22.5"} ${isMobileOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
+      className={`${styles.sidebar} ${isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full xl:visible xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
     >
-      <Link
-        href="/event"
-        className="flex items-center gap-3"
-        aria-label="EventSurvey"
-      >
-        <Image
-          alt=""
-          width={40}
-          height={40}
-          src="/images/event-preview/workspace-mark.png"
-        />
+      <Link href="/event" className={styles.brand} aria-label="EventSurvey">
+        <span className={styles.mark}>
+          <Image
+            alt=""
+            width={27}
+            height={26}
+            src="/images/event-workspace/ticket-speech-symbol.svg"
+          />
+        </span>
         {expanded && (
-          <span>
-            <strong className="tracking-widest">EventSurvey</strong>
-            <small className="block text-xs text-white/70">
-              {t("appSubtitle")}
-            </small>
+          <span className={styles.wordmark}>
+            <strong>EventSurvey</strong>
+            <small>{t("appSubtitle")}</small>
           </span>
         )}
       </Link>
       <nav aria-label={t("overview")}>
-        <h2
-          className={
-            expanded
-              ? "mb-3 px-3 text-xs tracking-widest text-white/65"
-              : "sr-only"
-          }
-        >
-          WORKSPACE
-        </h2>
-        <ul className="space-y-1">
-          {items.map(({ label, Icon, href }) => {
+        <h2 className={expanded ? styles.section : "sr-only"}>WORKSPACE</h2>
+        <ul>
+          {items.map(({ label, icon, href }) => {
             const current =
-              href === "/event" ? path !== "/event/qr" : href === path;
+              href === "/event" ? pathname !== "/event/qr" : href === pathname;
             const content = (
               <>
-                <Icon className="size-5 shrink-0" />
-                {expanded && label}
+                {icon}
+                {expanded && <span>{label}</span>}
               </>
             );
-            const classes = `flex w-full items-center gap-3 rounded-full px-3 py-3 text-sm ${current ? "bg-event-action" : ""}`;
             return (
               <li key={label}>
                 {href ? (
                   <Link
-                    className={classes}
+                    className={styles.item}
                     href={href}
                     aria-label={label}
                     aria-current={current ? "page" : undefined}
@@ -93,8 +123,9 @@ export default function EventWorkspaceSidebar() {
                   </Link>
                 ) : (
                   <button
+                    type="button"
                     disabled
-                    className={classes + " opacity-65"}
+                    className={styles.item}
                     aria-label={label}
                   >
                     {content}

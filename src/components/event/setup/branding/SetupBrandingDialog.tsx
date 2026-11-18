@@ -1,284 +1,291 @@
 "use client";
-import { useId, useState } from "react";
+
+import { useState } from "react";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { Modal } from "@/components/ui/modal";
-import BrandingMaterialPreview from "./BrandingMaterialPreview";
-import Button from "@/components/ui/button/Button";
 import { useModal } from "@/hooks/useModal";
 import { eventBrandingSchema } from "@/core/event/branding";
-import { eventColorForeground } from "@/core/event/participant-colors";
 import type { BrandingColorKey, EventBranding } from "@/types/event/branding";
 import BrandingUploadDialog from "./BrandingUploadDialog";
+import BrandingMaterialPreview from "./BrandingMaterialPreview";
 import BrandingColorPicker from "./BrandingColorPicker";
+import BrandingDialogFrame from "./BrandingDialogFrame";
+import BrandingIcon from "./BrandingIcon";
+import BrandingIdentitySection from "./BrandingIdentitySection";
+import styles from "./BrandingDialog.module.css";
 
 type ColorKey = BrandingColorKey | "gradientEnd" | "footerColor";
+type Editor = "identity" | "background" | "primary" | "footerColor" | "accent";
 interface Props {
   branding: EventBranding;
   bannerUrl: string | null;
   onClose: () => void;
   onSave: (changes: Partial<EventBranding>) => boolean;
 }
-const platforms = [
-  "Facebook",
-  "Instagram",
-  "X",
-  "TikTok",
-  "YouTube",
-  "LINE",
-  "LinkedIn",
-  "Website",
-  "Other",
-];
 export default function SetupBrandingDialog({
   branding,
   bannerUrl,
   onClose,
   onSave,
 }: Props) {
-  const t = useTranslations("eventSetup"),
-    b = useTranslations("eventBranding");
+  const t = useTranslations("eventSetup");
+  const b = useTranslations("eventBranding");
+  const visual = useTranslations("eventBrandVisual");
   const [value, setValue] = useState(branding);
   const [error, setError] = useState("");
-  const [key, setKey] = useState<ColorKey>("primary");
-  const picker = useModal(),
-    upload = useModal();
-  const id = useId();
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const [picker, setPicker] = useState<ColorKey | null>(null);
+  const upload = useModal();
+  const identity = value.identity ?? "icon";
+  const asset = identity === "wordmark" ? value.wordmark : value.logo;
+  const mode = value.backgroundMode ?? "solid";
+
   function change(changes: Partial<EventBranding>) {
-    setValue((v) => ({ ...v, ...changes }));
+    setValue((current) => ({ ...current, ...changes }));
     setError("");
   }
-  const isWordmark = value.identity === "wordmark";
-
-  const mode = value.backgroundMode ?? "solid";
-  const channels = value.channels ?? [];
-  function color(field: ColorKey) {
+  function color(key: ColorKey) {
     return (
-      value[field] ??
-      (field === "footerColor" ? value.primary : value.secondary)
+      value[key] ??
+      (key === "gradientEnd" || key === "footerColor"
+        ? value.primary
+        : value.secondary)
     );
   }
-  function swatch(field: ColorKey) {
+  function openEditor(target: Editor) {
+    setEditor(target);
+    setPicker(null);
+  }
+  function swatch(field: ColorKey, open: () => void) {
     return (
       <button
         type="button"
-        key={field}
-        className="event-option text-start"
-        style={{
-          background: color(field),
-          color: eventColorForeground(color(field)),
-        }}
-        onClick={() => {
-          setKey(field);
-          picker.openModal();
-        }}
+        className={styles.swatch}
+        onClick={open}
+        aria-label={t(field)}
       >
-        {t(field)} · {color(field)}
+        <span style={{ backgroundColor: color(field) }} />
+        {color(field)}
       </button>
     );
   }
-  if (picker.isOpen)
-    return (
-      <BrandingColorPicker
-        colorKey={
-          key === "footerColor"
-            ? "primary"
-            : key === "gradientEnd"
-              ? "secondary"
-              : key
-        }
-        value={color(key)}
-        onSelect={(c) => change({ [key]: c })}
-        onClose={picker.closeModal}
-      />
-    );
+  function dismiss() {
+    if (picker) setPicker(null);
+    else if (editor) setEditor(null);
+    else onClose();
+  }
   if (upload.isOpen)
     return (
       <BrandingUploadDialog
         kind="logo"
-        identityAsset
+        identityAsset={identity}
         onClose={upload.closeModal}
         onSelect={(image) => {
-          change({ [isWordmark ? "wordmark" : "logo"]: image });
+          change({ [identity === "wordmark" ? "wordmark" : "logo"]: image });
           upload.closeModal();
           return true;
         }}
       />
     );
   return (
-    <Modal
-      isOpen
+    <BrandingDialogFrame
+      title={t("branding")}
+      variant="settings"
       onClose={onClose}
-      labelledBy={id}
-      className="max-h-full max-w-3xl space-y-4 overflow-y-auto"
-    >
-      <h2 id={id} className="text-xl font-bold">
-        {t("branding")}
-      </h2>
-      <label className="block">
-        {t("organizer")}
-        <input
-          className="event-input"
-          value={value.organizer ?? ""}
-          maxLength={255}
-          onChange={(e) => change({ organizer: e.target.value })}
-        />
-      </label>
-      <div className="flex flex-wrap gap-2">
-        {(["icon", "wordmark"] as const).map((identity) => (
+      onEscape={dismiss}
+      actions={
+        <>
+          <button type="button" onClick={onClose}>
+            {b("cancel")}
+          </button>
           <button
             type="button"
-            key={identity}
-            className="event-option"
-            aria-pressed={(value.identity ?? "icon") === identity}
-            onClick={() => change({ identity })}
+            onClick={() => {
+              if (!eventBrandingSchema.safeParse(value).success)
+                setError("invalidBrand");
+              else if (onSave(value)) onClose();
+              else setError("saveError");
+            }}
           >
-            {t(identity)}
+            {t("saveBrand")}
           </button>
-        ))}
-        <Button variant="outline" onClick={upload.openModal}>
-          {b("upload")}
-        </Button>
-      </div>
-      {!isWordmark && (
-        <label className="block">
-          {t("tagline")}
-          <input
-            className="event-input"
-            maxLength={500}
-            value={value.tagline ?? ""}
-            onChange={(e) => change({ tagline: e.target.value })}
-          />
-        </label>
-      )}
-      <section className="space-y-2">
-        <h3>{t("channels")}</h3>
-        {channels.map((channel, index) => (
-          <div key={index} className="flex flex-wrap gap-2">
-            <select
-              className="event-option"
-              aria-label={t("platform")}
-              value={channel.platform}
-              onChange={(e) =>
-                change({
-                  channels: channels.map((c, i) =>
-                    i === index ? { ...c, platform: e.target.value } : c,
-                  ),
-                })
-              }
-            >
-              {platforms.map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>
-            <input
-              type="url"
-              aria-label={t("channelUrl")}
-              placeholder="https://…"
-              className="event-input min-w-32 flex-1"
-              value={channel.url}
-              onChange={(e) =>
-                change({
-                  channels: channels.map((c, i) =>
-                    i === index ? { ...c, url: e.target.value } : c,
-                  ),
-                })
-              }
-            />
-            <button
-              type="button"
-              aria-label={t("removeChannel")}
-              onClick={() =>
-                change({ channels: channels.filter((_, i) => i !== index) })
-              }
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <Button
-          variant="outline"
-          disabled={channels.length >= 12}
-          onClick={() =>
-            change({
-              channels: [...channels, { platform: platforms[0], url: "" }],
-            })
-          }
-        >
-          {t("addChannel")}
-        </Button>
-      </section>
-      <section className="space-y-2">
-        <h3>{t("background")}</h3>
-        <div className="flex flex-wrap gap-2">
-          {(["solid", "gradient", "blur"] as const).map((m) => (
-            <button
-              type="button"
-              key={m}
-              className="event-option"
-              disabled={m === "blur" && !bannerUrl}
-              aria-pressed={mode === m}
-              onClick={() => change({ backgroundMode: m })}
-            >
-              {t(m)}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {mode !== "blur" && swatch("secondary")}
-          {mode === "gradient" && (
-            <>
-              {swatch("gradientEnd")}
+        </>
+      }
+      sidecarKind={editor === "identity" ? "identity" : "material"}
+      sidecar={
+        editor && (
+          <>
+            <div className={styles.sideHeading}>
+              <h3>
+                {visual("materialPreview", {
+                  name: t(editor === "identity" ? identity : editor),
+                })}
+              </h3>
               <button
                 type="button"
-                className="event-option"
-                onClick={() =>
-                  change({ gradientAngle: value.gradientAngle === 90 ? 0 : 90 })
-                }
+                aria-label={visual("closePreview")}
+                onClick={() => {
+                  setEditor(null);
+                  setPicker(null);
+                }}
               >
-                {value.gradientAngle ?? 0}°
+                <BrandingIcon name="close" size={18} />
               </button>
-            </>
-          )}
-        </div>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={!!value.transparentChrome}
-            onChange={(e) => change({ transparentChrome: e.target.checked })}
-          />
-          {t("transparent")}
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {!value.transparentChrome && (
-            <>
-              {swatch("primary")}
-              {swatch("footerColor")}
-            </>
-          )}
-          {swatch("accent")}
-        </div>
-      </section>
-      <BrandingMaterialPreview branding={value} bannerUrl={bannerUrl} />
-      {error && (
-        <p role="alert" className="text-error-600 dark:text-error-400">
-          {t(error)}
-        </p>
-      )}
-      <footer className="flex justify-end gap-2">
-        <Button variant="outline" onClick={onClose}>
-          {b("cancel")}
-        </Button>
-        <Button
-          onClick={() => {
-            if (!eventBrandingSchema.safeParse(value).success)
-              setError("invalidBrand");
-            else if (onSave(value)) onClose();
-            else setError("saveError");
-          }}
-        >
-          {t("saveBrand")}
-        </Button>
-      </footer>
-    </Modal>
+            </div>
+            {editor === "identity" ? (
+              <div className={styles.identitySample}>
+                <strong>{t(identity)}</strong>
+                <div className={styles.identityHeader}>
+                  {asset && (
+                    <Image
+                      unoptimized
+                      src={asset.url}
+                      alt={asset.name}
+                      width={220}
+                      height={54}
+                    />
+                  )}
+                  {(identity === "icon" || !asset) && (
+                    <div>
+                      <strong>{value.organizer || "EventSurvey"}</strong>
+                      {value.tagline && <small>{value.tagline}</small>}
+                    </div>
+                  )}
+                </div>
+                <div className={styles.identityContext}>
+                  {t("yourEvent")}
+                  <span />
+                  <span />
+                </div>
+              </div>
+            ) : (
+              <BrandingMaterialPreview branding={value} bannerUrl={bannerUrl} />
+            )}
+            {editor === "background" ? (
+              <>
+                {mode === "gradient" && (
+                  <p className={styles.colorLabel}>{visual("startColor")}</p>
+                )}
+                {swatch("secondary", () => setPicker("secondary"))}
+                {mode === "gradient" && (
+                  <>
+                    <p className={styles.colorLabel}>{t("gradientEnd")}</p>
+                    {swatch("gradientEnd", () => setPicker("gradientEnd"))}
+                    <button
+                      type="button"
+                      className={styles.control}
+                      onClick={() =>
+                        change({
+                          gradientAngle: value.gradientAngle === 90 ? 0 : 90,
+                        })
+                      }
+                    >
+                      {visual(
+                        value.gradientAngle === 90 ? "horizontal" : "vertical",
+                      )}
+                    </button>
+                  </>
+                )}
+              </>
+            ) : (
+              editor !== "identity" && swatch(editor, () => setPicker(editor))
+            )}
+            {picker && (
+              <BrandingColorPicker
+                key={picker}
+                embedded
+                colorKey={
+                  picker === "gradientEnd"
+                    ? "secondary"
+                    : picker === "footerColor"
+                      ? "primary"
+                      : picker
+                }
+                value={color(picker)}
+                onSelect={(hex) => change({ [picker]: hex })}
+                onClose={() => setPicker(null)}
+              />
+            )}
+          </>
+        )
+      }
+    >
+      <div className={styles.settings}>
+        <BrandingIdentitySection
+          value={value}
+          change={change}
+          onPreview={() => openEditor("identity")}
+          onUpload={upload.openModal}
+        />
+        <section>
+          <h3>
+            <BrandingIcon name="photograph" />
+            {t("background")}
+          </h3>
+          <div className={styles.modeRow}>
+            <strong>{visual("mode")}</strong>
+            <div className={styles.segments}>
+              {(["solid", "gradient", "blur"] as const).map((next) => (
+                <button
+                  type="button"
+                  className={styles.control}
+                  key={next}
+                  disabled={next === "blur" && !bannerUrl}
+                  aria-pressed={next === mode}
+                  onClick={() => {
+                    change({ backgroundMode: next });
+                    openEditor("background");
+                  }}
+                >
+                  {visual(next)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+        <section>
+          <h3>
+            <BrandingIcon name="palette" />
+            {visual("headerFooter")}
+          </h3>
+          <div className={styles.transparent}>
+            <button
+              className={styles.control}
+              type="button"
+              aria-pressed={!!value.transparentChrome}
+              onClick={() =>
+                change({ transparentChrome: !value.transparentChrome })
+              }
+            >
+              <span aria-hidden />
+              {visual("transparent")}
+              {value.transparentChrome && <b aria-hidden>✓</b>}
+            </button>
+            <p>
+              {t("transparent")}
+              {value.transparentChrome && mode === "gradient" && (
+                <small>{visual("continuous")}</small>
+              )}
+            </p>
+          </div>
+          {!value.transparentChrome &&
+            (["primary", "footerColor"] as const).map((field) => (
+              <div className={styles.modeRow} key={field}>
+                <strong>{t(field)}</strong>
+                {swatch(field, () => openEditor(field))}
+              </div>
+            ))}
+          <div className={styles.modeRow}>
+            <strong>{t("accent")}</strong>
+            {swatch("accent", () => openEditor("accent"))}
+          </div>
+        </section>
+        {error && (
+          <p role="alert" className={styles.error}>
+            {t(error)}
+          </p>
+        )}
+      </div>
+    </BrandingDialogFrame>
   );
 }

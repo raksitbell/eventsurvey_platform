@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import { PhotoIcon } from "@heroicons/react/24/outline";
+import BrandingIcon from "./BrandingIcon";
+import styles from "./SetupMedia.module.css";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { bannerLayouts, type BannerLayout } from "@/core/event/banner-layout";
@@ -23,6 +24,7 @@ export default function SetupMediaPanel({
   onChange,
 }: Props) {
   const t = useTranslations("eventSetup");
+  const shortLabel = useTranslations("participantDisplay");
   const upload = useModal(),
     brand = useModal();
   const [pending, setPending] = useState<BannerLayout | null>(null);
@@ -37,28 +39,30 @@ export default function SetupMediaPanel({
     } else onChange({ layout: next });
   }
   return (
-    <section className="min-w-0 space-y-3">
-      <h2 className="font-semibold">{t("bannerRatio")}</h2>
-      <div className="grid grid-cols-3 gap-2">
+    <section className={styles.media}>
+      <h2>
+        <BrandingIcon name="photograph" />
+        {t("bannerRatio")}
+      </h2>
+      <div className={styles.ratios}>
         {(Object.keys(bannerLayouts) as BannerLayout[]).map((key) => (
           <button
             type="button"
-            className="event-option min-h-20 text-start aria-pressed:bg-event-tile! aria-pressed:text-participant-text! dark:aria-pressed:bg-gray-700! dark:aria-pressed:text-gray-100!"
             key={key}
             disabled={readOnly}
             aria-pressed={key === layout}
             onClick={() => select(key)}
           >
             <strong>{bannerLayouts[key].ratio}</strong>
-            <span className="mt-2 block text-xs">{t(key)}</span>
+            <span>{t(key)}</span>
           </button>
         ))}
       </div>
-      <h3 className="font-semibold">{t("layoutPreview")}</h3>
-      <div className="event-section space-y-3">
-        <div className="mx-auto max-w-64 space-y-3 rounded-lg bg-white p-4 text-sm dark:bg-gray-900">
+      <h3>{t("layoutPreview")}</h3>
+      <figure className={styles.figure} data-layout={layout}>
+        <div className={styles.device}>
           <div
-            className="flex flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-dashed border-event-border bg-event-tile text-event-action dark:bg-gray-800 dark:text-brand-300"
+            className={styles.canvas}
             style={{ aspectRatio: size.width / size.height }}
           >
             {src ? (
@@ -72,44 +76,42 @@ export default function SetupMediaPanel({
               />
             ) : (
               <>
-                <PhotoIcon className="size-8" />
+                <span className={styles.photo}>
+                  <BrandingIcon name="photograph" size={27} />
+                </span>
                 {t("noBanner")}
               </>
             )}
           </div>
-          <strong>{t("eventDetails")}</strong>
-          <div
-            aria-hidden
-            className="h-1 w-full rounded bg-event-tile dark:bg-gray-700"
-          />
-          <div
-            aria-hidden
-            className="h-1 w-3/4 rounded bg-event-tile dark:bg-gray-700"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            {(["registration", "survey"] as const).map((kind) => (
-              <div
-                key={kind}
-                className="event-section flex flex-col items-center gap-1 px-1! py-2! text-xs"
-              >
-                {t(kind)}
-                <span
-                  aria-hidden
-                  className="size-4 rounded-sm bg-event-action"
-                />
-              </div>
-            ))}
+          <div className={styles.miniContent}>
+            <div className={styles.miniDetail}>
+              <strong>
+                <BrandingIcon name="document-text" size={14} />
+                {t("eventDetails")}
+              </strong>
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+            </div>
+            <div className={styles.miniActions}>
+              {(["registration", "survey"] as const).map((kind) => (
+                <div key={kind}>
+                  {shortLabel(kind)}
+                  <span aria-hidden="true" />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-        <p className="text-center text-xs">
+        <figcaption>
           {size.ratio} ·{" "}
           {t("minPixels", { width: size.width, height: size.height })}
-        </p>
-      </div>
+        </figcaption>
+      </figure>
       <Button
-        className="w-full"
+        className={styles.mediaAction}
         variant="outline"
         disabled={readOnly}
+        startIcon={<BrandingIcon name="choose-banner" size={18} />}
         onClick={() => {
           setPending(null);
           upload.openModal();
@@ -118,16 +120,17 @@ export default function SetupMediaPanel({
         {t("upload")}
       </Button>
       <Button
-        className="w-full"
+        className={styles.mediaAction}
         variant="outline"
         disabled={readOnly}
+        startIcon={<BrandingIcon name="open-branding" size={18} />}
         onClick={brand.openModal}
       >
         {t("branding")}
       </Button>
       {upload.isOpen && (
         <BannerCropDialog
-          initialBanner={pending ? branding.banner?.url : undefined}
+          initialBanner={pending ? (src ?? undefined) : undefined}
           layout={pending ?? layout}
           onClose={upload.closeModal}
           onApply={(banner) => {

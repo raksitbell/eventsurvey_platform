@@ -1367,6 +1367,7 @@ function detailsActions(save) {
       },
       "@/utils/alert": { showToast() {} },
       "@/core/event/draft": load("src/core/event/draft.ts"),
+      "@/core/event/workspace": load("src/core/event/workspace.ts"),
       "@/hooks/useEventDraft": {
         default: () => ({
           draft: seed,

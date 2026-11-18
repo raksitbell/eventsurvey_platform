@@ -1,11 +1,12 @@
 "use client";
 
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
-import { Link } from "@/i18n/navigation";
+import { useAuth } from "@/context/AuthContext";
 import type { EventWorkspace } from "@/types/event/workspace";
-import { ChevronDownIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import WorkspaceIcon from "./WorkspaceIcon";
+import "./workspace-details.css";
 
 interface EventWorkspaceTeamProps {
   workspace: EventWorkspace;
@@ -15,8 +16,8 @@ function initials(name: string) {
   return name
     .trim()
     .split(/\s+/)
-    .map((part) => Array.from(part)[0])
     .slice(0, 2)
+    .map((part) => Array.from(part)[0])
     .join("")
     .toLocaleUpperCase();
 }
@@ -25,96 +26,110 @@ export default function EventWorkspaceTeam({
   workspace,
 }: EventWorkspaceTeamProps) {
   const t = useTranslations("eventHome");
+  const s = useTranslations("eventSetup");
+  const overview = useTranslations("eventOverview");
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const listId = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const isOwner = workspace.userRole === "event_owner";
+
   useEffect(() => {
     if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        trigger.current?.focus();
+      }
     };
-    globalThis.document.addEventListener("keydown", onKeyDown);
-    return () => globalThis.document.removeEventListener("keydown", onKeyDown);
+    globalThis.document.addEventListener("keydown", onEscape);
+    return () => globalThis.document.removeEventListener("keydown", onEscape);
   }, [open]);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-5">
-        <div>
-          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
-            {t("teamTitle")}
-          </h3>
-          <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-            {t("memberCount", { count: workspace.subUserCount })}
-          </p>
-        </div>
-        <div className="flex -space-x-2 rtl:space-x-reverse">
-          {workspace.subUsers.slice(0, 3).map((member) => (
-            <span
-              key={member.id}
-              title={member.name}
-              className="flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-white bg-event-banner text-theme-sm font-semibold text-white dark:border-gray-900 dark:bg-brand-800"
-            >
-              {initials(member.name)}
-            </span>
-          ))}
-          {workspace.subUsers.length > 3 && (
-            <span className="flex size-10 items-center justify-center rounded-full border-2 border-white bg-event-tile text-theme-xs text-event-action dark:border-gray-900 dark:bg-gray-800 dark:text-gray-200">
-              +{workspace.subUsers.length - 3}
-            </span>
-          )}
-        </div>
-      </div>
-      {workspace.userRole === "event_owner" && (
-        <div className="relative">
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls="workspace-assistants"
-            onClick={() => setOpen((value) => !value)}
-            className="dropdown-toggle inline-flex items-center gap-2 rounded-lg border border-event-border bg-white px-4 py-2.5 text-theme-sm font-semibold text-gray-800 hover:bg-event-subtle dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            {t("manageTeam")}
-            <ChevronDownIcon className="size-4" aria-hidden="true" />
-          </button>
-          <Dropdown
-            isOpen={open}
-            onClose={() => setOpen(false)}
-            className="end-0 top-full mt-2 w-64 p-4"
-          >
-            <section id="workspace-assistants" aria-label={t("teamTitle")}>
-              <h4 className="mb-3 text-theme-sm font-semibold text-gray-800 dark:text-gray-200">
-                {t("teamTitle")}
-              </h4>
-              {workspace.subUsers.length ? (
-                <ul className="max-h-60 space-y-3 overflow-y-auto">
-                  {workspace.subUsers.map((member) => (
-                    <li
-                      key={member.id}
-                      className="flex items-center gap-3 text-theme-sm text-gray-700 dark:text-gray-300"
-                    >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-event-banner text-white dark:bg-brand-800">
-                        {initials(member.name)}
-                      </span>
-                      <span className="min-w-0 break-words">{member.name}</span>
-                    </li>
-                  ))}
-                </ul>
+    <div className="workspace-team">
+      <button
+        ref={trigger}
+        type="button"
+        className="workspace-team__card dropdown-toggle"
+        aria-controls={open ? listId : undefined}
+        aria-expanded={isOwner ? open : undefined}
+        disabled={!isOwner}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="workspace-team__heading">
+          <WorkspaceIcon name="icon-outline-user-group" size={20} />
+          <span>{s("team")}</span>
+          <WorkspaceIcon
+            name="icon-outline-chevron-right-open-user-management"
+            size={18}
+            directional
+          />
+        </span>
+        <span className="workspace-team__context">
+          <span className="workspace-team__avatars" aria-hidden="true">
+            <span className="workspace-team__avatar workspace-team__avatar--owner">
+              {user?.name ? (
+                initials(user.name)
               ) : (
-                <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-                  {t("noTeam")}
-                </p>
+                <WorkspaceIcon name="icon-outline-user-placeholder" size={18} />
               )}
-              <div className="mt-4 border-t border-event-border pt-3 dark:border-gray-800">
-                <Link
-                  href="/event/team"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-event-action px-3 py-2 text-theme-xs font-semibold text-white transition hover:bg-event-action/90"
-                >
-                  <UserGroupIcon className="size-4" aria-hidden="true" />
-                  {t("manageTeamPermissions")}
-                </Link>
-              </div>
-            </section>
-          </Dropdown>
-        </div>
+            </span>
+            <span className="workspace-team__avatar workspace-team__avatar--member">
+              {workspace.subUsers[0] ? (
+                initials(workspace.subUsers[0].name)
+              ) : (
+                <WorkspaceIcon name="icon-outline-user-placeholder" size={18} />
+              )}
+            </span>
+            <span className="workspace-team__avatar workspace-team__avatar--more">
+              {workspace.subUsers.length > 1 ? (
+                `+${workspace.subUsers.length - 1}`
+              ) : (
+                <WorkspaceIcon name="icon-outline-plus-invite-user" size={18} />
+              )}
+            </span>
+          </span>
+          <span className="workspace-team__hint">
+            <strong>{overview("teamTitle")}</strong>
+            <span>{overview("teamHint")}</span>
+          </span>
+        </span>
+      </button>
+      {isOwner && (
+        <Dropdown
+          isOpen={open}
+          onClose={() => setOpen(false)}
+          className="inset-s-0 top-full mt-2 max-h-64 overflow-y-auto p-4"
+        >
+          <section id={listId} aria-label={t("teamTitle")}>
+            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+              {t("teamTitle")}
+            </h3>
+            {workspace.subUsers.length ? (
+              <ul className="mt-2 space-y-2">
+                {workspace.subUsers.map((member) => (
+                  <li
+                    key={member.id}
+                    className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="workspace-team__avatar workspace-team__avatar--member"
+                    >
+                      {initials(member.name)}
+                    </span>
+                    <span className="min-w-0 wrap-anywhere">{member.name}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                {t("noTeam")}
+              </p>
+            )}
+          </section>
+        </Dropdown>
       )}
     </div>
   );

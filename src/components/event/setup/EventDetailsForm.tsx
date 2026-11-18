@@ -9,6 +9,7 @@ import EventSetupBoundary, {
 import EventSetupActions from "./EventSetupActions";
 import { WhitelistPage } from "@/components/event/whitelist/EventWhitelistPanel";
 import { createSavedNavigation } from "@/core/event/draft";
+import { eventWorkspaceDisplayStatus } from "@/core/event/workspace";
 import useEventDraft from "@/hooks/useEventDraft";
 import useEventBranding from "@/hooks/useEventBranding";
 import { useModal } from "@/hooks/useModal";
@@ -20,6 +21,14 @@ function DetailsForm(props: EventSetupPageProps) {
   const { workspace, userId, locale } = props;
   const t = useTranslations("eventSetup"),
     d = useTranslations("eventHome.details");
+  const home = useTranslations("eventHome");
+  const overview = useTranslations("eventOverview");
+  const statusName = eventWorkspaceDisplayStatus(workspace);
+  const statusLabel = workspace.localPublishedAt
+    ? t("published")
+    : statusName === "draft"
+      ? overview("draft")
+      : home(`eventStatus.${statusName}`);
   const router = useRouter(),
     list = useModal();
   const { draft, status, readOnly, change, save } = useEventDraft(
@@ -33,21 +42,22 @@ function DetailsForm(props: EventSetupPageProps) {
   return (
     <>
       <form
-        className="event-sheet flex min-h-full flex-col gap-5"
+        className="event-details-page"
         onSubmit={(e) => {
           e.preventDefault();
           navigate("/event/publish");
         }}
       >
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3.15fr)]">
+        <div className="event-details-sheet">
           <SetupMediaPanel
             branding={media.branding}
             bannerUrl={workspace.bannerUrl}
             readOnly={readOnly}
             onChange={media.change}
           />
-          <div className="min-w-0 space-y-4">
+          <div className="event-setup-controls">
             <EventInformationFields
+              statusLabel={statusLabel}
               draft={draft}
               readOnly={readOnly}
               onChange={change}

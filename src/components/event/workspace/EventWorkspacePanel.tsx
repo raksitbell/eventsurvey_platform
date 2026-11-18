@@ -2,6 +2,7 @@
 
 import useEventBranding from "@/hooks/useEventBranding";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
+import PublishedOverview from "@/components/event/qr/PublishedOverview";
 import EventWorkspaceCard from "@/components/event/workspace/EventWorkspaceCard";
 import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
@@ -11,6 +12,8 @@ import { useTranslations } from "next-intl";
 
 function WorkspaceCard({ workspace, userId, locale }: EventSetupPageProps) {
   const { branding } = useEventBranding(workspace, userId, locale);
+  if (workspace.localPublishedAt)
+    return <PublishedOverview workspace={workspace} branding={branding} />;
   return (
     <EventWorkspaceCard workspace={workspace} banner={branding.banner?.url} />
   );
