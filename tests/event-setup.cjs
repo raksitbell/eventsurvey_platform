@@ -1854,11 +1854,12 @@ test("Publish does not create a receipt or report success after cancellation, st
 });
 
 test("Publish Full Preview link only navigates after its local save succeeds", () => {
+  const Viewport = () => null;
   const Preview = compileSetupComponent(
     "src/components/event/setup/publish/PublishParticipantPreview.tsx",
     {
-      "@/components/event/participant/SetupDisplayPreview": {
-        default: () => null,
+      "@/components/event/participant/ParticipantPreviewViewport": {
+        default: Viewport,
       },
       "@/i18n/navigation": { Link: () => null },
       "next-intl": { useTranslations: () => (key) => key },
@@ -1876,6 +1877,9 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
         return saved;
       },
     });
+    const viewport = findSetupElement(screen, (node) => node.type === Viewport);
+    assert.equal(viewport.props.device, "desktop");
+    assert.equal(viewport.props.readOnly, true);
     const link = findSetupElement(screen, (node) =>
       node.props?.href?.startsWith("/preview/event"),
     );

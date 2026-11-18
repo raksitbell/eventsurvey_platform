@@ -11,15 +11,18 @@ import type { ParticipantDevice } from "@/types/event/participant";
 import type { EventBranding } from "@/types/event/branding";
 
 interface ParticipantHeaderProps {
-  logo: EventBranding["logo"];
+  branding: EventBranding;
   device: ParticipantDevice;
   readOnly?: boolean;
 }
 export default function ParticipantHeader({
-  logo,
+  branding,
   device,
   readOnly = false,
 }: ParticipantHeaderProps) {
+  const wordmark = branding.identity === "wordmark" ? branding.wordmark : null;
+  const asset =
+    wordmark || (branding.identity !== "wordmark" ? branding.logo : null);
   const t = useTranslations("participantEvent");
   const locale = useLocale();
   const pathname = usePathname();
@@ -30,14 +33,18 @@ export default function ParticipantHeader({
   return (
     <header className="flex min-h-20 shrink-0 items-center justify-between gap-2 bg-(--participant-primary) px-6 py-4 text-(--participant-on-primary) @4xl/participant:px-4 dark:bg-(--participant-primary) dark:text-(--participant-on-primary)">
       <div className="flex min-w-0 items-center gap-3">
-        {logo ? (
+        {asset ? (
           <Image
-            src={logo.url}
-            alt={t("logo")}
-            width={40}
+            src={asset.url}
+            alt={wordmark ? branding.organizer || asset.name : t("logo")}
+            width={wordmark ? 128 : 40}
             height={40}
             unoptimized
-            className="size-10 shrink-0 rounded-preview-control bg-white object-contain dark:bg-white"
+            className={
+              wordmark
+                ? "h-10 w-32 shrink-0 object-contain"
+                : "size-10 shrink-0 rounded-preview-control bg-white object-contain dark:bg-white"
+            }
           />
         ) : (
           <span
@@ -47,10 +54,16 @@ export default function ParticipantHeader({
             E
           </span>
         )}
-        <div className="min-w-0">
-          <p className="text-xl font-bold">EventSurvey</p>
-          <p className="text-theme-xs">{t("tagline")}</p>
-        </div>
+        {!wordmark && (
+          <div className="min-w-0">
+            <p className="text-xl font-bold wrap-anywhere">
+              {branding.organizer || "EventSurvey"}
+            </p>
+            <p className="text-theme-xs wrap-anywhere">
+              {branding.tagline ?? t("tagline")}
+            </p>
+          </div>
+        )}
       </div>
       <div
         className="relative shrink-0"

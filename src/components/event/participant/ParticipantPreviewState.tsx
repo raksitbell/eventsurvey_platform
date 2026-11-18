@@ -1,10 +1,6 @@
 "use client";
 
 import ParticipantPreviewToolbar from "@/components/event/participant/ParticipantPreviewToolbar";
-import {
-  eventInter,
-  eventThai,
-} from "@/components/event/setup/event-admin-fonts";
 import type { ParticipantDevice } from "@/types/event/participant";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
@@ -27,7 +23,7 @@ export default function ParticipantPreviewState({
   }, [device]);
   return (
     <div
-      className={`@container/preview mx-auto flex h-dvh w-full flex-col overflow-hidden bg-white dark:bg-gray-950 ${origin === "publish" ? eventInter.variable + " " + eventThai.variable + " publish-full-screen" : device === "mobile" ? "max-w-participant-mobile" : "max-w-participant-desktop"}`}
+      className={`@container/preview mx-auto flex h-dvh w-full flex-col overflow-hidden bg-white dark:bg-gray-950 ${device === "mobile" ? "max-w-participant-mobile" : "max-w-participant-desktop"}`}
     >
       <ParticipantPreviewToolbar device={device} origin={origin} />
       <div
