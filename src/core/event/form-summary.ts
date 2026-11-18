@@ -1,9 +1,13 @@
 import type { FormRecord, FormStatus } from "@/types/event/form";
 
+export type SetupFormStatus =
+  FormStatus | "published" | "pending_approval" | "approved";
+
 /** Adapt the existing BFF lifecycle to the labels used by the setup screens. */
 export function setupFormStatus(
-  status?: FormStatus,
+  status?: SetupFormStatus,
 ): "draft" | "scheduled" | "open" | "closed" {
+  if (status === "scheduled" || status === "open") return status;
   if (status === "published") return "open";
   if (status === "pending_approval" || status === "approved")
     return "scheduled";
