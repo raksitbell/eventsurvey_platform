@@ -13,6 +13,16 @@ export type EventDraft = Pick<
   | "surveyAccess"
   | "registrationCapacity"
   | "surveyCapacity"
->;
+> & {
+  locationDetail?: string;
+  surveyCloseMode?: "event" | "week" | "fortnight" | "custom";
+  surveyCustomClose?: string | null;
+  alternateContent?: {
+    eventName: string;
+    description: string;
+    locationName: string;
+    locationDetail: string;
+  };
+};
 
 export type DraftSaveStatus = "saved" | "error" | "invalid";

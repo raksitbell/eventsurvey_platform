@@ -4,6 +4,7 @@ import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBou
 import WhitelistTable from "@/components/event/whitelist/WhitelistTable";
 import WhitelistEntryDialog from "@/components/event/whitelist/WhitelistEntryDialog";
 import WhitelistImportDialog from "@/components/event/whitelist/WhitelistImportDialog";
+import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import { replaceWhitelist } from "@/core/event/whitelist";
 import useEventWhitelist from "@/hooks/useEventWhitelist";
@@ -12,7 +13,12 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-function WhitelistPage({ workspace, userId, locale }: EventSetupPageProps) {
+export function WhitelistPage({
+  workspace,
+  userId,
+  locale,
+  onClose,
+}: EventSetupPageProps & { onClose?: () => void }) {
   const t = useTranslations("eventWhitelist"),
     router = useRouter();
   const { entries, change, save, readOnly, dirty, error } = useEventWhitelist(
@@ -44,14 +50,20 @@ function WhitelistPage({ workspace, userId, locale }: EventSetupPageProps) {
         cancelLabel: t("cancel"),
         variant: "warning",
       }))
-    )
-      router.push("/event/details");
+    ) {
+      if (onClose) onClose();
+      else router.push("/event/details");
+    }
   };
   const persist = async () => {
     if (busy || readOnly) return;
     setBusy(true);
     try {
-      if (save())
+      if (save()) {
+        if (onClose) {
+          onClose();
+          return;
+        }
         await confirm({
           appearance: "event",
           title: t("savedTitle"),
@@ -59,17 +71,45 @@ function WhitelistPage({ workspace, userId, locale }: EventSetupPageProps) {
           confirmLabel: t("close"),
           showCancel: false,
         });
+      }
     } finally {
       setBusy(false);
     }
   };
-  return (
-    <div className="flex min-h-160 flex-col gap-4 rounded-2xl bg-participant-page p-4 sm:p-6 dark:bg-gray-950">
+  const dialogs = (
+    <>
+      {add.isOpen && !readOnly && (
+        <WhitelistEntryDialog
+          entries={entries}
+          onClose={add.closeModal}
+          onAdd={(entry) => {
+            change([...entries, entry]);
+            add.closeModal();
+          }}
+        />
+      )}
+      {upload.isOpen && !readOnly && (
+        <WhitelistImportDialog
+          entries={entries}
+          onClose={upload.closeModal}
+          onUse={(incoming) => {
+            change(replaceWhitelist(entries, incoming));
+            upload.closeModal();
+          }}
+        />
+      )}
+    </>
+  );
+  const content = (
+    <div className="flex min-h-96 flex-col gap-4 rounded-2xl bg-participant-page p-4 sm:p-6 dark:bg-gray-950">
       <header className="space-y-1.5">
         <p className="text-theme-xs font-bold text-event-action dark:text-brand-400">
           {t("eyebrow")}
         </p>
-        <h1 className="text-title-sm font-bold text-gray-900 dark:text-gray-100">
+        <h1
+          id="setup-whitelist-title"
+          className="text-title-sm font-bold text-gray-900 dark:text-gray-100"
+        >
           {t("title")}
         </h1>
         <p className="text-theme-sm text-gray-500 dark:text-gray-400">
@@ -95,7 +135,19 @@ function WhitelistPage({ workspace, userId, locale }: EventSetupPageProps) {
           {t("uniqueKind")}
         </p>
       </div>
-      <WhitelistTable entries={entries} />
+      <WhitelistTable
+        entries={entries}
+        onDelete={
+          readOnly
+            ? undefined
+            : (id) =>
+                change(
+                  entries.filter(
+                    (entry) => entry.id !== id || entry.status === "joined",
+                  ),
+                )
+        }
+      />
       {error && (
         <p
           role="alert"
@@ -106,7 +158,7 @@ function WhitelistPage({ workspace, userId, locale }: EventSetupPageProps) {
       )}
       <footer className="mt-auto flex flex-wrap justify-end gap-3 pt-12">
         <Button disabled={busy} variant="outline" onClick={() => void back()}>
-          {t("back")}
+          {t(onClose ? "cancel" : "back")}
         </Button>
         <Button
           disabled={readOnly || busy}
@@ -116,28 +168,22 @@ function WhitelistPage({ workspace, userId, locale }: EventSetupPageProps) {
           {t("save")}
         </Button>
       </footer>
-      {add.isOpen && !readOnly && (
-        <WhitelistEntryDialog
-          entries={entries}
-          onClose={add.closeModal}
-          onAdd={(entry) => {
-            change([...entries, entry]);
-            add.closeModal();
-          }}
-        />
-      )}
-      {upload.isOpen && !readOnly && (
-        <WhitelistImportDialog
-          entries={entries}
-          onClose={upload.closeModal}
-          onUse={(incoming) => {
-            change(replaceWhitelist(entries, incoming));
-            upload.closeModal();
-          }}
-        />
-      )}
+      {dialogs}
     </div>
   );
+  if (onClose && !add.isOpen && !upload.isOpen)
+    return (
+      <Modal
+        isOpen
+        onClose={() => void back()}
+        labelledBy="setup-whitelist-title"
+        className="max-h-full max-w-4xl overflow-y-auto"
+      >
+        {content}
+      </Modal>
+    );
+  if (onClose && (add.isOpen || upload.isOpen)) return dialogs;
+  return content;
 }
 export default function EventWhitelistPanel() {
   return <EventSetupBoundary component={WhitelistPage} />;

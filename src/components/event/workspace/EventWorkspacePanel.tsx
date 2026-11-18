@@ -1,5 +1,7 @@
 "use client";
 
+import useEventBranding from "@/hooks/useEventBranding";
+import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import EventWorkspaceCard from "@/components/event/workspace/EventWorkspaceCard";
 import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
@@ -7,22 +9,18 @@ import useEventWorkspace from "@/hooks/useEventWorkspace";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 
+function WorkspaceCard({ workspace, userId, locale }: EventSetupPageProps) {
+  const { branding } = useEventBranding(workspace, userId, locale);
+  return (
+    <EventWorkspaceCard workspace={workspace} banner={branding.banner?.url} />
+  );
+}
 export default function EventWorkspacePanel() {
   const t = useTranslations("eventHome");
-  const { workspace, error, loading, retry, identity } = useEventWorkspace();
+  const { workspace, error, loading, retry, identity, userId, locale } =
+    useEventWorkspace();
   return (
-    <div className="space-y-6 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950">
-      <header>
-        <p className="text-theme-xs font-bold tracking-wide text-event-action dark:text-brand-400">
-          {t("eyebrow")}
-        </p>
-        <h1 className="mt-1 text-title-sm font-semibold text-gray-900 dark:text-white/90">
-          {t("title")}
-        </h1>
-        <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-          {t("description")}
-        </p>
-      </header>
+    <div className="space-y-6 rounded-2xl dark:bg-gray-950">
       {loading ? (
         <WorkspaceSkeleton label={t("loading")} />
       ) : error ? (
@@ -37,8 +35,13 @@ export default function EventWorkspacePanel() {
             {t("retry")}
           </Button>
         </div>
-      ) : workspace ? (
-        <EventWorkspaceCard key={identity} workspace={workspace} />
+      ) : workspace && userId ? (
+        <WorkspaceCard
+          key={identity}
+          workspace={workspace}
+          userId={userId}
+          locale={locale}
+        />
       ) : (
         <div
           role="status"

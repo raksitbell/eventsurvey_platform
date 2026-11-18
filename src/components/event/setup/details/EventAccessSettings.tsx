@@ -1,143 +1,136 @@
 "use client";
-
-import Radio from "@/components/form/input/Radio";
+import EventCapacitySettings from "./EventCapacitySettings";
 import Switch from "@/components/form/switch/Switch";
-import { Link } from "@/i18n/navigation";
-import EventCapacitySettings from "@/components/event/setup/details/EventCapacitySettings";
+import Button from "@/components/ui/button/Button";
+import { useConfirm } from "@/hooks/useConfirm";
 import type { EventDraft } from "@/types/event/setup";
-import {
-  ClipboardDocumentListIcon,
-  GlobeAltIcon,
-  ShieldCheckIcon,
-  UserGroupIcon,
-} from "@heroicons/react/24/outline";
+import type { EventWorkspace } from "@/types/event/workspace";
 import { useTranslations } from "next-intl";
 
-interface EventAccessSettingsProps {
+interface Props {
   draft: EventDraft;
+  workspace: EventWorkspace;
   readOnly: boolean;
   onChange: (changes: Partial<EventDraft>) => void;
-  onNavigate: () => boolean;
+  onOpenWhitelist: () => void;
+  onOpenBuilder: (kind: "registration" | "survey") => void;
 }
-
 export default function EventAccessSettings({
   draft,
+  workspace,
   readOnly,
   onChange,
-  onNavigate,
-}: EventAccessSettingsProps) {
+  onOpenWhitelist,
+  onOpenBuilder,
+}: Props) {
   const t = useTranslations("eventHome.details");
+  const s = useTranslations("eventSetup");
+  const { confirm } = useConfirm();
+  async function toggleRegistration(value: boolean) {
+    if (!value && draft.isPrivate) return;
+    if (
+      !value &&
+      draft.surveyAccess === "registered_only" &&
+      !(await confirm({
+        title: s("disableRegistration"),
+        message: s("disableHint"),
+        appearance: "event",
+        variant: "warning",
+        confirmLabel: s("disable"),
+      }))
+    )
+      return;
+    onChange({ hasRegistration: value });
+  }
   return (
-    <section className="min-w-0 space-y-3 rounded-xl border border-gray-300 bg-white p-4 lg:col-span-2 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white/90">
-        {t("access")}
-      </h2>
-      <div className="flex items-center justify-between gap-3 py-1">
-        <label
-          htmlFor="event-access"
-          className="flex items-center gap-2 text-theme-sm text-gray-800 dark:text-gray-200"
-        >
-          <GlobeAltIcon
-            className="size-4.5 shrink-0 text-event-action dark:text-brand-400"
-            aria-hidden="true"
-          />
-          {t(draft.isPrivate ? "private" : "public")}
-        </label>
-        <Switch
-          id="event-access"
-          label={t(draft.isPrivate ? "private" : "public")}
-          checked={draft.isPrivate}
-          disabled={readOnly}
-          onChange={(checked) => onChange({ isPrivate: checked })}
-        />
-      </div>
-      {(
-        [
-          { key: "hasRegistration", Icon: UserGroupIcon },
-          { key: "hasSurvey", Icon: ClipboardDocumentListIcon },
-        ] as const
-      ).map(({ key, Icon }) => (
-        <fieldset key={key} className="min-w-0 space-y-1" disabled={readOnly}>
-          <legend className="mb-1 flex items-center gap-2 text-theme-sm text-gray-800 dark:text-gray-200">
-            <Icon
-              className="size-4.5 shrink-0 text-event-action dark:text-brand-400"
-              aria-hidden="true"
-            />
-            {t(key)}
-          </legend>
-          <div className="grid grid-cols-2 gap-2">
-            {([false, true] as const).map((enabled) => (
-              <Radio
-                key={String(enabled)}
-                id={`${key}-${enabled}`}
-                name={key}
-                value={String(enabled)}
-                checked={draft[key] === enabled}
-                label={t(enabled ? "formOn" : "formOff")}
-                disabled={readOnly}
-                onChange={() => onChange({ [key]: enabled })}
+    <section className="space-y-4">
+      <fieldset disabled={readOnly} className="grid grid-cols-2 gap-2">
+        <legend className="mb-2 font-semibold">{s("access")}</legend>
+        {([false, true] as const).map((value) => (
+          <button
+            type="button"
+            className="event-option"
+            key={String(value)}
+            aria-pressed={draft.isPrivate === value}
+            onClick={() =>
+              onChange(
+                value
+                  ? { isPrivate: true, hasRegistration: true }
+                  : { isPrivate: false },
+              )
+            }
+          >
+            {t(value ? "private" : "public")}
+          </button>
+        ))}
+      </fieldset>
+      {(["registration", "survey"] as const).map((kind) => {
+        const registration = kind === "registration";
+        const enabled = registration ? draft.hasRegistration : draft.hasSurvey;
+        const label = t(registration ? "hasRegistration" : "hasSurvey");
+        return (
+          <div key={kind} className="event-section space-y-3">
+            <div className="flex items-center justify-between">
+              <label htmlFor={kind + "-on"} className="font-medium">
+                {label}
+              </label>
+              <Switch
+                id={kind + "-on"}
+                label={label}
+                checked={enabled}
+                disabled={
+                  readOnly || (registration && draft.isPrivate && enabled)
+                }
+                onChange={(value) =>
+                  registration
+                    ? void toggleRegistration(value)
+                    : onChange({ hasSurvey: value })
+                }
               />
-            ))}
-          </div>
-          {key === "hasRegistration" && draft.isPrivate && (
-            <div className="space-y-2 pt-1">
-              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                {t(
-                  draft.hasRegistration
-                    ? "whitelistHint"
-                    : "privateRegistrationHint",
-                )}
-              </p>
-              {draft.hasRegistration && (
-                <Link
-                  href="/event/whitelist"
-                  onClick={(event) => {
-                    if (!onNavigate()) event.preventDefault();
-                  }}
-                  className="flex h-11 w-full items-center justify-center rounded-preview-control border border-event-action bg-event-subtle text-theme-sm text-participant-text focus-visible:outline-2 focus-visible:outline-event-action dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  {t("manageWhitelist")}
-                </Link>
-              )}
             </div>
-          )}
-        </fieldset>
-      ))}
-      {draft.hasSurvey && (
-        <fieldset disabled={readOnly} className="min-w-0 space-y-1">
-          <legend className="mb-1 flex items-center gap-2 text-theme-sm text-gray-800 dark:text-gray-200">
-            <ShieldCheckIcon
-              className="size-4.5 shrink-0 text-event-action dark:text-brand-400"
-              aria-hidden="true"
-            />
-            {t("surveyAccess")}
-          </legend>
-          <div className="grid grid-cols-2 gap-2">
-            <Radio
-              id="survey-direct"
-              name="survey-access"
-              value="public"
-              checked={(draft.surveyAccess ?? "public") === "public"}
-              label={t("direct")}
-              disabled={readOnly}
-              onChange={() => onChange({ surveyAccess: "public" })}
-            />
-            <Radio
-              id="survey-registered"
-              name="survey-access"
-              value="registered_only"
-              checked={draft.surveyAccess === "registered_only"}
-              label={t("registered")}
-              disabled={readOnly || !draft.hasRegistration}
-              unavailable={!draft.hasRegistration}
-              disabledReason={
-                !draft.hasRegistration ? t("registrationNeeded") : undefined
-              }
-              onChange={() => onChange({ surveyAccess: "registered_only" })}
-            />
+            {enabled && (
+              <Button
+                variant="outline"
+                disabled={
+                  readOnly ||
+                  !(registration
+                    ? workspace.canManageWhitelist
+                    : workspace.canManageSurveyForm)
+                }
+                onClick={() => onOpenBuilder(kind)}
+              >
+                {s(registration ? "buildRegistration" : "buildSurvey")}
+              </Button>
+            )}
+            {registration && draft.isPrivate && enabled && (
+              <Button
+                variant="outline"
+                disabled={!workspace.canManageWhitelist}
+                onClick={onOpenWhitelist}
+              >
+                {t("manageWhitelist")}
+              </Button>
+            )}
+            {!registration && enabled && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.surveyAccess === "registered_only"}
+                  disabled={readOnly || !draft.hasRegistration}
+                  onChange={(e) =>
+                    onChange({
+                      surveyAccess: e.target.checked
+                        ? "registered_only"
+                        : "public",
+                    })
+                  }
+                />
+                {s("registeredOnly")}
+              </label>
+            )}
           </div>
-        </fieldset>
-      )}
+        );
+      })}
       {(draft.hasRegistration || draft.hasSurvey) && (
         <EventCapacitySettings
           draft={draft}

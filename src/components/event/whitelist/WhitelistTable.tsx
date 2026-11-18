@@ -1,4 +1,6 @@
 "use client";
+import { useState } from "react";
+import { TrashIcon } from "@heroicons/react/24/outline";
 import Table, {
   TableBody,
   TableCell,
@@ -9,10 +11,19 @@ import type { WhitelistEntry } from "@/types/event/whitelist";
 import { useTranslations } from "next-intl";
 export default function WhitelistTable({
   entries,
+  onDelete,
 }: {
   entries: WhitelistEntry[];
+  onDelete?: (id: string) => void;
 }) {
   const t = useTranslations("eventWhitelist");
+  const s = useTranslations("eventSetup");
+  const [query, setQuery] = useState("");
+  const filtered = entries.filter((e) =>
+    (e.uniqueId + " " + e.name)
+      .toLowerCase()
+      .includes(query.trim().toLowerCase()),
+  );
   const used = entries.filter((e) => e.status === "joined").length;
   return (
     <section className="space-y-2.5 rounded-xl border border-preview-border bg-white p-5 sm:p-6 dark:border-gray-700 dark:bg-gray-900">
@@ -28,6 +39,14 @@ export default function WhitelistTable({
           })}
         </p>
       </header>
+      <input
+        className="event-input"
+        type="search"
+        aria-label={s("searchList")}
+        placeholder={s("searchList")}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
       <div className="overflow-x-auto">
         <Table className="text-start text-theme-sm text-gray-800 dark:text-gray-200">
           <TableHeader className="bg-participant-page text-theme-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
@@ -41,11 +60,12 @@ export default function WhitelistTable({
                   {t(key)}
                 </TableCell>
               ))}
+              {onDelete && <TableCell isHeader>{s("manage")}</TableCell>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entries.length ? (
-              entries.map((entry) => (
+            {filtered.length ? (
+              filtered.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell className="h-15 px-3 break-all">
                     {entry.uniqueId}
@@ -60,12 +80,25 @@ export default function WhitelistTable({
                       {t(entry.status)}
                     </span>
                   </TableCell>
+                  {onDelete && (
+                    <TableCell>
+                      <button
+                        type="button"
+                        disabled={entry.status === "joined"}
+                        aria-label={s("removeEntry", { email: entry.uniqueId })}
+                        className="p-2 text-error-600 disabled:text-gray-400 dark:text-error-400"
+                        onClick={() => onDelete(entry.id)}
+                      >
+                        <TrashIcon className="size-5" />
+                      </button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={3}
+                  colSpan={onDelete ? 4 : 3}
                   className="py-12 text-center text-gray-500 dark:text-gray-400"
                 >
                   {t("empty")}

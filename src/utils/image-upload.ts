@@ -13,6 +13,7 @@ export const IMAGE_UPLOAD_ACCEPT: Record<string, string[]> = {
 export type ImageUploadErrorCode =
   | "fileType"
   | "fileSize"
+  | "cropSize"
   | "fileRead"
   | "fileConvert"
   | "fileOutputSize"
@@ -24,6 +25,7 @@ export class ImageUploadError extends Error {
   }
 }
 export interface WebpImageOptions {
+  crop?: { width: number; height: number; position: number };
   maxWidth?: number;
   maxHeight?: number;
   maxOutputBytes?: number;
@@ -236,9 +238,18 @@ export async function convertImageToWebp(
   try {
     decoded = await decodeImage(file, signal);
     checkAbort(signal);
+    const crop = options.crop;
+    const cropWidth = crop
+      ? Math.min(decoded.width, (decoded.height * crop.width) / crop.height)
+      : decoded.width;
+    const cropHeight = crop
+      ? (cropWidth * crop.height) / crop.width
+      : decoded.height;
+    if (crop && (cropWidth < crop.width || cropHeight < crop.height))
+      throw new ImageUploadError("cropSize");
     let { width, height } = fitImageDimensions(
-      decoded.width,
-      decoded.height,
+      cropWidth,
+      cropHeight,
       maxWidth,
       maxHeight,
     );
@@ -253,7 +264,20 @@ export async function convertImageToWebp(
       canvas.height = height;
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = "high";
-      context.drawImage(decoded.source, 0, 0, width, height);
+      if (crop) {
+        const fraction = Math.max(0, Math.min(1, crop.position));
+        context.drawImage(
+          decoded.source,
+          (decoded.width - cropWidth) * fraction,
+          (decoded.height - cropHeight) * fraction,
+          cropWidth,
+          cropHeight,
+          0,
+          0,
+          width,
+          height,
+        );
+      } else context.drawImage(decoded.source, 0, 0, width, height);
       const blob = await encodeWebp(canvas, currentQuality);
       checkAbort(signal);
       if (blob.size > 0 && blob.size <= maxOutputBytes) {
@@ -275,6 +299,7 @@ export async function convertImageToWebp(
       if (currentQuality > minQuality)
         currentQuality = Math.max(minQuality, currentQuality - 0.12);
       else {
+        if (crop) break;
         width = Math.max(1, Math.floor(width * 0.75));
         height = Math.max(1, Math.floor(height * 0.75));
         currentQuality = quality;

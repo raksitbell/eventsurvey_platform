@@ -5,14 +5,25 @@ import ImpersonationBanner from "@/components/auth/ImpersonationBanner";
 import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
+import EventWorkspaceSidebar from "@/components/event/workspace/EventWorkspaceSidebar";
+import EventWorkspaceHeader from "@/components/event/workspace/EventWorkspaceHeader";
+import { usePathname } from "@/i18n/navigation";
 import Backdrop from "@/layout/Backdrop";
 import React from "react";
 
-export default function EventLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function EventShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isSetup = [
+    "/event",
+    "/event/details",
+    "/event/branding",
+    "/event/forms",
+    "/event/publish",
+    "/event/qr",
+    "/event/whitelist",
+    "/event/setup/registration",
+    "/event/setup/survey",
+  ].includes(pathname);
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   // Must match AppSidebar dock breakpoint (`xl`). Using `lg` left a gap
@@ -24,20 +35,34 @@ export default function EventLayout({
       : "xl:ms-[90px]";
 
   return (
-    <AuthGuard area="event">
-      <div className="min-h-screen bg-gray-50 xl:flex dark:bg-gray-950">
-        <AppSidebar />
+    <>
+      <div
+        className={`min-h-screen xl:flex dark:bg-gray-950 ${isSetup ? "event-workspace-background" : "bg-gray-50"}`}
+      >
+        {isSetup ? <EventWorkspaceSidebar /> : <AppSidebar />}
         <Backdrop />
         <div
           className={`flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin}`}
         >
           <ImpersonationBanner />
-          <AppHeader />
+          {isSetup ? <EventWorkspaceHeader /> : <AppHeader />}
           <div className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6">
             {children}
           </div>
         </div>
       </div>
+    </>
+  );
+}
+
+export default function EventLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <AuthGuard area="event">
+      <EventShell>{children}</EventShell>
     </AuthGuard>
   );
 }

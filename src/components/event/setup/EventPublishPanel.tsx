@@ -1,9 +1,11 @@
 "use client";
 import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
-import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
+import PublishChecklist from "./publish/PublishChecklist";
+import { surveyClosingTime } from "@/core/event/schedule";
+import { showToast } from "@/utils/alert";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
-import PublishFormSummary from "@/components/event/setup/publish/PublishFormSummary";
+
 import PublishParticipantPreview from "@/components/event/setup/publish/PublishParticipantPreview";
 import Button from "@/components/ui/button/Button";
 import { selectSetupForms } from "@/core/event/form-summary";
@@ -24,6 +26,7 @@ import { useState } from "react";
 function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventPublish");
   const router = useRouter();
+  const s = useTranslations("eventSetup");
   const { confirm } = useConfirm();
   const {
     draft,
@@ -35,13 +38,31 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     userId,
     locale,
   );
+  const key = publicationKey(userId, workspace.eventId, locale);
+  const [receipt] = useState(() =>
+    workspace.localPublishedAt ? loadPublication(key) : null,
+  );
   const formState = useEventFormSummaries(
     workspace.eventId,
-    workspace.hasRegistration || workspace.hasSurvey,
+    !receipt && (draft.hasRegistration || draft.hasSurvey),
   );
-  const key = publicationKey(userId, workspace.eventId, locale);
-  const forms = selectSetupForms(formState.forms);
-  const [published, setPublished] = useState(() => !!loadPublication(key));
+  const { registration, survey } = selectSetupForms(formState.forms);
+  const forms = receipt?.forms ?? {
+    registration:
+      draft.hasRegistration && registration
+        ? { ...registration, opensAt: draft.startsAt, closesAt: draft.endsAt }
+        : null,
+    survey:
+      draft.hasSurvey && survey
+        ? {
+            ...survey,
+            opensAt: draft.startsAt,
+            closesAt: surveyClosingTime(draft),
+          }
+        : null,
+  };
+  const issues = publicationIssues(draft, forms);
+  const [published, setPublished] = useState(!!receipt);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const save = () => {
@@ -61,7 +82,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         setError(true);
         return;
       }
-      const issues = publicationIssues(draft, forms);
+
       if (issues.length) {
         await confirm({
           appearance: "event",
@@ -109,6 +130,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         showCancel: false,
         confirmLabel: t("close"),
       });
+      router.push("/event/qr");
     } finally {
       setBusy(false);
     }
@@ -119,46 +141,43 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         event.preventDefault();
         void publish();
       }}
-      className="flex min-h-160 flex-col gap-5 rounded-2xl bg-gray-50 p-4 sm:p-6 dark:bg-gray-950"
+      className="event-sheet flex min-h-160 flex-col gap-5"
     >
-      <header className="space-y-2">
-        <p className="text-theme-xs font-semibold text-event-action dark:text-brand-400">
-          {t("step")}
-        </p>
-        <h1 className="text-title-sm font-bold text-gray-900 dark:text-gray-100">
-          {t("title")}
-        </h1>
-        <p className="text-base text-gray-500 dark:text-gray-400">
-          {t("description")}
+      <header className="space-y-1">
+        <h1 className="text-title-sm font-bold">{s("preview")}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {s("previewHint")}
         </p>
       </header>
-      <EventSetupSteps current={4} onNavigate={saveBeforeNavigation} />
-      <div className="grid gap-4 md:grid-cols-2">
-        <PublishFormSummary
-          type="registration"
-          enabled={draft.hasRegistration}
-          status={published ? "pending_approval" : forms.registration?.status}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <PublishParticipantPreview
+          draft={draft}
+          branding={branding}
+          bannerUrl={workspace.bannerUrl}
+          onOpen={saveBeforeNavigation}
         />
-        <PublishFormSummary
-          type="survey"
-          enabled={draft.hasSurvey}
-          status={published ? "pending_approval" : forms.survey?.status}
+        <PublishChecklist
+          draft={draft}
+          branding={branding}
+          issues={issues}
+          loading={formState.loading}
         />
       </div>
-      <PublishParticipantPreview
-        draft={draft}
-        branding={branding}
-        bannerUrl={workspace.bannerUrl}
-        onOpen={saveBeforeNavigation}
-      />
       <EventSetupActions
         back={{
-          label: t("back"),
+          label: s("backSetup"),
           disabled: busy,
-          onClick: () => navigate("/event/forms"),
+          onClick: () => navigate("/event/details"),
+        }}
+        saveDraft={{
+          label: s("save"),
+          disabled: busy || readOnly,
+          onClick: () => {
+            if (save()) showToast({ title: s("saved") });
+          },
         }}
         primary={{
-          label: t("publish"),
+          label: s("publish"),
           wide: true,
           disabled:
             busy ||

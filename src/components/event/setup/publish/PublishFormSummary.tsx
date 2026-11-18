@@ -1,14 +1,11 @@
 "use client";
-import {
-  setupFormStatus,
-  type SetupFormStatus,
-} from "@/core/event/form-summary";
-import type { FormType } from "@/types/event/form";
+import { setupFormStatus } from "@/core/event/form-summary";
+import type { FormStatus, FormType } from "@/types/event/form";
 import { useTranslations } from "next-intl";
 interface PublishFormSummaryProps {
   type: FormType;
   enabled: boolean;
-  status?: SetupFormStatus;
+  status?: FormStatus;
 }
 export default function PublishFormSummary({
   type,

@@ -8,6 +8,12 @@ const MANUAL_TRANSITIONS: Record<FormStatus, readonly FormStatus[]> = {
   scheduled: ["draft"],
   open: [],
   closed: [],
+  pending_approval: [],
+  approved: [],
+  rejected: [],
+  published: [],
+  paused: [],
+  archived: [],
 };
 
 /**
@@ -47,7 +53,8 @@ export function formMutationFlags(status: FormStatus): {
     // Revert to draft only — content is locked until back in draft
     return { canEdit: false, canDelete: false, canChangeStatus: true };
   }
-  // open | closed — cron owns further transitions
+  // open | closed | pending_approval | approved | rejected | published | paused | archived
+  // — cron or system owns further transitions
   return { canEdit: false, canDelete: false, canChangeStatus: false };
 }
 

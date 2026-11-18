@@ -15,7 +15,11 @@ import { useTranslations } from "next-intl";
 function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventForms");
   const router = useRouter();
-  const { draft, save, status } = useEventDraft(workspace, userId, locale);
+  const { draft, save, status, readOnly } = useEventDraft(
+    workspace,
+    userId,
+    locale,
+  );
   const { forms, loading, error, retry } = useEventFormSummaries(
     workspace.eventId,
     workspace.hasRegistration || workspace.hasSurvey,
@@ -41,6 +45,11 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
         <SetupFormCard
           type="registration"
           enabled={draft.hasRegistration}
+          onOpen={
+            !readOnly && workspace.canManageWhitelist
+              ? () => navigate("/event/setup/registration")
+              : undefined
+          }
           status={registration?.status}
           count={registration?.questions.length ?? 0}
         />
@@ -57,6 +66,11 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
         <SetupFormCard
           type="survey"
           enabled={draft.hasSurvey}
+          onOpen={
+            !readOnly && workspace.canManageSurveyForm
+              ? () => navigate("/event/setup/survey")
+              : undefined
+          }
           status={survey?.status}
           count={survey?.questions.length ?? 0}
         />

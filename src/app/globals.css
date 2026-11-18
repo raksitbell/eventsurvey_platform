@@ -74,6 +74,9 @@
   --container-participant-mobile: 390px;
   --container-participant-desktop: 1440px;
   --container-participant-banner: 450px;
+  --color-event-sidebar: #4f3e64;
+  --color-event-gradient-start: #bca7ef;
+  --color-event-gradient-end: #b0dcfa;
   --color-event-banner: #ae85d1;
   --color-event-action: #8263a2;
   --color-event-subtle: #f8f5fc;
@@ -1376,4 +1379,17 @@ pre[class*="language-"].line-numbers {
 }
 .branding-hue::-moz-range-thumb {
   @apply h-5.5 w-2 cursor-grab appearance-none rounded-xs border border-picker-label bg-white dark:border-picker-label dark:bg-white;
+}
+
+/* Event admin workspace, setup panels and fixed action row. */
+@layer components {
+  .event-workspace-background {
+    background: linear-gradient(110deg, var(--color-event-gradient-start), var(--color-event-gradient-end));
+  }
+  .dark .event-workspace-background { background: var(--color-gray-950); }
+  .event-sheet { @apply rounded-2xl bg-white p-4 text-participant-text sm:p-6 dark:bg-gray-900 dark:text-gray-100; }
+  .event-section { @apply rounded-xl border border-event-border bg-event-subtle p-4 dark:border-gray-700 dark:bg-gray-800; }
+  .event-input { @apply block w-full rounded-lg border border-event-border bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100; }
+  .event-option { @apply min-h-10 rounded-lg border border-event-border bg-white px-3 py-2 text-sm font-medium text-gray-800 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100; }
+  .event-option[aria-pressed="true"] { @apply border-event-action bg-event-action text-white dark:bg-event-action; }
 }

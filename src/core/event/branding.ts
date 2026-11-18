@@ -13,6 +13,25 @@ const image = z
   })
   .nullable();
 export const eventBrandingSchema = z.object({
+  layout: z.enum(["portrait", "square", "landscape"]).optional(),
+  organizer: z.string().max(255).optional(),
+  tagline: z.string().max(500).optional(),
+  identity: z.enum(["icon", "wordmark"]).optional(),
+  wordmark: image.optional(),
+  backgroundMode: z.enum(["solid", "gradient", "blur"]).optional(),
+  gradientEnd: color.optional(),
+  gradientAngle: z.union([z.literal(0), z.literal(90)]).optional(),
+  transparentChrome: z.boolean().optional(),
+  footerColor: color.optional(),
+  channels: z
+    .array(
+      z.object({
+        platform: z.string().min(1).max(32),
+        url: z.httpUrl().max(2048),
+      }),
+    )
+    .max(12)
+    .optional(),
   primary: color,
   secondary: color,
   accent: color,

@@ -16,6 +16,7 @@ import { useDropzone } from "react-dropzone";
 import Image from "next/image";
 
 interface BrandingUploadDialogProps {
+  identityAsset?: boolean;
   kind: BrandingMediaKind;
   onClose: () => void;
   onSelect: (image: BrandingImage) => boolean;
@@ -24,10 +25,12 @@ interface BrandingUploadDialogProps {
 /** TailAdmin DropZone adapted to a single confirmed branding image. */
 export default function BrandingUploadDialog({
   kind,
+  identityAsset = false,
   onClose,
   onSelect,
 }: BrandingUploadDialogProps) {
   const t = useTranslations("eventBranding");
+  const s = useTranslations("eventSetup");
   const titleId = useId();
   const [selected, setSelected] = useState<BrandingImage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +49,10 @@ export default function BrandingUploadDialog({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     multiple: false,
     maxFiles: 1,
-    maxSize: IMAGE_MAX_INPUT_BYTES - 1,
-    accept: IMAGE_UPLOAD_ACCEPT,
+    maxSize: identityAsset ? 5 * 1024 * 1024 : IMAGE_MAX_INPUT_BYTES - 1,
+    accept: identityAsset
+      ? { "image/png": [".png"], "image/svg+xml": [".svg"] }
+      : IMAGE_UPLOAD_ACCEPT,
     onDropRejected: (rejected) => {
       conversion.current?.abort();
       conversion.current = null;
@@ -132,7 +137,9 @@ export default function BrandingUploadDialog({
             {t(kind === "logo" ? "uploadLogo" : "uploadBanner")}
           </h2>
           <p className="mt-2 text-theme-sm text-gray-500 dark:text-gray-400">
-            {t(kind === "logo" ? "logoHint" : "bannerHint")}
+            {identityAsset
+              ? s("identityHint")
+              : t(kind === "logo" ? "logoHint" : "bannerHint")}
           </p>
         </header>
         <div
@@ -175,7 +182,9 @@ export default function BrandingUploadDialog({
             role="alert"
             className="text-theme-sm text-error-600 dark:text-error-400"
           >
-            {t(error)}
+            {identityAsset && error === "fileSize"
+              ? s("identityHint")
+              : t(error)}
           </p>
         )}
         <div className="flex justify-end gap-3">

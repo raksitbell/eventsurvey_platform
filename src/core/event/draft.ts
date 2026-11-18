@@ -22,6 +22,19 @@ export const eventDraftSchema = z
     // Zod v4: z.string().datetime() is deprecated; use z.iso.datetime() instead.
     startsAt: z.iso.datetime({ offset: true }).nullable(),
     endsAt: z.iso.datetime({ offset: true }).nullable(),
+    locationDetail: z.string().max(500).optional(),
+    alternateContent: z
+      .object({
+        eventName: z.string().max(255),
+        description: z.string().max(5000),
+        locationName: z.string().max(500),
+        locationDetail: z.string().max(500),
+      })
+      .optional(),
+    surveyCloseMode: z
+      .enum(["event", "week", "fortnight", "custom"])
+      .optional(),
+    surveyCustomClose: z.iso.datetime({ offset: true }).nullable().optional(),
     isPrivate: z.boolean(),
     hasRegistration: z.boolean(),
     hasSurvey: z.boolean(),

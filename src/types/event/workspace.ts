@@ -25,5 +25,6 @@ export interface EventWorkspace {
   surveyCapacity?: number | null;
   canEditEvent: boolean;
   canManageWhitelist?: boolean;
+  canManageSurveyForm?: boolean;
   surveyAccess: "public" | "registered_only" | null;
 }

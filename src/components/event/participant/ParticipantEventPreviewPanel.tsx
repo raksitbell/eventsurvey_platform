@@ -1,5 +1,6 @@
 "use client";
 
+import SetupDisplayPreview from "./SetupDisplayPreview";
 import ParticipantPreviewViewport from "@/components/event/participant/ParticipantPreviewViewport";
 import ParticipantPreviewState from "@/components/event/participant/ParticipantPreviewState";
 import Button from "@/components/ui/button/Button";
@@ -24,8 +25,17 @@ function LoadedParticipantPreview({
   userId,
   locale,
   device,
+  origin,
 }: LoadedParticipantPreviewProps) {
   const { branding } = useEventBranding(workspace, userId, locale);
+  if (origin === "publish")
+    return (
+      <SetupDisplayPreview
+        draft={workspace}
+        branding={branding}
+        bannerUrl={workspace.bannerUrl}
+      />
+    );
   return (
     <ParticipantPreviewViewport
       draft={workspace}
@@ -65,7 +75,7 @@ export default function ParticipantEventPreviewPanel({
         </p>
         {error && <Button onClick={retry}>{t("retry")}</Button>}
         <Link
-          href="/event/branding"
+          href={origin === "publish" ? "/event/publish" : "/event/branding"}
           className="block text-event-action dark:text-brand-400"
         >
           {t("details.steps.branding")}
@@ -80,6 +90,7 @@ export default function ParticipantEventPreviewPanel({
         userId={userId}
         locale={locale}
         device={device}
+        origin={origin}
       />
     );
   return (

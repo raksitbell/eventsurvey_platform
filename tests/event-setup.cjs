@@ -782,6 +782,7 @@ const { setupFormStatus, selectSetupForms } = load(
 );
 const publishDraft = {
   ...seed,
+  locationName: "Event venue",
   startsAt: "2027-01-01T03:00:00.000Z",
   endsAt: "2027-01-02T03:00:00.000Z",
 };
@@ -1334,10 +1335,15 @@ function setupActionButtons(form) {
   const element = findSetupElement(form, (node) => node.type === setupActions);
   const footer = setupActions(element.props);
   const actions = footer.props.children.at(-1);
-  const [back, next] = actions.props.children.map((node) =>
-    node.type(node.props),
-  );
-  return { back, next, feedback: element.props.error };
+  const buttons = actions.props.children
+    .filter(Boolean)
+    .map((node) => node.type(node.props));
+  return {
+    back: buttons[0],
+    next: buttons.at(-1),
+    saveDraft: buttons.length === 3 ? buttons[1] : null,
+    feedback: element.props.error,
+  };
 }
 function detailsActions(save) {
   const navigation = [];
@@ -1348,11 +1354,18 @@ function detailsActions(save) {
   const Details = compileSetupComponent(
     "src/components/event/setup/EventDetailsForm.tsx",
     {
-      "@/components/event/setup/EventSetupSteps": noop,
-      "@/components/event/setup/EventSetupBoundary": noop,
-      "@/components/event/setup/details/EventAccessSettings": noop,
-      "@/components/event/setup/details/EventInformationFields": noop,
-      "@/components/event/setup/EventSetupActions": { default: setupActions },
+      "./details/EventAccessSettings": noop,
+      "./details/EventFormSchedule": noop,
+      "./details/EventInformationFields": noop,
+      "./branding/SetupMediaPanel": noop,
+      "./EventSetupBoundary": noop,
+      "./EventSetupActions": { default: setupActions },
+      "@/components/event/whitelist/EventWhitelistPanel": noop,
+      "@/hooks/useModal": { useModal: () => ({ isOpen: false }) },
+      "@/hooks/useEventBranding": {
+        default: () => ({ branding: defaultEventBranding, save: () => true }),
+      },
+      "@/utils/alert": { showToast() {} },
       "@/core/event/draft": load("src/core/event/draft.ts"),
       "@/hooks/useEventDraft": {
         default: () => ({
@@ -1370,11 +1383,12 @@ function detailsActions(save) {
     },
   );
   const entry = Details();
-  const form = entry.props.component({
+  const view = entry.props.component({
     workspace: seed,
     userId: "owner",
     locale: "th",
   });
+  const form = findSetupElement(view, (n) => n.type === "form");
   return { form, ...setupActionButtons(form), navigation };
 }
 test("Details Back and Next save edited form choices before navigation; native submit follows Next", (t) => {
@@ -1390,8 +1404,8 @@ test("Details Back and Next save edited form choices before navigation; native s
     });
     assert.equal(ui.back.props.type, "button");
     assert.equal(ui.next.props.type, "submit");
-    assert.equal(ui.back.props.children[1], "ย้อนกลับ");
-    assert.equal(ui.next.props.children[1], "ถัดไป · Branding");
+    assert.equal(ui.back.props.children[1], "backWorkspace");
+    assert.equal(ui.next.props.children[1], "preview");
     if (direction === "back") ui.back.props.onClick();
     else {
       let prevented = false;
@@ -1404,7 +1418,7 @@ test("Details Back and Next save edited form choices before navigation; native s
     }
     assert.equal(saves, 1);
     assert.deepEqual(ui.navigation, [
-      direction === "back" ? "/event" : "/event/branding",
+      direction === "back" ? "/event" : "/event/publish",
     ]);
     const saved = restoreEventDraft(seed, "owner", "th");
     assert.equal(saved.eventName, "Latest edit");
@@ -1513,6 +1527,9 @@ function setupStep(kind, options = {}) {
   );
   const noop = { default: () => null };
   const mocks = {
+    "./publish/PublishChecklist": noop,
+    "@/core/event/schedule": load("src/core/event/schedule.ts"),
+    "@/utils/alert": { showToast() {} },
     "@/components/event/setup/EventSetupBoundary": noop,
     "@/components/event/setup/EventSetupSteps": noop,
     "@/components/event/setup/EventSetupActions": { default: setupActions },
@@ -1692,7 +1709,7 @@ test("Publish Back and Preview save current data, while submit validates and con
   storage(t);
   const ui = setupStep("publish");
   ui.back.props.onClick();
-  assert.deepEqual(ui.navigation, ["/event/forms"]);
+  assert.deepEqual(ui.navigation, ["/event/details"]);
   assert.deepEqual(ui.saves, ["draft", "branding"]);
   const preview = findSetupElement(
     ui.form,
@@ -1711,7 +1728,7 @@ test("Publish Back and Preview save current data, while submit validates and con
   assert.equal(receipt.draft.hasRegistration, false);
   assert.equal(receipt.draft.hasSurvey, false);
   assert.equal(ui.workspace.eventStatus, "draft");
-  assert.deepEqual(ui.navigation, ["/event/forms"]); // No out-of-scope Dashboard route.
+  assert.deepEqual(ui.navigation, ["/event/details", "/event/qr"]);
 });
 test("Publish does not create a receipt or report success after cancellation, storage/validation failures or denied access", async (t) => {
   storage(t);
@@ -1753,7 +1770,7 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
   const Preview = compileSetupComponent(
     "src/components/event/setup/publish/PublishParticipantPreview.tsx",
     {
-      "@/components/event/participant/ParticipantPreviewViewport": {
+      "@/components/event/participant/SetupDisplayPreview": {
         default: () => null,
       },
       "@/i18n/navigation": { Link: () => null },
@@ -1775,7 +1792,7 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
     const link = findSetupElement(screen, (node) =>
       node.props?.href?.startsWith("/preview/event"),
     );
-    assert.equal(link.props.href, "/preview/event?device=desktop&from=publish");
+    assert.equal(link.props.href, "/preview/event?from=publish");
     link.props.onClick({
       preventDefault() {
         prevented = true;
@@ -1794,7 +1811,11 @@ test("Event information configuration preserves field bindings, limits, labels, 
       "@/components/form/DateTimePicker": { default: placeholder },
       "@/components/form/Label": { default: placeholder },
       "@/components/form/input/InputField": { default: placeholder },
-      "next-intl": { useTranslations: () => (key) => key },
+      react: { useState: (v) => [v, () => {}] },
+      "next-intl": {
+        useLocale: () => "th",
+        useTranslations: () => (key) => key,
+      },
     },
   );
   for (const readOnly of [false, true]) {
@@ -1830,4 +1851,98 @@ test("Event information configuration preserves field bindings, limits, labels, 
       }
     }
   }
+});
+
+test("Post Survey closes at the selected offset from the event end in Bangkok", () => {
+  const { surveyClosingTime } = load("src/core/event/schedule.ts");
+  const draft = { ...publishDraft, endsAt: "2027-01-31T23:30:00+07:00" };
+  for (const [mode, expected] of [
+    ["event", "2027-01-31T16:30:00.000Z"],
+    ["week", "2027-02-07T16:30:00.000Z"],
+    ["fortnight", "2027-02-14T16:30:00.000Z"],
+    ["custom", "2027-02-01T19:30:00.000Z"],
+  ])
+    assert.equal(
+      surveyClosingTime({
+        ...draft,
+        surveyCloseMode: mode,
+        surveyCustomClose: "2027-02-01T19:30:00.000Z",
+      }),
+      expected,
+    );
+  assert.equal(surveyClosingTime({ ...draft, endsAt: null }), null);
+  assert.equal(
+    surveyClosingTime(draft),
+    surveyClosingTime({ ...draft, surveyCloseMode: "week" }),
+  );
+});
+
+test("Publication reads the team Builder email question and its actual unique field", () => {
+  const registration = formSummary("registration");
+  const q = registration.questions[0].question;
+  delete q.required;
+  Object.assign(q, { type: "email", is_required: true, is_unique: true });
+  const forms = { registration, survey: formSummary("survey") };
+  assert.deepEqual(publicationIssues(publishDraft, forms), []);
+  assert.ok(
+    publicationIssues({ ...publishDraft, locationName: "  " }, forms).includes(
+      "location",
+    ),
+  );
+  q.is_unique = false;
+  assert.ok(publicationIssues(publishDraft, forms).includes("uniqueField"));
+  assert.ok(
+    publicationIssues({ ...publishDraft, isPrivate: true }, forms).includes(
+      "whitelist",
+    ),
+  );
+});
+
+test("All enabled-form combinations use only the definitions selected in Event Setup", () => {
+  const forms = {
+    registration: formSummary("registration"),
+    survey: formSummary("survey"),
+  };
+  for (const hasRegistration of [false, true])
+    for (const hasSurvey of [false, true]) {
+      const draft = {
+        ...publishDraft,
+        hasRegistration,
+        hasSurvey,
+        surveyAccess: hasSurvey ? "public" : null,
+      };
+      assert.deepEqual(publicationIssues(draft, forms), []);
+      assert.equal(
+        publicationIssues(draft, { registration: null, survey: null }).includes(
+          "formContent",
+        ),
+        hasRegistration || hasSurvey,
+      );
+    }
+});
+
+test("Banner orientation and branding material survive reload and invalid saves keep the previous version", (t) => {
+  storage(t);
+  const key = eventBrandingKey("owner", seed.eventId, "th");
+  const value = {
+    ...defaultEventBranding,
+    layout: "landscape",
+    organizer: "QA",
+    identity: "wordmark",
+    backgroundMode: "gradient",
+    gradientAngle: 90,
+    gradientEnd: "#004488",
+    transparentChrome: true,
+    channels: [{ platform: "Website", url: "https://example.org" }],
+  };
+  assert.equal(saveEventBranding(key, value), "saved");
+  assert.deepEqual(loadEventBranding(key), value);
+  assert.equal(
+    saveEventBranding(key, {
+      ...value,
+      channels: [{ platform: "Website", url: "bad" }],
+    }),
+    "invalid",
+  );
+  assert.deepEqual(loadEventBranding(key), value);
 });
