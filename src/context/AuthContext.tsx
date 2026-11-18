@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  assertCanImpersonate,
+  clearLegacyAuthStorage,
+  endImpersonation,
+  getAuthSnapshot,
   getHomePathForRole,
-  hydrateAuthSession,
   loginWithCredentials,
-  persistAuthStorage,
-  sanitizeUser,
-  subscribeAuth,
+  signOut,
+  startImpersonation,
   type AuthSnapshot,
 } from "@/core/auth";
 import { usePathname, useRouter } from "@/i18n/navigation";
@@ -19,6 +19,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -26,12 +27,13 @@ interface AuthContextValue {
   user: User | null;
   realUser: User | null;
   isImpersonating: boolean;
-  /** True until localStorage is read, or while a soft auth navigation is in flight */
+  /** True while restoring the server session or navigating after an auth change. */
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<User>;
-  logout: () => void;
-  impersonate: (target: User) => void;
-  stopImpersonating: () => void;
+  authUnavailable: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  impersonate: (userId: string) => Promise<void>;
+  stopImpersonating: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -49,18 +51,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [snapshot, setSnapshot] = useState<AuthSnapshot>(EMPTY);
-  const [ready, setReady] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<
+    "loading" | "ready" | "unavailable"
+  >("loading");
+  const authChannel = useRef<BroadcastChannel | null>(null);
+  const sessionRequest = useRef<AbortController | null>(null);
+  const changingSession = useRef(false);
   /** Soft-nav target — AuthGuard shows hold instead of 403 during role switches */
   const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   useEffect(() => {
-    return subscribeAuth(() => {
-      // Mirror localStorage → cookie so middleware can gate /admin|/event.
-      // The first notification is scheduled by the subscription after this
-      // effect completes, avoiding an effect-triggered render cascade.
-      setSnapshot(hydrateAuthSession());
-      setReady(true);
-    });
+    clearLegacyAuthStorage();
+
+    async function refreshSession() {
+      if (changingSession.current) return;
+      sessionRequest.current?.abort();
+      const request = new AbortController();
+      sessionRequest.current = request;
+      try {
+        const current = await getAuthSnapshot(request.signal);
+        if (request.signal.aborted) return;
+        setSnapshot(current);
+        setSessionStatus("ready");
+      } catch {
+        if (request.signal.aborted) return;
+        setSnapshot(EMPTY);
+        setSessionStatus("unavailable");
+      }
+    }
+
+    const channel = typeof BroadcastChannel === "function"
+      ? new BroadcastChannel("eventsurvey-auth")
+      : null;
+    authChannel.current = channel;
+    channel?.addEventListener("message", refreshSession);
+    window.addEventListener("focus", refreshSession);
+    void refreshSession();
+
+    return () => {
+      sessionRequest.current?.abort();
+      window.removeEventListener("focus", refreshSession);
+      channel?.close();
+      authChannel.current = null;
+    };
   }, []);
 
   /** Arrival is derived, not stored — reaching the target ends the hold on its
@@ -95,47 +128,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isImpersonating = Boolean(impersonatedUser);
   const user = impersonatedUser ?? realUser;
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const safeUser = await loginWithCredentials({ email, password });
-      persistAuthStorage(safeUser, null);
-      softGo(getHomePathForRole(safeUser.role));
-      return safeUser;
+  const changeSession = useCallback(
+    async (updateSession: () => Promise<AuthSnapshot>) => {
+      if (changingSession.current) throw new Error("AUTH_CHANGE_PENDING");
+      changingSession.current = true;
+      sessionRequest.current?.abort();
+      try {
+        const next = await updateSession();
+        const effectiveUser = next.impersonatedUser ?? next.realUser;
+        softGo(effectiveUser ? getHomePathForRole(effectiveUser.role) : "/login");
+        setSnapshot(next);
+        setSessionStatus("ready");
+        authChannel.current?.postMessage("session-changed");
+      } finally {
+        changingSession.current = false;
+      }
     },
     [softGo],
   );
 
-  const logout = useCallback(() => {
-    persistAuthStorage(null, null);
-    softGo("/login");
-  }, [softGo]);
-
-  const impersonate = useCallback(
-    (target: User) => {
-      if (!realUser) throw new Error("FORBIDDEN");
-      assertCanImpersonate(realUser, target);
-      // Hold first so /admin doesn't paint 403 after role flip
-      setPendingPath(getHomePathForRole(target.role));
-      persistAuthStorage(realUser, sanitizeUser(target));
-      router.replace(getHomePathForRole(target.role));
+  const login = useCallback(
+    async (email: string, password: string) => {
+      await changeSession(async () => ({
+        realUser: await loginWithCredentials({ email, password }),
+        impersonatedUser: null,
+      }));
     },
-    [realUser, router],
+    [changeSession],
   );
 
-  const stopImpersonating = useCallback(() => {
-    if (!realUser) return;
-    const home = getHomePathForRole(realUser.role);
-    setPendingPath(home);
-    persistAuthStorage(realUser, null);
-    router.replace(home);
-  }, [realUser, router]);
+  const logout = useCallback(async () => {
+    await changeSession(async () => {
+      await signOut();
+      return EMPTY;
+    });
+  }, [changeSession]);
+
+  const impersonate = useCallback(
+    async (userId: string) => {
+      await changeSession(() => startImpersonation(userId));
+    },
+    [changeSession],
+  );
+
+  const stopImpersonating = useCallback(async () => {
+    await changeSession(endImpersonation);
+  }, [changeSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       realUser,
       isImpersonating,
-      isLoading: !ready || isHolding,
+      isLoading: sessionStatus === "loading" || isHolding,
+      authUnavailable: sessionStatus === "unavailable",
       login,
       logout,
       impersonate,
@@ -145,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       realUser,
       isImpersonating,
-      ready,
+      sessionStatus,
       isHolding,
       login,
       logout,

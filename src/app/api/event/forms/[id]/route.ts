@@ -37,11 +37,12 @@ async function authorizeForForm(
         ),
       };
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to load form";
     return {
       ok: false,
-      response: NextResponse.json({ error: message }, { status: 502 }),
+      response: NextResponse.json(
+        { error: "Failed to load form" },
+        { status: 502 },
+      ),
     };
   }
 
@@ -56,7 +57,7 @@ async function authorizeForForm(
 
 /** GET /api/event/forms/[id] — returns FormRecord (builder Form + meta) */
 export async function GET(request: NextRequest, context: RouteContext) {
-  const sessionOrDeny = requireEventSession(request);
+  const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   const { id } = await context.params;
@@ -71,15 +72,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to load form";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: "Failed to load form" }, { status: 502 });
   }
 }
 
 /** PUT /api/event/forms/[id] — body = FormBuilder `Form` */
 export async function PUT(request: NextRequest, context: RouteContext) {
-  const sessionOrDeny = requireEventSession(request);
+  const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   const { id } = await context.params;
@@ -108,9 +107,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to update form";
-    const readOnly = /EROFS|read-only file system/i.test(message);
+    const readOnly =
+      error instanceof Error && /EROFS|read-only file system/i.test(error.message);
+    const message = readOnly ? "Mock API is read-only" : "Failed to update form";
     return NextResponse.json(
       { error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR", message },
       { status: readOnly ? 503 : 502 },
@@ -120,7 +119,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
 /** DELETE /api/event/forms/[id] — soft-delete */
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  const sessionOrDeny = requireEventSession(request);
+  const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   const { id } = await context.params;
@@ -137,8 +136,6 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to delete form";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: "Failed to delete form" }, { status: 502 });
   }
 }

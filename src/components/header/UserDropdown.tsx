@@ -8,6 +8,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { languages } from "@/i18n/languages";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
+import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
 import {
   CheckIcon,
@@ -59,7 +60,11 @@ export default function UserDropdown() {
     });
     if (!confirmed) return;
     closeDropdown();
-    stopImpersonating();
+    try {
+      await stopImpersonating();
+    } catch {
+      showToast({ title: t("stopImpersonatingFailed"), variant: "error" });
+    }
   };
 
   const handleSignOut = async () => {
@@ -71,7 +76,11 @@ export default function UserDropdown() {
     });
     if (!confirmed) return;
     closeDropdown();
-    logout();
+    try {
+      await logout();
+    } catch {
+      showToast({ title: t("signOutFailed"), variant: "error" });
+    }
   };
 
   if (!user) return null;

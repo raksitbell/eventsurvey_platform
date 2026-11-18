@@ -3,6 +3,7 @@
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
+import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
 import { useTranslations } from "next-intl";
 
@@ -23,7 +24,11 @@ export default function ImpersonationBanner() {
       variant: "warning",
     });
     if (!confirmed) return;
-    stopImpersonating();
+    try {
+      await stopImpersonating();
+    } catch {
+      showToast({ title: t("stopFailed"), variant: "error" });
+    }
   };
 
   return (

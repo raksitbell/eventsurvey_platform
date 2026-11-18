@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 /** GET /api/event/forms?eventId= — list live forms for an event */
 export async function GET(request: NextRequest) {
-  const sessionOrDeny = requireEventSession(request);
+  const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   const eventId = request.nextUrl.searchParams.get("eventId");
@@ -51,15 +51,13 @@ export async function GET(request: NextRequest) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to list forms";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: "Failed to list forms" }, { status: 502 });
   }
 }
 
 /** POST /api/event/forms — body = FormBuilder `Form` + `eventId` */
 export async function POST(request: NextRequest) {
-  const sessionOrDeny = requireEventSession(request);
+  const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   let json: unknown;
@@ -91,9 +89,9 @@ export async function POST(request: NextRequest) {
         { status: error.status },
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to create form";
-    const readOnly = /EROFS|read-only file system/i.test(message);
+    const readOnly =
+      error instanceof Error && /EROFS|read-only file system/i.test(error.message);
+    const message = readOnly ? "Mock API is read-only" : "Failed to create form";
     return NextResponse.json(
       { error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR", message },
       { status: readOnly ? 503 : 502 },

@@ -1,8 +1,6 @@
 export {
   ADMIN_ROLES,
-  AUTH_STORAGE_KEY,
   EVENT_ROLES,
-  IMPERSONATE_STORAGE_KEY,
   MOCK_DEMO_PASSWORD,
   PORTAL_ROLES,
 } from "./constants";
@@ -18,28 +16,12 @@ export {
   isImpersonatableRole,
 } from "./permissions";
 
-export {
-  AUTH_SESSION_COOKIE,
-  parseAuthSessionCookie,
-  writeAuthSessionCookie,
-  type AuthSessionCookie,
-} from "./cookie";
+export { clearLegacyAuthStorage, type AuthSnapshot } from "./session";
 
 export {
-  clearAuthStorage,
-  emitAuthChange,
-  hydrateAuthSession,
-  loadAuthStorage,
-  persistAuthStorage,
-  readStoredUser,
-  sanitizeUser,
-  subscribeAuth,
-  writeStoredUser,
-  type AuthSnapshot,
-} from "./session";
-
-export {
-  assertCanImpersonate,
-  fetchImpersonationTarget,
+  getAuthSnapshot,
   loginWithCredentials,
+  signOut,
+  startImpersonation,
+  endImpersonation,
 } from "./service";

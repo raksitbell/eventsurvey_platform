@@ -1,4 +1,7 @@
 import SetupPasswordForm from "@/components/auth/SetupPasswordForm";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { referrer: "no-referrer" };
 
 type PageProps = {
   params: Promise<{ userId: string }>;

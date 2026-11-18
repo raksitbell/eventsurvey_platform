@@ -6,7 +6,6 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
 import {
   canImpersonate,
-  fetchImpersonationTarget,
   isImpersonatableRole,
 } from "@/core/auth";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -88,8 +87,7 @@ export default function UsersTable() {
 
     setPendingId(target.id);
     try {
-      const fullUser = await fetchImpersonationTarget(target.id);
-      impersonate(fullUser);
+      await impersonate(target.id);
     } catch {
       setError(t("impersonateError"));
       setPendingId(null);
