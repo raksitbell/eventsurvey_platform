@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { analyticsFailure } from "@/core/analytics/http";
 import { AnalyticsError } from "@/core/analytics/policy";
 import { csvReport, printReport } from "@/core/analytics/report";
@@ -20,8 +21,31 @@ export async function POST(request: NextRequest) {
       session,
       `analytics.export.${format}`,
     );
+    const t = await getTranslations({
+      locale: data.filters.locale,
+      namespace: "eventReports.analyticsExport",
+    });
+    const columns = {
+      responseId: t("responseId"),
+      form: t("form"),
+      submittedAt: t("submittedAt"),
+    };
+    const content =
+      format === "csv"
+        ? csvReport(data, columns)
+        : printReport(data, {
+            ...columns,
+            title: t("title"),
+            print: t("print"),
+            range: t("range"),
+            all: t("all"),
+            masked: t("masked"),
+            raw: t("raw"),
+            total: t("total"),
+            empty: t("empty"),
+          });
     return authJson({
-      content: format === "csv" ? csvReport(data) : printReport(data),
+      content,
       mime:
         format === "csv" ? "text/csv;charset=utf-8" : "text/html;charset=utf-8",
       filename: `responses-${data.filters.locale}-${data.filters.raw ? "raw" : "masked"}.${

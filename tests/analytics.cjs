@@ -33,6 +33,11 @@ const {
 } = require("../src/services/event/analytics.ts");
 const { csvReport, printReport } = require("../src/core/analytics/report.ts");
 const { parseFilters } = require("../src/core/analytics/policy.ts");
+const { loadSource } = require("./support/load-source.cjs");
+const reportLabels = {
+  en: require("../src/messages/en.json").eventReports.analyticsExport,
+  th: require("../src/messages/th.json").eventReports.analyticsExport,
+};
 function fixture() {
   return {
     users: [
@@ -256,10 +261,12 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
     loadAnalytics("owner", "raw=true"),
     (e) => e.status === 403,
   );
-  assert.ok(!csvReport(data).includes("PRIVATE"));
+  assert.ok(!csvReport(data, reportLabels.en).includes("PRIVATE"));
   assert.equal(db.audit_logs.at(-1).includes_unmasked_pii, false);
-  assert.ok(printReport(data).includes("Personal data masked"));
-  assert.ok(!printReport(data).includes("PRIVATE"));
+  assert.ok(
+    printReport(data, reportLabels.en).includes("Personal data masked"),
+  );
+  assert.ok(!printReport(data, reportLabels.en).includes("PRIVATE"));
   for (const params of ["eventId=foreign", "formId=other"])
     await assert.rejects(
       loadAnalytics("owner", params),
@@ -344,4 +351,71 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
     () => parseFilters(new URLSearchParams("from=2026-10-26&to=2026-10-25")),
     (e) => e.status === 400,
   );
+});
+
+test("analytics export uses validated locales and escapes report values", async () => {
+  db = fixture();
+  db.field_option_translations[0].label = "=SUM(1,2)";
+  db.event_translations.push({
+    event_id: "event",
+    locale_code: "th",
+    title: "<script>unsafe</script>",
+  });
+  const { session } = request();
+  const translatedLocales = [];
+  const load = loadSource({
+    "@/core/auth/api-guard": {
+      async requireEventSession() {
+        return session;
+      },
+      isAuthSession(value) {
+        return value === session;
+      },
+    },
+    "next-intl/server": {
+      async getTranslations({ locale, namespace }) {
+        assert.equal(namespace, "eventReports.analyticsExport");
+        assert.ok(Object.hasOwn(reportLabels, locale));
+        translatedLocales.push(locale);
+        return (key) => {
+          const label = reportLabels[locale][key];
+          assert.equal(typeof label, "string", key);
+          return label;
+        };
+      },
+    },
+  });
+  const { POST } = load("src/app/api/event/analytics/export/route.ts");
+  const exportReport = (params) =>
+    POST({
+      nextUrl: new URL(`http://localhost/api/event/analytics/export?${params}`),
+    });
+
+  const csv = await exportReport("format=csv&locale=en");
+  assert.equal(csv.status, 200);
+  const english = await csv.json();
+  assert.match(english.content, /^\uFEFF"Response ID","Form","Submitted at"/);
+  assert.ok(english.content.includes('"\'=SUM(1,2)"'));
+  assert.ok(!english.content.includes("PRIVATE"));
+  assert.equal(english.filename, "responses-en-masked.csv");
+
+  const pdf = await exportReport("format=pdf");
+  assert.equal(pdf.status, 200);
+  const thai = await pdf.json();
+  assert.match(thai.content, /<html lang="th">/);
+  assert.ok(thai.content.includes(reportLabels.th.print));
+  assert.ok(thai.content.includes(reportLabels.th.masked));
+  assert.ok(thai.content.includes(reportLabels.th.responseId));
+  assert.ok(thai.content.includes("&lt;script&gt;unsafe&lt;/script&gt;"));
+  assert.ok(!thai.content.includes("<script>unsafe</script>"));
+  assert.equal(thai.filename, "responses-th-masked.html");
+
+  const empty = await exportReport("format=pdf&locale=th&to=2026-10-24");
+  assert.equal(empty.status, 200);
+  assert.ok((await empty.json()).content.includes(reportLabels.th.empty));
+
+  const invalid = await exportReport("format=csv&locale=fr");
+  assert.equal(invalid.status, 400);
+  assert.deepEqual(await invalid.json(), { error: "INVALID_LOCALE" });
+  assert.deepEqual(translatedLocales, ["en", "th", "th"]);
 });

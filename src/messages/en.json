@@ -669,6 +669,19 @@
       "last": "Last export in this session",
       "noApproved": "No responses from approved forms are available for export."
     },
+    "analyticsExport": {
+      "responseId": "Response ID",
+      "form": "Form",
+      "submittedAt": "Submitted at",
+      "title": "Event analytics report",
+      "print": "Print / Save as PDF",
+      "range": "Date range",
+      "all": "All",
+      "masked": "Personal data masked",
+      "raw": "Raw personal data — restricted distribution",
+      "total": "Responses",
+      "empty": "No responses match these filters"
+    },
     "trash": {
       "title": "Deleted items",
       "description": "Recover recently deleted content before its retention period ends.",

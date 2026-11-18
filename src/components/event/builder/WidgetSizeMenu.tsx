@@ -156,6 +156,7 @@ export default function WidgetSizeMenu({
         role="menu"
         aria-label={t("builder.sizeMenu")}
         aria-hidden={!drawerOpen}
+        inert={!drawerOpen}
         className={`absolute bottom-full end-0 z-50 mb-2 w-56 origin-bottom rounded-2xl border border-gray-200 bg-white/95 p-2 shadow-theme-xl ring-1 ring-gray-900/5 backdrop-blur-xs transition-all duration-250 ease-out dark:border-gray-700 dark:bg-gray-900/95 dark:ring-white/10 ${
           drawerOpen
             ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
