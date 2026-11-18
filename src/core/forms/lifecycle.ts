@@ -100,7 +100,7 @@ export function resolveFormWindows(
  * Returns null when no change is needed.
  */
 export function nextCronFormStatus(
-  form: Pick<MockForm, "status" | "opens_at" | "closes_at">,
+  form: Pick<MockForm, "type" | "status" | "opens_at" | "closes_at">,
   event: Pick<
     MockEvent,
     "status" | "opens_at" | "closes_at" | "start_at" | "end_at"
@@ -110,7 +110,12 @@ export function nextCronFormStatus(
   if (form.status === "draft" || form.status === "closed") return null;
 
   const { opensAt, closesAt } = resolveFormWindows(form, event);
-  const eventClosed = event.status === "closed";
+  const postSurvey =
+    form.type === "survey" &&
+    closesAt !== null &&
+    nowMs < closesAt &&
+    parseTime(form.closes_at) !== null;
+  const eventClosed = event.status === "closed" && !postSurvey;
 
   if (form.status === "scheduled") {
     if (eventClosed) return "closed";

@@ -9,6 +9,7 @@ import type {
   ParticipantDevice,
   ParticipantEventData,
 } from "@/types/event/participant";
+import type { PublicEvent } from "@/types/event/public-event";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 
@@ -16,11 +17,13 @@ interface ParticipantEventScreenProps extends ParticipantEventData {
   embedded?: boolean;
   readOnly?: boolean;
   initialDevice?: ParticipantDevice;
+  formLinks?: PublicEvent["formLinks"];
 }
 export default function ParticipantEventScreen({
   embedded = false,
   readOnly = false,
   initialDevice,
+  formLinks,
   ...data
 }: ParticipantEventScreenProps) {
   const [portrait, setPortrait] = useState(initialDevice === "mobile");
@@ -42,11 +45,11 @@ export default function ParticipantEventScreen({
               device={portrait ? "mobile" : "desktop"}
             />
           )}
-          <ParticipantEventContent {...data} />
+          <ParticipantEventContent {...data} formLinks={formLinks} />
           {!immersive && <ParticipantFooter readOnly={readOnly} />}
         </div>
       </div>
-      {!embedded && !readOnly && (
+      {!embedded && !readOnly && !formLinks && (
         <ParticipantDisplayControls
           portrait={portrait}
           immersive={immersive}

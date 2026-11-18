@@ -57,6 +57,10 @@ export default function EventWorkspaceSidebar() {
             ),
             href: null,
           },
+        ]
+      : []),
+    ...(published && workspace?.userRole === "event_owner"
+      ? [
           {
             label: t("qrTitle"),
             icon: (
@@ -69,10 +73,6 @@ export default function EventWorkspaceSidebar() {
             ),
             href: "/event/qr",
           },
-        ]
-      : []),
-    ...(published && workspace?.userRole === "event_owner"
-      ? [
           {
             label: t("team"),
             icon: <UserGroupIcon className="size-5" aria-hidden="true" />,

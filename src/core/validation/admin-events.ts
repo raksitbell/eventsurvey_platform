@@ -1,11 +1,10 @@
+import { isPublicEventSlug } from "@/core/event/public-event-paths";
 import { z } from "zod";
 
 const slugSchema = z
   .string()
   .trim()
-  .min(1)
-  .max(160)
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Invalid slug");
+  .refine(isPublicEventSlug, "Invalid or reserved event slug");
 
 const createSharedFields = {
   titleTh: z.string().trim().max(240),

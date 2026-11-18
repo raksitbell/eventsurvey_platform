@@ -1093,7 +1093,28 @@
     "teamTitle": "Event management team",
     "teamHint": "View members and manage permissions"
   },
+  "publicParticipantForm": {
+    "backToEvent": "Back to event",
+    "scheduled": "This form is not open yet.",
+    "closed": "This form has closed.",
+    "full": "This form has reached its capacity.",
+    "restricted": "This form requires eligibility verification.",
+    "unavailable": "This form is currently unavailable.",
+    "submitDemo": "Submit demo response",
+    "submitting": "Checking form availability…",
+    "demoSubmitted": "Demo completed. Your answers were not saved or sent.",
+    "recheckError": "Could not check form availability. Try again.",
+    "invalidAnswer": "Enter a valid answer."
+  },
   "eventPublishedView": {
+    "eventLink": "Event page link",
+    "linksUnavailable": "Sharing links are unavailable for this event.",
+    "linksLoadError": "Could not load sharing links.",
+    "copySuccess": "Link copied.",
+    "copyError": "Could not copy the link. Copy it from the URL field.",
+    "qrPreviewAlt": "QR code for {form}",
+    "qrPreviewError": "Could not load the QR code.",
+    "qrDownloadError": "Could not download the QR code.",
     "hosted": "Hosted by",
     "dates": "Event dates",
     "starts": "Starts {date}",

@@ -4,8 +4,9 @@ import {
   bannerLayouts,
   bannerObjectPosition,
 } from "@/core/event/banner-layout";
-import { participantFormActions } from "@/core/event/participant";
+import ParticipantFormActions from "@/components/event/participant/ParticipantFormActions";
 import type { ParticipantEventData } from "@/types/event/participant";
+import type { PublicEvent } from "@/types/event/public-event";
 import {
   CalendarDaysIcon,
   ClockIcon,
@@ -13,11 +14,17 @@ import {
 } from "@heroicons/react/24/outline";
 import { useFormatter, useTranslations } from "next-intl";
 import Image from "next/image";
+
+interface ParticipantEventContentProps extends ParticipantEventData {
+  formLinks?: PublicEvent["formLinks"];
+}
+
 export default function ParticipantEventContent({
   draft,
   branding,
   bannerUrl,
-}: ParticipantEventData) {
+  formLinks,
+}: ParticipantEventContentProps) {
   const t = useTranslations("participantEvent");
   const display = useTranslations("participantDisplay");
   const format = useFormatter();
@@ -44,7 +51,6 @@ export default function ParticipantEventContent({
       hourCycle: "h23",
       timeZone: "Asia/Bangkok",
     });
-  const forms = participantFormActions(draft);
   return (
     <main
       className="relative isolate flex-1 overflow-hidden bg-(--participant-surface) pb-6 @4xl/participant:py-11 dark:bg-(--participant-surface)"
@@ -142,30 +148,7 @@ export default function ParticipantEventContent({
               })}
             </ul>
           )}
-          <div className="flex flex-wrap justify-around gap-4 px-4 py-1">
-            {forms.map((kind) => (
-              <div
-                key={kind}
-                className="flex w-32 flex-col items-center text-center @4xl/participant:w-36"
-              >
-                <span className="text-base font-semibold text-(--participant-link) @4xl/participant:text-xl dark:text-(--participant-link)">
-                  {t(kind === "registration" ? "registrationQr" : "surveyQr")}
-                </span>
-                <Image
-                  src={`/images/event-preview/${kind}.svg`}
-                  alt={t("qrAlt", { form: t(kind) })}
-                  width={126}
-                  height={126}
-                  className="my-1 h-auto w-25 bg-white @4xl/participant:w-31.5"
-                />
-                <span className="text-theme-xs text-(--participant-on-secondary) @4xl/participant:text-base dark:text-(--participant-on-secondary)">
-                  {t(
-                    kind === "registration" ? "registrationHint" : "surveyHint",
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
+          <ParticipantFormActions draft={draft} formLinks={formLinks} />
         </section>
       </div>
     </main>
