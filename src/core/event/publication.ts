@@ -3,9 +3,9 @@ import { eventDraftSchema } from "@/core/event/draft";
 import { eventBrandingSchema } from "@/core/event/branding";
 import { notifyEventSetupSaved } from "@/core/event/local-events";
 import type { EventDraft } from "@/types/event/setup";
-import type { FormRecord, FormType } from "@/types/event/form";
+import type { FormType } from "@/types/event/form";
 
-export type SetupForms = Record<FormType, FormRecord | null>;
+export type SetupForms = Record<FormType, unknown>;
 const choice = z.object({
   id: z.string().optional(),
   label: z.string(),
@@ -136,16 +136,16 @@ export function publicationIssues(
   for (const type of ["registration", "survey"] as const) {
     if (!(type === "registration" ? draft.hasRegistration : draft.hasSurvey))
       continue;
-    const definition = forms[type];
+    const parsed = form.safeParse(forms[type]);
     if (
-      !definition ||
-      definition.type !== type ||
-      !form.safeParse(definition).success ||
-      !definition.questions.length
+      !parsed.success ||
+      parsed.data.type !== type ||
+      !parsed.data.questions.length
     ) {
       issues.add("formContent");
       continue;
     }
+    const definition = parsed.data;
     for (const locale of ["th", "en"] as const) {
       if (!definition.head[locale].title.trim()) issues.add("formContent");
       for (const { question: q } of definition.questions) {

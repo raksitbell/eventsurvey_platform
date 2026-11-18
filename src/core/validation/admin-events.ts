@@ -39,7 +39,7 @@ export const createAdminEventBodySchema = z.discriminatedUnion("mode", [
       ...createSharedFields,
       mode: z.literal("new"),
       adminName: z.string().trim().min(1).max(160),
-      adminEmail: z.email().trim().max(320),
+      adminEmail: z.string().trim().pipe(z.email().max(320)),
     })
     .superRefine(requireAtLeastOneTitle),
 ]);

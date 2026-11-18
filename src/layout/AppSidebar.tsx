@@ -11,6 +11,7 @@ import { cn } from "@/utils";
 import {
   EllipsisHorizontalIcon,
   Squares2X2Icon,
+  UserGroupIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
@@ -49,6 +50,7 @@ export default function AppSidebar() {
   const eventNav: NavItem[] = [
     { key: "eventHome", icon: <Squares2X2Icon />, path: "/event" },
     { key: "Form", icon: <Squares2X2Icon />, path: "/form" },
+    { key: "eventTeam", icon: <UserGroupIcon />, path: "/event/team" },
   ];
 
   const navItems = isAdminArea

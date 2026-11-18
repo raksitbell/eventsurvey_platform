@@ -2,6 +2,8 @@
   "common": {
     "home": "Home",
     "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
     "roles": {
       "super_admin": "Super Admin",
       "event_owner": "Event Owner",
@@ -39,7 +41,8 @@
       "events": "Event Management",
       "owners": "User Management",
       "eventHome": "Overview",
-      "Form": "Form Builder"
+      "Form": "Form Builder",
+      "eventTeam": "Team & Permissions"
     },
     "roles": {
       "superAdmin": "Super Admin",
@@ -231,6 +234,7 @@
     "teamTitle": "Event assistants",
     "memberCount": "{count} members",
     "manageTeam": "Manage assistants",
+    "manageTeamPermissions": "Manage Team & Permissions",
     "noTeam": "No event assistants yet.",
     "locationSummary": "Location: {location}",
     "locationUnspecified": "Not specified",
@@ -646,6 +650,80 @@
       "submitAnother": "Submit another response",
       "untitledQuestion": "Untitled Question"
     }
+  },
+  "team": {
+    "pageTitle": "Team & Permissions",
+    "loading": "Loading team members...",
+    "loadError": "Failed to load team members",
+    "teamMembersTitle": "Event Team Members",
+    "teamMembersDesc": "Manage access levels for Event Sub-Users according to system specifications.",
+    "inviteButton": "Add Sub-User",
+    "inviting": "Inviting...",
+    "inviteError": "Failed to invite member. Please try again.",
+    "inviteSubUserTitle": "Add Sub-User",
+    "inviteSubUserDesc": "Add event co-organizers and assign module access permissions.",
+    "fullNameLabel": "Full Name",
+    "fullNamePlaceholder": "Enter full name",
+    "emailLabel": "Email",
+    "nameEmailRequired": "Please enter both name and email.",
+    "roleNameLabel": "Custom Role Title",
+    "roleNamePlaceholder": "e.g. Registration Team, Event Staff",
+    "defaultRoleName": "Staff",
+    "editPermissionsTitle": "Configure Event Assistant Permissions",
+    "editPermissionsDesc": "{eventName} · {name}",
+    "editPermissionsTooltip": "Edit permissions",
+    "eventAdminOnly": "Event Admin Only",
+    "eventScopedNotice": "These permissions apply to this event only • Design prototype status",
+    "modulePermissionsHeader": "Core Module Permissions",
+    "actionPermissionsHeader": "Special Action Permissions",
+    "submissionsSectionTitle": "Submissions & Export Permissions",
+    "submissionsSectionDesc": "Configured independently from Dashboard and form access levels",
+    "levels": {
+      "restricted": "Restricted",
+      "view_only": "View Only",
+      "can_edit": "Can Edit"
+    },
+    "modules": {
+      "event": "Event",
+      "eventDesc": "Event Details",
+      "registrationForm": "Registration Form",
+      "registrationFormDesc": "Registration Form",
+      "surveyForm": "Survey Form",
+      "surveyFormDesc": "Survey Form",
+      "dashboard": "Dashboard",
+      "dashboardDesc": "Dashboard"
+    },
+    "toggles": {
+      "viewSubmissions": "View Submission",
+      "viewSubmissionsDesc": "View successfully submitted responses",
+      "manageSubmissions": "Manage Submission",
+      "manageSubmissionsDesc": "Manage / delete responses (Requires View)",
+      "exportData": "Export",
+      "exportDataDesc": "Export data / reports"
+    },
+    "rules": {
+      "rule1": "Manage Submission → Automatically enables View Submission",
+      "rule2": "Disabling View Submission → Also disables Manage Submission • Export is independent"
+    },
+    "savePermissions": "Save Permissions",
+    "colMember": "Member",
+    "colRole": "Role",
+    "colStatus": "Status",
+    "colPermissions": "Assigned Permissions",
+    "colActions": "Actions",
+    "noMembers": "No team members found in this event.",
+    "statuses": {
+      "active": "Active",
+      "invited": "Invited",
+      "suspended": "Suspended",
+      "removed": "Removed"
+    },
+    "confirmRemoveTitle": "Confirm Removal",
+    "confirmRemoveMessage": "Are you sure you want to remove {name} from this event team?",
+    "removeButton": "Remove",
+    "removeTooltip": "Remove from event",
+    "saving": "Saving...",
+    "updateError": "Failed to update permissions. Please try again."
   },
   "notFound": {
     "error": "ERROR",
