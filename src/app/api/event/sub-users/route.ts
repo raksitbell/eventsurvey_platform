@@ -1,5 +1,6 @@
 import { ServiceError } from "@/core/api/service-error";
 import {
+  denyUnlessEventPermission,
   isAuthSession,
   requireEventSession,
 } from "@/core/auth/api-guard";
@@ -50,6 +51,13 @@ export async function POST(request: NextRequest) {
         { status: 404 },
       );
     }
+
+    const denied = await denyUnlessEventPermission(
+      sessionOrDeny.userId,
+      "manage_sub_user",
+      workspace.eventId,
+    );
+    if (denied) return denied;
 
     let body: unknown;
     try {

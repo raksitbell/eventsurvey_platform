@@ -66,6 +66,32 @@ export default function InviteSubUserModal({
     }));
   };
 
+  const handleToggleChange = (
+    key: "canViewSubmissions" | "canManageSubmissions" | "canExport",
+    value: boolean,
+  ) => {
+    setPermissions((prev) => {
+      if (key === "canManageSubmissions") {
+        return {
+          ...prev,
+          canManageSubmissions: value,
+          canViewSubmissions: value ? true : prev.canViewSubmissions,
+        };
+      }
+      if (key === "canViewSubmissions") {
+        return {
+          ...prev,
+          canViewSubmissions: value,
+          canManageSubmissions: !value ? false : prev.canManageSubmissions,
+        };
+      }
+      return {
+        ...prev,
+        [key]: value,
+      };
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) {
@@ -122,7 +148,7 @@ export default function InviteSubUserModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("fullNamePlaceholder")}
-              className="mt-1.5 block w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 focus:border-[#7F56D9] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              className="mt-1.5 block w-full rounded-xl border border-event-border bg-white px-3.5 py-2.5 text-sm text-gray-900 focus:border-event-action focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
           </div>
 
@@ -136,7 +162,7 @@ export default function InviteSubUserModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="user@example.com"
-              className="mt-1.5 block w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 focus:border-[#7F56D9] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              className="mt-1.5 block w-full rounded-xl border border-event-border bg-white px-3.5 py-2.5 text-sm text-gray-900 focus:border-event-action focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
           </div>
         </div>
@@ -150,7 +176,7 @@ export default function InviteSubUserModal({
             value={roleName}
             onChange={(e) => setRoleName(e.target.value)}
             placeholder={t("roleNamePlaceholder")}
-            className="mt-1.5 block w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 focus:border-[#7F56D9] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            className="mt-1.5 block w-full rounded-xl border border-event-border bg-white px-3.5 py-2.5 text-sm text-gray-900 focus:border-event-action focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           />
         </div>
 
@@ -159,7 +185,7 @@ export default function InviteSubUserModal({
           <h3 className="text-xs font-bold tracking-wider text-gray-400 uppercase dark:text-gray-500">
             {t("modulePermissionsHeader")}
           </h3>
-          <div className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-[#F9FAFB] p-3.5 dark:divide-gray-800 dark:border-gray-800 dark:bg-white/2">
+          <div className="divide-y divide-event-border rounded-2xl border border-event-border bg-event-subtle p-3.5 dark:divide-gray-800 dark:border-gray-800 dark:bg-white/2">
             {MODULES.map(({ key, titleKey }) => {
               const currentLevel = permissions[key];
               return (
@@ -187,11 +213,11 @@ export default function InviteSubUserModal({
                           className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
                             isSelected
                               ? level === "can_edit"
-                                ? "bg-[#7F56D9] text-white shadow-sm ring-1 ring-[#7F56D9]"
+                                ? "bg-event-action text-white shadow-sm ring-1 ring-event-action"
                                 : level === "view_only"
-                                  ? "bg-[#0086C9] text-white shadow-sm"
+                                  ? "bg-blue-light-600 text-white shadow-sm"
                                   : "bg-gray-600 text-white"
-                              : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                              : "border border-event-border bg-white text-gray-600 hover:bg-event-tile dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                           }`}
                         >
                           {t(`levels.${level}`)}
@@ -205,33 +231,44 @@ export default function InviteSubUserModal({
           </div>
         </div>
 
-        {/* 2 Special Action Toggles */}
-        <div className="grid gap-3 pt-1 sm:grid-cols-2">
-          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3.5 transition hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/60">
+        {/* Special Action Toggles */}
+        <div className="grid gap-3 pt-1 sm:grid-cols-3">
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-event-border bg-white p-3.5 transition hover:bg-event-subtle dark:border-gray-800 dark:bg-gray-800/60">
             <input
               type="checkbox"
               checked={permissions.canViewSubmissions}
               onChange={(e) =>
-                setPermissions((p) => ({
-                  ...p,
-                  canViewSubmissions: e.target.checked,
-                }))
+                handleToggleChange("canViewSubmissions", e.target.checked)
               }
-              className="size-4 rounded border-gray-300 text-[#7F56D9] focus:ring-[#7F56D9]"
+              className="size-4 rounded border-gray-300 text-event-action focus:ring-event-action"
             />
             <span className="text-xs font-medium text-gray-800 dark:text-white/90">
               {t("toggles.viewSubmissions")}
             </span>
           </label>
 
-          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3.5 transition hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-800/60">
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-event-border bg-white p-3.5 transition hover:bg-event-subtle dark:border-gray-800 dark:bg-gray-800/60">
+            <input
+              type="checkbox"
+              checked={Boolean(permissions.canManageSubmissions)}
+              onChange={(e) =>
+                handleToggleChange("canManageSubmissions", e.target.checked)
+              }
+              className="size-4 rounded border-gray-300 text-event-action focus:ring-event-action"
+            />
+            <span className="text-xs font-medium text-gray-800 dark:text-white/90">
+              {t("toggles.manageSubmissions")}
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-event-border bg-white p-3.5 transition hover:bg-event-subtle dark:border-gray-800 dark:bg-gray-800/60">
             <input
               type="checkbox"
               checked={permissions.canExport}
               onChange={(e) =>
-                setPermissions((p) => ({ ...p, canExport: e.target.checked }))
+                handleToggleChange("canExport", e.target.checked)
               }
-              className="size-4 rounded border-gray-300 text-[#7F56D9] focus:ring-[#7F56D9]"
+              className="size-4 rounded border-gray-300 text-event-action focus:ring-event-action"
             />
             <span className="text-xs font-medium text-gray-800 dark:text-white/90">
               {t("toggles.exportData")}
@@ -239,20 +276,20 @@ export default function InviteSubUserModal({
           </label>
         </div>
 
-        {/* Modal Buttons Footer (สีม่วง #7F56D9 ตาม Figma) */}
+        {/* Modal Buttons Footer */}
         <div className="flex justify-end gap-3 pt-3">
           <button
             type="button"
             onClick={handleClose}
             disabled={isSubmitting}
-            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            className="rounded-xl border border-event-border bg-white px-5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-event-subtle dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
           >
             {tCommon("cancel")}
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-xl bg-[#7F56D9] px-6 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#6941C6] disabled:bg-gray-300"
+            className="rounded-xl bg-event-action px-6 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-event-action/90 disabled:bg-gray-300"
           >
             {isSubmitting ? t("inviting") : t("inviteButton")}
           </button>

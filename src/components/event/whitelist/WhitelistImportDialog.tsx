@@ -23,11 +23,13 @@ interface WhitelistImportDialogProps {
   entries: WhitelistEntry[];
   onUse: (entries: WhitelistEntry[]) => void;
   onClose: () => void;
+  wide?: boolean;
 }
 export default function WhitelistImportDialog({
   entries,
   onUse,
   onClose,
+  wide = false,
 }: WhitelistImportDialogProps) {
   const t = useTranslations("eventWhitelist");
   const [preview, setPreview] = useState<WhitelistImportPreview | null>(null);
@@ -54,17 +56,61 @@ export default function WhitelistImportDialog({
       if (request === sequence.current) setBusy(false);
     }
   };
+  const actions = preview ? (
+    <>
+      <Button variant="outline" onClick={onClose}>
+        {t("cancel")}
+      </Button>
+      {preview.columnMismatch ? (
+        <Button
+          onClick={() => setPreview(null)}
+          className="bg-event-action! hover:bg-event-action/90! dark:bg-event-action"
+        >
+          {t("chooseAgain")}
+        </Button>
+      ) : (
+        <Button
+          disabled={!preview.entries.length}
+          onClick={() => onUse(preview.entries)}
+          className="bg-event-action! hover:bg-event-action/90! dark:bg-event-action"
+        >
+          {t("useFile")}
+        </Button>
+      )}
+    </>
+  ) : (
+    <Button variant="outline" onClick={onClose}>
+      {t("backToList")}
+    </Button>
+  );
   return (
     <WhitelistDialog
-      title={t(
-        preview
-          ? preview.columnMismatch
-            ? "columnMismatch"
-            : "columnCheck"
-          : "importTitle",
-      )}
+      wide={wide}
+      title={
+        wide
+          ? t("modalTitle")
+          : t(
+              preview
+                ? preview.columnMismatch
+                  ? "columnMismatch"
+                  : "columnCheck"
+                : "importTitle",
+            )
+      }
+      footer={wide ? actions : undefined}
       onClose={onClose}
     >
+      {wide && (
+        <h3 className="mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+          {t(
+            preview
+              ? preview.columnMismatch
+                ? "columnMismatch"
+                : "columnCheck"
+              : "importTitle",
+          )}
+        </h3>
+      )}
       {!preview ? (
         <>
           <p className="text-theme-sm text-gray-500 dark:text-gray-400">
@@ -97,11 +143,13 @@ export default function WhitelistImportDialog({
               {t("fileError")}
             </p>
           )}
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={onClose}>
-              {t("cancel")}
-            </Button>
-          </div>
+          {!wide && (
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={onClose}>
+                {t("cancel")}
+              </Button>
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -173,27 +221,11 @@ export default function WhitelistImportDialog({
           <p className="text-theme-sm text-gray-500 dark:text-gray-400">
             {t(preview.columnMismatch ? "columnsRequired" : "replaceHint")}
           </p>
-          <footer className="flex flex-wrap justify-end gap-3">
-            <Button variant="outline" onClick={onClose}>
-              {t("cancel")}
-            </Button>
-            {preview.columnMismatch ? (
-              <Button
-                onClick={() => setPreview(null)}
-                className="bg-event-action! hover:bg-event-action/90! dark:bg-event-action"
-              >
-                {t("chooseAgain")}
-              </Button>
-            ) : (
-              <Button
-                disabled={!preview.entries.length}
-                onClick={() => onUse(preview.entries)}
-                className="bg-event-action! hover:bg-event-action/90! dark:bg-event-action"
-              >
-                {t("useFile")}
-              </Button>
-            )}
-          </footer>
+          {!wide && (
+            <footer className="flex flex-wrap justify-end gap-3">
+              {actions}
+            </footer>
+          )}
         </>
       )}
     </WhitelistDialog>

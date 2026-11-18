@@ -82,11 +82,17 @@ async function decodeImage(
 ): Promise<DecodedImage> {
   checkAbort(signal);
   if (typeof globalThis.createImageBitmap === "function") {
+    let bitmap: ImageBitmap | undefined;
     try {
       // Browser applies JPEG EXIF orientation; animated inputs use a still frame.
-      const bitmap = await globalThis.createImageBitmap(file, {
+      bitmap = await globalThis.createImageBitmap(file, {
         imageOrientation: "from-image",
       });
+    } catch {
+      checkAbort(signal);
+      // Some browser decoders do not accept SVG via createImageBitmap.
+    }
+    if (bitmap) {
       if (signal?.aborted) {
         bitmap.close();
         throw new ImageUploadError("aborted");
@@ -97,10 +103,6 @@ async function decodeImage(
         height: bitmap.height,
         close: () => bitmap.close(),
       };
-    } catch (error) {
-      if (error instanceof ImageUploadError) throw error;
-      checkAbort(signal);
-      // Some browser decoders do not accept SVG via createImageBitmap.
     }
   }
   const url = URL.createObjectURL(file);
@@ -202,12 +204,10 @@ function blobDataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
  * Preserve aspect ratio/alpha; never upscale. Does not write storage itself.
  * Quality and then resolution are reduced if the encoded image exceeds its budget.
  */
-export async function convertImageToWebp(
+async function convertImageToWebpInternal(
   file: File,
   options: WebpImageOptions = {},
 ): Promise<ConvertedWebpImage> {
-  const issue = imageUploadError(file);
-  if (issue) throw new ImageUploadError(issue);
   const {
     maxWidth = 1600,
     maxHeight = 1600,
@@ -215,15 +215,6 @@ export async function convertImageToWebp(
     quality = 0.86,
     signal,
   } = options;
-  if (
-    ![maxWidth, maxHeight, maxOutputBytes].every(
-      (v) => Number.isSafeInteger(v) && v > 0,
-    ) ||
-    !Number.isFinite(quality) ||
-    quality <= 0 ||
-    quality > 1
-  )
-    throw new RangeError("Invalid image conversion options");
   let decoded: DecodedImage | undefined;
   let canvas: HTMLCanvasElement | undefined;
   try {
@@ -274,14 +265,40 @@ export async function convertImageToWebp(
       }
     }
     throw new ImageUploadError("fileOutputSize");
-  } catch (error) {
-    if (error instanceof ImageUploadError) throw error;
-    throw new ImageUploadError("fileConvert");
   } finally {
     decoded?.close();
     if (canvas) {
       canvas.width = 0;
       canvas.height = 0;
     }
+  }
+}
+
+export async function convertImageToWebp(
+  file: File,
+  options: WebpImageOptions = {},
+): Promise<ConvertedWebpImage> {
+  const issue = imageUploadError(file);
+  if (issue) throw new ImageUploadError(issue);
+  const {
+    maxWidth = 1600,
+    maxHeight = 1600,
+    maxOutputBytes = IMAGE_MAX_OUTPUT_BYTES,
+    quality = 0.86,
+  } = options;
+  if (
+    ![maxWidth, maxHeight, maxOutputBytes].every(
+      (v) => Number.isSafeInteger(v) && v > 0,
+    ) ||
+    !Number.isFinite(quality) ||
+    quality <= 0 ||
+    quality > 1
+  )
+    throw new RangeError("Invalid image conversion options");
+  try {
+    return await convertImageToWebpInternal(file, options);
+  } catch (error) {
+    if (error instanceof ImageUploadError) throw error;
+    throw new ImageUploadError("fileConvert");
   }
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import Radio from "@/components/form/input/Radio";
+import WhitelistRequiredButton from "@/components/event/setup/details/WhitelistRequiredButton";
 import Switch from "@/components/form/switch/Switch";
-import { Link } from "@/i18n/navigation";
+
 import EventCapacitySettings from "@/components/event/setup/details/EventCapacitySettings";
 import type { EventDraft } from "@/types/event/setup";
 import {
@@ -17,14 +18,22 @@ interface EventAccessSettingsProps {
   draft: EventDraft;
   readOnly: boolean;
   onChange: (changes: Partial<EventDraft>) => void;
-  onNavigate: () => boolean;
+  onManageWhitelist: () => void;
+  canManageWhitelist: boolean;
+  whitelistReady: boolean;
+  whitelistInvalid: boolean;
+  whitelistStorageError: boolean;
 }
 
 export default function EventAccessSettings({
   draft,
   readOnly,
   onChange,
-  onNavigate,
+  onManageWhitelist,
+  canManageWhitelist,
+  whitelistReady,
+  whitelistInvalid,
+  whitelistStorageError,
 }: EventAccessSettingsProps) {
   const t = useTranslations("eventHome.details");
   return (
@@ -57,7 +66,7 @@ export default function EventAccessSettings({
           { key: "hasSurvey", Icon: ClipboardDocumentListIcon },
         ] as const
       ).map(({ key, Icon }) => (
-        <fieldset key={key} className="min-w-0 space-y-1" disabled={readOnly}>
+        <fieldset key={key} className="min-w-0 space-y-1">
           <legend className="mb-1 flex items-center gap-2 text-theme-sm text-gray-800 dark:text-gray-200">
             <Icon
               className="size-4.5 shrink-0 text-event-action dark:text-brand-400"
@@ -81,23 +90,18 @@ export default function EventAccessSettings({
           </div>
           {key === "hasRegistration" && draft.isPrivate && (
             <div className="space-y-2 pt-1">
-              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                {t(
-                  draft.hasRegistration
-                    ? "whitelistHint"
-                    : "privateRegistrationHint",
-                )}
-              </p>
-              {draft.hasRegistration && (
-                <Link
-                  href="/event/whitelist"
-                  onClick={(event) => {
-                    if (!onNavigate()) event.preventDefault();
-                  }}
-                  className="flex h-11 w-full items-center justify-center rounded-preview-control border border-event-action bg-event-subtle text-theme-sm text-participant-text focus-visible:outline-2 focus-visible:outline-event-action dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  {t("manageWhitelist")}
-                </Link>
+              {draft.hasRegistration ? (
+                <WhitelistRequiredButton
+                  onClick={onManageWhitelist}
+                  disabled={!canManageWhitelist}
+                  ready={whitelistReady}
+                  invalid={whitelistInvalid}
+                  storageError={whitelistStorageError}
+                />
+              ) : (
+                <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                  {t("privateRegistrationHint")}
+                </p>
               )}
             </div>
           )}

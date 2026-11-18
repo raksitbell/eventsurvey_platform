@@ -6,6 +6,7 @@ import { twMerge } from "tailwind-merge";
 
 interface ModalProps {
   isOpen: boolean;
+  inactive?: boolean;
   onClose: () => void;
   className?: string;
   children: React.ReactNode;
@@ -17,6 +18,7 @@ interface ModalProps {
 
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
+  inactive = false,
   onClose,
   children,
   className = "",
@@ -29,7 +31,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !inactive) onClose();
     };
 
     if (isOpen) {
@@ -41,7 +43,7 @@ export const Modal: React.FC<ModalProps> = ({
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "";
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, inactive]);
 
   if (!isOpen) return null;
 
@@ -49,13 +51,15 @@ export const Modal: React.FC<ModalProps> = ({
     <div className="fixed inset-0 z-99999 flex items-center justify-center p-4">
       <div
         className={`absolute inset-0 ${backdropClassName}`}
-        onClick={closeOnBackdropClick ? onClose : undefined}
+        onClick={closeOnBackdropClick && !inactive ? onClose : undefined}
         aria-hidden
       />
       <div
         ref={modalRef}
         role="dialog"
-        aria-modal="true"
+        aria-modal={inactive ? undefined : true}
+        aria-hidden={inactive || undefined}
+        inert={inactive}
         aria-labelledby={labelledBy}
         className={twMerge(
           "relative w-full max-w-md rounded-2xl bg-white p-6 shadow-theme-xl dark:bg-gray-900",

@@ -72,6 +72,8 @@
   --color-participant-text: #242333;
   --color-participant-muted: #676474;
   --container-participant-mobile: 390px;
+  --container-whitelist-management: 960px;
+  --color-overlay-scrim: #000000;
   --container-participant-desktop: 1440px;
   --container-participant-banner: 450px;
   --color-event-banner: #ae85d1;

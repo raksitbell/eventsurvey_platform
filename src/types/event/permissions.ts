@@ -19,6 +19,8 @@ export interface EventPermissionMatrix {
   dashboard: ModuleAccessLevel;
   /** Toggle: allow viewing participant submissions list and answers */
   canViewSubmissions: boolean;
+  /** Toggle: allow managing / deleting participant submissions (requires view) */
+  canManageSubmissions?: boolean;
   /** Toggle: allow exporting raw CSV / XLSX / PDF reports */
   canExport: boolean;
 }

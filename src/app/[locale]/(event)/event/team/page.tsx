@@ -1,11 +1,11 @@
 "use client";
 
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import InviteSubUserModal from "@/components/event/team/InviteSubUserModal";
 import PermissionModal from "@/components/event/team/PermissionModal";
 import SubUsersTable from "@/components/event/team/SubUsersTable";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
+import useEventWorkspace from "@/hooks/useEventWorkspace";
 import { useModal } from "@/hooks/useModal";
 import type {
   EventPermissionMatrix,
@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useState } from "react";
 export default function EventTeamPage() {
   const t = useTranslations("team");
   const { user } = useAuth();
+  const { workspace } = useEventWorkspace();
 
   const [subUsers, setSubUsers] = useState<EventSubUserItem[]>([]);
   const [canManage, setCanManage] = useState(false);
@@ -88,21 +89,32 @@ export default function EventTeamPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <PageBreadcrumb pageTitle={t("pageTitle")} />
+    <div className="space-y-6 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950">
+      <header>
+        <p className="text-theme-xs font-bold tracking-wide text-event-action dark:text-brand-400">
+          EVENT WORKSPACE
+        </p>
+        <h1 className="mt-1 text-title-sm font-semibold text-gray-900 dark:text-white/90">
+          {t("pageTitle")}
+        </h1>
+        <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+          {t("teamMembersDesc")}
+        </p>
+      </header>
 
       {error ? (
-        <div className="rounded-2xl border border-error-200 bg-error-50 p-6 text-sm text-error-700 dark:border-error-900/50 dark:bg-error-950/40 dark:text-error-300">
+        <div className="rounded-2xl border border-error-200 bg-white p-6 text-sm text-error-700 dark:border-error-900/50 dark:bg-gray-900 dark:text-error-300">
           {error}
         </div>
       ) : isLoading ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center text-sm text-gray-500 dark:border-gray-800 dark:bg-white/3 dark:text-gray-400">
+        <div className="rounded-2xl border border-event-border bg-white p-12 text-center text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
           {t("loading")}
         </div>
       ) : (
         <SubUsersTable
           subUsers={subUsers}
           canManage={canManage}
+          currentUserId={user?.id}
           onEditPermissions={handleEditPermissions}
           onInviteClick={openInviteModal}
           onRemove={handleRemoveSubUser}
@@ -114,6 +126,7 @@ export default function EventTeamPage() {
         isOpen={isPermOpen}
         onClose={closePermModal}
         subUser={selectedSubUser}
+        eventName={workspace?.eventName}
         onSave={handleSavePermissions}
       />
 

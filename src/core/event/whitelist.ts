@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { notifyEventSetupSaved } from "@/core/event/local-events";
+import type { EventDraft } from "@/types/event/setup";
 import type {
   WhitelistEntry,
   WhitelistImportPreview,
@@ -53,6 +55,17 @@ export function loadWhitelist(key: string): {
     return { entries: [], error: true };
   }
 }
+/** Minimum list validation is separate from Registration Unique Field readiness. */
+export function getWhitelistRequirement(
+  draft: Pick<EventDraft, "isPrivate" | "hasRegistration">,
+  key: string,
+): "not_required" | "ready" | "missing" | "error" {
+  if (!draft.isPrivate || !draft.hasRegistration) return "not_required";
+  const saved = loadWhitelist(key);
+  if (saved.error) return "error";
+  return saved.entries.length > 0 ? "ready" : "missing";
+}
+
 export function saveWhitelist(
   key: string,
   entries: WhitelistEntry[],
@@ -61,6 +74,7 @@ export function saveWhitelist(
   if (!parsed.success) return "invalid";
   try {
     globalThis.localStorage.setItem(key, JSON.stringify(parsed.data));
+    notifyEventSetupSaved(key);
     return "saved";
   } catch {
     return "error";

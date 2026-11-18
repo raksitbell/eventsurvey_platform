@@ -10,6 +10,7 @@ export const DEFAULT_ADMIN_MATRIX: EventPermissionMatrix = {
   surveyForm: "can_edit",
   dashboard: "can_edit",
   canViewSubmissions: true,
+  canManageSubmissions: true,
   canExport: true,
 };
 
@@ -19,6 +20,7 @@ export const DEFAULT_SUB_USER_MATRIX: EventPermissionMatrix = {
   surveyForm: "view_only",
   dashboard: "view_only",
   canViewSubmissions: false,
+  canManageSubmissions: false,
   canExport: false,
 };
 
@@ -38,6 +40,10 @@ export function deserializePermissionMatrix(
   jsonText: string | null | undefined,
   fallbackCodes: readonly MockPermissionCode[] = [],
 ): EventPermissionMatrix {
+  if (fallbackCodes.includes("manage_sub_user")) {
+    return { ...DEFAULT_ADMIN_MATRIX };
+  }
+
   if (jsonText) {
     try {
       const parsed = JSON.parse(jsonText) as Partial<EventPermissionMatrix>;
@@ -53,6 +59,7 @@ export function deserializePermissionMatrix(
           surveyForm: parsed.surveyForm ?? "view_only",
           dashboard: parsed.dashboard ?? "view_only",
           canViewSubmissions: Boolean(parsed.canViewSubmissions),
+          canManageSubmissions: Boolean(parsed.canManageSubmissions),
           canExport: Boolean(parsed.canExport),
         };
       }
@@ -74,6 +81,7 @@ export function deserializePermissionMatrix(
       ? "can_edit"
       : "view_only",
     canViewSubmissions: fallbackCodes.includes("manage_dashboard"),
+    canManageSubmissions: fallbackCodes.includes("manage_dashboard"),
     canExport: fallbackCodes.includes("manage_dashboard"),
   };
 }
