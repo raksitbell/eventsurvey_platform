@@ -10,7 +10,17 @@ export type MockAccountStatus = "invited" | "active" | "suspended" | "removed";
 export type MockEventStatus = "draft" | "scheduled" | "open" | "closed";
 export type MockSurveyAccess = "public" | "registered_only";
 export type MockFormType = "registration" | "survey";
-export type MockFormStatus = "draft" | "scheduled" | "open" | "closed";
+export type MockFormStatus =
+  | "draft"
+  | "scheduled"
+  | "open"
+  | "closed"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "published"
+  | "paused"
+  | "archived";
 export type MockFieldType =
   | "short_text"
   | "long_text"

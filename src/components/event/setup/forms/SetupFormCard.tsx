@@ -8,12 +8,14 @@ interface SetupFormCardProps {
   enabled: boolean;
   count: number;
   status?: FormStatus;
+  onOpen?: () => void;
 }
 export default function SetupFormCard({
   type,
   enabled,
   count,
   status,
+  onOpen,
 }: SetupFormCardProps) {
   const t = useTranslations("eventForms");
   return (
@@ -45,8 +47,9 @@ export default function SetupFormCard({
       <div className="mt-auto">
         <button
           type="button"
-          disabled
-          className="h-11 w-full cursor-not-allowed rounded-preview-control bg-event-action px-4 text-theme-sm font-semibold text-white opacity-50 dark:bg-event-action"
+          disabled={!enabled || !onOpen}
+          onClick={onOpen}
+          className="h-11 w-full rounded-preview-control bg-event-action px-4 text-theme-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-event-action"
         >
           {t("openBuilder")}
         </button>

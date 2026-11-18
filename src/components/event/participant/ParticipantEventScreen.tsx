@@ -37,7 +37,7 @@ export default function ParticipantEventScreen({
         >
           {!immersive && (
             <ParticipantHeader
-              logo={data.branding.logo}
+              branding={data.branding}
               readOnly={readOnly}
               device={portrait ? "mobile" : "desktop"}
             />

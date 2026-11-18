@@ -1,6 +1,7 @@
-/** Browser-only image conversion. No files or temporary object URLs are stored. */
+/** Prepare images for browser-only Branding storage. */
 export const IMAGE_MAX_INPUT_BYTES = 10 * 1024 * 1024;
-export const IMAGE_MAX_OUTPUT_BYTES = 350 * 1024;
+const IMAGE_TARGET_BYTES = 350 * 1024;
+export const IMAGE_MAX_SAVED_BYTES = 1024 * 1024;
 export const IMAGE_UPLOAD_ACCEPT: Record<string, string[]> = {
   "image/png": [".png"],
   "image/jpeg": [".jpg", ".jpeg"],
@@ -13,8 +14,8 @@ export const IMAGE_UPLOAD_ACCEPT: Record<string, string[]> = {
 export type ImageUploadErrorCode =
   | "fileType"
   | "fileSize"
+  | "cropSize"
   | "fileRead"
-  | "fileConvert"
   | "fileOutputSize"
   | "aborted";
 export class ImageUploadError extends Error {
@@ -23,20 +24,11 @@ export class ImageUploadError extends Error {
     this.name = "ImageUploadError";
   }
 }
-export interface WebpImageOptions {
-  maxWidth?: number;
-  maxHeight?: number;
-  maxOutputBytes?: number;
-  quality?: number;
+interface ImageOptions {
+  minimumSize?: { width: number; height: number };
+  maxDimension?: number;
+  optimize?: boolean;
   signal?: AbortSignal;
-}
-export interface ConvertedWebpImage {
-  name: string;
-  url: string;
-  type: "image/webp";
-  size: number;
-  width: number;
-  height: number;
 }
 export function imageUploadError(
   file: Pick<File, "size" | "type">,
@@ -87,7 +79,7 @@ async function decodeImage(
     let bitmap: ImageBitmap | undefined;
     let bitmapError: unknown;
     try {
-      // Browser applies JPEG EXIF orientation; animated inputs use a still frame.
+      // Browser applies JPEG EXIF orientation when drawing to canvas.
       bitmap = await globalThis.createImageBitmap(file, {
         imageOrientation: "from-image",
       });
@@ -147,16 +139,15 @@ async function decodeImage(
     URL.revokeObjectURL(url);
   }
 }
-function encodeWebp(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
+function encodeImage(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number,
+): Promise<Blob | null> {
+  return new Promise((resolve) => {
     canvas.toBlob(
-      (blob) => {
-        // Canvas may silently return PNG when WebP encoding is unsupported.
-        if (!blob || !blob.size || blob.type !== "image/webp")
-          reject(new ImageUploadError("fileConvert"));
-        else resolve(blob);
-      },
-      "image/webp",
+      (blob) => resolve(blob?.size && blob.type === type ? blob : null),
+      type,
       quality,
     );
   });
@@ -181,10 +172,10 @@ function blobDataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
       cleanup();
       if (
         typeof result === "string" &&
-        result.startsWith("data:image/webp;base64,")
+        result.startsWith(`data:${blob.type};base64,`)
       )
         resolve(result);
-      else reject(new ImageUploadError("fileConvert"));
+      else reject(new ImageUploadError("fileRead"));
     };
     reader.onerror = () => {
       cleanup();
@@ -203,93 +194,85 @@ function blobDataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
     }
   });
 }
-/**
- * Convert a supported image <10 MiB to a bounded WebP data URL for LocalStorage.
- * Preserve aspect ratio/alpha; never upscale. Does not write storage itself.
- * Quality and then resolution are reduced if the encoded image exceeds its budget.
- */
-export async function convertImageToWebp(
+async function shrinkImage(
   file: File,
-  options: WebpImageOptions = {},
-): Promise<ConvertedWebpImage> {
+  decoded: DecodedImage,
+  { maxDimension = 2560, minimumSize, signal }: ImageOptions,
+): Promise<Blob> {
+  const { width, height } = fitImageDimensions(
+    decoded.width,
+    decoded.height,
+    maxDimension,
+    maxDimension,
+  );
+  const minScale = minimumSize
+    ? Math.max(minimumSize.width / width, minimumSize.height / height)
+    : 0.18;
+  if (minScale > 1) return file;
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { alpha: true });
+  if (!context) return file;
+
+  let smallest: Blob = file;
+  try {
+    for (let scale = 1; ; scale = Math.max(minScale, scale * 0.75)) {
+      checkAbort(signal);
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      context.imageSmoothingQuality = "high";
+      context.drawImage(decoded.source, 0, 0, canvas.width, canvas.height);
+      for (const quality of file.type === "image/jpeg"
+        ? [0.86, 0.72, 0.6]
+        : [1]) {
+        checkAbort(signal);
+        const candidate = await encodeImage(canvas, file.type, quality);
+        checkAbort(signal);
+        if (!candidate) return smallest;
+        if (candidate.size < smallest.size) smallest = candidate;
+        if (smallest.size <= IMAGE_TARGET_BYTES) return smallest;
+      }
+      if (scale === minScale) return smallest;
+    }
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+}
+
+/** Validate before saving, and keep the original bytes unless optimization helps. */
+export async function prepareBrandingImage(
+  file: File,
+  { minimumSize, maxDimension, optimize = true, signal }: ImageOptions = {},
+) {
   const issue = imageUploadError(file);
   if (issue) throw new ImageUploadError(issue);
-  const {
-    maxWidth = 1600,
-    maxHeight = 1600,
-    maxOutputBytes = IMAGE_MAX_OUTPUT_BYTES,
-    quality = 0.86,
-    signal,
-  } = options;
-  if (
-    ![maxWidth, maxHeight, maxOutputBytes].every(
-      (v) => Number.isSafeInteger(v) && v > 0,
-    ) ||
-    !Number.isFinite(quality) ||
-    quality <= 0 ||
-    quality > 1
-  )
-    throw new RangeError("Invalid image conversion options");
-  let decoded: DecodedImage | undefined;
-  let canvas: HTMLCanvasElement | undefined;
-  let exceededSizeLimit = false;
+  const decoded = await decodeImage(file, signal);
   try {
-    decoded = await decodeImage(file, signal);
     checkAbort(signal);
-    let { width, height } = fitImageDimensions(
-      decoded.width,
-      decoded.height,
-      maxWidth,
-      maxHeight,
-    );
-    canvas = globalThis.document.createElement("canvas");
-    const context = canvas.getContext("2d", { alpha: true });
-    if (!context) throw new ImageUploadError("fileConvert");
-    let currentQuality = quality;
-    const minQuality = Math.min(0.6, quality);
-    for (let attempt = 0; attempt < 16; attempt++) {
-      checkAbort(signal);
-      canvas.width = width;
-      canvas.height = height;
-      context.imageSmoothingEnabled = true;
-      context.imageSmoothingQuality = "high";
-      context.drawImage(decoded.source, 0, 0, width, height);
-      const blob = await encodeWebp(canvas, currentQuality);
-      checkAbort(signal);
-      if (blob.size > 0 && blob.size <= maxOutputBytes) {
-        const url = await blobDataUrl(blob, signal);
-        checkAbort(signal);
-        const baseName = (file.name.replace(/\.[^.]+$/, "") || "image").slice(
-          0,
-          250,
-        );
-        return {
-          name: `${baseName}.webp`,
-          url,
-          type: "image/webp",
-          size: blob.size,
-          width,
-          height,
-        };
-      }
-      if (currentQuality > minQuality)
-        currentQuality = Math.max(minQuality, currentQuality - 0.12);
-      else {
-        width = Math.max(1, Math.floor(width * 0.75));
-        height = Math.max(1, Math.floor(height * 0.75));
-        currentQuality = quality;
-      }
-    }
-    exceededSizeLimit = true;
+    if (decoded.width < 1 || decoded.height < 1)
+      throw new ImageUploadError("fileRead");
+    if (
+      minimumSize &&
+      (decoded.width < minimumSize.width || decoded.height < minimumSize.height)
+    )
+      throw new ImageUploadError("cropSize");
+
+    const shouldOptimize =
+      optimize &&
+      file.size > IMAGE_TARGET_BYTES &&
+      (file.type === "image/jpeg" || file.type === "image/png");
+    const saved = shouldOptimize
+      ? await shrinkImage(file, decoded, { maxDimension, minimumSize, signal })
+      : file;
+    if (saved.size > IMAGE_MAX_SAVED_BYTES)
+      throw new ImageUploadError("fileOutputSize");
+
+    return {
+      name: file.name.slice(0, 255),
+      url: await blobDataUrl(saved, signal),
+    };
   } finally {
-    decoded?.close();
-    if (canvas) {
-      canvas.width = 0;
-      canvas.height = 0;
-    }
+    decoded.close();
   }
-  // Throw after the try-finally so Qodana does not flag "exception caught locally".
-  // The finally block ensures cleanup runs before any error propagates.
-  if (exceededSizeLimit) throw new ImageUploadError("fileOutputSize");
-  throw new ImageUploadError("fileConvert");
 }

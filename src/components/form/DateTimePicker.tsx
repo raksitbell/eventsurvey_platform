@@ -17,6 +17,8 @@ interface DateTimePickerProps {
   value: string | null;
   onChange: (value: string | null) => void;
   readOnly?: boolean;
+  placeholder?: string;
+  dateOnly?: boolean;
 }
 
 /** TailAdmin Flatpickr adapted for controlled Bangkok date/time values. */
@@ -26,6 +28,8 @@ export default function DateTimePicker({
   value,
   onChange,
   readOnly = false,
+  placeholder,
+  dateOnly = false,
 }: DateTimePickerProps) {
   const locale = useLocale();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,10 +42,10 @@ export default function DateTimePicker({
   useEffect(() => {
     if (!inputRef.current) return;
     const picker = flatpickr(inputRef.current, {
-      enableTime: true,
+      enableTime: !dateOnly,
       time_24hr: true,
       minuteIncrement: 1,
-      dateFormat: "d/m/Y H:i",
+      dateFormat: dateOnly ? "d/m/Y" : "d/m/Y H:i",
       ariaDateFormat: "j F Y",
       locale: locale === "th" ? Thai : english,
       disableMobile: true,
@@ -64,7 +68,7 @@ export default function DateTimePicker({
       picker.destroy();
       pickerRef.current = null;
     };
-  }, [locale, readOnly]);
+  }, [locale, readOnly, dateOnly]);
 
   useEffect(() => {
     const picker = pickerRef.current;
@@ -76,7 +80,7 @@ export default function DateTimePicker({
     // These Date objects hold Bangkok wall-clock fields, not the actual instant.
     // Convert back with +07:00 on selection so the browser timezone cannot shift it.
     picker.setDate(wallTime ? new Date(wallTime) : [], false);
-  }, [value, locale, readOnly]);
+  }, [value, locale, readOnly, dateOnly]);
 
   return (
     <div>
@@ -84,6 +88,7 @@ export default function DateTimePicker({
       <div className="relative">
         <input
           ref={inputRef}
+          placeholder={placeholder}
           id={id}
           type="text"
           readOnly

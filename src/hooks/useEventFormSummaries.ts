@@ -1,6 +1,6 @@
 "use client";
 import { api } from "@/core/api";
-import type { FormRecord } from "@/types/event/form";
+import type { FormRecord, FormListResponse } from "@/types/event/form";
 import { useEffect, useState } from "react";
 
 /** Read existing BFF form metadata; the Raksit wizard never edits form definitions. */
@@ -18,12 +18,12 @@ export default function useEventFormSummaries(eventId: string, needed = true) {
     const controller = new AbortController();
     const timeout = globalThis.setTimeout(() => controller.abort(), 10000);
     api
-      .get<FormRecord[]>(
+      .get<FormListResponse>(
         `/event/forms?eventId=${encodeURIComponent(eventId)}`,
         { signal: controller.signal },
       )
-      .then((forms) => {
-        if (!Array.isArray(forms))
+      .then(({ forms, eventId: returnedId }) => {
+        if (returnedId !== eventId || !Array.isArray(forms))
           throw new Error("Invalid form summary response");
         if (active) setResult({ identity, forms, error: false });
       })

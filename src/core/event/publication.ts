@@ -5,7 +5,32 @@ import { notifyEventSetupSaved } from "@/core/event/local-events";
 import type { EventDraft } from "@/types/event/setup";
 import type { FormType } from "@/types/event/form";
 
-export type SetupForms = Record<FormType, unknown>;
+/** Minimal form shape accepted by publicationIssues; validated by Zod inside. */
+interface MinimalChoice {
+  label: string;
+}
+interface MinimalLabel {
+  label: string;
+  choices: Record<string, MinimalChoice[]>;
+}
+interface MinimalQuestion {
+  is_unique?: boolean;
+  type: string;
+  label: Record<string, MinimalLabel[]>;
+  min_length: number;
+  max_length: number;
+  min_number: number;
+  max_number: number;
+}
+interface MinimalForm {
+  type: string;
+  questions: Array<{ question: MinimalQuestion }>;
+  head: Record<string, { title: string; description: string }>;
+  opensAt?: string | null;
+  closesAt?: string | null;
+}
+type MinimalForms = Record<FormType, MinimalForm | null>;
+
 const choice = z.object({
   id: z.string().optional(),
   label: z.string(),
@@ -14,6 +39,8 @@ const choice = z.object({
 const label = z.object({
   label: z.string(),
   placeholder: z.string(),
+  scale_min_label: z.string().optional(),
+  scale_max_label: z.string().optional(),
   choices: z.object({ th: z.array(choice), en: z.array(choice) }),
 });
 const form = z.object({
@@ -22,6 +49,8 @@ const form = z.object({
   type: z.enum(["registration", "survey"]),
   status: z.enum([
     "draft",
+    "scheduled",
+    "open",
     "pending_approval",
     "approved",
     "rejected",
@@ -32,8 +61,8 @@ const form = z.object({
   ]),
   opensAt: z.string().nullable(),
   closesAt: z.string().nullable(),
-  acceptingResponses: z.boolean(),
-  publishedAt: z.string().nullable(),
+  acceptingResponses: z.boolean().optional(),
+  publishedAt: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   head: z.object({
@@ -42,33 +71,52 @@ const form = z.object({
   }),
   questions: z.array(
     z.object({
-      question: z.object({
-        id: z.string().optional(),
-        type: z.enum([
-          "short_text",
-          "long_text",
-          "multiple_choice",
-          "dropdown",
-          "checkbox",
-          "date",
-          "time",
-          "number",
-          "rating",
-        ]),
-        display_order: z.number().int().positive(),
-        min_number: z.number(),
-        max_number: z.number(),
-        min_length: z.number().int().nonnegative(),
-        max_length: z.number().int().nonnegative(),
-        required: z.boolean(),
-        label: z.object({
-          th: z.array(label).min(1),
-          en: z.array(label).min(1),
-        }),
-      }),
+      question: z
+        .object({
+          id: z.string().optional(),
+          type: z.enum([
+            "email",
+            "short_text",
+            "long_text",
+            "multiple_choice",
+            "dropdown",
+            "checkbox",
+            "date",
+            "time",
+            "number",
+            "rating",
+          ]),
+          display_order: z.number().int().positive(),
+          min_number: z.number(),
+          max_number: z.number(),
+          min_length: z.number().int().nonnegative(),
+          max_length: z.number().int().nonnegative(),
+          required: z.boolean().optional(),
+          is_required: z.boolean().optional(),
+          is_unique: z.boolean().optional(),
+          min_value: z.number().nullable().optional(),
+          max_value: z.number().nullable().optional(),
+          rating_max: z.number().optional(),
+          rating_display: z.enum(["icon", "linear_scale"]).optional(),
+          rating_icon: z.enum(["star", "heart", "like"]).optional(),
+          label: z.object({
+            th: z.array(label).min(1),
+            en: z.array(label).min(1),
+          }),
+        })
+        .refine(
+          (q) =>
+            typeof q.required === "boolean" ||
+            typeof q.is_required === "boolean",
+        ),
     }),
   ),
 });
+export type PublicationForm = z.infer<typeof form>;
+export type PublicationForms = {
+  registration: PublicationForm | null;
+  survey: PublicationForm | null;
+};
 export const publicationSchema = z.object({
   // Zod v4: z.string().datetime() is deprecated; use z.iso.datetime() instead.
   publishedAt: z.iso.datetime(),
@@ -112,6 +160,7 @@ export function savePublication(key: string, value: unknown): boolean {
 }
 export type PublishIssue =
   | "eventName"
+  | "location"
   | "eventSchedule"
   | "formContent"
   | "surveySchedule"
@@ -121,9 +170,10 @@ export type PublishIssue =
 /** Validate read-only BFF form definitions; form editing belongs to the Form team's branch. */
 export function publicationIssues(
   draft: EventDraft,
-  forms: SetupForms,
+  forms: MinimalForms,
 ): PublishIssue[] {
   const issues = new Set<PublishIssue>();
+  if (!draft.locationName?.trim()) issues.add("location");
   if (!draft.eventName.trim()) issues.add("eventName");
   if (
     !draft.startsAt ||
@@ -136,16 +186,16 @@ export function publicationIssues(
   for (const type of ["registration", "survey"] as const) {
     if (!(type === "registration" ? draft.hasRegistration : draft.hasSurvey))
       continue;
-    const parsed = form.safeParse(forms[type]);
+    const definition = forms[type];
     if (
-      !parsed.success ||
-      parsed.data.type !== type ||
-      !parsed.data.questions.length
+      !definition ||
+      definition.type !== type ||
+      !form.safeParse(definition).success ||
+      !definition.questions.length
     ) {
       issues.add("formContent");
       continue;
     }
-    const definition = parsed.data;
     for (const locale of ["th", "en"] as const) {
       if (!definition.head[locale].title.trim()) issues.add("formContent");
       for (const { question: q } of definition.questions) {
@@ -170,15 +220,26 @@ export function publicationIssues(
         !definition.closesAt ||
         !Number.isFinite(Date.parse(definition.opensAt)) ||
         !Number.isFinite(Date.parse(definition.closesAt)) ||
-        Date.parse(definition.closesAt) <= Date.parse(definition.opensAt))
+        Date.parse(definition.closesAt) <= Date.parse(definition.opensAt) ||
+        (draft.endsAt &&
+          Date.parse(definition.closesAt) < Date.parse(draft.endsAt)))
     )
       issues.add("surveySchedule");
   }
-  // This branch's BFF does not expose Unique Field or validated Whitelist metadata.
-  // Keep these paths blocked until the owning feature's contract is integrated.
-  if (draft.hasSurvey && draft.surveyAccess === "registered_only")
+  const unique =
+    forms.registration?.questions.filter(
+      ({ question }) => question.is_unique,
+    ) ?? [];
+  if (
+    (draft.isPrivate ||
+      (draft.hasSurvey && draft.surveyAccess === "registered_only")) &&
+    (!draft.hasRegistration ||
+      unique.length !== 1 ||
+      !["email", "short_text", "number"].includes(unique[0].question.type))
+  )
     issues.add("uniqueField");
-  if (draft.isPrivate && draft.hasRegistration) issues.add("whitelist");
+  // Local email staging alone does not establish validated registration access.
+  if (draft.isPrivate) issues.add("whitelist");
   for (const capacity of [
     draft.hasRegistration ? draft.registrationCapacity : null,
     draft.hasSurvey && draft.surveyAccess === "public"

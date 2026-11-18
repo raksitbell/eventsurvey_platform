@@ -1,4 +1,6 @@
 "use client";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import Table, {
   TableBody,
   TableCell,
@@ -9,69 +11,134 @@ import type { WhitelistEntry } from "@/types/event/whitelist";
 import { useTranslations } from "next-intl";
 export default function WhitelistTable({
   entries,
+  onDelete,
+  onAdd,
+  onImport,
+  readOnly,
+  editor,
 }: {
   entries: WhitelistEntry[];
+  onDelete: (id: string) => void;
+  onAdd: () => void;
+  onImport: () => void;
+  readOnly: boolean;
+  editor?: ReactNode;
 }) {
   const t = useTranslations("eventWhitelist");
+  const v = useTranslations("eventWhitelistDesign");
+  const s = useTranslations("eventSetup");
+  const labels = useTranslations("eventWhitelistImport");
+  const [query, setQuery] = useState("");
+  const filtered = entries.filter((e) =>
+    (e.uniqueId + " " + e.name)
+      .toLowerCase()
+      .includes(query.trim().toLowerCase()),
+  );
   const used = entries.filter((e) => e.status === "joined").length;
   return (
-    <section className="space-y-2.5 rounded-xl border border-preview-border bg-white p-5 sm:p-6 dark:border-gray-700 dark:bg-gray-900">
-      <header className="flex flex-wrap items-center justify-between gap-3 py-2">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          {t("activeList")}
-        </h2>
-        <p className="text-theme-sm font-bold text-gray-500 dark:text-gray-400">
-          {t("summary", {
-            total: entries.length,
-            used,
-            unused: entries.length - used,
-          })}
+    <section className="es-list-registry">
+      <dl className="es-list-totals" aria-live="polite">
+        {(
+          [
+            ["total", entries.length],
+            ["used", used],
+            ["unused", entries.length - used],
+          ] as const
+        ).map(([key, count]) => (
+          <div key={key}>
+            <dt>{v(key)}</dt>
+            <dd>{count}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="es-list-tools">
+        <h2>{v("attendees")}</h2>
+        <input
+          type="search"
+          aria-label={s("searchList")}
+          placeholder={s("searchList")}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button
+          type="button"
+          className="es-list-import"
+          disabled={readOnly}
+          onClick={onImport}
+        >
+          {v("import")}
+        </button>
+        <button
+          type="button"
+          className="es-list-add"
+          disabled={readOnly}
+          onClick={onAdd}
+        >
+          {v("add")}
+        </button>
+      </div>
+      {editor && (
+        <p className="whitelist-inline-total" aria-live="polite">
+          {labels("total", { count: entries.length })}
         </p>
-      </header>
-      <div className="overflow-x-auto">
+      )}
+      <div className="es-list-grid">
         <Table className="text-start text-theme-sm text-gray-800 dark:text-gray-200">
           <TableHeader className="bg-participant-page text-theme-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
             <TableRow>
-              {["uniqueId", "name", "status"].map((key) => (
+              {["email", "name", "status"].map((key) => (
                 <TableCell
                   key={key}
                   isHeader
                   className="h-12 px-3 text-start font-bold"
                 >
-                  {t(key)}
+                  {v(key)}
                 </TableCell>
               ))}
+              <TableCell isHeader>{s("manage")}</TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entries.length ? (
-              entries.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="h-15 px-3 break-all">
-                    {entry.uniqueId}
-                  </TableCell>
-                  <TableCell className="px-3 wrap-anywhere">
-                    {entry.name || "—"}
-                  </TableCell>
-                  <TableCell className="px-3 whitespace-nowrap">
-                    <span
-                      className={`rounded-full px-2.5 py-1 ${entry.status === "joined" ? "bg-success-50 text-success-700 dark:bg-success-900/30 dark:text-success-300" : "bg-participant-page text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
+            {filtered.length
+              ? filtered.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="h-15 px-3 break-all">
+                      {entry.uniqueId}
+                    </TableCell>
+                    <TableCell className="px-3 wrap-anywhere">
+                      {entry.name || "—"}
+                    </TableCell>
+                    <TableCell className="px-3 whitespace-nowrap">
+                      <span
+                        className={`rounded-full px-2.5 py-1 ${entry.status === "joined" ? "bg-success-50 text-success-700 dark:bg-success-900/30 dark:text-success-300" : "bg-participant-page text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
+                      >
+                        {v(entry.status)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        disabled={readOnly || entry.status === "joined"}
+                        aria-label={s("removeEntry", { email: entry.uniqueId })}
+                        className="p-2 text-error-600 disabled:text-gray-400 dark:text-error-400"
+                        onClick={() => onDelete(entry.id)}
+                      >
+                        <span className="es-list-trash" aria-hidden="true" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              : !editor && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="py-12 text-center text-gray-500 dark:text-gray-400"
                     >
-                      {t(entry.status)}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={3}
-                  className="py-12 text-center text-gray-500 dark:text-gray-400"
-                >
-                  {t("empty")}
-                </TableCell>
-              </TableRow>
-            )}
+                      {t("empty")}
+                    </TableCell>
+                  </TableRow>
+                )}
+            {editor}
           </TableBody>
         </Table>
       </div>

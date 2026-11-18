@@ -98,6 +98,7 @@ export async function getEventWorkspace(
     surveyCapacity: surveySettings?.is_unlimited
       ? null
       : (surveySettings?.capacity ?? null),
+    canManageSurveyForm: permissions.includes("manage_survey_form"),
     canManageWhitelist: permissions.includes("manage_registration_form"),
     canEditEvent:
       event.status === "draft" && permissions.includes("manage_event"),

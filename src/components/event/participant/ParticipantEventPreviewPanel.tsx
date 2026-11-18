@@ -14,7 +14,8 @@ interface ParticipantEventPreviewPanelProps {
   device: ParticipantDevice;
   origin?: "branding" | "publish";
 }
-interface LoadedParticipantPreviewProps extends ParticipantEventPreviewPanelProps {
+interface LoadedParticipantPreviewProps {
+  device: ParticipantDevice;
   workspace: EventWorkspace;
   userId: string;
   locale: string;
@@ -42,6 +43,7 @@ export default function ParticipantEventPreviewPanel({
   origin = "branding",
 }: ParticipantEventPreviewPanelProps) {
   const t = useTranslations("eventHome");
+  const preview = useTranslations("eventPreview");
   const { workspace, error, loading, retry, identity, userId, locale } =
     useEventWorkspace();
   let content;
@@ -65,10 +67,10 @@ export default function ParticipantEventPreviewPanel({
         </p>
         {error && <Button onClick={retry}>{t("retry")}</Button>}
         <Link
-          href="/event/branding"
+          href={origin === "publish" ? "/event/publish" : "/event/branding"}
           className="block text-event-action dark:text-brand-400"
         >
-          {t("details.steps.branding")}
+          {preview("back")}
         </Link>
       </div>
     );

@@ -1,73 +1,116 @@
 "use client";
-
-import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
-import EventAccessSettings from "@/components/event/setup/details/EventAccessSettings";
-import useEventDraft from "@/hooks/useEventDraft";
-import EventInformationFields from "@/components/event/setup/details/EventInformationFields";
-import EventSetupActions from "@/components/event/setup/EventSetupActions";
-import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
-import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
+import EventAccessSettings from "./details/EventAccessSettings";
+import EventFormSchedule from "./details/EventFormSchedule";
+import EventInformationFields from "./details/EventInformationFields";
+import SetupMediaPanel from "./branding/SetupMediaPanel";
+import EventSetupBoundary, {
+  type EventSetupPageProps,
+} from "./EventSetupBoundary";
+import EventSetupActions from "./EventSetupActions";
+import { WhitelistPage } from "@/components/event/whitelist/EventWhitelistPanel";
 import { createSavedNavigation } from "@/core/event/draft";
+import { eventWorkspaceDisplayStatus } from "@/core/event/workspace";
+import useEventDraft from "@/hooks/useEventDraft";
+import useEventBranding from "@/hooks/useEventBranding";
+import { useModal } from "@/hooks/useModal";
 import { useRouter } from "@/i18n/navigation";
+import { showToast } from "@/utils/alert";
 import { useTranslations } from "next-intl";
-import type { FormEvent } from "react";
 
-function DetailsForm({ workspace, userId, locale }: EventSetupPageProps) {
-  const t = useTranslations("eventHome.details");
-  const router = useRouter();
+function DetailsForm(props: EventSetupPageProps) {
+  const { workspace, userId, locale } = props;
+  const t = useTranslations("eventSetup"),
+    d = useTranslations("eventHome.details");
+  const home = useTranslations("eventHome");
+  const overview = useTranslations("eventOverview");
+  const statusName = eventWorkspaceDisplayStatus(workspace);
+  const statusLabel = workspace.localPublishedAt
+    ? t("published")
+    : statusName === "draft"
+      ? overview("draft")
+      : home(`eventStatus.${statusName}`);
+  const router = useRouter(),
+    list = useModal();
   const { draft, status, readOnly, change, save } = useEventDraft(
     workspace,
     userId,
     locale,
   );
-  const navigate = createSavedNavigation(save, router.push);
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    navigate("/event/branding");
-  };
-
+  const media = useEventBranding(workspace, userId, locale);
+  const persist = () => save() && media.save();
+  const navigate = createSavedNavigation(persist, router.push);
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex min-h-160 flex-col gap-7 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950"
-    >
-      <header>
-        <p className="text-theme-xs font-medium text-event-action dark:text-brand-400">
-          {t("step")}
-        </p>
-        <h1 className="mt-2 text-title-sm font-bold text-gray-900 dark:text-white/90">
-          {t("title")}
-        </h1>
-        <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
-          {t("description")}
-        </p>
-      </header>
-      <EventSetupSteps current={1} onNavigate={save} />
-      <div className="grid items-start gap-5 lg:grid-cols-5">
-        <EventInformationFields
-          draft={draft}
-          readOnly={readOnly}
-          onChange={change}
+    <>
+      <form
+        className="event-details-page"
+        onSubmit={(e) => {
+          e.preventDefault();
+          navigate("/event/publish");
+        }}
+      >
+        <div className="event-details-sheet">
+          <SetupMediaPanel
+            branding={media.branding}
+            bannerUrl={workspace.bannerUrl}
+            readOnly={readOnly}
+            onChange={media.change}
+          />
+          <div className="event-setup-controls">
+            <EventInformationFields
+              statusLabel={statusLabel}
+              draft={draft}
+              readOnly={readOnly}
+              onChange={change}
+            />
+            <EventAccessSettings
+              workspace={workspace}
+              draft={draft}
+              readOnly={readOnly}
+              onChange={change}
+              onOpenWhitelist={() => {
+                if (persist()) list.openModal();
+              }}
+              onOpenBuilder={(kind) => navigate(`/event/setup/${kind}`)}
+            />
+            <EventFormSchedule
+              draft={draft}
+              readOnly={readOnly}
+              onChange={change}
+            />
+          </div>
+        </div>
+        <EventSetupActions
+          back={{
+            label: t("backWorkspace"),
+            onClick: () => navigate("/event"),
+          }}
+          primary={{ label: t("preview") }}
+          saveDraft={{
+            label: t("save"),
+            disabled: readOnly,
+            onClick: () => {
+              if (persist()) showToast({ title: t("saved") });
+            },
+          }}
+          error={
+            status === "error" || status === "invalid"
+              ? d(status)
+              : media.status === "error" || media.status === "invalid"
+                ? t("saveError")
+                : undefined
+          }
         />
-        <EventAccessSettings
-          draft={draft}
-          readOnly={readOnly}
-          onChange={change}
-          onNavigate={save}
+      </form>
+      {list.isOpen && (
+        <WhitelistPage
+          {...props}
+          workspace={{ ...workspace, ...draft }}
+          onClose={list.closeModal}
         />
-      </div>
-      <EventSetupActions
-        regularWeight
-        back={{ label: t("backAction"), onClick: () => navigate("/event") }}
-        primary={{ label: t("nextBranding") }}
-        error={
-          status === "error" || status === "invalid" ? t(status) : undefined
-        }
-      />
-    </form>
+      )}
+    </>
   );
 }
-
 export default function EventDetailsForm() {
   return <EventSetupBoundary component={DetailsForm} />;
 }
