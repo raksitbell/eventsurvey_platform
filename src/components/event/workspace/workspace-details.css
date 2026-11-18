@@ -203,7 +203,7 @@
   border: 1px solid var(--overview-team-line);
   border-radius: 12px;
 }
-.workspace-team__card:enabled {
+.workspace-team__card[href] {
   cursor: pointer;
 }
 .workspace-team__heading {

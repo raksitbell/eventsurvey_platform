@@ -25,6 +25,7 @@ function EventShell({ children }: { children: React.ReactNode }) {
     "/event/forms",
     "/event/publish",
     "/event/qr",
+    "/event/team",
     "/event/whitelist",
     "/event/setup/registration",
     "/event/setup/survey",
