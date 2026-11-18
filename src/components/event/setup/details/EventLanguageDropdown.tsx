@@ -68,7 +68,7 @@ export default function EventLanguageDropdown({
         onClick={() => (open ? close(true) : setOpen(true))}
         className="es-info-language hover:bg-event-subtle focus-visible:outline-2 focus-visible:outline-event-action sm:w-44! dark:hover:bg-gray-700"
       >
-        <LanguageIcon className="size-[18px] shrink-0" aria-hidden="true" />
+        <LanguageIcon className="size-4.5 shrink-0" aria-hidden="true" />
         <span className="flex-1 text-start">
           {t("trigger", { language: triggerLanguage })}
         </span>
@@ -78,7 +78,7 @@ export default function EventLanguageDropdown({
         isOpen={open}
         onClose={() => close()}
         triggerRef={trigger}
-        className="top-full z-50 max-h-[calc(100dvh-10rem)] w-[min(19.875rem,calc(100vw-4rem))] overflow-y-auto rounded-[14px] border-event-display-border p-5 dark:border-gray-600 dark:bg-gray-900"
+        className="es-content-language-menu top-full z-50 overflow-y-auto border-event-display-border p-5 dark:border-gray-600 dark:bg-gray-900"
       >
         <div
           id={id}
@@ -89,7 +89,7 @@ export default function EventLanguageDropdown({
           <div className="flex min-h-8 items-center justify-between gap-2">
             <h3
               id={`${id}-title`}
-              className="text-[17px] leading-tight font-semibold text-event-display-text dark:text-white/90"
+              className="text-picker-heading leading-tight font-semibold text-event-display-text dark:text-white/90"
             >
               {t("heading")}
             </h3>
@@ -114,7 +114,7 @@ export default function EventLanguageDropdown({
                 <DropdownItem
                   pressed={selected === localeCode}
                   onClick={() => choose(localeCode, onSelect)}
-                  baseClassName="min-h-10.5 w-full rounded-[9px] border border-event-display-border px-2 py-2 text-xs font-semibold text-event-display-text hover:bg-event-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-event-action dark:border-gray-600 dark:text-white/90 dark:hover:bg-gray-800"
+                  baseClassName="min-h-10.5 w-full rounded-picker border border-event-display-border px-2 py-2 text-xs font-semibold text-event-display-text hover:bg-event-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-event-action dark:border-gray-600 dark:text-white/90 dark:hover:bg-gray-800"
                 >
                   {t(
                     localeCode === content.defaultLocale
@@ -134,7 +134,7 @@ export default function EventLanguageDropdown({
               <Button
                 variant="outline"
                 size="sm"
-                className="min-h-10.5 w-full rounded-[9px] text-xs! leading-tight font-semibold text-event-display-text! ring-event-display-border! focus-visible:outline-event-action dark:text-white/90! dark:ring-gray-600!"
+                className="min-h-10.5 w-full text-xs! leading-tight font-semibold text-event-display-text! ring-event-display-border! focus-visible:outline-event-action dark:text-white/90! dark:ring-gray-600!"
                 onClick={() => setAdding(true)}
               >
                 {t("add")}
@@ -152,7 +152,7 @@ export default function EventLanguageDropdown({
                   }}
                 />
               )}
-              <p className="text-[11px] text-event-display-muted dark:text-gray-300">
+              <p className="text-picker-small leading-[inherit] text-event-display-muted dark:text-gray-300">
                 {t("shared")}
               </p>
             </>

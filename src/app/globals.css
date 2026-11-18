@@ -36,6 +36,8 @@
   /* Event workspace palette from the current Figma design. */
   --container-event-confirm: 600px;
   --container-whitelist-entry: 540px;
+  --container-event-language-menu: 19.875rem;
+  --radius-event-language-menu: 14px;
   --text-event-confirm-title: 23px;
   --text-event-confirm-title--line-height: 35px;
   --color-event-page: #f7f6fa;

@@ -69,6 +69,14 @@
   position: relative;
   flex-shrink: 0;
 }
+.es-content-language-menu {
+  inline-size: min(
+    var(--container-event-language-menu),
+    calc(100vw - var(--spacing) * 16)
+  );
+  max-block-size: calc(100dvh - var(--spacing) * 40);
+  border-radius: var(--radius-event-language-menu);
+}
 .es-info-status i {
   inline-size: 10px;
   block-size: 10px;

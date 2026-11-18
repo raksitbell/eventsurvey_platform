@@ -64,7 +64,7 @@ export default function EventLanguagePicker({
           <Button
             size="sm"
             variant="outline"
-            className="min-h-10.5 w-full rounded-[9px] text-xs! leading-tight font-semibold text-event-display-text! ring-event-display-border! focus-visible:outline-event-action dark:text-white/90! dark:ring-gray-600!"
+            className="min-h-10.5 w-full text-xs! leading-tight font-semibold text-event-display-text! ring-event-display-border! focus-visible:outline-event-action dark:text-white/90! dark:ring-gray-600!"
             onClick={() => onAdd("en")}
           >
             {t("template")}
@@ -104,7 +104,7 @@ export default function EventLanguagePicker({
       {helpOpen && (
         <div
           id={`${id}-help`}
-          className="space-y-1 rounded-lg bg-event-subtle p-2 text-[11px] text-event-display-muted dark:bg-gray-800 dark:text-gray-300"
+          className="space-y-1 rounded-lg bg-event-subtle p-2 text-picker-small leading-[inherit] text-event-display-muted dark:bg-gray-800 dark:text-gray-300"
         >
           <p>{t("codeHelp")}</p>
           <a
@@ -127,7 +127,7 @@ export default function EventLanguagePicker({
           setChoicesOpen(!choicesOpen);
           setHelpOpen(false);
         }}
-        className="flex min-h-10.5 w-full items-center justify-between gap-2 rounded-[9px] border border-event-display-border px-3 text-start text-xs font-medium text-event-display-text hover:bg-event-subtle focus-visible:outline-2 focus-visible:outline-event-action dark:border-gray-600 dark:text-white/90 dark:hover:bg-gray-800"
+        className="flex min-h-10.5 w-full items-center justify-between gap-2 rounded-picker border border-event-display-border px-3 text-start text-xs font-medium text-event-display-text hover:bg-event-subtle focus-visible:outline-2 focus-visible:outline-event-action dark:border-gray-600 dark:text-white/90 dark:hover:bg-gray-800"
       >
         {customSelected
           ? t("custom")
@@ -139,7 +139,7 @@ export default function EventLanguagePicker({
       {choicesOpen && (
         <ul
           id={`${id}-options`}
-          className="max-h-30 overflow-y-auto rounded-[9px] border border-event-display-border dark:border-gray-600"
+          className="max-h-30 overflow-y-auto rounded-picker border border-event-display-border dark:border-gray-600"
         >
           {suggestedCodes
             .filter((item) => !existing.includes(item))
@@ -192,7 +192,7 @@ export default function EventLanguagePicker({
           <p
             id={`${id}-feedback`}
             role={error ? "alert" : undefined}
-            className={`text-[11px] ${error ? "text-error-600 dark:text-error-400" : "text-event-display-muted dark:text-gray-300"}`}
+            className={`text-picker-small leading-[inherit] ${error ? "text-error-600 dark:text-error-400" : "text-event-display-muted dark:text-gray-300"}`}
           >
             {error ?? t("customHint")}
           </p>
@@ -204,14 +204,14 @@ export default function EventLanguagePicker({
         onClick={() => {
           if (canAdd) onAdd(code);
         }}
-        className="min-h-10 w-full rounded-[9px] border border-event-border bg-event-action px-2 text-xs font-semibold text-white hover:brightness-95 focus-visible:outline-2 focus-visible:outline-event-action disabled:cursor-not-allowed disabled:bg-event-subtle disabled:text-event-display-muted dark:border-gray-700 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
+        className="min-h-10 w-full rounded-picker border border-event-border bg-event-action px-2 text-xs font-semibold text-white hover:brightness-95 focus-visible:outline-2 focus-visible:outline-event-action disabled:cursor-not-allowed disabled:bg-event-subtle disabled:text-event-display-muted dark:border-gray-700 dark:disabled:bg-gray-800 dark:disabled:text-gray-400"
       >
         {t(choice ? "confirm" : "chooseFirst")}
       </button>
       <button
         type="button"
         onClick={onCancel}
-        className="min-h-6 w-full rounded-md text-[11px] text-event-display-muted hover:underline focus-visible:outline-2 focus-visible:outline-event-action dark:text-gray-300"
+        className="min-h-6 w-full rounded-md text-picker-small leading-[inherit] text-event-display-muted hover:underline focus-visible:outline-2 focus-visible:outline-event-action dark:text-gray-300"
       >
         {t("cancel")}
       </button>
