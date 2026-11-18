@@ -8,7 +8,8 @@ import { NextRequest, NextResponse } from "next/server";
  *
  * Persist time-based transitions:
  * - scheduled → open  (when opens_at / event window reached)
- * - scheduled|open → closed (when closes_at reached or event closed)
+ * - scheduled|open|published → closed (when closes_at is reached or after the event,
+ *   allowing a survey to use its explicit closing date)
  *
  * Auth: `Authorization: Bearer $CRON_SECRET` or `x-cron-secret: $CRON_SECRET`
  */

@@ -8,6 +8,12 @@ const MANUAL_TRANSITIONS: Record<FormStatus, readonly FormStatus[]> = {
   scheduled: ["draft"],
   open: [],
   closed: [],
+  pending_approval: [],
+  approved: [],
+  rejected: [],
+  published: [],
+  paused: [],
+  archived: [],
 };
 
 /**
@@ -47,7 +53,7 @@ export function formMutationFlags(status: FormStatus): {
     // Revert to draft only — content is locked until back in draft
     return { canEdit: false, canDelete: false, canChangeStatus: true };
   }
-  // open | closed — cron owns further transitions
+  // All other states are locked to manual edits.
   return { canEdit: false, canDelete: false, canChangeStatus: false };
 }
 
@@ -93,17 +99,26 @@ export function resolveFormWindows(
  * Returns null when no change is needed.
  */
 export function nextCronFormStatus(
-  form: Pick<MockForm, "status" | "opens_at" | "closes_at">,
+  form: Pick<MockForm, "type" | "status" | "opens_at" | "closes_at">,
   event: Pick<
     MockEvent,
     "status" | "opens_at" | "closes_at" | "start_at" | "end_at"
   >,
   nowMs: number = Date.now(),
 ): FormStatus | null {
-  if (form.status === "draft" || form.status === "closed") return null;
+  if (
+    form.status !== "scheduled" &&
+    form.status !== "open" &&
+    form.status !== "published"
+  ) {
+    return null;
+  }
 
   const { opensAt, closesAt } = resolveFormWindows(form, event);
-  const eventClosed = event.status === "closed";
+  const explicitClose = parseTime(form.closes_at);
+  const postSurvey =
+    form.type === "survey" && explicitClose !== null && nowMs < explicitClose;
+  const eventClosed = event.status === "closed" && !postSurvey;
 
   if (form.status === "scheduled") {
     if (eventClosed) return "closed";
@@ -112,7 +127,7 @@ export function nextCronFormStatus(
     return null;
   }
 
-  // open
+  // "published" is the backend equivalent of "open".
   if (eventClosed) return "closed";
   if (closesAt !== null && nowMs >= closesAt) return "closed";
   return null;

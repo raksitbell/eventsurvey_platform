@@ -50,6 +50,7 @@ function setupMockData(t) {
     ],
     event_translations: [],
     event_banners: [],
+    event_form_settings: [],
     roles: [],
     role_permissions: [
       { role_id: "owner-role", permission: "manage_sub_user" },

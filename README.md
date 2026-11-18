@@ -57,17 +57,20 @@
 npm install
 ```
 
-สร้างไฟล์ `.env.local` สำหรับ Mock API และ session
+สร้างไฟล์ `.env.local` สำหรับ Mock API, session และโดเมนลิงก์อีเวนต์
 
 ```bash
 MOCK_API_BASE_URL=https://eventmockapi.vercel.app
 NEXT_PUBLIC_API_BASE_URL=https://eventmockapi.vercel.app
 AUTH_SESSION_SECRET=<ค่าที่สร้างจาก openssl rand -hex 32>
+APP_URL=http://localhost:3000
 ```
 
 ใช้ secret สุ่มแยกตาม environment และตั้งค่าใน Vercel ก่อน deploy คุกกี้มีอายุ 8 ชั่วโมงและถูกล้างเมื่อออกจากระบบ การเปลี่ยน secret จะทำให้ session และลิงก์ตั้งรหัสผ่านที่ออกด้วยค่าเดิมหมดอายุ ผู้ใช้ demo ต้องเข้าสู่ระบบใหม่และต้องออกลิงก์ใหม่สำหรับคำเชิญเก่าที่ยังไม่ได้ใช้
 
 Mock API และบัญชีทดลองใช้สำหรับ development ด้วยข้อมูลจำลอง
+
+ตั้ง `APP_URL` เป็น HTTPS origin ของเว็บ Demo จริงเมื่อต้องการสแกนจากมือถือ ใช้อีเวนต์และฟอร์มที่มีอยู่ใน Mock API เพื่อเปิดลิงก์ข้ามเครื่อง การตั้งค่าที่บันทึกใน LocalStorage ของผู้จัดจะแสดงใน Preview ของเบราว์เซอร์นั้น
 
 ```bash
 npm run dev

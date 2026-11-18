@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { api } from "@/core/api";
 import { canEnterAdminArea, canEnterEventArea } from "@/core/auth";
+import { isEventReportingPath } from "@/core/event/public-event-paths";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
 import dashboardTheme from "@/components/event/reports/dashboard-theme.module.css";
@@ -12,6 +13,7 @@ import {
   ChartPieIcon,
   EllipsisHorizontalIcon,
   Squares2X2Icon,
+  UserGroupIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
@@ -25,14 +27,6 @@ type NavItem = {
   disabled?: boolean;
 };
 
-const dashboardPaths = [
-  "/event/dashboard",
-  "/event/responses",
-  "/event/exports",
-  "/event/trash",
-  "/event/analytics",
-];
-
 export default function AppSidebar() {
   const t = useTranslations("sidebar");
   const pathname = usePathname();
@@ -43,9 +37,7 @@ export default function AppSidebar() {
   const isAdminArea = pathname.startsWith("/admin");
   const isEventArea = pathname === "/event" || pathname.startsWith("/event/");
   const isFormArea = pathname === "/form" || pathname.startsWith("/form/");
-  const isDashboardPath = dashboardPaths.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  const isDashboardPath = isEventReportingPath(pathname);
   const showExpanded = isExpanded || isHovered || isMobileOpen;
 
   const allowAdmin = canEnterAdminArea(realUser?.role, isImpersonating);
@@ -103,6 +95,10 @@ export default function AppSidebar() {
     { key: "eventHome", icon: <Squares2X2Icon />, path: "/event" },
     { key: "Form", icon: <Squares2X2Icon />, path: "/form" },
   ];
+
+  if (user?.role === "event_owner") {
+    eventNav.push({ key: "eventTeam", icon: <UserGroupIcon />, path: "/event/team" });
+  }
 
   if (dashboardAccess?.key === dashboardAccessKey && dashboardAccess?.allowed) {
     eventNav.push({

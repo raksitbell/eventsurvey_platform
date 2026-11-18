@@ -14,10 +14,6 @@ export async function GET(request: NextRequest) {
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
     const data = await getEventWorkspace(session.userId, locale);
-    if (!data) {
-      return authJson({ error: "Workspace not found" }, 404);
-    }
-
     return authJson(data);
   } catch {
     return authJson({ error: "Failed to load workspace" }, 502);

@@ -9,6 +9,7 @@ interface DropdownProps {
   onClose: () => void;
   children: React.ReactNode;
   className?: string;
+  triggerRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const Dropdown: React.FC<DropdownProps> = ({
@@ -16,6 +17,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   onClose,
   children,
   className = "",
+  triggerRef,
 }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -24,7 +26,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
       if (
         dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node) &&
-        !(event.target as HTMLElement).closest(".dropdown-toggle")
+        !(triggerRef
+          ? triggerRef.current?.contains(event.target as Node)
+          : (event.target as HTMLElement).closest(".dropdown-toggle"))
       ) {
         onClose();
       }
@@ -34,7 +38,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [onClose]);
+  }, [onClose, triggerRef]);
 
   if (!isOpen) return null;
 
