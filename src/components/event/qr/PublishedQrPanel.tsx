@@ -50,15 +50,8 @@ function CopyLinkButton({
       const input = field.current;
       input?.focus();
       input?.select();
-      try {
-        if (!input || !globalThis.document.execCommand("copy")) {
-          showToast({ title: t("copyError"), variant: "error" });
-          return;
-        }
-      } catch {
-        showToast({ title: t("copyError"), variant: "error" });
-        return;
-      }
+      showToast({ title: t("copyError"), variant: "error" });
+      return;
     }
     showToast({ title: t("copySuccess") });
   };
@@ -128,7 +121,8 @@ function FormShareCard({
       const response = await fetch(`${qrPath}&download=1`);
       const contentType = response.headers.get("content-type")?.split(";")[0];
       if (!response.ok || contentType !== "image/png") {
-        throw new Error("QR download failed");
+        showToast({ title: labels("qrDownloadError"), variant: "error" });
+        return;
       }
 
       const download = globalThis.document.createElement("a");

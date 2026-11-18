@@ -11,6 +11,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { GlobeAltIcon } from "@heroicons/react/24/outline";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
+import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
 import EventLanguageDropdown from "./EventLanguageDropdown";
 import styles from "./EventWorkspaceChrome.module.css";
@@ -44,10 +45,17 @@ export default function EventWorkspaceHeader() {
       confirmLabel: a(impersonation ? "stopImpersonating" : "signOut"),
       variant: impersonation ? "warning" : "danger",
     });
-    if (approved) {
-      setOpen(false);
-      if (impersonation) stopImpersonating();
-      else logout();
+    if (!approved) return;
+
+    setOpen(false);
+    try {
+      if (impersonation) await stopImpersonating();
+      else await logout();
+    } catch {
+      showToast({
+        title: a(impersonation ? "stopImpersonatingFailed" : "signOutFailed"),
+        variant: "error",
+      });
     }
   }
 
