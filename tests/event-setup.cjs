@@ -2036,3 +2036,129 @@ test("Banner orientation and branding material survive reload and invalid saves 
   );
   assert.deepEqual(loadEventBranding(key), value);
 });
+
+test("Private access leaves the Registration switch editable and shows the relevant Whitelist action", () => {
+  const noop = { default: () => null };
+  const changes = [];
+  const Access = compileSetupComponent(
+    "src/components/event/setup/details/EventAccessSettings.tsx",
+    {
+      "./EventCapacitySettings": noop,
+      "@/components/form/switch/Switch": noop,
+      "@/components/ui/button/Button": noop,
+      "@/hooks/useConfirm": {
+        useConfirm: () => ({ confirm: async () => true }),
+      },
+      "next-intl": { useTranslations: () => (key) => key },
+    },
+  );
+  const render = (isPrivate, hasRegistration, readOnly = false) =>
+    Access({
+      draft: { ...seed, isPrivate, hasRegistration, surveyAccess: "public" },
+      workspace: { canManageWhitelist: true },
+      readOnly,
+      onChange: (value) => changes.push(value),
+      onOpenWhitelist: () => {},
+    });
+  const publicView = render(false, false);
+  const privateOption = findSetupElement(
+    publicView,
+    (node) => node.type === "button" && node.props.children === "private",
+  );
+  privateOption.props.onClick();
+  assert.deepEqual(changes.pop(), { isPrivate: true });
+  assert.equal(
+    findSetupElement(
+      publicView,
+      (node) => node.props.children === "privateRegistrationHint",
+    ),
+    null,
+  );
+
+  const noRegistration = render(true, false);
+  assert.ok(
+    findSetupElement(
+      noRegistration,
+      (node) => node.props.children === "privateRegistrationHint",
+    ),
+  );
+  assert.equal(
+    findSetupElement(
+      noRegistration,
+      (node) => node.props.children === "manageWhitelist",
+    ),
+    null,
+  );
+
+  const enabled = render(true, true);
+  const registrationToggle = findSetupElement(
+    enabled,
+    (node) => node.props.id === "registration-on",
+  );
+  assert.equal(registrationToggle.props.disabled, false);
+  registrationToggle.props.onChange(false);
+  assert.deepEqual(changes.pop(), { hasRegistration: false });
+  assert.equal(
+    findSetupElement(
+      enabled,
+      (node) => node.props.children === "manageWhitelist",
+    ).props.disabled,
+    false,
+  );
+  const readOnly = render(true, true, true);
+  assert.equal(
+    findSetupElement(
+      readOnly,
+      (node) => node.props.children === "manageWhitelist",
+    ).props.disabled,
+    true,
+  );
+});
+
+test("the published workspace exposes Team navigation to owners only and highlights its route", () => {
+  const link = () => null;
+  const render = (userRole, localPublishedAt, pathname) => {
+    const Sidebar = compileSetupComponent(
+      "src/components/event/workspace/EventWorkspaceSidebar.tsx",
+      {
+        "next/image": { default: () => null },
+        "next-intl": { useTranslations: () => (key) => key },
+        "@/context/SidebarContext": {
+          useSidebar: () => ({ isExpanded: true }),
+        },
+        "@/hooks/useEventWorkspace": {
+          default: () => ({ workspace: { userRole, localPublishedAt } }),
+        },
+        "@/i18n/navigation": { Link: link, usePathname: () => pathname },
+        "./EventWorkspaceChrome.module.css": { default: {} },
+      },
+    );
+    return Sidebar();
+  };
+  const team = (node) =>
+    node.type === link && node.props.href === "/event/team";
+  const overview = (node) =>
+    node.type === link && node.props["aria-label"] === "Overview";
+  for (const pathname of ["/event", "/event/qr", "/event/team"]) {
+    const owner = render("event_owner", "2027-01-01T00:00:00.000Z", pathname);
+    assert.equal(
+      findSetupElement(owner, team).props["aria-current"],
+      pathname === "/event/team" ? "page" : undefined,
+    );
+    assert.equal(
+      findSetupElement(owner, overview).props["aria-current"],
+      pathname === "/event" ? "page" : undefined,
+    );
+  }
+  assert.equal(
+    findSetupElement(
+      render("sub_user", "2027-01-01T00:00:00.000Z", "/event"),
+      team,
+    ),
+    null,
+  );
+  assert.equal(
+    findSetupElement(render("event_owner", null, "/event"), team),
+    null,
+  );
+});

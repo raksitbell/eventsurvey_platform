@@ -28,7 +28,6 @@ export default function EventAccessSettings({
   const v = useTranslations("eventSetupDesign");
   const { confirm } = useConfirm();
   async function toggleRegistration(value: boolean) {
-    if (!value && draft.isPrivate) return;
     if (
       !value &&
       draft.surveyAccess === "registered_only" &&
@@ -53,13 +52,7 @@ export default function EventAccessSettings({
             className="event-option"
             key={String(value)}
             aria-pressed={draft.isPrivate === value}
-            onClick={() =>
-              onChange(
-                value
-                  ? { isPrivate: true, hasRegistration: true }
-                  : { isPrivate: false },
-              )
-            }
+            onClick={() => onChange({ isPrivate: value })}
           >
             {t(value ? "private" : "public")}
           </button>
@@ -82,9 +75,7 @@ export default function EventAccessSettings({
                 id={kind + "-on"}
                 label={label}
                 checked={enabled}
-                disabled={
-                  readOnly || (registration && draft.isPrivate && enabled)
-                }
+                disabled={readOnly}
                 onChange={(value) =>
                   registration
                     ? void toggleRegistration(value)
@@ -143,11 +134,16 @@ export default function EventAccessSettings({
                   }
                 />
               )}
+            {registration && draft.isPrivate && !enabled && (
+              <p className="text-theme-xs text-gray-600 dark:text-gray-400">
+                {t("privateRegistrationHint")}
+              </p>
+            )}
             {registration && draft.isPrivate && enabled && (
               <Button
                 variant="outline"
                 className="es-whitelist-link"
-                disabled={!workspace.canManageWhitelist}
+                disabled={readOnly || !workspace.canManageWhitelist}
                 onClick={onOpenWhitelist}
               >
                 {t("manageWhitelist")}

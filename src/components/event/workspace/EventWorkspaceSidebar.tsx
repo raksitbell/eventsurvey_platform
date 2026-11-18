@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
+import { UserGroupIcon } from "@heroicons/react/24/outline";
 import { useSidebar } from "@/context/SidebarContext";
 import useEventWorkspace from "@/hooks/useEventWorkspace";
 import { Link, usePathname } from "@/i18n/navigation";
@@ -70,7 +71,18 @@ export default function EventWorkspaceSidebar() {
           },
         ]
       : []),
+    ...(published && workspace?.userRole === "event_owner"
+      ? [
+          {
+            label: t("team"),
+            icon: <UserGroupIcon className="size-5" aria-hidden="true" />,
+            href: "/event/team",
+          },
+        ]
+      : []),
   ];
+  const activeHref =
+    items.find(({ href }) => href === pathname)?.href ?? "/event";
 
   return (
     <aside
@@ -102,8 +114,6 @@ export default function EventWorkspaceSidebar() {
         <h2 className={expanded ? styles.section : "sr-only"}>WORKSPACE</h2>
         <ul>
           {items.map(({ label, icon, href }) => {
-            const current =
-              href === "/event" ? pathname !== "/event/qr" : href === pathname;
             const content = (
               <>
                 {icon}
@@ -117,7 +127,7 @@ export default function EventWorkspaceSidebar() {
                     className={styles.item}
                     href={href}
                     aria-label={label}
-                    aria-current={current ? "page" : undefined}
+                    aria-current={href === activeHref ? "page" : undefined}
                   >
                     {content}
                   </Link>
