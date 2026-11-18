@@ -1,0 +1,162 @@
+"use client";
+import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { useEventReporting } from "@/hooks/useEventReporting";
+import {
+  approvedResponses,
+  csv,
+  download,
+  responseCsv,
+} from "@/core/event/export";
+import Button from "@/components/ui/button/Button";
+import {
+  ChartBarIcon,
+  DocumentChartBarIcon,
+  TableCellsIcon,
+} from "@heroicons/react/24/outline";
+import type { ReportingData } from "@/types/event/reporting";
+import ReportShell, { panelClass } from "./ReportShell";
+
+const formats = [
+  { kind: "responses", Icon: TableCellsIcon },
+  { kind: "summary", Icon: ChartBarIcon },
+  { kind: "pdf", Icon: DocumentChartBarIcon },
+] as const;
+export default function ExportsView() {
+  const { data, identityKey, errorStatus, reload } = useEventReporting();
+
+  return (
+    <ReportShell
+      section="exports"
+      loading={!data}
+      errorStatus={errorStatus}
+      retry={reload}
+    >
+      {data && (
+        <ExportPanel key={`${identityKey}:${data.eventId}`} data={data} />
+      )}
+    </ReportShell>
+  );
+}
+
+function ExportPanel({ data }: { data: ReportingData }) {
+  const t = useTranslations("eventReports");
+  const locale = useLocale();
+  const [last, setLast] = useState<{
+    content: string;
+    name: string;
+    at: string;
+  } | null>(null);
+  const forms = data.forms.filter((form) => form.approved);
+  const rows = approvedResponses(data);
+  function generate(kind: "responses" | "summary") {
+    const content =
+      kind === "responses"
+        ? responseCsv(rows, [t("id"), t("respondent"), t("submitted")])
+        : csv([
+            [t("item"), t("count")],
+            ...forms.map((f) => [
+              f.title,
+              rows.filter((r) => r.formId === f.id).length,
+            ]),
+          ]);
+    const name = `${kind}-${data.eventId}.csv`;
+    setLast({
+      content,
+      name,
+      at: new Date().toLocaleString(locale, { timeZone: "Asia/Bangkok" }),
+    });
+    download(content, name);
+  }
+  return (
+    <>
+      <div className="space-y-5">
+        <div className="flex flex-wrap justify-between gap-4 rounded-2xl bg-gray-900 p-6 text-white dark:bg-gray-800">
+          <div>
+            <h2 className="font-semibold">{t("exports.heading")}</h2>
+            <p className="mt-2 text-theme-xs text-gray-300 dark:text-gray-400">
+              {t("exports.hint")}
+            </p>
+          </div>
+          <span className="h-fit rounded-full bg-success-50 px-4 py-1 text-theme-xs text-success-700 dark:bg-success-500/15 dark:text-success-400">
+            {t("exports.current")}
+          </span>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-3">
+          {formats.map(({ kind, Icon }) => (
+            <article className={`${panelClass} flex flex-col gap-5`} key={kind}>
+              <span className="flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
+                <Icon aria-hidden="true" className="size-5" />
+              </span>
+              <div className="flex-1">
+                <h3 className="text-theme-sm font-semibold">
+                  {t(`exports.${kind}`)}
+                </h3>
+                <p className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                  {t(`exports.${kind}Hint`)}
+                </p>
+              </div>
+              <Button
+                disabled={!rows.length}
+                onClick={() =>
+                  kind === "pdf" ? globalThis.print() : generate(kind)
+                }
+              >
+                {t(kind === "pdf" ? "exports.print" : "generate")}
+              </Button>
+            </article>
+          ))}
+        </div>
+        {!rows.length && (
+          <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+            {t("exports.noApproved")}
+          </p>
+        )}
+        {last && (
+          <div
+            className={`${panelClass} flex flex-wrap items-center justify-between gap-4`}
+          >
+            <div>
+              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                {t("exports.last")}
+              </p>
+              <p className="mt-1 text-theme-sm">{last.name}</p>
+            </div>
+            <span className="text-theme-xs text-gray-500 dark:text-gray-400">
+              {last.at}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => download(last.content, last.name)}
+            >
+              {t("download")}
+            </Button>
+          </div>
+        )}
+      </div>
+      <section id="event-print-report" className="hidden print:block">
+        <h1>{data.eventName}</h1>
+        <h2>{t("exports.pdf")}</h2>
+        <p>
+          {new Date().toLocaleDateString(locale, { timeZone: "Asia/Bangkok" })}
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>{t("item")}</th>
+              <th>{t("count")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {forms.map((f) => (
+              <tr key={f.id}>
+                <td>{f.title}</td>
+                <td>{rows.filter((r) => r.formId === f.id).length}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </>
+  );
+}

@@ -46,12 +46,10 @@ next-env.d.ts
 /.wiki-build
 /.wiki-data
 
-# planing
+# planning
 .cursor
 
 # local working docs (not part of the app)
 /docs
-
-
-# env
-.env
+/docs-build
+/docs-data

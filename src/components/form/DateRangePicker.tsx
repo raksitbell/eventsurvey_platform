@@ -1,5 +1,3 @@
-"use client";
-
 import Label from "@/components/form/Label";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import flatpickr from "flatpickr";

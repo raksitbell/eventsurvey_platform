@@ -7,4 +7,5 @@ export interface EventWorkspace {
   eventStatus: MockEventStatus;
   userRole: UserRole;
   customRoleName: string | null;
+  canAccessDashboard: boolean;
 }

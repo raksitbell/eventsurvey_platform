@@ -75,7 +75,7 @@ src/
 | `GET /api/admin/overview` | `services/admin/overview.ts` | `users` + `events` + `forms` + `form_submissions` | Platform KPIs |
 | `GET /api/event/workspace` | `services/event/workspace.ts` | `users` + `events` + `event_translations` + `roles` | Current event for owner/sub_user |
 
-Mock → portal role map: `platform_admin` → `super_admin`; `event_role=event_admin` → `event_owner`; `event_role=event_sub_user` → `sub_user`. Custom role label comes from `users.role_id` → `roles.name`. Event title from `event_translations`; soft-delete via `deleted_at` / `removed_at`.
+Mock → portal role map: `system_role=platform_admin` → `super_admin`. Active event users with `manage_sub_user` in `role_permissions` map to `event_owner`; other active event users map to `sub_user`. Custom role label comes from `users.role_id` → `roles.name`. Event title from `event_translations`; soft-delete via `deleted_at` / `removed_at`.
 
 - `services/` and `types/` are peers under `src/`, split by area/page (`admin/users`, `admin/overview`, `auth/login`).
 - Import directly from the file path (e.g. `@/services/admin/users`, `@/types/admin/users`) — do not add barrel `index.ts` files that re-export everything.
@@ -184,6 +184,11 @@ Mock → portal role map: `platform_admin` → `super_admin`; `event_role=event_
 - Unknown paths (e.g. `/asdf`, `/events`, `/administrator`) must hit `src/app/[locale]/[...rest]/page.tsx`, which renders `ErrorPage` 404 **in place** — do not call `notFound()`, it hangs with Router-before-init / CatchAll errors. The page renders with HTTP 200; only the in-app 404 screen is guaranteed.
 - Guarded areas in `src/proxy.ts` are matched with `isArea()` (exact segment), never `startsWith()` — a prefix match swallows `/events`, `/administrator` and `/eventual`, which must fall through to the catch-all instead.
 - Don't call `setRequestLocale()` in pages or layouts, and don't use `requestLocale` in `src/i18n/request.ts` — both are deprecated in next-intl. The locale comes from `next/root-params` (`locale()`), which reads the `[locale]` segment directly. next-intl's own docs and tutorials still show `setRequestLocale`; ignore them here.
+- Don't use `throw` inside a `try-catch` block just to transfer control to the `catch` clause — use an early `return` (or `continue`/`break`) instead. Throwing locally-caught exceptions obscures the actual error location and fails Qodana's `ExceptionCaughtLocallyJS` check.
+- Don't write redundant boolean comparisons like `=== false`, `!== false`, `=== true`, or `!== true` when the value is already typed as `boolean` — use the bare value or `!value` instead. Expressions like `field.contains_pii === false` should be `!field.contains_pii`, and `field.contains_pii !== false` should be `field.contains_pii`.
+- Don't reference browser globals (`window`, `document`, `crypto`, `navigator`) directly in Client Components — use `globalThis` instead (e.g., `globalThis.crypto.randomUUID()`, `globalThis.document.documentElement.dir`, `globalThis.window`). Direct references trigger Qodana's `TypeScriptUMDGlobal` warning because they resolve to the UMD ambient declaration rather than the DOM type. When using `React.CSSProperties` or other React namespace types, ensure `React` is explicitly imported (`import React from "react"`) rather than relying on an implicit UMD global.
+- Don't define duplicate properties in an object literal — TypeScript TS1117 catches this at compile time. When adding a new method or property to an object like `mockApi`, check that it doesn't already exist before adding another with the same key.
+- Don't import a type from a module unless it is actually exported there — if the export is missing, add the type definition to the source file first (e.g., `types/mock.ts`) rather than assuming it exists. TS2305/TS2724 will flag the missing export immediately.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

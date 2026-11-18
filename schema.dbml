@@ -537,6 +537,8 @@ Table dashboard_widgets [headercolor: #0284C7] {
   comparison_mode dashboard_comparison_mode
   target_value decimal
   display_order int [not null]
+  grid_span int [not null, default: 6, note: 'Responsive width: 4, 6, 8, 10, or 12 columns']
+  date_range_days int [not null, default: 0, note: '0 = all time; otherwise 7, 30, or 90 days']
   updated_at timestamptz [not null]
 
   indexes {

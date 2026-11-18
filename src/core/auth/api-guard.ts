@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { MockApiError, mockApi } from "@/core/api/mock-client";
+import { canEnterAdminArea, canEnterEventArea } from "@/core/auth/permissions";
 import { isActiveMockUser } from "@/core/mock/map-user";
 import {
   getRolePermissions,
@@ -10,7 +11,6 @@ import { getActivePortalAccount } from "@/services/auth/session";
 import type { FormType } from "@/types/event/form";
 import type { MockPermissionCode, MockUser } from "@/types/mock";
 import { readAuthSession, type AuthSessionCookie } from "./cookie";
-import { canEnterAdminArea, canEnterEventArea } from "./permissions";
 import { authJson, rejectCrossOrigin } from "./route-response";
 
 export async function requireSessionActor(session: AuthSessionCookie | null) {

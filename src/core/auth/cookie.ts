@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
+import { PORTAL_ROLES } from "@/core/auth/constants";
+import { isImpersonatableRole } from "@/core/auth/permissions";
 import type { UserRole } from "@/types/user";
-import { PORTAL_ROLES } from "./constants";
-import { isImpersonatableRole } from "./permissions";
 
 export const AUTH_SESSION_COOKIE = "eventsurvey_session";
 export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
