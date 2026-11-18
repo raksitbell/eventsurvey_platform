@@ -145,20 +145,6 @@ export default function EventWorkspaceHeader() {
                   {user.email}
                 </span>
               </div>
-              <label className="flex items-center justify-between gap-2 p-2 text-sm">
-                {a("language")}
-                <select
-                  className="rounded bg-transparent dark:bg-gray-900"
-                  value={locale}
-                  onChange={(event) => changeLanguage(event.target.value)}
-                >
-                  {languages.map((language) => (
-                    <option key={language.id} value={language.id}>
-                      {language.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
               {isImpersonating && (
                 <DropdownItem
                   tag="button"
