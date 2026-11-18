@@ -19,8 +19,9 @@ export const eventDraftSchema = z
     eventName: z.string().max(255),
     description: z.string().max(5000).nullable(),
     locationName: z.string().max(500).nullable(),
-    startsAt: z.string().datetime({ offset: true }).nullable(),
-    endsAt: z.string().datetime({ offset: true }).nullable(),
+    // Zod v4: z.string().datetime() is deprecated; use z.iso.datetime() instead.
+    startsAt: z.iso.datetime({ offset: true }).nullable(),
+    endsAt: z.iso.datetime({ offset: true }).nullable(),
     isPrivate: z.boolean(),
     hasRegistration: z.boolean(),
     hasSurvey: z.boolean(),

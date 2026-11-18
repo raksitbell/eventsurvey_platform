@@ -82,11 +82,21 @@ async function decodeImage(
 ): Promise<DecodedImage> {
   checkAbort(signal);
   if (typeof globalThis.createImageBitmap === "function") {
+    // Store result and error separately so the catch block only captures
+    // unexpected decoder failures — Qodana flags re-throwing inside catch.
+    let bitmap: ImageBitmap | undefined;
+    let bitmapError: unknown;
     try {
       // Browser applies JPEG EXIF orientation; animated inputs use a still frame.
-      const bitmap = await globalThis.createImageBitmap(file, {
+      bitmap = await globalThis.createImageBitmap(file, {
         imageOrientation: "from-image",
       });
+    } catch (error) {
+      bitmapError = error;
+      checkAbort(signal);
+      // Some browser decoders do not accept SVG via createImageBitmap.
+    }
+    if (!bitmapError && bitmap) {
       if (signal?.aborted) {
         bitmap.close();
         throw new ImageUploadError("aborted");
@@ -97,10 +107,6 @@ async function decodeImage(
         height: bitmap.height,
         close: () => bitmap.close(),
       };
-    } catch (error) {
-      if (error instanceof ImageUploadError) throw error;
-      checkAbort(signal);
-      // Some browser decoders do not accept SVG via createImageBitmap.
     }
   }
   const url = URL.createObjectURL(file);
@@ -226,6 +232,7 @@ export async function convertImageToWebp(
     throw new RangeError("Invalid image conversion options");
   let decoded: DecodedImage | undefined;
   let canvas: HTMLCanvasElement | undefined;
+  let exceededSizeLimit = false;
   try {
     decoded = await decodeImage(file, signal);
     checkAbort(signal);
@@ -273,10 +280,7 @@ export async function convertImageToWebp(
         currentQuality = quality;
       }
     }
-    throw new ImageUploadError("fileOutputSize");
-  } catch (error) {
-    if (error instanceof ImageUploadError) throw error;
-    throw new ImageUploadError("fileConvert");
+    exceededSizeLimit = true;
   } finally {
     decoded?.close();
     if (canvas) {
@@ -284,4 +288,8 @@ export async function convertImageToWebp(
       canvas.height = 0;
     }
   }
+  // Throw after the try-finally so Qodana does not flag "exception caught locally".
+  // The finally block ensures cleanup runs before any error propagates.
+  if (exceededSizeLimit) throw new ImageUploadError("fileOutputSize");
+  throw new ImageUploadError("fileConvert");
 }

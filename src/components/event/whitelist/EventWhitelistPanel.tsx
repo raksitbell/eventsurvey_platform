@@ -26,9 +26,10 @@ function WhitelistPage({ workspace, userId, locale }: EventSetupPageProps) {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!dirty) return;
+    // MDN: event.preventDefault() is the standard way to trigger the browser
+    // unsaved-changes prompt. event.returnValue is deprecated in lib.dom.d.ts.
     const beforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = "";
     };
     globalThis.addEventListener("beforeunload", beforeUnload);
     return () => globalThis.removeEventListener("beforeunload", beforeUnload);

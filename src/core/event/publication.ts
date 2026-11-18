@@ -70,7 +70,8 @@ const form = z.object({
   ),
 });
 export const publicationSchema = z.object({
-  publishedAt: z.string().datetime(),
+  // Zod v4: z.string().datetime() is deprecated; use z.iso.datetime() instead.
+  publishedAt: z.iso.datetime(),
   draft: eventDraftSchema,
   branding: eventBrandingSchema,
   forms: z.object({ registration: form.nullable(), survey: form.nullable() }),
