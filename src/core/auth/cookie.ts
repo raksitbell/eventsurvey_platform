@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
+// noinspection ES6PreferShortImport
 import type { UserRole } from "@/types/user";
+// noinspection ES6PreferShortImport
 import { PORTAL_ROLES } from "./constants";
 import { isImpersonatableRole } from "./permissions";
 

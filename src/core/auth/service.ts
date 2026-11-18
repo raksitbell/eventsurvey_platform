@@ -1,5 +1,6 @@
 import { api, ApiError } from "@/core/api/client";
 import type { LoginCredentials } from "@/types/auth";
+// noinspection ES6PreferShortImport
 import type { User } from "@/types/user";
 import type { AuthSnapshot } from "./session";
 

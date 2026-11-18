@@ -9,6 +9,7 @@ import {
 import { getActivePortalAccount } from "@/services/auth/session";
 import type { FormType } from "@/types/event/form";
 import type { MockPermissionCode, MockUser } from "@/types/mock";
+// noinspection ES6PreferShortImport
 import { readAuthSession, type AuthSessionCookie } from "./cookie";
 import { canEnterAdminArea, canEnterEventArea } from "./permissions";
 import { authJson, rejectCrossOrigin } from "./route-response";
