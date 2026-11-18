@@ -1179,6 +1179,7 @@
   },
   "eventBrandVisual": {
     "cropTitle": "ครอปแบนเนอร์ {ratio}",
+    "replaceBanner": "เลือกภาพใหม่",
     "confirmCrop": "ยืนยัน Crop",
     "confirmImage": "ยืนยันใช้ภาพ",
     "positionHint": "ปรับตำแหน่งภาพภายในกรอบตามสัดส่วน {ratio}",

@@ -30,6 +30,8 @@ export default function BannerCropDialog({
     b = useTranslations("eventBranding");
   const visual = useTranslations("eventBrandVisual");
   const inputId = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const originalLoad = useRef<AbortController | null>(null);
   const drag = useRef<{
     start: number;
     position: number;
@@ -38,44 +40,43 @@ export default function BannerCropDialog({
   } | null>(null);
   const [cropping, setCropping] = useState(!!initialBanner);
   const [file, setFile] = useState<File | null>(null);
-  const [url, setUrl] = useState("");
+  const [preview, setPreview] = useState<{ file: File; url: string } | null>(
+    null,
+  );
   const [position, setPosition] = useState(50);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const active = useRef<AbortController | null>(null);
+  const url = preview && preview.file === file ? preview.url : "";
   useEffect(() => {
     if (!file) return;
     const next = URL.createObjectURL(file);
-    setUrl(next);
+    setPreview({ file, url: next });
     return () => URL.revokeObjectURL(next);
   }, [file]);
   useEffect(() => () => active.current?.abort(), []);
   useEffect(() => {
     if (!initialBanner) return;
-    let current = true;
     const controller = new AbortController();
+    originalLoad.current = controller;
     fetch(initialBanner, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("fileRead");
         return res.blob();
       })
       .then((blob) => {
-        if (current)
-          setFile(
-            (old) =>
-              old ?? new File([blob], "banner.webp", { type: blob.type }),
-          );
+        if (controller.signal.aborted) return;
+        setFile(
+          (old) => old ?? new File([blob], "banner.webp", { type: blob.type }),
+        );
       })
       .catch(() => {
-        if (current) {
+        if (!controller.signal.aborted) {
           setCropping(false);
           setError("fileRead");
         }
       });
-    return () => {
-      current = false;
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [initialBanner]);
   const size = bannerLayouts[layout];
   async function apply() {
@@ -102,15 +103,18 @@ export default function BannerCropDialog({
   }
   const picker = (
     <input
+      ref={input}
       id={inputId}
       type="file"
       className="sr-only"
       disabled={busy}
+      tabIndex={cropping ? -1 : undefined}
       aria-label={b("chooseFile")}
       accept={Object.keys(IMAGE_UPLOAD_ACCEPT).join(",")}
       onChange={(event) => {
         const next = event.target.files?.[0];
         if (!next) return;
+        originalLoad.current?.abort();
         const issue = imageUploadError(next);
         setError(issue ?? "");
         setFile(issue ? null : next);
@@ -231,17 +235,18 @@ export default function BannerCropDialog({
                 height: size.height,
               })}
             </p>
-            {error && (
-              <button
-                type="button"
-                className={styles.control}
-                onClick={() => {
-                  setCropping(false);
-                  setError("");
-                }}
-              >
-                {b("chooseFile")}
-              </button>
+            {(initialBanner || error) && (
+              <>
+                {picker}
+                <button
+                  type="button"
+                  className={styles.control}
+                  disabled={busy}
+                  onClick={() => input.current?.click()}
+                >
+                  {visual("replaceBanner")}
+                </button>
+              </>
             )}
           </>
         ) : (
