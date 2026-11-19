@@ -1,5 +1,7 @@
 "use client";
 
+import ParticipantEligibilityGate from "./ParticipantEligibilityGate";
+import { normalizeWhitelistId } from "@/core/event/whitelist";
 import PreviewHeaderCard from "@/components/event/form/FormPreview/PreviewHeaderCard";
 import PreviewQuestionCard from "@/components/event/form/FormPreview/PreviewQuestionCard";
 import ParticipantFooter from "../ParticipantFooter";
@@ -21,7 +23,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import { completeFormLocale } from "@/core/forms/content";
 import type { ParticipantFormKind } from "@/types/event/participant";
-import type { PublicForm, PublicFormStatus } from "@/types/event/public-event";
+import type { PublicForm } from "@/types/event/public-event";
 import { useLocale, useTranslations } from "next-intl";
 import {
   useId,
@@ -38,12 +40,13 @@ type PublicParticipantFormProps = {
   bannerUrl: string | null;
   contentLocale?: string | null;
 } & (
-  | { readOnly: true; fillViewport?: boolean; eventHref?: never; checkAvailability?: never }
+  | { readOnly: true; fillViewport?: boolean; eventHref?: never; checkAvailability?: never; checkEligibility?: never }
   | {
       readOnly?: false;
       fillViewport?: never;
       eventHref: string;
-      checkAvailability: () => Promise<"open" | PublicFormStatus>;
+      checkAvailability: (data?: FormData) => Promise<PublicForm["status"]>;
+      checkEligibility: (data: FormData) => Promise<PublicForm>;
     }
 );
 
@@ -57,6 +60,7 @@ export default function PublicParticipantForm({
   readOnly = false,
   fillViewport = false,
   checkAvailability,
+  checkEligibility,
 }: PublicParticipantFormProps) {
   const t = useTranslations("publicParticipantForm");
   const participant = useTranslations("participantEvent");
@@ -72,6 +76,12 @@ export default function PublicParticipantForm({
   const [liveStatus, setStatus] = useState<PublicForm["status"] | "submitted">(
     result.status,
   );
+  const [granted, setGranted] = useState<{
+    result: Extract<PublicForm, { status: "open" }>;
+    identifier: string;
+    fieldId?: string;
+  } | null>(null);
+  const [accessChanged, setAccessChanged] = useState(false);
   const [answers, setAnswers] = useState<Record<string, PublicFormAnswer>>({});
   const [errors, setErrors] = useState<Record<string, PublicFormAnswerIssue>>(
     {},
@@ -80,11 +90,25 @@ export default function PublicParticipantForm({
   const [checkFailed, setCheckFailed] = useState(false);
   const requestInFlight = useRef(false);
   const status = readOnly ? result.status : liveStatus;
-  const form = result.status === "open" ? result.form : null;
+  const form = result.status === "open" ? result.form : granted?.result.form ?? null;
+  const verifiedId = granted?.fieldId;
   const legacyLocale = !form || form.head[preferredLocale].title.trim()
     ? preferredLocale : preferredLocale === "th" ? "en" : "th";
   const locale = form ? completeFormLocale(form, preferredLocale) ?? legacyLocale : preferredLocale;
   const heading = form?.head[locale].title.trim() || participant(kind);
+
+  function receiveEligibility(next: PublicForm, value: string) {
+    if (next.status === "open" && result.status === "eligibility") {
+      const identifier = normalizeWhitelistId(value, result.fieldType);
+      const unique = kind === "registration" && next.form.questions.find(({ question }) => question.is_unique);
+      const fieldId = unique ? publicQuestionId(unique.question) : undefined;
+      setGranted({ result: next, identifier, fieldId });
+      setAccessChanged(false);
+      setAnswers(fieldId ? { [fieldId]: identifier } : {});
+      setCheckFailed(false);
+    }
+    setStatus(next.status);
+  }
 
   function clearAnswerError(id: string) {
     setErrors((previous) => {
@@ -152,7 +176,11 @@ export default function PublicParticipantForm({
     setChecking(true);
     try {
       // Answers remain in this tab. The Server Action checks availability only.
-      const availability = await checkAvailability();
+      const proof = new FormData();
+      if (granted) proof.set("identifier", granted.identifier);
+      const availability = await checkAvailability(proof);
+      if (availability !== "open") setGranted(null);
+      if (availability === "eligibility") setAccessChanged(true);
       setAnswers({});
       setStatus(availability === "open" ? "submitted" : availability);
       globalThis.window.scrollTo({ top: 0 });
@@ -177,7 +205,7 @@ export default function PublicParticipantForm({
         {form.questions.map(({ question }) => {
           const id = publicQuestionId(question);
           const questionLocale = publicQuestionLocale(question, locale);
-          return (
+          const card = (
             <PreviewQuestionCard
               key={id}
               question={{
@@ -193,6 +221,7 @@ export default function PublicParticipantForm({
               onClearAnswer={() => updateAnswer(id, "")}
             />
           );
+          return id === verifiedId ? <fieldset key={id} disabled>{card}</fieldset> : card;
         })}
         {checkFailed && <p role="alert">{t("recheckError")}</p>}
         <div className="flex flex-wrap gap-3">
@@ -208,7 +237,7 @@ export default function PublicParticipantForm({
             className={readOnly ? "opacity-100!" : undefined}
             disabled={readOnly || checking}
             onClick={() => {
-              setAnswers({});
+              setAnswers(verifiedId && granted ? { [verifiedId]: granted.identifier } : {});
               setErrors({});
               setCheckFailed(false);
             }}
@@ -277,6 +306,14 @@ export default function PublicParticipantForm({
                 {fields}
               </form>
             )
+          ) : status === "eligibility" && result.status === "eligibility" && checkEligibility ? (
+            <ParticipantEligibilityGate
+              gate={result}
+              locale={preferredLocale}
+              accessChanged={accessChanged}
+              verify={checkEligibility}
+              onResult={receiveEligibility}
+            />
           ) : (
             <section className="space-y-3 rounded-xl border border-gray-200 bg-white px-5 py-6 dark:border-gray-800 dark:bg-gray-900">
               <h1 className="text-title-sm font-semibold">{heading}</h1>
@@ -284,9 +321,11 @@ export default function PublicParticipantForm({
                 {t(
                   status === "submitted"
                     ? "demoSubmitted"
-                    : status === "open"
-                      ? "unavailable"
-                      : status,
+                    : status === "eligibility"
+                      ? "restricted"
+                      : status === "open"
+                        ? "unavailable"
+                        : status,
                 )}
               </p>
             </section>

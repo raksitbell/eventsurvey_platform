@@ -15,6 +15,7 @@ interface Props {
   branding: EventBranding;
   issues: PublishIssue[];
   forms: Parameters<typeof reviewPublication>[1];
+  whitelistReady?: boolean;
   restrictedForms?: Parameters<typeof reviewPublication>[3];
   unreviewable?: { registration: boolean; survey: boolean };
   language: Pick<ReturnType<typeof useParticipantPreviewLanguage>, "contentLocale" | "translation">;
@@ -44,7 +45,6 @@ interface ChecklistRow {
   value?: string | null;
   warnings?: string[];
   permitted?: boolean;
-  checking?: boolean;
   missing?: boolean;
   status?: "off" | "blocked" | "unverified";
 }
@@ -56,6 +56,7 @@ export default function PublishChecklist({
   forms,
   restrictedForms,
   unreviewable,
+  whitelistReady,
   language,
   formProblems,
   checking,
@@ -188,30 +189,34 @@ export default function PublishChecklist({
       status: "blocked",
       href: `${detailsPath}#survey-on`,
     });
-  if (issues.includes("uniqueField"))
+  const registrationUnknown = draft.hasRegistration && (checking || loadFailed || unreviewable?.registration);
+  if (issues.includes("uniqueField") && !registrationUnknown)
     rows.push({
       key: "uniqueField",
       label: "Unique ID",
-      warnings: draft.hasRegistration && (checking || loadFailed || unreviewable?.registration) ? [] : warnings("uniqueField"),
+      warnings: warnings("uniqueField"),
       href: draft.hasRegistration
         ? formBuilderEntryHref("/event/setup/registration", "publish", contentLocale)
         : `${detailsPath}#registration-on`,
       permitted: !draft.hasRegistration || canManageRegistration,
-      checking: draft.hasRegistration && checking,
-      status: draft.hasRegistration && (loadFailed || unreviewable?.registration) ? "unverified" : undefined,
       missing: !restrictedForms?.registration?.present && !forms.registration?.questions.some(({ question }) => question.is_unique),
     });
-  if (issues.includes("whitelist"))
+  if (draft.isPrivate) {
+    const unknown = draft.hasRegistration && (registrationUnknown || whitelistReady === undefined);
+    const missing = !draft.hasRegistration || whitelistReady === false;
     rows.push({
       key: "whitelist",
       label: details("manageWhitelist"),
-      warnings: warnings("whitelist"),
-      status: "blocked",
+      warnings: !draft.hasRegistration ? [details("privateRegistrationHint")] :
+        !unknown && missing ? [issueText("whitelist")] : [],
+      missing,
+      status: unknown ? "unverified" : undefined,
       href: draft.hasRegistration
         ? whitelistEntryHref("publish", contentLocale)
         : `${detailsPath}#registration-on`,
       permitted: !draft.hasRegistration || canManageRegistration,
     });
+  }
   if (issues.includes("capacity"))
     rows.push({
       key: "capacity",
@@ -250,7 +255,6 @@ export default function PublishChecklist({
       missing: enabled && (!exists || noQuestions),
       status: !enabled ? "off" : unverified ? "unverified" : undefined,
       warnings: enabled && !checking && !unverified ? formWarnings : [],
-      checking: enabled && checking,
       href: enabled
         ? formBuilderEntryHref(`/event/setup/${kind}`, "publish", contentLocale)
         : `${detailsPath}#${kind}-on`,
@@ -270,16 +274,17 @@ export default function PublishChecklist({
   };
   return (
     <section className="publish-card publish-checklist" aria-busy={checking}>
-      <h2>{setup("checklist")}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2>{setup("checklist")}</h2>
+        <span role="status" className="publish-checklist__hint inline-flex items-center gap-2">
+          {checking && <span aria-hidden="true" className="size-4 rounded-full border-2 border-current border-e-transparent motion-safe:animate-spin" />}
+          {checking ? labels("checking") : publish("checkCount", { count: rows.length })}
+        </span>
+      </div>
       <p className="publish-checklist__hint">{labels("checklistHint")}</p>
       {rows.map((row) => {
-        const status = row.status ?? (row.checking
-          ? "checking"
-          : row.missing
-            ? "missing"
-            : row.warnings?.length
-              ? "needs-edit"
-              : "complete");
+        const status = checking ? "checking" : (row.status ??
+          (row.missing ? "missing" : row.warnings?.length ? "needs-edit" : "complete"));
         return (
           <button
             type="button"
@@ -295,7 +300,7 @@ export default function PublishChecklist({
             <span className="publish-checklist__value">
               <strong>{row.label}</strong>
               {row.value && <small>{row.value}</small>}
-              {row.warnings?.map((text) => (
+              {!checking && row.warnings?.map((text) => (
                 <small className="publish-checklist__warning" key={text}>
                   {text}
                 </small>

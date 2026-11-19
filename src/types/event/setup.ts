@@ -37,5 +37,7 @@ export interface EventSetupState {
   publishedBranding?: EventSetupState["branding"];
   pendingMedia: Record<string, EventSetupMediaKind[]>;
   publication: import("@/core/event/publication").LocalPublication | null;
+  /** Whether a published private event has a whitelist bound to its frozen registration field. */
+  whitelistReady?: boolean;
   recoveredPublicationAt?: string;
 }

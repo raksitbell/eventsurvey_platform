@@ -1,3 +1,4 @@
+import type { WhitelistUniqueKind } from "@/types/event/whitelist";
 import type { Form } from "@/types/event/form";
 import type {
   ParticipantEventData,
@@ -32,4 +33,6 @@ export type PublicFormStatus =
   "scheduled" | "closed" | "full" | "restricted" | "unavailable";
 
 export type PublicForm =
-  { status: "open"; form: Form } | { status: PublicFormStatus };
+  | { status: "open"; form: Form }
+  | { status: "eligibility"; fieldType: WhitelistUniqueKind; label: Record<"th" | "en", string> }
+  | { status: PublicFormStatus };

@@ -8,6 +8,7 @@ import { satisfiesAccessLevel } from "@/core/auth/event-permissions";
 import { ServiceError } from "@/core/api/service-error";
 import { createFormBodySchema, formatZodError } from "@/core/validation/forms";
 import { createForm, listForms } from "@/services/event/forms";
+import { getPublishWhitelistReadiness } from "@/services/event/setup";
 import { publishFormReadiness } from "@/core/event/publication";
 import type { FormType, RestrictedFormReview } from "@/types/event/form";
 import { NextRequest, NextResponse } from "next/server";
@@ -43,8 +44,8 @@ export async function GET(request: NextRequest) {
     resolved.access.surveyForm,
     "view_only",
   );
-  const publishReview = request.nextUrl.searchParams.get("publishReview") === "1" &&
-    resolved.access.event === "can_edit";
+  const wantsReview = request.nextUrl.searchParams.get("publishReview") === "1";
+  const publishReview = wantsReview && resolved.access.event === "can_edit";
   if (!canViewRegistration && !canViewSurvey && !publishReview) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
@@ -62,12 +63,20 @@ export async function GET(request: NextRequest) {
         if (!allowedTypes.includes(type)) restrictedForms[type] = publishFormReadiness(type, data.forms);
       }
     }
+    const reviewWhitelist = wantsReview && request.nextUrl.searchParams.get("whitelist") === "1" &&
+      (canViewRegistration || publishReview);
+    let whitelistReady: boolean | undefined;
+    if (reviewWhitelist) {
+      const registrations = data.forms.filter((form) => form.type === "registration");
+      whitelistReady = await getPublishWhitelistReadiness(eventId, registrations.length === 1 ? registrations[0] : null);
+    }
     return NextResponse.json({
       eventId: data.eventId,
       hasRegistration: data.hasRegistration,
       hasSurvey: data.hasSurvey,
       forms: data.forms.filter((form) => allowedTypes.includes(form.type)),
       ...(publishReview ? { restrictedForms } : {}),
+      whitelistReady,
       registrationFormAccess: resolved.access.registrationForm,
       surveyFormAccess: resolved.access.surveyForm,
     }, { headers: { "Cache-Control": "private, no-store" } });

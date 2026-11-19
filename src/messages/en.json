@@ -1420,6 +1420,7 @@
     "closed": "Closed"
   },
   "eventPublish": {
+    "checkCount": "{count, plural, one {# check} other {# checks}}",
     "publishError": "Could not publish the event. Review the draft and try again.",
     "step": "EVENT SETUP  /  STEP 04 OF 04",
     "title": "Review readiness before publishing",
@@ -1460,7 +1461,7 @@
       "surveySchedule": "Set a valid Survey Form opening and closing time.",
       "uniqueField": "Configure one unique identifier in the Registration Form.",
       "registeredEligibility": "Registration-only surveys cannot be published yet because participant registration cannot be verified.",
-      "whitelist": "Private events cannot be published yet because participants cannot be verified against the Whitelist.",
+      "whitelist": "Save at least one unused Whitelist entry that matches the Registration Form’s Unique Field.",
       "capacity": "Capacity must be a positive integer or unlimited.",
       "location": "Enter the event venue."
     },
@@ -1667,6 +1668,10 @@
     "teamHint": "View members and manage permissions"
   },
   "publicParticipantForm": {
+    "verifyEligibility": "Verify your invitation",
+    "verifyIdentifier": "Check access",
+    "identifier": "Invitation identifier",
+    "eligibilityMismatch": "We could not verify access with this identifier.",
     "backToEvent": "Back to event",
     "scheduled": "This form is not open yet.",
     "closed": "This form has closed.",

@@ -11,7 +11,7 @@ import { writeSerially } from "@/core/event/serial-write";
 import type { SetupRecord } from "@/core/event/setup-state";
 import { encodeSetupRecord, readSetupRecord, readSetupState } from "@/core/event/setup-storage";
 import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
-import { normalizeWhitelistId, parseWhitelistEntries, whitelistUniqueField } from "@/core/event/whitelist";
+import { boundWhitelistAccess, normalizeWhitelistId, parseWhitelistEntries, whitelistUniqueField } from "@/core/event/whitelist";
 import { routing, type Locale } from "@/i18n/routing";
 import { getForm, listForms } from "@/services/event/forms";
 import { assertEventSetupMedia } from "@/services/event/setup-media";
@@ -19,7 +19,7 @@ import { getEventWorkspace } from "@/services/event/workspace";
 import type { EventBranding } from "@/types/event/branding";
 import type { FormRecord } from "@/types/event/form";
 import type { EventDraft, EventSetupMediaKind, EventSetupState } from "@/types/event/setup";
-import type { WhitelistEntry } from "@/types/event/whitelist";
+import type { WhitelistEntry, WhitelistUniqueField } from "@/types/event/whitelist";
 import type { MockEvent, MockForm, MockWhitelistEntry } from "@/types/mock";
 
 type SetupContext = Awaited<ReturnType<typeof getSetupContext>>;
@@ -181,6 +181,10 @@ async function registrationForWhitelist(eventId: string) {
   if (form.eventId !== eventId || form.type !== "registration") return null;
   const field = whitelistUniqueField(form);
   if (!field) return null;
+  return { formId: form.id, field, existing: await legacyWhitelistEntries(eventId, field) };
+}
+
+async function legacyWhitelistEntries(eventId: string, field: WhitelistUniqueField) {
   const legacy = await mockApi.get<MockWhitelistEntry[]>(
     `/whitelist_entries?event_id=${encodeURIComponent(eventId)}`,
   ).catch((error: unknown) => {
@@ -200,7 +204,7 @@ async function registrationForWhitelist(eventId: string) {
     };
     if (entry.status === "joined" || parseWhitelistEntries([restored], field)) existing.push(restored);
   }
-  return { formId: form.id, field, existing };
+  return existing;
 }
 
 function whitelistForField(setup: SetupRecord, form: Awaited<ReturnType<typeof registrationForWhitelist>>) {
@@ -213,6 +217,28 @@ function whitelistForField(setup: SetupRecord, form: Awaited<ReturnType<typeof r
     if (used.status === "joined") merged.set(used.uniqueId, used);
   }
   return [...merged.values()];
+}
+
+async function whitelistForPublication(eventId: string, setup: SetupRecord, registration: FormRecord | null) {
+  const field = whitelistUniqueField(registration);
+  if (!registration || registration.eventId !== eventId || !field) return null;
+  const saved = setup.whitelist;
+  if (saved && (saved.formId !== registration.id || saved.fieldId !== field.id || saved.kind !== field.type)) {
+    return null;
+  }
+  const form = { formId: registration.id, field, existing: await legacyWhitelistEntries(eventId, field) };
+  const list = { formId: registration.id, fieldId: field.id, kind: field.type, entries: whitelistForField(setup, form) };
+  const access = boundWhitelistAccess(list, registration);
+  return access?.entries.some((entry) => entry.status === "available") ? { ...list, entries: access.entries } : null;
+}
+
+/** Return a preparation result for the checklist without sending identities to the browser. */
+export async function getPublishWhitelistReadiness(eventId: string, registration: FormRecord | null) {
+  const event = await loadSetupEvent(eventId);
+  const setup = readSetupRecord(event);
+  if (!(setup.draft?.isPrivate ?? event.is_private) ||
+      !(setup.draft?.hasRegistration ?? event.has_registration)) return undefined;
+  return Boolean(await whitelistForPublication(eventId, setup, registration));
 }
 
 function assertWhitelistEnabled(event: MockEvent, setup: SetupRecord) {
@@ -278,7 +304,7 @@ export async function updateSetupWhitelist(
       resourceType: "whitelist",
       resourceId: context.event.id,
       module: "event_setup",
-      descriptionTh: "อัปเดตรายชื่ออนุญาต",
+      descriptionTh: "อัปเดตรายชื่อผู้มีสิทธิ์เข้าร่วมอีเวนต์",
       descriptionEn: "Updated whitelist",
       metadata: { count: whitelist.entries.length },
     });
@@ -357,7 +383,8 @@ export async function publishSetup(
       survey: draft.hasSurvey && survey
         ? { ...survey, opensAt: draft.startsAt, closesAt: surveyClosingTime(draft) } : null,
     };
-    const { issues } = reviewPublication(draft, definitions, forms);
+    const whitelist = draft.isPrivate ? await whitelistForPublication(event.id, setup, definitions.registration) : null;
+    const { issues } = reviewPublication(draft, definitions, forms, undefined, Boolean(whitelist));
     if (issues.length) throw new ServiceError("SETUP_PUBLISH_INVALID", 422, undefined, issues);
     await Promise.all(Object.values(setup.branding).map((branding) => checkBranding(event.id, branding)));
     const now = Date.now();
@@ -383,6 +410,7 @@ export async function publishSetup(
       ...setup,
       revision: setup.revision + 1,
       publication,
+      ...(whitelist ? { whitelist } : {}),
       publishedBranding: setup.branding,
     };
     const saved = await persistSetup(event, next, {

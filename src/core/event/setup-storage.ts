@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { ServiceError } from "@/core/api/service-error";
 import { setupRecordSchema, type SetupRecord } from "@/core/event/setup-state";
+import { publishedWhitelistAccess } from "@/core/event/whitelist";
 import type { EventSetupState } from "@/types/event/setup";
 import type { MockEvent } from "@/types/mock";
 
@@ -51,10 +52,12 @@ export function readSetupRecord(event: Pick<MockEvent, "id" | "setup"> | { setup
 }
 
 export function readSetupState(event: Parameters<typeof readSetupRecord>[0]): EventSetupState {
-  const { revision, draft, branding, pendingMedia, publication, publishedBranding, recoveredPublication } = readSetupRecord(event);
+  const record = readSetupRecord(event);
+  const { revision, draft, branding, pendingMedia, publication, publishedBranding, recoveredPublication } = record;
   return {
     revision, draft, branding, pendingMedia, publication,
     ...(publication && publishedBranding ? { publishedBranding } : {}),
+    ...(publication?.draft.isPrivate ? { whitelistReady: Boolean(publishedWhitelistAccess(record)) } : {}),
     recoveredPublicationAt: recoveredPublication?.publishedAt,
   };
 }

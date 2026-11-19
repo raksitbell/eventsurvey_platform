@@ -441,3 +441,85 @@ test("public forms resolve published branding by locale for both form kinds and 
     defaultEventBranding,
   );
 });
+
+test("private participant forms disclose questions only after a matching published whitelist identifier", async (t) => {
+  const { defaultEventBranding } = load("@/core/event/branding");
+  const snapshots = Object.fromEntries(forms.map((form) => [form.type, {
+    id: form.id, eventId: event.id, type: form.type, status: "open",
+    opensAt: event.start_at, closesAt: event.end_at,
+    head: { th: { title: "Private title" }, en: { title: "Private title" } },
+    questions: [
+      { question: { id: "member", type: "email", is_unique: form.type === "registration",
+        label: { th: [{ label: "อีเมล" }], en: [{ label: "Email" }] } } },
+      { question: { id: "secret", type: "short_text", label: { th: [{ label: "Private question" }], en: [{ label: "Private question" }] } } },
+    ],
+  }]));
+  const whitelist = {
+    formId: snapshots.registration.id, fieldId: "member", kind: "email",
+    entries: [{ id: "1", name: "Private person", uniqueId: "person@example.com", status: "available" }],
+  };
+  const setup = { publication: {
+    draft: { isPrivate: true, hasRegistration: true, hasSurvey: true, surveyAccess: "public", registrationCapacity: 1 },
+    forms: snapshots, branding: defaultEventBranding,
+  }, whitelist };
+  let joined = [], capacityTaken = false, eventStatus = "open";
+  const mockedGet = substitutions["@/core/api/mock-client"].mockApi.get;
+  const readMock = async (resource) => {
+      if (resource === "/events/event-1") return { ...event, status: eventStatus };
+      if (resource.startsWith("/events?")) return [{ ...event, status: eventStatus }];
+      if (resource.startsWith("/whitelist_entries?")) return joined;
+      if (resource.startsWith("/form_submissions?")) return capacityTaken ? [{ form_id: snapshots.registration.id, status: "submitted" }] : [];
+      return mockedGet(resource);
+  };
+  const read = loadSource({
+    ...substitutions,
+    "@/core/event/setup-storage": { readSetupRecord: () => setup },
+    "@/core/api/mock-client": { mockApi: { get: readMock, getFresh: readMock } },
+  });
+  const { getPublicFormBySlug: open, getPublicFormPageBySlug: page, getPublicEventBySlug: home } = read("src/services/event/public-event.ts");
+  const enter = (value) => open(event.slug, "registration", value);
+  const gate = { status: "eligibility", fieldType: "email", label: { th: "อีเมล", en: "Email" } };
+  const initial = await page(event.slug, "registration", "en");
+  assert.deepEqual(initial.result, gate);
+  assert.doesNotMatch(JSON.stringify(initial), /Private question|Private person|person@example.com|Private title/);
+  assert.deepEqual(await enter({ lookup: true }), gate);
+  assert.deepEqual(await enter("unknown@example.com"), gate);
+  assert.deepEqual(await open(event.slug, "survey"), gate);
+  assert.equal((await enter(" PERSON@example.com ")).status, "open");
+  assert.equal((await open(event.slug, "survey", "person@example.com")).status, "open");
+  assert.equal(whitelist.entries[0].status, "available");
+  assert.ok((await home(event.slug, "en")).formLinks.registration);
+
+  joined = [{ event_id: event.id, access_code: "PERSON@example.com", deleted_at: null, status: "joined" }];
+  assert.deepEqual(await enter("person@example.com"), gate);
+  joined = [];
+  whitelist.entries[0].status = "joined";
+  assert.deepEqual(await enter("person@example.com"), gate);
+  assert.equal((await open(event.slug, "survey", "person@example.com")).status, "open");
+  whitelist.entries[0].status = "available";
+  capacityTaken = true;
+  assert.deepEqual(await enter("person@example.com"), { status: "full" });
+  capacityTaken = false;
+  snapshots.registration.closesAt = "2000-01-01T00:00:00Z";
+  assert.deepEqual(await enter("person@example.com"), { status: "closed" });
+  setup.publication.draft.surveyAccess = "registered_only";
+  assert.deepEqual(await open(event.slug, "survey", "person@example.com"), { status: "restricted" });
+  const previousOrigin = process.env.APP_URL;
+  process.env.APP_URL = origin;
+  t.after(() => {
+    if (previousOrigin === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previousOrigin;
+  });
+  eventStatus = "scheduled";
+  const organizer = await read("src/services/event/public-event.ts").getAssignedShareLinks(user.id);
+  assert.ok(organizer.links.registration.endsWith("/register"));
+  assert.deepEqual(await enter("person@example.com"), { status: "scheduled" });
+  assert.deepEqual((await home(event.slug, "en")).formLinks, {});
+  eventStatus = "open";
+  setup.publication.draft.surveyAccess = "public";
+  snapshots.registration.eventId = "other-event";
+  assert.deepEqual(await open(event.slug, "survey", "person@example.com"), { status: "restricted" });
+  snapshots.registration.eventId = event.id;
+  whitelist.fieldId = "wrong-question";
+  assert.deepEqual(await enter("person@example.com"), { status: "restricted" });
+});

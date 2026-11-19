@@ -24,10 +24,18 @@ export default async function PublicParticipantFormPage({
   const page = await getPublicFormPageBySlug(eventSlug, kind, locale);
   if (!page) notFound();
 
-  async function checkAvailability() {
+  async function checkEligibility(data: FormData) {
     "use server";
 
-    const current = await getPublicFormBySlug(eventSlug, kind);
+    const identifier = data instanceof FormData ? data.get("identifier") : null;
+    return await getPublicFormBySlug(eventSlug, kind, identifier) ?? { status: "unavailable" as const };
+  }
+
+  async function checkAvailability(data?: FormData) {
+    "use server";
+
+    const identifier = data instanceof FormData ? data.get("identifier") : undefined;
+    const current = await getPublicFormBySlug(eventSlug, kind, identifier);
     return current?.status ?? "unavailable";
   }
 
@@ -37,6 +45,7 @@ export default async function PublicParticipantFormPage({
       eventHref={publicEventPath(eventSlug)}
       {...page}
       checkAvailability={checkAvailability}
+      checkEligibility={checkEligibility}
     />
   );
 }

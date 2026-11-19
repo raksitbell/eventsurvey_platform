@@ -230,6 +230,7 @@ export function reviewPublication(
   forms: MinimalForms,
   formList?: readonly { type: string; status: string }[],
   restrictedForms?: RestrictedFormReview,
+  whitelistReady = false,
 ) {
   const issues = new Set<SharedPublishIssue>();
   const languageIssues: PublishIssue[] = [];
@@ -295,8 +296,7 @@ export function reviewPublication(
   if ((draft.isPrivate || registeredSurvey) && !validIdentifier) {
     issues.add("uniqueField");
   }
-  // Both participant flows are restricted until they can verify the visitor on the server.
-  if (draft.isPrivate) issues.add("whitelist");
+  if (draft.isPrivate && !whitelistReady) issues.add("whitelist");
   if (registeredSurvey) issues.add("registeredEligibility");
   for (const capacity of [
     draft.hasRegistration ? draft.registrationCapacity : null,

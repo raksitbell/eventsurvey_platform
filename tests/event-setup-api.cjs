@@ -324,3 +324,44 @@ test("Parallel edits to the same base revision allow exactly one write", async (
   assert.equal(result[1].status, "rejected");
   assert.equal(result[1].reason.code, "SETUP_CONFLICT");
 });
+
+test("Private publication requires a prepared list bound to the current registration field and keeps its entries server-side", async (t) => {
+  const label = { label: "Email", placeholder: "", choices: { en: [], th: [] } };
+  const question = {
+    id: "email-field", type: "email", is_unique: true, is_required: true,
+    display_order: 1, min_number: 0, max_number: 5, min_length: 0, max_length: 255,
+    label: { en: [label], th: [] },
+  };
+  const registration = {
+    id: "registration-a", event_id: "event-a", eventId: "event-a", type: "registration",
+    status: "draft", opensAt: null, closesAt: null, createdAt: "", updatedAt: "",
+    head: { en: { title: "Register", description: "" } }, questions: [{ question }],
+  };
+  const legacy = [];
+  const { service, store, draft, event } = fixture(t, { registration, forms: [registration], whitelist: legacy });
+  const context = await service.getSetupContext("owner");
+  const input = { revision: 1, locale: "en" };
+  await service.saveSetupDraft(context, { revision: 0, draft: { ...draft, isPrivate: true, hasRegistration: true } });
+
+  const blocked = () => assert.rejects(service.publishSetup(context, input), { code: "SETUP_PUBLISH_INVALID" });
+  assert.equal(await service.getPublishWhitelistReadiness("event-a", registration), false);
+  await blocked();
+  legacy.push({ id: "used", event_id: "event-a", access_code: "used@example.test", username: "Used", status: "joined" });
+  await blocked();
+  const entry = { id: "guest", uniqueId: "Guest@example.test", name: "Guest", status: "available" };
+  const saved = await service.updateSetupWhitelist(context, { revision: 1, entries: [entry] });
+  input.revision = saved.revision;
+  question.id = "different-field";
+  assert.equal(await service.getPublishWhitelistReadiness("event-a", registration), false);
+  await blocked();
+  question.id = "email-field";
+  assert.equal(await service.getPublishWhitelistReadiness("event-a", registration), true);
+  const published = await service.publishSetup(context, input);
+  assert.equal(event().status, "scheduled");
+  assert.equal(published.whitelistReady, true);
+  assert.ok(!JSON.stringify(published).includes("guest@example.test"));
+  assert.deepEqual(store.readSetupRecord(event()).whitelist.entries, [
+    { id: "used", uniqueId: "used@example.test", name: "Used", status: "joined" },
+    { ...entry, uniqueId: "guest@example.test" },
+  ]);
+});

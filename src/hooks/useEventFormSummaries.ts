@@ -4,13 +4,14 @@ import type { FormRecord, FormListResponse, RestrictedFormReview } from "@/types
 import { useEffect, useState } from "react";
 
 /** Read existing BFF form metadata; the Raksit wizard never edits form definitions. */
-export default function useEventFormSummaries(eventId: string, needed = true, publishReview = false) {
+export default function useEventFormSummaries(eventId: string, needed = true, publishReview = false, reviewWhitelist = false) {
   const [attempt, setAttempt] = useState(0);
-  const identity = `${eventId}:${publishReview}:${attempt}`;
+  const identity = `${eventId}:${publishReview}:${reviewWhitelist}:${attempt}`;
   const [result, setResult] = useState<{
     identity: string;
     forms: FormRecord[];
     restrictedForms?: RestrictedFormReview;
+    whitelistReady?: boolean;
     unreviewable?: { registration: boolean; survey: boolean };
     error: boolean;
   }>({ identity: "", forms: [], error: false });
@@ -18,17 +19,21 @@ export default function useEventFormSummaries(eventId: string, needed = true, pu
     if (!needed) return;
     let active = true;
     const controller = new AbortController();
-    const timeout = globalThis.setTimeout(() => controller.abort(), 10000);
+    const query = new URLSearchParams({ eventId });
+    if (publishReview) query.set("publishReview", "1");
+    if (publishReview && reviewWhitelist) query.set("whitelist", "1");
+    // Publish checks read both form definitions and may also load the private guest list.
+    const timeout = globalThis.setTimeout(() => controller.abort(), publishReview ? 60_000 : 10_000);
     api
       .get<FormListResponse>(
-        `/event/forms?eventId=${encodeURIComponent(eventId)}${publishReview ? "&publishReview=1" : ""}`,
+        `/event/forms?${query}`,
         controller.signal,
       )
-      .then(({ forms, eventId: returnedId, restrictedForms, registrationFormAccess, surveyFormAccess }) => {
+      .then(({ forms, eventId: returnedId, restrictedForms, whitelistReady, registrationFormAccess, surveyFormAccess }) => {
         if (returnedId !== eventId || !Array.isArray(forms))
           throw new Error("Invalid form summary response");
         if (active) setResult({
-          identity, forms, restrictedForms, error: false,
+          identity, forms, restrictedForms, whitelistReady, error: false,
           unreviewable: {
             registration: registrationFormAccess === "restricted" && !restrictedForms?.registration,
             survey: surveyFormAccess === "restricted" && !restrictedForms?.survey,
@@ -46,9 +51,10 @@ export default function useEventFormSummaries(eventId: string, needed = true, pu
       globalThis.clearTimeout(timeout);
       controller.abort();
     };
-  }, [eventId, identity, needed, publishReview]);
+  }, [eventId, identity, needed, publishReview, reviewWhitelist]);
   return {
     forms: needed && result.identity === identity ? result.forms : [],
+    whitelistReady: needed && result.identity === identity ? result.whitelistReady : undefined,
     restrictedForms: needed && result.identity === identity ? result.restrictedForms : undefined,
     unreviewable: needed && result.identity === identity ? result.unreviewable : undefined,
     error: needed && result.identity === identity && result.error,

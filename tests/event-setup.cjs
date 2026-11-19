@@ -2508,7 +2508,7 @@ function setupStep(kind, options = {}) {
     "@/hooks/useEventFormSummaries": {
       default: () => ({
         forms: [],
-        loading: false,
+        loading: !!options.formsLoading,
         error: options.formsError ?? false,
         retry() {},
       }),
@@ -2516,6 +2516,7 @@ function setupStep(kind, options = {}) {
     "@/hooks/useParticipantPreviewLanguage": {
       default: () => ({ contentLocale: options.previewLocale ?? null }),
     },
+    "@/hooks/usePublishChecklistPending": { default: (loading) => loading || !!options.minimumPending },
     "@/hooks/useSetupApiState": { default: () => ({ pending: !!options.pending, getRevision: () => 3 }) },
     "@/hooks/useWhitelistNavigationGuard": noop,
     "@/hooks/useConfirm": {
@@ -2661,6 +2662,48 @@ test("Branding and Forms block both directions on validation/quota failures and 
   await forms.submit();
   assert.deepEqual(forms.navigation, []);
 });
+test("Publish keeps the initial checklist pending for five seconds and waits for any unfinished form checks", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let elapsed = false;
+  let cleanup;
+  const usePending = loadSource({
+    react: {
+      useState: (initial) => [elapsed || initial, (next) => { elapsed = next; }],
+      useEffect: (effect, deps) => {
+        assert.deepEqual(deps, []);
+        cleanup ??= effect();
+      },
+    },
+  })("src/hooks/usePublishChecklistPending.ts").default;
+  assert.equal(usePending(false), true);
+  t.mock.timers.tick(4_999);
+  assert.equal(usePending(false), true);
+  t.mock.timers.tick(1);
+  assert.equal(usePending(true), true);
+  assert.equal(usePending(false), false);
+  assert.equal(usePending(true), true);
+  assert.equal(usePending(false), false);
+  cleanup();
+  elapsed = false;
+  cleanup = undefined;
+  assert.equal(usePending(false), true);
+  cleanup();
+  t.mock.timers.tick(5_000);
+  assert.equal(elapsed, false, "leaving the page cancels the pending timer");
+});
+
+test("Publish blocks both the submit button and implicit form submission until checks have completed successfully", async (t) => {
+  storage(t);
+  for (const options of [{ minimumPending: true }, { formsLoading: true }, { formsError: true }]) {
+    const ui = setupStep("publish", options);
+    assert.equal(ui.next.props.disabled, true);
+    await ui.submit();
+    assert.deepEqual(ui.saves, []);
+    assert.deepEqual(ui.confirmations, []);
+    assert.deepEqual(ui.publishRequests, []);
+  }
+});
+
 test("Publish Back and Preview save the draft, while submit sends a separate confirmed API request", async (t) => {
   storage(t);
   const ui = setupStep("publish");
@@ -2840,7 +2883,10 @@ test("Publish checklist distinguishes absent values from existing invalid values
       "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
       "./publish-view.css": {},
       "next/navigation": { useSearchParams: () => new URLSearchParams("lang=en") },
-      "next-intl": { useLocale: () => "th", useTranslations: () => (key) => key },
+      "next-intl": {
+        useLocale: () => "th",
+        useTranslations: () => (key, values) => key === "checkCount" ? String(values.count) : key,
+      },
     },
   );
   const draft = {
@@ -2867,6 +2913,12 @@ test("Publish checklist distinguishes absent values from existing invalid values
   };
   const rowList = (overrides = {}) => Checklist({ ...props, ...overrides }).props.children.flat().filter((node) => node.type === "button");
   const rows = rowList();
+  const pending = Checklist({ ...props, checking: true });
+  assert.ok(rowList({ checking: true }).every((row) => row.props["data-status"] === "checking"));
+  assert.equal(findSetupElement(pending, (node) => node.props?.role === "status").props.children.at(-1), "checking");
+  const count = (overrides) => findSetupElement(Checklist({ ...props, ...overrides }), (node) => node.props?.role === "status").props.children.at(-1);
+  assert.equal(count({}), String(rows.length));
+  assert.equal(count({ issues: [...issues, "capacity"] }), String(rows.length + 1));
   const status = Object.fromEntries(rows.map((node) => [node.key, node.props["data-status"]]));
   assert.equal(status.eventName, "missing");
   assert.equal(status.location, "complete");
@@ -2878,6 +2930,15 @@ test("Publish checklist distinguishes absent values from existing invalid values
   assert.equal(findSetupElement(registrationRow, (node) => node.props?.children === "issues.formContent"), null);
   assert.equal(rowList({ loadFailed: true }).find((node) => node.key === "registration").props["data-status"], "unverified");
   assert.equal(rowList({ draft: { ...draft, hasRegistration: false } }).find((node) => node.key === "registration").props["data-status"], "off");
+  const privateDraft = { ...draft, isPrivate: true };
+  const privateRow = (overrides) => rowList({ draft: privateDraft, ...overrides }).find((node) => node.key === "whitelist");
+  assert.equal(privateRow({ whitelistReady: true }).props["data-status"], "complete");
+  assert.equal(privateRow({ whitelistReady: false }).props["data-status"], "missing");
+  assert.equal(privateRow({}).props["data-status"], "unverified");
+  assert.equal(privateRow({ whitelistReady: true, checking: true }).props["data-status"], "checking");
+  assert.equal(privateRow({ whitelistReady: false, loadFailed: true }).props["data-status"], "unverified");
+  assert.equal(privateRow({ whitelistReady: true, canEdit: false }).props.disabled, true);
+  assert.equal(rowList({ loadFailed: true, issues: ["uniqueField"] }).some((node) => node.key === "uniqueField"), false);
   rows.find((node) => node.key === "registration").props.onClick();
   assert.deepEqual(navigation, ["/event/setup/registration?from=publish&lang=en"]);
 });

@@ -179,7 +179,9 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
 });
 
 test("Publish review shares only readiness for restricted forms with the event editor", async (t) => {
-  const { owner, assistant, collections } = setupMockData(t);
+  const { owner, assistant, collections, calls } = setupMockData(t);
+  Object.assign(collections.events[0], { is_private: true, has_registration: true });
+  collections.whitelist_entries = [{ id: "private-row", event_id: "event-a", access_code: "member@example.test", username: "Private name", status: "available" }];
   const restricted = "hidden-registration";
   const stamp = "2026-01-01T12:00:00.000Z";
   collections.forms.push({
@@ -217,11 +219,30 @@ test("Publish review shares only readiness for restricted forms with the event e
   for (const value of [restricted, "sensitive-field", "Confidential"]) {
     assert.ok(!JSON.stringify(data).includes(value));
   }
+  assert.equal(data.whitelistReady, undefined);
+  assert.ok(!calls.some(({ url }) => url.pathname === "/whitelist_entries"));
+  const reviewWhitelist = review + "&whitelist=1";
+  const ready = await (await getForms(request(reviewWhitelist, { cookie: editor }))).json();
+  assert.equal(ready.whitelistReady, true);
+  assert.deepEqual(ready.forms, []);
+  for (const value of [restricted, "sensitive-field", "private-row", "member@example.test", "Private name"]) {
+    assert.ok(!JSON.stringify(ready).includes(value));
+  }
+  viewerMatrix.surveyForm = "view_only";
+  const unauthorized = await (await getForms(request(reviewWhitelist, { cookie: viewer }))).json();
+  assert.equal(unauthorized.whitelistReady, undefined);
+  viewerMatrix.surveyForm = "restricted";
   editorMatrix.registrationForm = viewerMatrix.registrationForm = "view_only";
+  collections.whitelist_entries[0].status = "joined";
+  const noUnused = await (await getForms(request(reviewWhitelist, { cookie: viewer }))).json();
+  assert.equal(noUnused.whitelistReady, false);
+  assert.ok(!JSON.stringify(noUnused).includes("member@example.test"));
+
   for (const [cookie, url] of [[editor, list], [viewer, review]]) {
     const visible = await (await getForms(request(url, { cookie }))).json();
     assert.equal(visible.forms[0].id, restricted);
     assert.equal(visible.restrictedForms, undefined);
+    assert.equal(visible.whitelistReady, undefined);
   }
   const mixed = await (await getForms(request(review, { cookie: editor }))).json();
   assert.equal(mixed.forms[0].id, restricted);

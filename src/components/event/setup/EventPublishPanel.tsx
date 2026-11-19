@@ -20,6 +20,7 @@ import { selectSetupForms } from "@/core/event/form-summary";
 import { createSavedNavigation } from "@/core/event/draft";
 import { eventSetupStepHref } from "@/core/event/form-builder-navigation";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
+import usePublishChecklistPending from "@/hooks/usePublishChecklistPending";
 import useParticipantPreviewLanguage from "@/hooks/useParticipantPreviewLanguage";
 import { reviewPublication, type PublishIssue } from "@/core/event/publication";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -52,8 +53,11 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
   const formState = useEventFormSummaries(
     workspace.eventId,
     !receipt && (draft.hasRegistration || draft.hasSurvey),
-    !!workspace.canEditEvent,
+    true,
+    draft.isPrivate && draft.hasRegistration,
   );
+  const whitelistReady = receipt ? workspace.setup?.whitelistReady : formState.whitelistReady;
+  const checking = usePublishChecklistPending(formState.loading);
   const { registration, survey } = selectSetupForms(formState.forms);
   const forms = receipt?.forms ?? {
     registration:
@@ -74,6 +78,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     forms,
     receipt ? undefined : formState.forms,
     formState.restrictedForms,
+    whitelistReady,
   );
   const [validation, setValidation] = useState<{
     revision: number;
@@ -132,25 +137,21 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     disabled: pending,
     onClick: () => void navigate(eventSetupStepHref("details", previewLanguage.contentLocale)),
   };
+  const publishUnavailable = pending || checking || formState.error || published ||
+    readOnly || workspace.userRole !== "event_owner";
   const publish = async () => {
-    if (readOnly || published || busy || workspace.userRole !== "event_owner")
+    if (publishUnavailable) return;
+    if (blocked) {
+      globalThis.document
+        ?.querySelector<HTMLElement>(
+          ".publish-checklist :is([data-status='missing'], [data-status='needs-edit'], [data-status='blocked']):enabled",
+        )
+        ?.focus();
       return;
+    }
     setBusy(true);
     try {
       if (!(await save())) return;
-      if (formState.loading || formState.error) {
-        setError(t("formsLoadError"));
-        return;
-      }
-
-      if (blocked) {
-        globalThis.document
-          ?.querySelector<HTMLElement>(
-            ".publish-checklist :is([data-status='missing'], [data-status='needs-edit'], [data-status='blocked']):enabled",
-          )
-          ?.focus();
-        return;
-      }
       const revision = setupApi.getRevision();
       if (
         !(await confirm({
@@ -201,7 +202,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         setValidation({
           revision: setupApi.getRevision(),
           issues: issues.filter(
-            (issue) => issue !== "formStatus" && issue !== "formContent" && issue !== "uniqueField",
+            (issue) => issue !== "formStatus" && issue !== "formContent" && issue !== "uniqueField" && issue !== "whitelist",
           ),
         });
         formState.retry();
@@ -247,12 +248,13 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           forms={forms}
           restrictedForms={formState.restrictedForms}
           unreviewable={formState.unreviewable}
+          whitelistReady={whitelistReady}
           language={previewLanguage}
           mediaWarning={mediaWarning}
           startWarning={pastStart ? dates("pastDate") : undefined}
           endWarning={pastEnd ? dates("pastDate") : undefined}
           formProblems={formProblems}
-          checking={formState.loading}
+          checking={checking}
           loadFailed={formState.error}
           canManageRegistration={!!workspace.canManageWhitelist}
           canManageSurvey={!!workspace.canManageSurveyForm}
@@ -274,15 +276,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         primary={{
           label: s("publish"),
           wide: true,
-          disabled:
-            busy ||
-            setupApi.pending ||
-            blocked ||
-            formState.loading ||
-            formState.error ||
-            published ||
-            readOnly ||
-            workspace.userRole !== "event_owner",
+          disabled: publishUnavailable || blocked,
         }}
         error={
           setupApi.conflict
