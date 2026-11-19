@@ -2,6 +2,14 @@
 
 import PreviewHeaderCard from "@/components/event/form/FormPreview/PreviewHeaderCard";
 import PreviewQuestionCard from "@/components/event/form/FormPreview/PreviewQuestionCard";
+import ParticipantFooter from "../ParticipantFooter";
+import ParticipantHeader from "../ParticipantHeader";
+import { bannerObjectPosition } from "@/core/event/banner-layout";
+import {
+  participantColors,
+  eventColorForeground,
+} from "@/core/event/participant-colors";
+import type { EventBranding } from "@/types/event/branding";
 import Button from "@/components/ui/button/Button";
 import {
   publicAnswerIssue,
@@ -15,26 +23,51 @@ import type { FormLocale } from "@/types/event/form";
 import type { ParticipantFormKind } from "@/types/event/participant";
 import type { PublicForm, PublicFormStatus } from "@/types/event/public-event";
 import { useLocale, useTranslations } from "next-intl";
-import { useRef, useState, type FormEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 
-interface PublicParticipantFormProps {
+type PublicParticipantFormProps = {
   kind: ParticipantFormKind;
-  eventHref: string;
   result: PublicForm;
-  checkAvailability: () => Promise<"open" | PublicFormStatus>;
-}
+  branding: EventBranding;
+  bannerUrl: string | null;
+  contentLocale?: string | null;
+} & (
+  | { readOnly: true; eventHref?: never; checkAvailability?: never }
+  | {
+      readOnly?: false;
+      eventHref: string;
+      checkAvailability: () => Promise<"open" | PublicFormStatus>;
+    }
+);
 
 export default function PublicParticipantForm({
   kind,
   eventHref,
   result,
+  branding,
+  bannerUrl,
+  contentLocale,
+  readOnly = false,
   checkAvailability,
 }: PublicParticipantFormProps) {
   const t = useTranslations("publicParticipantForm");
   const participant = useTranslations("participantEvent");
   const preview = useTranslations("form.preview");
-  const preferredLocale = useLocale() === "en" ? "en" : "th";
-  const [status, setStatus] = useState<PublicForm["status"] | "submitted">(
+  const portalLocale = useLocale();
+  const preferredLocale =
+    contentLocale === "en" || contentLocale === "th"
+      ? contentLocale
+      : portalLocale === "en"
+        ? "en"
+        : "th";
+  const instanceId = useId();
+  const [liveStatus, setStatus] = useState<PublicForm["status"] | "submitted">(
     result.status,
   );
   const [answers, setAnswers] = useState<Record<string, PublicFormAnswer>>({});
@@ -44,8 +77,9 @@ export default function PublicParticipantForm({
   const [checking, setChecking] = useState(false);
   const [checkFailed, setCheckFailed] = useState(false);
   const requestInFlight = useRef(false);
+  const status = readOnly ? result.status : liveStatus;
   const form = result.status === "open" ? result.form : null;
-  const locale: FormLocale = form?.head[preferredLocale].title.trim()
+  const locale: FormLocale = !form || form.head[preferredLocale].title.trim()
     ? preferredLocale
     : preferredLocale === "th"
       ? "en"
@@ -95,7 +129,7 @@ export default function PublicParticipantForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form || requestInFlight.current) return;
+    if (!form || !checkAvailability || requestInFlight.current) return;
     setCheckFailed(false);
 
     const nextErrors: Record<string, PublicFormAnswerIssue> = {};
@@ -130,77 +164,135 @@ export default function PublicParticipantForm({
     }
   }
 
+  const fields =
+    status === "open" && form ? (
+      <fieldset disabled={readOnly || checking} className="flex flex-col gap-4">
+        <PreviewHeaderCard
+          title={heading}
+          description={form.head[locale].description}
+          hasRequiredQuestion={form.questions.some(
+            ({ question }) => question.is_required,
+          )}
+        />
+        {form.questions.map(({ question }) => {
+          const id = publicQuestionId(question);
+          const questionLocale = publicQuestionLocale(question, locale);
+          return (
+            <PreviewQuestionCard
+              key={id}
+              question={{
+                ...question,
+                id: readOnly ? `${instanceId}-${id}` : id,
+                is_unique: false,
+              }}
+              locale={questionLocale}
+              answer={answers[id]}
+              errorMessage={formatIssue(errors[id])}
+              onChangeAnswer={(answer) => updateAnswer(id, answer)}
+              onToggleCheckbox={(choiceId) => toggleCheckbox(id, choiceId)}
+              onClearAnswer={() => updateAnswer(id, "")}
+            />
+          );
+        })}
+        {checkFailed && <p role="alert">{t("recheckError")}</p>}
+        <div className="flex flex-wrap gap-3">
+          <Button
+            type={readOnly ? "button" : "submit"}
+            disabled={readOnly || checking}
+            className={`bg-(--participant-accent)! text-(--participant-on-accent)! hover:brightness-95 ${readOnly ? "opacity-100!" : ""}`}
+          >
+            {t(checking ? "submitting" : "submitDemo")}
+          </Button>
+          <Button
+            variant="outline"
+            className={readOnly ? "opacity-100!" : undefined}
+            disabled={readOnly || checking}
+            onClick={() => {
+              setAnswers({});
+              setErrors({});
+              setCheckFailed(false);
+            }}
+          >
+            {preview("clearForm")}
+          </Button>
+        </div>
+      </fieldset>
+    ) : null;
+
+  const colors = participantColors(branding);
+  const banner = branding.banner?.url ?? bannerUrl;
+  const gradient =
+    branding.backgroundMode === "gradient"
+      ? `linear-gradient(${branding.gradientAngle ?? 0}deg, ${branding.secondary}, ${branding.gradientEnd ?? branding.primary})`
+      : undefined;
+  const style = {
+    ...colors,
+    "--participant-on-accent": eventColorForeground(branding.accent),
+    "--color-brand-500": colors["--participant-control-text"],
+  } as CSSProperties;
+  const Container = readOnly ? "section" : "main";
+  const backClass =
+    "inline-block rounded-md bg-(--participant-secondary) px-2 py-1 font-medium text-(--participant-link)";
   return (
-    <main className="min-h-dvh bg-gray-50 px-4 py-6 text-gray-900 sm:py-10 dark:bg-gray-950 dark:text-gray-100">
-      <div className="mx-auto max-w-2xl space-y-4">
-        <Link
-          href={eventHref}
-          className="inline-block font-medium text-brand-700 hover:underline dark:text-brand-300"
-        >
-          {t("backToEvent")}
-        </Link>
-        {status === "open" && form ? (
-          <form onSubmit={submit} noValidate>
-            <fieldset disabled={checking} className="flex flex-col gap-4">
-              <PreviewHeaderCard
-                title={heading}
-                description={form.head[locale].description}
-                hasRequiredQuestion={form.questions.some(
-                  ({ question }) => question.is_required,
-                )}
-              />
-              {form.questions.map(({ question }) => {
-                const id = publicQuestionId(question);
-                const questionLocale = publicQuestionLocale(question, locale);
-                return (
-                  <PreviewQuestionCard
-                    key={id}
-                    question={{ ...question, id, is_unique: false }}
-                    locale={questionLocale}
-                    answer={answers[id]}
-                    errorMessage={formatIssue(errors[id])}
-                    onChangeAnswer={(answer) => updateAnswer(id, answer)}
-                    onToggleCheckbox={(choiceId) =>
-                      toggleCheckbox(id, choiceId)
-                    }
-                    onClearAnswer={() => updateAnswer(id, "")}
-                  />
-                );
-              })}
-              {checkFailed && <p role="alert">{t("recheckError")}</p>}
-              <div className="flex flex-wrap gap-3">
-                <Button type="submit" disabled={checking}>
-                  {t(checking ? "submitting" : "submitDemo")}
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={checking}
-                  onClick={() => {
-                    setAnswers({});
-                    setErrors({});
-                    setCheckFailed(false);
-                  }}
-                >
-                  {preview("clearForm")}
-                </Button>
-              </div>
-            </fieldset>
-          </form>
-        ) : (
-          <section className="space-y-3 rounded-xl border border-gray-200 bg-white px-5 py-6 dark:border-gray-800 dark:bg-gray-900">
-            <h1 className="text-title-sm font-semibold">{heading}</h1>
-            <p role="status" className="text-gray-700 dark:text-gray-300">
-              {t(
-                status === "submitted"
-                  ? "demoSubmitted"
-                  : status === "open"
-                    ? "unavailable"
-                    : status,
-              )}
-            </p>
-          </section>
+    <Container
+      style={style}
+      className={`@container/participant flex w-full min-w-0 flex-col bg-(--participant-secondary) ${readOnly ? "" : "min-h-dvh"}`}
+    >
+      <ParticipantHeader
+        branding={branding}
+        readOnly={readOnly}
+        device="desktop"
+        contentLocale={locale}
+      />
+      <div
+        className="relative isolate flex-1 overflow-hidden px-4 py-6 @4xl/participant:py-10"
+        style={{ backgroundImage: gradient }}
+      >
+        {branding.backgroundMode === "blur" && banner && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-1 scale-110 bg-cover opacity-60 blur-lg"
+            style={{
+              backgroundImage: `url(${JSON.stringify(banner)})`,
+              backgroundPosition: bannerObjectPosition(
+                branding.banner?.cropPosition,
+              ),
+            }}
+          />
         )}
+        <div className="mx-auto max-w-2xl space-y-4 text-gray-900 dark:text-gray-100">
+          {eventHref ? (
+            <Link href={eventHref} className={`${backClass} hover:underline`}>
+              {t("backToEvent")}
+            </Link>
+          ) : (
+            <span className={backClass}>{t("backToEvent")}</span>
+          )}
+          {fields ? (
+            readOnly ? (
+              fields
+            ) : (
+              <form onSubmit={submit} noValidate>
+                {fields}
+              </form>
+            )
+          ) : (
+            <section className="space-y-3 rounded-xl border border-gray-200 bg-white px-5 py-6 dark:border-gray-800 dark:bg-gray-900">
+              <h1 className="text-title-sm font-semibold">{heading}</h1>
+              <p role="status" className="text-gray-700 dark:text-gray-300">
+                {t(
+                  status === "submitted"
+                    ? "demoSubmitted"
+                    : status === "open"
+                      ? "unavailable"
+                      : status,
+                )}
+              </p>
+            </section>
+          )}
+        </div>
       </div>
-    </main>
+      <ParticipantFooter readOnly={readOnly} />
+    </Container>
   );
 }

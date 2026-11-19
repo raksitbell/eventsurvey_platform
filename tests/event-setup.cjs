@@ -1181,6 +1181,23 @@ test("Secondary colors the participant content exactly and text stays readable o
       );
     }
 });
+test("Participant header and footer honor selected colors and opacity", () => {
+  const { participantColors } = load("src/core/event/participant-colors.ts");
+  const branding = {
+    ...defaultEventBranding, primary: "#FFFFFF", secondary: "#000000", footerColor: "#112244",
+    accent: "#FFFF00", chromeOpacity: 50, transparentChrome: true,
+    backgroundMode: "gradient", gradientEnd: "#222222", gradientAngle: 90,
+  };
+  const colors = participantColors(branding);
+  assert.equal(colors["--participant-header-surface"], "#FFFFFF80");
+  assert.equal(colors["--participant-footer-surface"], "#11224480");
+  assert.equal(colors["--participant-on-header"], "#000000");
+  assert.equal(colors["--participant-on-footer"], "#FFFFFF");
+  for (const value of [-1, 101, 2.5]) {
+    assert.equal(eventBrandingSchema.safeParse({ ...branding, chromeOpacity: value }).success, false);
+  }
+  assert.equal(eventBrandingSchema.parse(branding).chromeOpacity, 50);
+});
 test("Participant chrome uses the content surface for transparent foregrounds", () => {
   const { participantColors } = load("src/core/event/participant-colors.ts");
   const branding = { ...defaultEventBranding, primary: "#FFFFFF", secondary: "#000000" };

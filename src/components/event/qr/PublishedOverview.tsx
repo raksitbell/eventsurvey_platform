@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { bannerLayouts } from "@/core/event/banner-layout";
+import { getChromeOpacity } from "@/core/event/participant-colors";
 import { surveyClosingTime } from "@/core/event/schedule";
 import type { EventBranding } from "@/types/event/branding";
 import type { EventWorkspace } from "@/types/event/workspace";
@@ -122,11 +123,8 @@ export default function PublishedOverview({
           <div>
             <dt>{t("chrome")}</dt>
             <dd>
-              {branding.transparentChrome ? t("transparent") : branding.primary}{" "}
-              ·{" "}
-              {branding.transparentChrome
-                ? t("transparent")
-                : (branding.footerColor ?? branding.primary)}
+              {branding.primary} / {branding.footerColor ?? branding.secondary}
+              {getChromeOpacity(branding) < 100 && ` · ${t("transparencyValue", { percent: 100 - getChromeOpacity(branding) })}`}
             </dd>
           </div>
         </dl>

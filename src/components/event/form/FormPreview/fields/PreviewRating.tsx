@@ -46,7 +46,7 @@ function PreviewIconGlyph({
       <HandThumbUpIcon
         className={`h-6 w-6 transition-colors sm:h-7 sm:w-7 ${
           isHighlighted
-            ? "fill-[#5C54D1] text-[#5C54D1]"
+            ? "fill-[var(--participant-control-text,#5C54D1)] text-[color:var(--participant-control-text,#5C54D1)]"
             : "text-gray-300 group-hover:text-indigo-300"
         }`}
       />
@@ -122,14 +122,14 @@ export default function PreviewRating({
                   <span
                     className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors sm:h-6 sm:w-6 ${
                       isSelected
-                        ? "border-[#5C54D1]"
+                        ? "border-[var(--participant-control-text,#5C54D1)]"
                         : hoveredLevel === level
-                          ? "border-[#5C54D1]"
-                          : "border-gray-500 group-hover:border-[#5C54D1]"
+                          ? "border-[var(--participant-control-text,#5C54D1)]"
+                          : "border-gray-500 group-hover:border-[var(--participant-control-text,#5C54D1)]"
                     }`}
                   >
                     {isSelected && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#5C54D1] sm:h-3 sm:w-3" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-[var(--participant-control-text,#5C54D1)] sm:h-3 sm:w-3" />
                     )}
                   </span>
                 </button>
@@ -179,7 +179,7 @@ export default function PreviewRating({
             >
               <span
                 className={`text-xs font-medium ${
-                  isSelected ? "font-bold text-[#5C54D1]" : "text-gray-600"
+                  isSelected ? "font-bold text-[color:var(--participant-control-text,#5C54D1)]" : "text-gray-600"
                 }`}
               >
                 {level}

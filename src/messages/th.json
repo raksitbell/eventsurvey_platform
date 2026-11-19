@@ -1693,6 +1693,7 @@
     "copyUrl": "คัดลอก URL",
     "sampleQr": "ตัวอย่าง QR Code",
     "shareEventHint": "แชร์หน้าแสดงรายละเอียดอีเวนต์ให้ผู้เข้าชม",
+    "transparencyValue": "โปร่งใส {percent}%",
     "checklistHint": "คลิกรายการที่ยังไม่ครบ หรือสถานะฟอร์ม เพื่อเติมข้อมูล Demo ก่อน Publish",
     "qrPending": "QR รอเปิดใช้งานฟอร์ม",
     "qrUnavailable": "QR Code ยังไม่พร้อมใช้งาน",

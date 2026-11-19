@@ -33,6 +33,7 @@ export const eventBrandingSchema = z.object({
   gradientEnd: color.optional(),
   gradientAngle: z.union([z.literal(0), z.literal(90)]).optional(),
   transparentChrome: z.boolean().optional(),
+  chromeOpacity: z.number().int().min(0).max(100).optional(),
   footerColor: color.optional(),
   channels: z
     .array(

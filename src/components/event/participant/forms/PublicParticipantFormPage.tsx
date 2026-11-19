@@ -1,7 +1,13 @@
 import PublicParticipantForm from "@/components/event/participant/forms/PublicParticipantForm";
 import { publicEventPath } from "@/core/event/public-event-paths";
-import { getPublicFormBySlug } from "@/services/event/public-event";
+import {
+  getPublicFormBySlug,
+  getPublicFormPageBySlug,
+} from "@/services/event/public-event";
 import type { ParticipantFormKind } from "@/types/event/participant";
+import { getLocale } from "next-intl/server";
+import { hasLocale } from "next-intl";
+import { routing } from "@/i18n/routing";
 import { notFound } from "next/navigation";
 
 interface PublicParticipantFormPageProps {
@@ -13,8 +19,10 @@ export default async function PublicParticipantFormPage({
   eventSlug,
   kind,
 }: PublicParticipantFormPageProps) {
-  const result = await getPublicFormBySlug(eventSlug, kind);
-  if (!result) notFound();
+  const locale = await getLocale();
+  if (!hasLocale(routing.locales, locale)) notFound();
+  const page = await getPublicFormPageBySlug(eventSlug, kind, locale);
+  if (!page) notFound();
 
   async function checkAvailability() {
     "use server";
@@ -27,7 +35,7 @@ export default async function PublicParticipantFormPage({
     <PublicParticipantForm
       kind={kind}
       eventHref={publicEventPath(eventSlug)}
-      result={result}
+      {...page}
       checkAvailability={checkAvailability}
     />
   );

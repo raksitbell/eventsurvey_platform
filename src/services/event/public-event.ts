@@ -302,7 +302,39 @@ export async function getPublicFormBySlug(
   kind: ParticipantFormKind,
 ): Promise<PublicForm | null> {
   const event = await findPublicEvent(slug);
-  if (!event || !isEnabled(event, kind)) return null;
+  if (!event) return null;
+  return resolvePublicForm(event, kind);
+}
+
+export async function getPublicFormPageBySlug(
+  slug: string,
+  kind: ParticipantFormKind,
+  locale: Locale,
+) {
+  const event = await findPublicEvent(slug);
+  if (!event) return null;
+  const { publication, publishedBranding } = readSetupRecord(event);
+  const result = await resolvePublicForm(event, kind);
+  if (!result) return null;
+
+  const branding = publication
+    ? publishedBranding?.[locale] ?? publication.branding
+    : defaultEventBranding;
+  let bannerUrl = branding.banner?.url ?? null;
+  if (branding.backgroundMode === "blur" && !bannerUrl) {
+    const banners = await mockApi.get<MockEventBanner[]>(
+      `/event_banners?event_id=${encodeURIComponent(event.id)}`,
+    );
+    bannerUrl = safeBannerUrl(banners.find((banner) => banner.event_id === event.id)?.banner_url);
+  }
+  return { result, branding, bannerUrl };
+}
+
+async function resolvePublicForm(
+  event: MockEvent,
+  kind: ParticipantFormKind,
+): Promise<PublicForm | null> {
+  if (!isEnabled(event, kind)) return null;
   if (event.status === "scheduled") return { status: "scheduled" };
   if (needsEligibility(event, kind)) return { status: "restricted" };
 

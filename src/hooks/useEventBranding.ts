@@ -53,9 +53,9 @@ export default function useEventBranding(
       : null;
   const stored = ownSaved?.value ?? setup?.branding[locale] ?? defaultEventBranding;
   const pendingMedia = ownSaved?.pendingMedia ?? setup?.pendingMedia[locale] ?? [];
-  const branding = readOnly
-    ? setup?.branding[locale] ?? setup?.publication?.branding ?? stored
-    : edit?.value ?? applySetupLocalMedia(stored, key, pendingMedia);
+  const branding = setup?.publication
+    ? setup.publishedBranding?.[locale] ?? setup.publication.branding
+    : readOnly ? stored : edit?.value ?? applySetupLocalMedia(stored, key, pendingMedia);
 
   function change(changes: Partial<EventBranding>) {
     if (readOnly) return false;

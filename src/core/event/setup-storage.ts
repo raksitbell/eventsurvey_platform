@@ -51,6 +51,10 @@ export function readSetupRecord(event: Pick<MockEvent, "id" | "setup"> | { setup
 }
 
 export function readSetupState(event: Parameters<typeof readSetupRecord>[0]): EventSetupState {
-  const { revision, draft, branding, pendingMedia, publication, recoveredPublication } = readSetupRecord(event);
-  return { revision, draft, branding, pendingMedia, publication, recoveredPublicationAt: recoveredPublication?.publishedAt };
+  const { revision, draft, branding, pendingMedia, publication, publishedBranding, recoveredPublication } = readSetupRecord(event);
+  return {
+    revision, draft, branding, pendingMedia, publication,
+    ...(publication && publishedBranding ? { publishedBranding } : {}),
+    recoveredPublicationAt: recoveredPublication?.publishedAt,
+  };
 }

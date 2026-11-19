@@ -1693,6 +1693,7 @@
     "copyUrl": "Copy URL",
     "sampleQr": "Sample QR code",
     "shareEventHint": "Share the event details page with visitors.",
+    "transparencyValue": "{percent}% transparent",
     "checklistHint": "Select an incomplete field or a form status to fill in the demo details before publishing.",
     "qrPending": "QR available when forms are enabled",
     "qrUnavailable": "QR code unavailable",

@@ -30,7 +30,7 @@ export default function PreviewHeaderCard({
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="absolute top-0 start-0 h-[10px] w-full bg-[#5C54D1]" />
+      <div className="absolute top-0 start-0 h-[10px] w-full bg-[var(--participant-accent,#5C54D1)]" />
 
       <div className="px-5 pt-8 pb-5 sm:px-7 sm:pt-9">
         <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">

@@ -18,6 +18,7 @@ export interface EventBranding {
   gradientAngle?: 0 | 90;
   footerColor?: string;
   transparentChrome?: boolean;
+  chromeOpacity?: number;
   channels?: { platform: string; url: string }[];
   primary: string;
   secondary: string;

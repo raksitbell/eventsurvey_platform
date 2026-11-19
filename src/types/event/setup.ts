@@ -34,6 +34,7 @@ export interface EventSetupState {
   revision: number;
   draft: EventDraft | null;
   branding: Record<string, import("@/types/event/branding").EventBranding>;
+  publishedBranding?: EventSetupState["branding"];
   pendingMedia: Record<string, EventSetupMediaKind[]>;
   publication: import("@/core/event/publication").LocalPublication | null;
   recoveredPublicationAt?: string;

@@ -408,3 +408,36 @@ test("both cron jobs honor the published Survey window after the Event closes", 
   survey.status = "open";
   assert.deepEqual((await runEventLifecycleCron("platform-admin")).formsClosed, [survey.id]);
 });
+
+test("public forms resolve published branding by locale for both form kinds and status pages", async () => {
+  const { defaultEventBranding } = load("@/core/event/branding");
+  const fallback = { ...defaultEventBranding, primary: "#123456" };
+  const english = { ...fallback, footerColor: "#765432", chromeOpacity: 60 };
+  const setup = {
+    publication: {
+      draft: { hasRegistration: true, hasSurvey: true },
+      branding: fallback,
+    },
+    publishedBranding: { en: english },
+    branding: { en: { ...english, primary: "#ABCDEF" } },
+  };
+  const read = loadSource({
+    ...substitutions,
+    "@/core/api/mock-client": {
+      mockApi: { get: async () => [{ ...event, status: "scheduled" }] },
+    },
+    "@/core/event/setup-storage": { readSetupRecord: () => setup },
+  });
+  const { getPublicFormPageBySlug } = read("src/services/event/public-event.ts");
+  for (const kind of ["registration", "survey"]) {
+    assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en"), {
+      result: { status: "scheduled" }, branding: english, bannerUrl: null,
+    });
+    assert.equal((await getPublicFormPageBySlug(event.slug, kind, "th")).branding, fallback);
+  }
+  setup.publication = null;
+  assert.deepEqual(
+    (await getPublicFormPageBySlug(event.slug, "survey", "en")).branding,
+    defaultEventBranding,
+  );
+});
