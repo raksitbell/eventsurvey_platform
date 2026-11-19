@@ -28,11 +28,7 @@ const setupLocks = (globalThis as typeof globalThis & {
 const locks = setupLocks.eventSurveySetupLocks ??= new Map();
 
 async function writeSerially<T>(eventId: string, operation: () => Promise<T>): Promise<T> {
-  const previous = locks.get(eventId);
-  const next = (async () => {
-    await (previous ?? Promise.resolve());
-    return await operation();
-  })();
+  const next = Promise.resolve(locks.get(eventId)).then(operation);
   const settled = next.then(() => {}, () => {});
   locks.set(eventId, settled);
   try {
