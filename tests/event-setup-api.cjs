@@ -28,6 +28,10 @@ function fixture(t, { registration = null, whitelist = [] } = {}) {
           if (url === "/whitelist_entries?event_id=event-a") return whitelist;
           throw Error(`Unexpected fixture request: ${url}`);
         },
+        post: async (url, body) => {
+          if (url === "/audit_logs") return body;
+          throw Error(`Unexpected fixture request: ${url}`);
+        },
         patch: async (url, fields) => {
           assert.equal(url, "/events/event-a");
           assert.equal(typeof fields.setup, "string");
