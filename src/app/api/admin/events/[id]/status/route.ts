@@ -4,6 +4,7 @@ import {
 } from "@/core/auth/api-guard";
 import { ServiceError } from "@/core/api/service-error";
 import { authJson } from "@/core/auth/route-response";
+import { hasPlatformPermission } from "@/core/mock/access";
 import {
   adminEventStatusBodySchema,
   formatZodError,
@@ -19,6 +20,12 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const denied = await requireAdminSession(request);
   if (!isAuthSession(denied)) return denied;
+
+  if (
+    !(await hasPlatformPermission(denied.realUserId, "manage_all_events"))
+  ) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   const { id } = await context.params;
 

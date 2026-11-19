@@ -5,6 +5,7 @@ import {
 import { MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { authJson } from "@/core/auth/route-response";
+import { hasPlatformPermission } from "@/core/mock/access";
 import {
   formatZodError,
   updateAdminEventBodySchema,
@@ -20,6 +21,12 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(request: NextRequest, context: RouteContext) {
   const denied = await requireAdminSession(request);
   if (!isAuthSession(denied)) return denied;
+
+  if (
+    !(await hasPlatformPermission(denied.realUserId, "view_all_events"))
+  ) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   const { id } = await context.params;
   const requestedLocale = request.nextUrl.searchParams.get("locale");
@@ -46,6 +53,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const denied = await requireAdminSession(request);
   if (!isAuthSession(denied)) return denied;
+
+  if (
+    !(await hasPlatformPermission(denied.realUserId, "manage_all_events"))
+  ) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   const { id } = await context.params;
 

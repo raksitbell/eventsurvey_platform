@@ -8,7 +8,12 @@ const EMPTY_SNAPSHOT: AuthSnapshot = {
   impersonatedUser: null,
   inspectedEventId: null,
   inspectedEventName: null,
+  canViewOverview: false,
+  canViewEvents: false,
+  canViewUsers: false,
   canViewActivity: false,
+  canInspection: false,
+  canManageEvents: false,
 };
 
 function normalizeSnapshot(data: Partial<AuthSnapshot>): AuthSnapshot {
@@ -17,7 +22,12 @@ function normalizeSnapshot(data: Partial<AuthSnapshot>): AuthSnapshot {
     impersonatedUser: data.impersonatedUser ?? null,
     inspectedEventId: data.inspectedEventId ?? null,
     inspectedEventName: data.inspectedEventName ?? null,
+    canViewOverview: data.canViewOverview === true,
+    canViewEvents: data.canViewEvents === true,
+    canViewUsers: data.canViewUsers === true,
     canViewActivity: data.canViewActivity === true,
+    canInspection: data.canInspection === true,
+    canManageEvents: data.canManageEvents === true,
   };
 }
 

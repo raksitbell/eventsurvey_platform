@@ -5,6 +5,7 @@ import {
 import { MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { authJson } from "@/core/auth/route-response";
+import { hasPlatformPermission } from "@/core/mock/access";
 import {
   createAdminEventBodySchema,
   formatZodError,
@@ -22,6 +23,12 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   const session = await requireAdminSession(request);
   if (!isAuthSession(session)) return session;
+
+  if (
+    !(await hasPlatformPermission(session.realUserId, "view_all_events"))
+  ) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   const params = request.nextUrl.searchParams;
   const requestedLocale = params.get("locale");
@@ -51,6 +58,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const sessionOrDeny = await requireAdminSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
+
+  if (
+    !(await hasPlatformPermission(
+      sessionOrDeny.realUserId,
+      "manage_all_events",
+    ))
+  ) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   let json: unknown;
   try {

@@ -5,6 +5,11 @@ import {
   deserializePermissionMatrix,
   serializePermissionMatrix,
 } from "@/core/auth/event-permissions";
+import {
+  DEFAULT_PLATFORM_MATRIX,
+  FULL_PLATFORM_MATRIX,
+  type PlatformAccessMatrix,
+} from "@/types/admin/users";
 import type {
   EventPermissionMatrix,
   ModuleAccessLevel,
@@ -16,33 +21,8 @@ import type {
   MockPlatformPermissionCode,
 } from "@/types/mock";
 
-export type PlatformAccessMatrix = {
-  overview: ModuleAccessLevel;
-  events: ModuleAccessLevel;
-  users: ModuleAccessLevel;
-  /** Platform User Activity — view only (no edit). */
-  canViewActivity: boolean;
-  canInspection: boolean;
-  canViewUnmaskedPii: boolean;
-};
-
-export const DEFAULT_PLATFORM_MATRIX: PlatformAccessMatrix = {
-  overview: "restricted",
-  events: "restricted",
-  users: "restricted",
-  canViewActivity: false,
-  canInspection: false,
-  canViewUnmaskedPii: false,
-};
-
-export const FULL_PLATFORM_MATRIX: PlatformAccessMatrix = {
-  overview: "can_edit",
-  events: "can_edit",
-  users: "can_edit",
-  canViewActivity: true,
-  canInspection: true,
-  canViewUnmaskedPii: true,
-};
+export type { PlatformAccessMatrix };
+export { DEFAULT_PLATFORM_MATRIX, FULL_PLATFORM_MATRIX };
 
 function normalizeEventMatrix(
   value: unknown,
@@ -56,7 +36,7 @@ function normalizeEventMatrix(
   );
 }
 
-function normalizePlatformMatrix(value: unknown): PlatformAccessMatrix {
+export function normalizePlatformMatrix(value: unknown): PlatformAccessMatrix {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { ...DEFAULT_PLATFORM_MATRIX };
   }
@@ -73,8 +53,10 @@ function normalizePlatformMatrix(value: unknown): PlatformAccessMatrix {
   };
   const legacyActivity =
     raw.activity === "view_only" || raw.activity === "can_edit";
+  const overview = read("overview");
   return {
-    overview: read("overview"),
+    // Overview is read-only — never grant can_edit.
+    overview: overview === "can_edit" ? "view_only" : overview,
     events: read("events"),
     users: read("users"),
     canViewActivity: raw.canViewActivity === true || legacyActivity,
@@ -171,6 +153,17 @@ export async function getPlatformAccessForUser(
   return normalizePlatformMatrix(row?.matrix);
 }
 
+/** Session / nav flags derived from a platform matrix. */
+export function platformSessionFlags(matrix: PlatformAccessMatrix) {
+  return {
+    canViewOverview: satisfiesModuleAccess(matrix.overview, "view_only"),
+    canViewEvents: satisfiesModuleAccess(matrix.events, "view_only"),
+    canViewUsers: satisfiesModuleAccess(matrix.users, "view_only"),
+    canViewActivity: matrix.canViewActivity === true,
+    canManageEvents: satisfiesModuleAccess(matrix.events, "can_edit"),
+  };
+}
+
 export async function hasPlatformPermission(
   userId: string | null | undefined,
   permission: MockPlatformPermissionCode,
@@ -182,8 +175,12 @@ export async function hasPlatformPermission(
       return (
         matrix.overview === "view_only" || matrix.overview === "can_edit"
       );
+    case "view_all_events":
+      return matrix.events === "view_only" || matrix.events === "can_edit";
     case "manage_all_events":
       return matrix.events === "can_edit";
+    case "view_platform_users":
+      return matrix.users === "view_only" || matrix.users === "can_edit";
     case "manage_platform_users":
       return matrix.users === "can_edit";
     case "view_platform_activity":

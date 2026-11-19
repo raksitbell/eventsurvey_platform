@@ -1,8 +1,30 @@
 import { ADMIN_ROLES, EVENT_ROLES } from "@/core/auth/constants";
 import type { UserRole } from "@/types/user";
 
-export function getHomePathForRole(role: UserRole): string {
-  if (ADMIN_ROLES.includes(role)) return "/admin";
+/** Module visibility for platform-admin sidebar + post-login landing. */
+export type PlatformNavAccess = {
+  canViewOverview: boolean;
+  canViewEvents: boolean;
+  canViewUsers: boolean;
+  canViewActivity: boolean;
+};
+
+/** First admin route the account may open (overview → events → users → activity). */
+export function getAdminHomePath(access: PlatformNavAccess): string {
+  if (access.canViewOverview) return "/admin";
+  if (access.canViewEvents) return "/admin/events";
+  if (access.canViewUsers) return "/admin/users";
+  if (access.canViewActivity) return "/admin/activity";
+  return "/admin";
+}
+
+export function getHomePathForRole(
+  role: UserRole,
+  access?: PlatformNavAccess,
+): string {
+  if (ADMIN_ROLES.includes(role)) {
+    return access ? getAdminHomePath(access) : "/admin";
+  }
   if (EVENT_ROLES.includes(role)) return "/event";
   return "/login";
 }

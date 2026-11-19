@@ -27,7 +27,18 @@ export default function CreateEventForm() {
   const ti = useTranslations("eventInspection");
   const router = useRouter();
   const { confirm } = useConfirm();
-  const { inspectEvent } = useAuth();
+  const {
+    inspectEvent,
+    canManageEvents,
+    canInspection,
+    isLoading: authLoading,
+  } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !canManageEvents) {
+      router.replace("/admin/events");
+    }
+  }, [authLoading, canManageEvents, router]);
 
   const [mode, setMode] = useState<Mode>("new");
   const [titleTh, setTitleTh] = useState("");
@@ -111,30 +122,31 @@ export default function CreateEventForm() {
 
       if (result.event?.id && mode === "existing") {
         await showSuccess(t("successTitle"), t("successCreated"), tc("ok"));
-        const open = await confirm({
-          title: tc("inspectTitle"),
-          message: ti("confirmStart", {
-            event: result.event.title || ti("unnamedEvent"),
-          }),
-          confirmLabel: te("openWorkspace"),
-          cancelLabel: tc("cancel"),
-          variant: "warning",
-        });
-        if (!open) {
-          router.push("/admin/events");
-          return;
-        }
-        try {
-          await inspectEvent(result.event.id);
-        } catch {
-          await showAlert({
-            title: t("successTitle"),
-            message: t("errors.impersonationFailed"),
-            confirmLabel: tc("ok"),
+        if (canInspection) {
+          const open = await confirm({
+            title: tc("inspectTitle"),
+            message: ti("confirmStart", {
+              event: result.event.title || ti("unnamedEvent"),
+            }),
+            confirmLabel: te("openWorkspace"),
+            cancelLabel: tc("cancel"),
             variant: "warning",
           });
-          router.push("/admin/events");
+          if (open) {
+            try {
+              await inspectEvent(result.event.id);
+              return;
+            } catch {
+              await showAlert({
+                title: t("successTitle"),
+                message: t("errors.impersonationFailed"),
+                confirmLabel: tc("ok"),
+                variant: "warning",
+              });
+            }
+          }
         }
+        router.push("/admin/events");
         return;
       }
 

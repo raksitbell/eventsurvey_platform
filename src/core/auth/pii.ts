@@ -12,8 +12,8 @@ function maskPrefix(value: string): string {
   return characters.length > 1 ? `${characters[0]}${MASK}` : MASK;
 }
 
-export function maskName(value: string): string {
-  const name = value.trim();
+export function maskName(value: string | null | undefined): string {
+  const name = (value ?? "").trim();
   return name ? name.split(/\s+/u).map(maskPrefix).join(" ") : "";
 }
 

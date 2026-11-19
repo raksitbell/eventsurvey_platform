@@ -71,7 +71,7 @@ export default function EventPreview({ eventId }: EventPreviewProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { confirm } = useConfirm();
-  const { inspectEvent } = useAuth();
+  const { inspectEvent, canManageEvents, canInspection } = useAuth();
 
   const tab = parseTab(searchParams.get("tab"));
   const setTab = useCallback(
@@ -186,16 +186,18 @@ export default function EventPreview({ eventId }: EventPreviewProps) {
           </ol>
         </nav>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={openingWorkspace || isLoading || !event}
-            startIcon={<ArrowTopRightOnSquareIcon className="size-4" />}
-            onClick={() => void openWorkspace()}
-          >
-            {t("openWorkspace")}
-          </Button>
-          {event?.status === "draft" ? (
+          {canInspection ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={openingWorkspace || isLoading || !event}
+              startIcon={<ArrowTopRightOnSquareIcon className="size-4" />}
+              onClick={() => void openWorkspace()}
+            >
+              {t("openWorkspace")}
+            </Button>
+          ) : null}
+          {canManageEvents && event?.status === "draft" ? (
             <Link href={`/admin/events/${eventId}/edit`}>
               <Button
                 size="sm"

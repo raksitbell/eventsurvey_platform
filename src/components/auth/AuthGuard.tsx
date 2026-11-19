@@ -6,9 +6,10 @@ import { useAuth } from "@/context/AuthContext";
 import {
   canEnterAdminArea,
   canEnterEventArea,
+  getAdminHomePath,
   getHomePathForRole,
 } from "@/core/auth";
-import { useRouter } from "@/i18n/navigation";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import type React from "react";
 import { useEffect } from "react";
@@ -36,6 +37,10 @@ function HoldScreen() {
   );
 }
 
+function isAdminOverviewPath(pathname: string): boolean {
+  return pathname === "/admin" || pathname === "/admin/";
+}
+
 export default function AuthGuard({ area, children }: AuthGuardProps) {
   const {
     user,
@@ -44,22 +49,77 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
     inspectedEventId,
     isLoading,
     authUnavailable,
+    canViewOverview,
+    canViewEvents,
+    canViewUsers,
+    canViewActivity,
   } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const t = useTranslations("errors.403");
+
+  const homePath = user
+    ? getHomePathForRole(user.role, {
+        canViewOverview,
+        canViewEvents,
+        canViewUsers,
+        canViewActivity,
+      })
+    : "/login";
 
   useEffect(() => {
     if (isLoading) return;
 
     if (area === "guest" && user) {
-      router.replace(getHomePathForRole(user.role));
+      router.replace(homePath);
       return;
     }
 
     if (area !== "guest" && !user) {
       router.replace(authUnavailable ? "/error/503" : "/login");
+      return;
     }
-  }, [area, authUnavailable, isLoading, router, user]);
+
+    if (area !== "admin" || !user || !realUser) return;
+    if (!canEnterAdminArea(realUser.role, isImpersonating)) return;
+
+    const adminHome = getAdminHomePath({
+      canViewOverview,
+      canViewEvents,
+      canViewUsers,
+      canViewActivity,
+    });
+
+    if (isAdminOverviewPath(pathname) && !canViewOverview) {
+      if (adminHome !== pathname) router.replace(adminHome);
+      return;
+    }
+    if (pathname.startsWith("/admin/events") && !canViewEvents) {
+      router.replace(adminHome);
+      return;
+    }
+    if (pathname.startsWith("/admin/users") && !canViewUsers) {
+      router.replace(adminHome);
+      return;
+    }
+    if (pathname.startsWith("/admin/activity") && !canViewActivity) {
+      router.replace(adminHome);
+    }
+  }, [
+    area,
+    authUnavailable,
+    canViewActivity,
+    canViewEvents,
+    canViewOverview,
+    canViewUsers,
+    homePath,
+    isImpersonating,
+    isLoading,
+    pathname,
+    realUser,
+    router,
+    user,
+  ]);
 
   if (isLoading) {
     return <HoldScreen />;
@@ -92,9 +152,24 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
         title={t("title")}
         message={t("message")}
         backLabel={t("backHome")}
-        homeHref={getHomePathForRole(user.role)}
+        homeHref={homePath}
       />
     );
+  }
+
+  if (area === "admin") {
+    if (isAdminOverviewPath(pathname) && !canViewOverview) {
+      return <HoldScreen />;
+    }
+    if (pathname.startsWith("/admin/events") && !canViewEvents) {
+      return <HoldScreen />;
+    }
+    if (pathname.startsWith("/admin/users") && !canViewUsers) {
+      return <HoldScreen />;
+    }
+    if (pathname.startsWith("/admin/activity") && !canViewActivity) {
+      return <HoldScreen />;
+    }
   }
 
   return <>{children}</>;
