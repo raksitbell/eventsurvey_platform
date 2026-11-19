@@ -114,6 +114,9 @@ test("proxy routes the full auth-state matrix before forwarding to localization"
         ["/admin", admin],
         ["/admin/users", admin],
         ["/event", event],
+        ["/event/form", event],
+        ["/en/event/form/survey", event],
+        ["/event/activity", event],
         ["/event/forms", event],
         ["/preview/event", event],
       ];
