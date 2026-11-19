@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { sidebarToggleId, useSidebar } from "@/context/SidebarContext";
 import { useConfirm } from "@/hooks/useConfirm";
 import useHeaderLocale from "@/hooks/useHeaderLocale";
-import { GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon, GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import type { Locale } from "@/i18n/routing";
 import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
@@ -17,7 +17,9 @@ import EventLanguageDropdown from "./EventLanguageDropdown";
 import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
 
-export default function EventWorkspaceHeader() {
+export default function EventWorkspaceHeader({
+  featureLayout = false,
+}: { featureLayout?: boolean } = {}) {
   const h = useTranslations("header");
   const a = useTranslations("userDropdown");
   const tc = useTranslations("confirm");
@@ -70,8 +72,26 @@ export default function EventWorkspaceHeader() {
     }
   }
 
+  const languageControl = (
+    <EventLanguageDropdown
+      label={a("language")}
+      value={locale}
+      onChange={(language) => void changeLanguage(language)}
+      onOpen={() => setOpen(false)}
+      className={featureLayout ? styles.featureLanguage : styles.language}
+    >
+      <GlobeAltIcon className="size-[18px] shrink-0" aria-hidden="true" />
+      {featureLayout && a("language")}
+      <span>{locale.toUpperCase()}</span>
+    </EventLanguageDropdown>
+  );
+
   return (
-    <header className={styles.header} data-mobile-sidebar-open={isMobileOpen}>
+    <header
+      className={styles.header}
+      data-feature-layout={featureLayout || undefined}
+      data-mobile-sidebar-open={isMobileOpen}
+    >
       <button
         id={sidebarToggleId}
         type="button"
@@ -83,6 +103,8 @@ export default function EventWorkspaceHeader() {
       >
         {isMobileOpen ? (
           <XMarkIcon className="size-5" aria-hidden="true" />
+        ) : featureLayout ? (
+          <Bars3Icon className="size-5 rtl:-scale-x-100" aria-hidden="true" />
         ) : (
           <Image
             src="/images/event-workspace/icon-outline-menu.svg"
@@ -93,16 +115,7 @@ export default function EventWorkspaceHeader() {
         )}
       </button>
       <div className={styles.headerActions}>
-        <EventLanguageDropdown
-          label={a("language")}
-          value={locale}
-          onChange={(language) => void changeLanguage(language)}
-          onOpen={() => setOpen(false)}
-          className={styles.language}
-        >
-          <GlobeAltIcon className="size-[18px] shrink-0" aria-hidden="true" />
-          <span>{locale.toUpperCase()}</span>
-        </EventLanguageDropdown>
+        {!featureLayout && languageControl}
         {user && (
           <div
             className="relative"
@@ -132,8 +145,12 @@ export default function EventWorkspaceHeader() {
                   .toUpperCase()}
               </span>
               <span className={styles.identity}>
-                <span>{user.name}</span>
-                <small>{translateRole(common, user.role)}</small>
+                <span>
+                  {featureLayout ? user.name.trim().split(/\s+/)[0] : user.name}
+                </span>
+                {!featureLayout && (
+                  <small>{translateRole(common, user.role)}</small>
+                )}
               </span>
               <Image
                 src="/images/event-workspace/icon-chevron-down.svg"
@@ -157,6 +174,7 @@ export default function EventWorkspaceHeader() {
                   {user.email}
                 </span>
               </div>
+              {featureLayout && languageControl}
               {isInspectingEvent && (
                 <DropdownItem
                   tag="button"

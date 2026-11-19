@@ -11,6 +11,7 @@ import {
   PlusIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspacePageHeader";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
@@ -36,6 +37,9 @@ import FormHeaderCard from "./FormHeaderCard";
 import QuestionCard from "./QuestionCard";
 import FloatingToolbar from "./FloatingToolbar";
 import FormPreview from "./FormPreview/FormPreview";
+
+const builderSurface =
+  "font-outfit min-h-screen bg-gray-50 px-3 pb-24 text-gray-800 sm:px-6 md:px-8 md:pb-8 dark:bg-gray-950 dark:text-gray-100";
 
 const CHOICE_QUESTION_TYPES: QuestionType[] = [
   "multiple_choice",
@@ -139,11 +143,15 @@ function createQuestion(order: number): Question {
   };
 }
 
-export default function FormBuilder({ type }: { type: FormType }) {
+export default function FormBuilder({
+  type,
+  insideSetup = false,
+}: { type: FormType; insideSetup?: boolean }) {
   const t = useTranslations("form");
   const tbuilder = useTranslations("form.builder");
   const terrors = useTranslations("form.errors");
   const tcommon = useTranslations("common");
+  const tSetup = useTranslations("eventSetup");
   const router = useRouter();
   const { user } = useAuth();
 
@@ -1460,11 +1468,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
-  if (isLoading) {
-    return <FormBuilderSkeleton title={t("title") + t(type)} />;
-  }
-
-  if (isPreview) {
+  if (!isLoading && isPreview) {
     return (
       <FormPreview
         form={form}
@@ -1481,22 +1485,44 @@ export default function FormBuilder({ type }: { type: FormType }) {
     );
   }
 
+  const title = insideSetup ? t(type) : tSetup(type);
+  const pageHeader = !insideSetup && (
+    <EventWorkspacePageHeader
+      title={title}
+      description={tbuilder("workspaceDescription")}
+    />
+  );
+  const surfaceClassName = `${builderSurface} ${insideSetup ? "pt-4 sm:pt-6 md:pt-10" : "pt-5"}`;
+  if (isLoading) {
+    return (
+      <>
+        {pageHeader}
+        <FormBuilderSkeleton
+          title={insideSetup ? title : undefined}
+          className={surfaceClassName}
+        />
+      </>
+    );
+  }
+
   const localesToRender: FormLocale[] = hasEnglish ? ["th", "en"] : ["th"];
   const hasUniqueField = form.questions.some(({ question }) => question.is_unique);
   const containerWidthClass = hasEnglish
     ? "max-w-4xl lg:max-w-7xl"
     : "max-w-4xl";
 
-  return (
-    <div className="font-outfit min-h-screen px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100">
+  const editor = (
+    <div className={surfaceClassName}>
       {/* Header Area */}
       <div
         className={`mx-auto mb-6 flex ${containerWidthClass} flex-wrap items-center justify-between gap-3 md:mb-8`}
       >
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold sm:text-2xl md:text-3xl text-white">
-            {t("title") + t(type)}
-          </h1>
+          {insideSetup && (
+            <h1 className="text-xl font-bold text-white sm:text-2xl md:text-3xl">
+              {title}
+            </h1>
+          )}
           <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
             {formId ? t(`status.${formStatus}`) : t("status.draft")}
           </span>
@@ -1860,19 +1886,28 @@ export default function FormBuilder({ type }: { type: FormType }) {
       </div>
     </div>
   );
+
+  return (
+    <>
+      {pageHeader}
+      {editor}
+    </>
+  );
 }
 
-function FormBuilderSkeleton({ title }: { title: string }) {
+function FormBuilderSkeleton({
+  title,
+  className,
+}: { title?: string; className: string }) {
   return (
-    <div
-      className="font-outfit min-h-screen px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100"
-      aria-busy="true"
-    >
+    <div className={className} aria-busy="true">
       <div className="mx-auto mb-6 flex max-w-4xl flex-wrap items-center justify-between gap-3 md:mb-8">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">
-            {title}
-          </h1>
+          {title && (
+            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl md:text-3xl dark:text-white">
+              {title}
+            </h1>
+          )}
           <Skeleton className="h-6 w-20 rounded-full" />
         </div>
 

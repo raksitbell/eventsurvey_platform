@@ -28,9 +28,6 @@ function EventShell({ children }: { children: React.ReactNode }) {
     "/event/details",
     "/event/branding",
     "/event/forms",
-    "/event/form",
-    "/event/form/registration",
-    "/event/form/survey",
     "/event/publish",
     "/event/qr",
     "/event/team",
@@ -39,7 +36,14 @@ function EventShell({ children }: { children: React.ReactNode }) {
     "/event/setup/registration",
     "/event/setup/survey",
   ].includes(pathname);
-  const usesWorkspaceChrome = isSetup || isEventReportingPath(pathname);
+  const isFormPage =
+    pathname === "/event/form" || pathname.startsWith("/event/form/");
+  const usesSetupChrome = isSetup || isFormPage;
+  const featureLayout = isEventReportingPath(pathname) ? "dashboard" : undefined;
+  const usesWorkspaceChrome = usesSetupChrome || !!featureLayout;
+  const setupTheme = usesSetupChrome
+    ? `${eventInter.variable} ${eventThai.variable} event-admin-shell`
+    : "";
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   // Must match AppSidebar dock breakpoint (`xl`). Using `lg` left a gap
@@ -53,9 +57,13 @@ function EventShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div
-        className={`min-h-screen xl:flex dark:bg-gray-950 ${usesWorkspaceChrome ? eventInter.variable + " " + eventThai.variable + " event-admin-shell" : "bg-gray-50"}`}
+        className={`min-h-screen xl:flex dark:bg-gray-950 ${setupTheme} ${isSetup ? "" : "bg-gray-50"}`}
       >
-        {usesWorkspaceChrome ? <EventWorkspaceSidebar /> : <AppSidebar />}
+        {usesWorkspaceChrome ? (
+          <EventWorkspaceSidebar featureLayout={featureLayout} />
+        ) : (
+          <AppSidebar />
+        )}
         <Backdrop />
         <div
           data-screen={isSetup ? pathname : undefined}
@@ -64,7 +72,11 @@ function EventShell({ children }: { children: React.ReactNode }) {
           <ImpersonationBanner
             beforeLeave={() => navigationGuard?.current?.() ?? true}
           />
-          {usesWorkspaceChrome ? <EventWorkspaceHeader /> : <AppHeader />}
+          {usesWorkspaceChrome ? (
+            <EventWorkspaceHeader featureLayout={!!featureLayout} />
+          ) : (
+            <AppHeader />
+          )}
           <div
             className={
               isSetup

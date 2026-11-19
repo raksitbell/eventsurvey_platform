@@ -2634,6 +2634,8 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
       {
         "next/image": { default: () => null },
         "next-intl": { useTranslations: () => (key) => key },
+        "@/context/AuthContext": { useAuth: () => ({ user: null }) },
+        "@/utils/i18n-labels": load("src/utils/i18n-labels.ts"),
         "@/context/SidebarContext": {
           useSidebar: () => ({
             isExpanded: !closeMobileSidebar,
@@ -2669,6 +2671,9 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
   };
   const team = (node) =>
     node.type === link && node.props.href === "/event/team";
+  const disabledTeam = (node) =>
+    node.type === "button" && node.props["aria-label"] === "team" &&
+    node.props.disabled;
   const overview = (node) =>
     node.type === link && node.props["aria-label"] === "overview";
   const dashboard = (node) =>
@@ -2704,17 +2709,14 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     ),
     null,
   );
-  assert.equal(
-    findSetupElement(
-      render("sub_user", "2027-01-01T00:00:00.000Z", "/event"),
-      team,
-    ),
-    null,
-  );
-  assert.equal(
-    findSetupElement(render("event_owner", null, "/event"), team),
-    null,
-  );
+  for (const publishedAt of [null, "2027-01-01T00:00:00.000Z"]) {
+    const subUser = render("sub_user", publishedAt, "/event");
+    assert.equal(findSetupElement(subUser, team), null);
+    assert.ok(findSetupElement(subUser, disabledTeam));
+  }
+  const draftOwner = render("event_owner", null, "/event");
+  assert.ok(findSetupElement(draftOwner, team));
+  assert.equal(findSetupElement(draftOwner, (node) => node.props.href === "/event/qr"), null);
   assert.equal(
     findSetupElement(render("event_owner", "2027-01-01", "/event"), dashboard),
     null,

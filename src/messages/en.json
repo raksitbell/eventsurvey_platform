@@ -475,6 +475,7 @@
       "error": "Failed to schedule the event"
     },
     "eyebrow": "EVENT WORKSPACE",
+    "backToOverview": "Back to overview",
     "retry": "Try again",
     "bannerTitle": "Event banner",
     "bannerHint": "No image uploaded yet. Set it in Event Branding.",
@@ -831,6 +832,7 @@
   },
   "form": {
     "title": "Form Builder",
+    "workspaceDescription": "Manage your event’s registration and survey forms.",
     "registration": "Registration",
     "survey": "Survey",
     "open": "Open",
@@ -883,6 +885,7 @@
     },
     "builder": {
       "formTitlePlaceholder": "Form title",
+      "workspaceDescription": "Edit questions and set when the form accepts responses.",
       "description": "description",
       "save": "Save draft",
       "saving": "Saving...",
@@ -1198,8 +1201,7 @@
     "sessionExpired": "Sign in again to access event reports."
   },
   "eventTeamWorkspace": {
-    "description": "Manage event members and their permissions",
-    "backToOverview": "Back to overview"
+    "description": "Manage event members and their permissions"
   },
   "team": {
     "pageTitle": "Team & Permissions",

@@ -24,7 +24,7 @@ function Builder({
     <section className="es-builder-frame">
       {enabled && permitted && canEditLocalEventSetup(workspace) && (
         <div className="es-builder-canvas">
-          <FormBuilder type={type} />
+          <FormBuilder type={type} insideSetup />
         </div>
       )}
       <Link href="/event/details" className="es-builder-back">

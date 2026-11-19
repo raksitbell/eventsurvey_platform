@@ -78,9 +78,9 @@ export default function EventWorkspaceTeam({
           {content}
         </Link>
       ) : (
-        <div className="workspace-team__card" aria-disabled="true">
+        <button type="button" className="workspace-team__card" disabled>
           {content}
-        </div>
+        </button>
       )}
     </div>
   );

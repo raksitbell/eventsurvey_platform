@@ -475,6 +475,7 @@
       "error": "ตั้งเวลาไม่สำเร็จ"
     },
     "eyebrow": "EVENT WORKSPACE",
+    "backToOverview": "กลับหน้าภาพรวม",
     "retry": "ลองอีกครั้ง",
     "bannerTitle": "แบนเนอร์ของอีเวนต์",
     "bannerHint": "ยังไม่ได้อัปโหลดรูปภาพ ตั้งค่าใน Event Branding",
@@ -831,6 +832,7 @@
   },
   "form": {
     "title": "จัดการฟอร์ม",
+    "workspaceDescription": "จัดการฟอร์มลงทะเบียนและฟอร์มแบบสอบถามของอีเวนต์",
     "registration": "การลงทะเบียน",
     "survey": "แบบสอบถาม",
     "open": "เปิด",
@@ -883,6 +885,7 @@
     },
     "builder": {
       "formTitlePlaceholder": "ชื่อแบบฟอร์ม",
+      "workspaceDescription": "แก้ไขคำถามและกำหนดเวลาเปิด–ปิดรับคำตอบ",
       "description": "คำอธิบาย",
       "save": "บันทึกแบบร่าง",
       "saving": "กำลังบันทึก...",
@@ -1198,8 +1201,7 @@
     "sessionExpired": "เข้าสู่ระบบอีกครั้งเพื่อเข้าถึงรายงานอีเวนต์"
   },
   "eventTeamWorkspace": {
-    "description": "จัดการสมาชิกและสิทธิ์ของอีเวนต์",
-    "backToOverview": "กลับหน้าภาพรวม"
+    "description": "จัดการสมาชิกและสิทธิ์ของอีเวนต์"
   },
   "team": {
     "pageTitle": "ทีมงานและสิทธิ์",

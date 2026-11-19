@@ -36,76 +36,55 @@ export default function ReportShell({
 }: Props) {
   const t = useTranslations("eventReports");
   const accessIssue = errorStatus === 401 || errorStatus === 403;
-  const renderSectionNav = () => (
-    <div className="inline-flex flex-nowrap items-center gap-1 rounded-xl border border-gray-200 bg-gray-100 p-1 text-theme-sm dark:border-gray-800 dark:bg-gray-900">
-      {sections.map(({ key, href }) => {
-        const isCurrent = key === section;
-        return (
-          <Link
-            aria-current={isCurrent ? "page" : undefined}
-            className={
-              isCurrent
-                ? "shrink-0 whitespace-nowrap rounded-lg bg-white px-3 py-2 font-semibold text-brand-600 shadow-theme-xs transition dark:bg-gray-800 dark:text-brand-200"
-                : "shrink-0 whitespace-nowrap rounded-lg px-3 py-2 font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            }
-            key={key}
-            href={href}
-          >
-            {t(`${key}.title`)}
-          </Link>
-        );
-      })}
-    </div>
-  );
 
   return (
     <div
       className={`${styles.surface} space-y-6 text-gray-800 dark:text-gray-100`}
     >
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-title-sm font-bold">
-                {t(`${section}.title`)}
-              </h1>
-              {loading && errorStatus === null ? (
-                <Skeleton className="h-6 w-28 rounded-full" />
-              ) : !loading && errorStatus === null ? (
-                <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full bg-brand-100 px-3 py-1 text-theme-xs font-semibold text-brand-600 dark:bg-brand-500/25 dark:text-brand-200">
-                  <span
-                    aria-hidden="true"
-                    className="size-2 rounded-full bg-brand-500 dark:bg-brand-300"
-                  />
-                  {t("publishedEvent")}
-                </span>
-              ) : null}
-            </div>
-            {!accessIssue && (
-              <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                {t(
-                  section === "trash"
-                    ? "trash.description"
-                    : "publishedDescription",
-                )}
-              </p>
-            )}
-          </div>
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-3 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.65fr)] xl:items-center">
+        <div>
+          <h1 className="text-title-sm font-bold">{t(`${section}.title`)}</h1>
           {!accessIssue && (
-            <nav
-              aria-label={t("navigation")}
-              className="hidden shrink-0 md:block"
-            >
-              {renderSectionNav()}
-            </nav>
+            <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+              {t(section === "trash" ? "trash.description" : "publishedDescription")}
+            </p>
           )}
         </div>
+        {errorStatus === null && (
+          loading ? (
+            <Skeleton className="h-6 w-28 rounded-full" />
+          ) : (
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-100 px-3 py-1 text-theme-xs font-semibold text-brand-600 dark:bg-brand-500/25 dark:text-brand-200">
+              <span
+                aria-hidden="true"
+                className="size-2 rounded-full bg-brand-500 dark:bg-brand-300"
+              />
+              {t("publishedEvent")}
+            </span>
+          )
+        )}
         {!accessIssue && (
           <nav
             aria-label={t("navigation")}
-            className="-mx-1 overflow-x-auto px-1 md:hidden"
+            className="inline-flex w-fit max-w-full flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-gray-100 p-1 text-theme-sm xl:col-start-3 xl:justify-self-center dark:border-gray-800 dark:bg-gray-900"
           >
-            {renderSectionNav()}
+            {sections.map(({ key, href }) => {
+              const isCurrent = key === section;
+              return (
+                <Link
+                  key={key}
+                  href={href}
+                  aria-current={isCurrent ? "page" : undefined}
+                  className={
+                    isCurrent
+                      ? "rounded-lg bg-white px-3 py-2 font-semibold text-brand-600 shadow-theme-xs transition dark:bg-gray-800 dark:text-brand-200"
+                      : "rounded-lg px-3 py-2 font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  }
+                >
+                  {t(`${key}.title`)}
+                </Link>
+              );
+            })}
           </nav>
         )}
       </div>

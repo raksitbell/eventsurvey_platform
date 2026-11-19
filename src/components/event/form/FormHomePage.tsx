@@ -8,6 +8,7 @@ import {
   DocumentTextIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
+import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspacePageHeader";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
@@ -182,12 +183,11 @@ export default function FormHomePage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl dark:text-white/90">
-          {t("title")}
-        </h1>
-      </div>
+    <div className="space-y-5">
+      <EventWorkspacePageHeader
+        title={t("title")}
+        description={t("workspaceDescription")}
+      />
 
       <div className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4 dark:border-gray-800 dark:bg-gray-900">
         {isLoading ? (
