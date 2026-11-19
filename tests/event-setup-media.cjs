@@ -21,6 +21,41 @@ function uploadRequest(bytes, type, eventId = "event-a") {
   });
 }
 
+function oversizedUploadRequest(onCancel) {
+  const boundary = "eventsurvey-test-boundary";
+  // Feed the handler multipart bytes as an incoming streaming request.
+  const chunks = [
+    Buffer.from([
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="eventId"',
+      "",
+      "event-a",
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="file"; filename="logo.png"',
+      "Content-Type: image/png",
+      "",
+      "",
+    ].join("\r\n")),
+    Buffer.alloc(768 * 1024),
+    Buffer.alloc(768 * 1024),
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ];
+  const body = new ReadableStream({
+    pull(controller) {
+      const chunk = chunks.shift();
+      if (chunk) controller.enqueue(chunk);
+      else controller.close();
+    },
+    cancel: onCancel,
+  }, { highWaterMark: 0 });
+  return new Request("http://localhost/api/event/setup/media", {
+    method: "POST",
+    headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+    body,
+    duplex: "half",
+  });
+}
+
 async function configureMediaDirectory(t) {
   const previous = process.env.EVENT_SETUP_MEDIA_DIR;
   const dir = await mkdtemp(join(tmpdir(), "eventsurvey-setup-media-"));
@@ -54,10 +89,14 @@ test("media storage reports when browser fallback is needed and rejects invalid 
     storeEventSetupMedia("event-a", uploadRequest(png, "image/svg+xml")),
     { status: 415 },
   );
+  let cancelled = false;
+  const oversized = oversizedUploadRequest(() => { cancelled = true; });
+  assert.equal(oversized.headers.has("Content-Length"), false);
   await assert.rejects(
-    storeEventSetupMedia("event-a", uploadRequest(new Uint8Array(2 * 1024 * 1024), "image/png")),
-    { status: 413 },
+    storeEventSetupMedia("event-a", oversized),
+    { code: "SETUP_MEDIA_TOO_LARGE", status: 413 },
   );
+  assert.equal(cancelled, true);
 });
 
 test("event media is served publicly only when referenced by its published event", async (t) => {
