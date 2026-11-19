@@ -6,10 +6,10 @@ import { useId, useRef, useState } from "react";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
 import { useAuth } from "@/context/AuthContext";
-import { useSidebar } from "@/context/SidebarContext";
+import { sidebarToggleId, useSidebar } from "@/context/SidebarContext";
 import { useConfirm } from "@/hooks/useConfirm";
-import { GlobeAltIcon } from "@heroicons/react/24/outline";
-import { usePathname, useRouter } from "@/i18n/navigation";
+import useHeaderLocale from "@/hooks/useHeaderLocale";
+import { GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import type { Locale } from "@/i18n/routing";
 import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
@@ -23,24 +23,28 @@ export default function EventWorkspaceHeader() {
   const tc = useTranslations("confirm");
   const common = useTranslations("common");
   const { user, isInspectingEvent, stopInspectingEvent, logout } = useAuth();
-  const { toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const {
+    isExpanded,
+    isHovered,
+    isMobileOpen,
+    toggleSidebar,
+    closeMobileSidebar,
+  } = useSidebar();
   const { confirm } = useConfirm();
-  const pathname = usePathname();
-  const router = useRouter();
   const navigationGuard = useEventNavigationGuard();
   const locale = useLocale() as Locale;
+  const switchLocale = useHeaderLocale(locale);
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const accountTrigger = useRef<HTMLButtonElement>(null);
 
   async function changeLanguage(language: Locale) {
+    if (language === locale) return;
     const confirmLeave = navigationGuard?.current;
     if (confirmLeave && !(await confirmLeave())) return;
 
-    router.replace(
-      pathname + globalThis.location.search + globalThis.location.hash,
-      { locale: language },
-    );
+    if (isMobileOpen) closeMobileSidebar();
+    switchLocale(language);
   }
 
   async function leaveAccount(inspecting: boolean) {
@@ -67,24 +71,26 @@ export default function EventWorkspaceHeader() {
   }
 
   return (
-    <header className={styles.header}>
+    <header className={styles.header} data-mobile-sidebar-open={isMobileOpen}>
       <button
+        id={sidebarToggleId}
         type="button"
         className={styles.toggle}
         aria-label={h("toggleSidebar")}
         aria-controls="event-workspace-sidebar"
-        onClick={() =>
-          globalThis.innerWidth >= 1280
-            ? toggleSidebar()
-            : toggleMobileSidebar()
-        }
+        aria-expanded={isExpanded || isHovered || isMobileOpen}
+        onClick={toggleSidebar}
       >
-        <Image
-          src="/images/event-workspace/icon-outline-menu.svg"
-          alt=""
-          width={20}
-          height={20}
-        />
+        {isMobileOpen ? (
+          <XMarkIcon className="size-5" aria-hidden="true" />
+        ) : (
+          <Image
+            src="/images/event-workspace/icon-outline-menu.svg"
+            alt=""
+            width={20}
+            height={20}
+          />
+        )}
       </button>
       <div className={styles.headerActions}>
         <EventLanguageDropdown

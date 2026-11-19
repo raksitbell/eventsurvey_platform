@@ -26,16 +26,36 @@ export default function EventWorkspaceSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const navigationGuard = useEventNavigationGuard();
-  const { isExpanded, isHovered, isMobileOpen, setIsHovered } = useSidebar();
+  const {
+    isDesktop,
+    isExpanded,
+    isHovered,
+    isMobileOpen,
+    setIsHovered,
+    closeMobileSidebar,
+  } = useSidebar();
   const expanded = isExpanded || isHovered || isMobileOpen;
 
-  function guardLink(event: { preventDefault: () => void }, href: string) {
+  function handleNavigation(event: { preventDefault: () => void }, href: string) {
+    if (href === pathname) {
+      if (isMobileOpen) {
+        event.preventDefault();
+        closeMobileSidebar(true);
+      }
+      return;
+    }
+
     const confirmLeave = navigationGuard?.current;
-    if (!confirmLeave || href === pathname) return;
+    if (!confirmLeave) {
+      if (isMobileOpen) closeMobileSidebar();
+      return;
+    }
 
     event.preventDefault();
     void confirmLeave().then((approved) => {
-      if (approved) router.push(href);
+      if (!approved) return;
+      if (isMobileOpen) closeMobileSidebar();
+      router.push(href);
     });
   }
 
@@ -150,14 +170,14 @@ export default function EventWorkspaceSidebar() {
       id="event-workspace-sidebar"
       data-expanded={expanded}
       onMouseEnter={() => {
-        if (!isExpanded) setIsHovered(true);
+        if (isDesktop && !isExpanded) setIsHovered(true);
       }}
       onMouseLeave={() => setIsHovered(false)}
       className={`${styles.sidebar} ${isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full xl:visible xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
     >
       <Link
         href="/event"
-        onNavigate={(event) => guardLink(event, "/event")}
+        onNavigate={(event) => handleNavigation(event, "/event")}
         className={styles.brand}
         aria-label="EventSurvey"
       >
@@ -206,7 +226,7 @@ export default function EventWorkspaceSidebar() {
                       <Link
                         className={styles.item}
                         href={href}
-                        onNavigate={(event) => guardLink(event, href)}
+                        onNavigate={(event) => handleNavigation(event, href)}
                         aria-label={label}
                         aria-current={href === activeHref ? "page" : undefined}
                       >

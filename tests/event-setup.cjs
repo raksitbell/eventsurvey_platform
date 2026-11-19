@@ -2540,6 +2540,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     confirmLeave = null,
     push = () => {},
     canAccessForms = true,
+    closeMobileSidebar,
   ) => {
     const Sidebar = compileSetupComponent(
       "src/components/event/workspace/EventWorkspaceSidebar.tsx",
@@ -2547,7 +2548,11 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
         "next/image": { default: () => null },
         "next-intl": { useTranslations: () => (key) => key },
         "@/context/SidebarContext": {
-          useSidebar: () => ({ isExpanded: true }),
+          useSidebar: () => ({
+            isExpanded: !closeMobileSidebar,
+            isMobileOpen: !!closeMobileSidebar,
+            closeMobileSidebar,
+          }),
         },
         "@/core/event/public-event-paths": load(
           "src/core/event/public-event-paths.ts",
@@ -2596,6 +2601,15 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     assert.equal(findSetupElement(owner, formManagement).props["aria-label"], "Form");
   }
   assert.ok(findSetupElement(render("sub_user", null, "/event"), formManagement));
+  for (const pathname of [
+    "/event/form",
+    "/event/form/registration",
+    "/event/form/survey",
+  ]) {
+    const sidebar = render("sub_user", null, pathname);
+    assert.equal(findSetupElement(sidebar, formManagement).props["aria-current"], "page");
+    assert.equal(findSetupElement(sidebar, overview).props["aria-current"], undefined);
+  }
   assert.equal(
     findSetupElement(
       render("sub_user", null, "/event", false, null, () => {}, false),
@@ -2633,24 +2647,38 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
   let prompts = 0;
   let cancelled = 0;
   const locations = [];
+  const drawerClosures = [];
+  const closeDrawer = (restoreFocus = false) => drawerClosures.push(restoreFocus);
   const navigation = { preventDefault: () => { cancelled++; } };
   const sidebarForWhitelist = (approved) => render(
     "event_owner", null, "/event/whitelist", false,
     approved === null ? null : async () => { prompts++; return approved; },
     (href) => locations.push(href),
+    true,
+    closeDrawer,
   );
   findSetupElement(sidebarForWhitelist(null), overview).props.onNavigate(navigation);
   assert.equal(cancelled, 0);
+  assert.deepEqual(drawerClosures, [false]);
 
   findSetupElement(sidebarForWhitelist(false), overview).props.onNavigate(navigation);
   await Promise.resolve();
   assert.deepEqual(locations, []);
+  assert.deepEqual(drawerClosures, [false]);
 
   findSetupElement(sidebarForWhitelist(true), formManagement).props.onNavigate(navigation);
   await Promise.resolve();
   assert.equal(prompts, 2);
   assert.equal(cancelled, 2);
   assert.deepEqual(locations, ["/event/form"]);
+  assert.deepEqual(drawerClosures, [false, false]);
+
+  const currentPage = render(
+    "sub_user", null, "/event/form", false, null, undefined, true, closeDrawer,
+  );
+  findSetupElement(currentPage, formManagement).props.onNavigate(navigation);
+  assert.equal(cancelled, 3);
+  assert.deepEqual(drawerClosures, [false, false, true]);
 });
 
 function multilingualDraft() {
