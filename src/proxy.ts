@@ -89,10 +89,12 @@ export default function proxy(request: NextRequest) {
   const redirect = authRedirect(request, canonicalPath);
   if (redirect) return redirect;
 
-  // Let next-intl's localized participant rewrite finish without a second redirect.
+  // next-intl forwards its resolved locale on the internal rewrite. Running
+  // localization again here would redirect the browser back to its current URL.
   if (
     localePrefix &&
-    (canonicalPath === participantPreviewPath ||
+    (request.headers.get("x-next-intl-locale") === localePrefix ||
+      canonicalPath === participantPreviewPath ||
       isArea(canonicalPath, "/participant/display") ||
       isPublicEventPath(canonicalPath))
   ) {
