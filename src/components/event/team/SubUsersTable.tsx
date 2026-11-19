@@ -5,9 +5,49 @@ import type {
   ModuleAccessLevel,
 } from "@/types/event/permissions";
 import { useConfirm } from "@/hooks/useConfirm";
-import { KeyIcon, TrashIcon, UserPlusIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  KeyIcon,
+  TrashIcon,
+  UserPlusIcon,
+} from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
+
+const PAGE_SIZE = 10;
+
+function getPageNumbers(
+  currentPage: number,
+  totalPages: number,
+): (number | "...")[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "...", totalPages];
+  }
+  if (currentPage >= totalPages - 3) {
+    return [
+      1,
+      "...",
+      totalPages - 4,
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
+  }
+  return [
+    1,
+    "...",
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    "...",
+    totalPages,
+  ];
+}
 
 function accessBadgeClass(level: ModuleAccessLevel): string {
   if (level === "can_edit") {
@@ -39,6 +79,26 @@ export default function SubUsersTable({
   const t = useTranslations("team");
   const tCommon = useTranslations("common");
   const { confirm } = useConfirm();
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const totalMembers = subUsers.length;
+  const totalPages = Math.max(1, Math.ceil(totalMembers / PAGE_SIZE));
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalMembers);
+  const paginatedUsers = useMemo(
+    () => subUsers.slice(startIndex, endIndex),
+    [subUsers, startIndex, endIndex],
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [subUsers.length]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleRemove = async (subUser: EventSubUserItem) => {
     const confirmed = await confirm({
@@ -112,7 +172,7 @@ export default function SubUsersTable({
                 </td>
               </tr>
             ) : (
-              subUsers.map((user) => {
+              paginatedUsers.map((user) => {
                 const isAdmin = user.rawPermissions.includes("manage_sub_user");
                 const isSelf = user.id === currentUserId;
 
@@ -232,7 +292,7 @@ export default function SubUsersTable({
                           {!isSelf && (
                             <button
                               type="button"
-                              onClick={() => handleRemove(user)}
+                              onClick={() => void handleRemove(user)}
                               className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-error-50 hover:text-error-600 dark:text-gray-400 dark:hover:bg-error-950/40 dark:hover:text-error-400"
                               title={t("removeTooltip")}
                             >
@@ -248,6 +308,63 @@ export default function SubUsersTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-col gap-4 border-t border-event-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+        <div className="text-xs text-gray-400 dark:text-gray-500">
+          {t("showingCount", {
+            start: totalMembers === 0 ? 0 : startIndex + 1,
+            end: endIndex,
+            total: totalMembers,
+          })}
+        </div>
+        <div className="flex items-center gap-2.5 text-xs sm:gap-3">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            className="inline-flex size-6 items-center justify-center text-gray-500 transition-colors hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30 dark:text-gray-400 dark:hover:text-white"
+            aria-label="Previous page"
+          >
+            <ChevronLeftIcon className="size-3.5" />
+          </button>
+          {getPageNumbers(currentPage, totalPages).map((item, idx) => {
+            if (item === "...") {
+              return (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="inline-flex min-w-[20px] items-center justify-center px-1 text-xs text-gray-400 select-none dark:text-gray-500"
+                >
+                  …
+                </span>
+              );
+            }
+            const isActive = item === currentPage;
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setCurrentPage(item)}
+                className={`inline-flex min-w-[20px] items-center justify-center px-1 text-xs transition-colors ${
+                  isActive
+                    ? "font-bold text-gray-900 dark:text-white"
+                    : "font-normal text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+                }`}
+              >
+                {item}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            className="inline-flex size-6 items-center justify-center text-gray-500 transition-colors hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30 dark:text-gray-400 dark:hover:text-white"
+            aria-label="Next page"
+          >
+            <ChevronRightIcon className="size-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );

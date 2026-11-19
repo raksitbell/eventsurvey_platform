@@ -13,8 +13,10 @@ export {
   canEnterEventArea,
   canImpersonate,
   canInspectEvent,
+  getAdminHomePath,
   getHomePathForRole,
   isImpersonatableRole,
+  type PlatformNavAccess,
 } from "./permissions";
 
 export { clearLegacyAuthStorage, type AuthSnapshot } from "./session";

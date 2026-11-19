@@ -4,6 +4,7 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
+import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
 import { slugifyFromTitles } from "@/core/validation/admin-events";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -23,6 +24,7 @@ export default function EditEventForm({ eventId }: EditEventFormProps) {
   const tc = useTranslations("confirm");
   const locale = useLocale() as Locale;
   const router = useRouter();
+  const { canManageEvents, isLoading: authLoading } = useAuth();
 
   const [titleTh, setTitleTh] = useState("");
   const [titleEn, setTitleEn] = useState("");
@@ -32,6 +34,12 @@ export default function EditEventForm({ eventId }: EditEventFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditable, setIsEditable] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !canManageEvents) {
+      router.replace("/admin/events");
+    }
+  }, [authLoading, canManageEvents, router]);
 
   useEffect(() => {
     let cancelled = false;

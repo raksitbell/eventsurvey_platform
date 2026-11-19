@@ -13,6 +13,8 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { Link } from "@/i18n/navigation";
 import {
   ArrowTopRightOnSquareIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   EyeIcon,
   PencilSquareIcon,
   TrashIcon,
@@ -27,7 +29,9 @@ import type {
 } from "@/types/admin/events";
 import type { MockEventStatus } from "@/types/mock";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+const PAGE_SIZE = 10;
 
 const STATUSES: Array<MockEventStatus | "all"> = [
   "all",
@@ -36,6 +40,38 @@ const STATUSES: Array<MockEventStatus | "all"> = [
   "open",
   "closed",
 ];
+
+function getPageNumbers(
+  currentPage: number,
+  totalPages: number,
+): (number | "...")[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "...", totalPages];
+  }
+  if (currentPage >= totalPages - 3) {
+    return [
+      1,
+      "...",
+      totalPages - 4,
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
+  }
+  return [
+    1,
+    "...",
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    "...",
+    totalPages,
+  ];
+}
 
 function formatUpdatedAt(value: string, locale: string): string {
   try {
@@ -61,7 +97,7 @@ export default function EventsTable() {
   const ti = useTranslations("eventInspection");
   const locale = useLocale() as Locale;
   const { confirm } = useConfirm();
-  const { inspectEvent } = useAuth();
+  const { inspectEvent, canManageEvents, canInspection } = useAuth();
 
   const [events, setEvents] = useState<AdminEventListItem[]>([]);
   const [q, setQ] = useState("");
@@ -71,6 +107,26 @@ export default function EventsTable() {
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const totalEvents = events.length;
+  const totalPages = Math.max(1, Math.ceil(totalEvents / PAGE_SIZE));
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalEvents);
+  const paginatedEvents = useMemo(
+    () => events.slice(startIndex, endIndex),
+    [events, startIndex, endIndex],
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q, status, dateRange]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const openWorkspace = async (event: AdminEventListItem) => {
     const confirmed = await confirm({
@@ -251,9 +307,11 @@ export default function EventsTable() {
             />
           </div>
         </div>
-        <Link href="/admin/events/new">
-          <Button>+ {t("createNew")}</Button>
-        </Link>
+        {canManageEvents ? (
+          <Link href="/admin/events/new">
+            <Button>+ {t("createNew")}</Button>
+          </Link>
+        ) : null}
       </div>
 
       {error ? (
@@ -300,7 +358,7 @@ export default function EventsTable() {
                   </td>
                 </tr>
               ) : (
-                events.map((event) => (
+                paginatedEvents.map((event) => (
                   <tr key={event.id}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-800 dark:text-white/90">
                       <Link
@@ -334,17 +392,19 @@ export default function EventsTable() {
                         >
                           <EyeIcon className="size-5" />
                         </Link>
-                        <button
-                          type="button"
-                          title={t("openWorkspace")}
-                          aria-label={t("openWorkspace")}
-                          disabled={openingId === event.id}
-                          onClick={() => void openWorkspace(event)}
-                          className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
-                        >
-                          <ArrowTopRightOnSquareIcon className="size-5" />
-                        </button>
-                        {event.status === "draft" ? (
+                        {canInspection ? (
+                          <button
+                            type="button"
+                            title={t("openWorkspace")}
+                            aria-label={t("openWorkspace")}
+                            disabled={openingId === event.id}
+                            onClick={() => void openWorkspace(event)}
+                            className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
+                          >
+                            <ArrowTopRightOnSquareIcon className="size-5" />
+                          </button>
+                        ) : null}
+                        {canManageEvents && event.status === "draft" ? (
                           <Link
                             href={`/admin/events/${event.id}/edit`}
                             title={t("edit")}
@@ -354,7 +414,9 @@ export default function EventsTable() {
                             <PencilSquareIcon className="size-5" />
                           </Link>
                         ) : null}
-                        {event.status === "scheduled" && event.canStart ? (
+                        {canManageEvents &&
+                        event.status === "scheduled" &&
+                        event.canStart ? (
                           <button
                             type="button"
                             title={t("start")}
@@ -366,7 +428,7 @@ export default function EventsTable() {
                             {t("start")}
                           </button>
                         ) : null}
-                        {event.status === "open" ? (
+                        {canManageEvents && event.status === "open" ? (
                           <button
                             type="button"
                             title={t("close")}
@@ -385,6 +447,63 @@ export default function EventsTable() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex flex-col gap-4 border-t border-gray-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+          <div className="text-xs text-gray-400 dark:text-gray-500">
+            {t("showingCount", {
+              start: totalEvents === 0 ? 0 : startIndex + 1,
+              end: endIndex,
+              total: totalEvents,
+            })}
+          </div>
+          <div className="flex items-center gap-2.5 text-xs sm:gap-3">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="inline-flex size-6 items-center justify-center text-gray-500 transition-colors hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30 dark:text-gray-400 dark:hover:text-white"
+              aria-label="Previous page"
+            >
+              <ChevronLeftIcon className="size-3.5" />
+            </button>
+            {getPageNumbers(currentPage, totalPages).map((item, idx) => {
+              if (item === "...") {
+                return (
+                  <span
+                    key={`ellipsis-${idx}`}
+                    className="inline-flex min-w-[20px] items-center justify-center px-1 text-xs text-gray-400 select-none dark:text-gray-500"
+                  >
+                    …
+                  </span>
+                );
+              }
+              const isActive = item === currentPage;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setCurrentPage(item)}
+                  className={`inline-flex min-w-[20px] items-center justify-center px-1 text-xs transition-colors ${
+                    isActive
+                      ? "font-bold text-gray-900 dark:text-white"
+                      : "font-normal text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+                  }`}
+                >
+                  {item}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="inline-flex size-6 items-center justify-center text-gray-500 transition-colors hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30 dark:text-gray-400 dark:hover:text-white"
+              aria-label="Next page"
+            >
+              <ChevronRightIcon className="size-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

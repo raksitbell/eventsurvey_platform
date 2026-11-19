@@ -2,21 +2,22 @@
 
 import PlatformAccessModal from "@/components/admin/PlatformAccessModal";
 import UserActivityProfileModal from "@/components/admin/activity/UserActivityProfileModal";
+import Button from "@/components/ui/button/Button";
 import { TableBodySkeleton } from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
-import { api } from "@/core/api";
+import { api, ApiError } from "@/core/api";
 import { canAccessAdmin } from "@/core/auth";
 import { useConfirm } from "@/hooks/useConfirm";
+import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
-  PlatformAccessFlags,
+  PlatformAccessMatrix,
 } from "@/types/admin/users";
 import type { UserRole } from "@/types/user";
 import { showToast } from "@/utils/alert";
 import {
-  ArrowRightOnRectangleIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -25,6 +26,8 @@ import {
   EyeIcon,
   KeyIcon,
   MagnifyingGlassIcon,
+  PencilSquareIcon,
+  TrashIcon,
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
@@ -35,6 +38,16 @@ const ROLE_OPTIONS: Array<{ key: UserRole; labelKey: string }> = [
   { key: "event_owner", labelKey: "event_owner" },
   { key: "sub_user", labelKey: "sub_user" },
 ];
+
+/** Event Editor must already have an event before switching into that role. */
+function needsEvent(role: UserRole): boolean {
+  return role === "sub_user";
+}
+
+/** Event Owner and Event Editor can change assigned event from the table. */
+function canAssignEvent(role: UserRole): boolean {
+  return role === "event_owner" || role === "sub_user";
+}
 
 const THAI_MONTHS = [
   "ม.ค.",
@@ -105,8 +118,13 @@ export default function UsersTable() {
   const ti = useTranslations("eventInspection");
   const locale = useLocale() as Locale;
   const { confirm } = useConfirm();
-  const { realUser, impersonate, inspectEvent, canViewActivity, refreshAuth } =
-    useAuth();
+  const {
+    realUser,
+    inspectEvent,
+    canViewActivity,
+    canInspection,
+    refreshAuth,
+  } = useAuth();
 
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [events, setEvents] = useState<Array<{ id: string; title: string }>>(
@@ -217,49 +235,74 @@ export default function UsersTable() {
   }, [currentPage, totalPages]);
 
   // System Action: Change Role
-  const handleChangeRole = async (targetUserId: string, newRole: UserRole) => {
-    setOpenRoleMenuId(null);
-    const prevUsers = [...users];
-    // Optimistic update
-    setUsers((current) =>
-      current.map((u) => (u.id === targetUserId ? { ...u, role: newRole } : u)),
-    );
-
-    try {
-      await api.patch(`/admin/users/${encodeURIComponent(targetUserId)}`, {
-        role: newRole,
-      });
-      showToast({ title: t("changeRoleSuccess"), variant: "success" });
-    } catch {
-      setUsers(prevUsers);
-      showToast({ title: t("changeRoleError"), variant: "error" });
-    }
-  };
-
-  // System Action: Assign / Change Event
-  const handleAssignEvent = async (
-    targetUserId: string,
-    newEventId: string | null,
+  const handleChangeRole = async (
+    target: AdminUserListItem,
+    newRole: UserRole,
   ) => {
-    setOpenEventMenuId(null);
-    const selectedEvent = events.find((e) => e.id === newEventId);
-    const prevUsers = [...users];
+    setOpenRoleMenuId(null);
+    if (target.role === newRole) return;
+    if (needsEvent(newRole) && !target.eventId) {
+      showToast({ title: t("form.eventRequired"), variant: "error" });
+      return;
+    }
 
-    // Optimistic update
+    const prevUsers = [...users];
     setUsers((current) =>
       current.map((u) =>
-        u.id === targetUserId
+        u.id === target.id
           ? {
               ...u,
-              eventId: newEventId,
-              eventName: selectedEvent ? selectedEvent.title : null,
+              role: newRole,
+              ...(newRole === "super_admin"
+                ? { eventId: null, eventName: null }
+                : {}),
             }
           : u,
       ),
     );
 
     try {
-      await api.patch(`/admin/users/${encodeURIComponent(targetUserId)}`, {
+      await api.patch(`/admin/users/${encodeURIComponent(target.id)}`, {
+        role: newRole,
+        ...(newRole === "super_admin" ? { eventId: null } : {}),
+      });
+      showToast({ title: t("changeRoleSuccess"), variant: "success" });
+      await fetchUsers();
+    } catch (err) {
+      setUsers(prevUsers);
+      if (err instanceof ApiError && err.code === "EVENT_REQUIRED") {
+        showToast({ title: t("form.eventRequired"), variant: "error" });
+      } else {
+        showToast({ title: t("changeRoleError"), variant: "error" });
+      }
+    }
+  };
+
+  // System Action: Assign / Change Event (event roles only)
+  const handleAssignEvent = async (
+    target: AdminUserListItem,
+    newEventId: string,
+  ) => {
+    setOpenEventMenuId(null);
+    if (!canAssignEvent(target.role)) return;
+    const selectedEvent = events.find((e) => e.id === newEventId);
+    if (!selectedEvent) return;
+    const prevUsers = [...users];
+
+    setUsers((current) =>
+      current.map((u) =>
+        u.id === target.id
+          ? {
+              ...u,
+              eventId: newEventId,
+              eventName: selectedEvent.title,
+            }
+          : u,
+      ),
+    );
+
+    try {
+      await api.patch(`/admin/users/${encodeURIComponent(target.id)}`, {
         eventId: newEventId,
       });
       showToast({ title: t("assignEventSuccess"), variant: "success" });
@@ -269,30 +312,27 @@ export default function UsersTable() {
     }
   };
 
-  // Action: Impersonate user
-  const handleImpersonate = async (target: AdminUserListItem) => {
+  const handleDeleteUser = async (target: AdminUserListItem) => {
     setOpenActionMenuId(null);
-    if (!realUser || realUser.role !== "super_admin") return;
-
+    if (realUser?.id === target.id) {
+      showToast({ title: t("form.cannotDeleteSelf"), variant: "error" });
+      return;
+    }
     const confirmed = await confirm({
-      title: t("impersonate"),
-      message: t("confirmImpersonate", {
-        name: target.name,
-        role: t(`filters.${target.role}`),
-      }),
-      confirmLabel: t("impersonate"),
+      title: t("form.deleteTitle"),
+      message: t("form.deleteConfirm", { name: target.name }),
+      confirmLabel: t("form.deleteSubmit"),
       cancelLabel: tc("cancel"),
-      variant: "warning",
+      variant: "danger",
     });
     if (!confirmed) return;
 
-    setPendingId(target.id);
     try {
-      await impersonate(target.id);
+      await api.delete(`/admin/users/${encodeURIComponent(target.id)}`);
+      showToast({ title: t("form.deleteSuccess"), variant: "success" });
+      await fetchUsers();
     } catch {
-      showToast({ title: t("impersonateError"), variant: "error" });
-    } finally {
-      setPendingId(null);
+      showToast({ title: t("form.deleteError"), variant: "error" });
     }
   };
 
@@ -349,8 +389,8 @@ export default function UsersTable() {
             </p>
           </div>
 
-          {/* Search and Filter */}
-          <div className="flex items-center gap-3">
+          {/* Search, Filter, Create */}
+          <div className="flex flex-wrap items-center gap-3">
             {/* Search Input */}
             <div className="relative">
               <span className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-gray-400">
@@ -410,11 +450,21 @@ export default function UsersTable() {
                 </div>
               )}
             </div>
+
+            <Link href="/admin/users/new">
+              <Button size="sm">+ {t("form.createButton")}</Button>
+            </Link>
           </div>
         </div>
 
-        {/* Table Container */}
-        <div className="overflow-x-auto">
+        {/* Table Container — drop overflow while a row menu is open so absolute menus are not clipped (short filtered lists). */}
+        <div
+          className={
+            openActionMenuId || openRoleMenuId || openEventMenuId
+              ? "overflow-visible"
+              : "overflow-x-auto"
+          }
+        >
           <table className="w-full min-w-[760px] text-start">
             <thead>
               <tr className="border-b border-gray-100 text-start text-xs font-medium text-gray-500 dark:border-gray-800 dark:text-gray-400">
@@ -514,7 +564,7 @@ export default function UsersTable() {
                                   key={opt.key}
                                   type="button"
                                   onClick={() =>
-                                    handleChangeRole(user.id, opt.key)
+                                    void handleChangeRole(user, opt.key)
                                   }
                                   className="flex w-full items-center justify-between px-3 py-1.5 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
                                 >
@@ -529,56 +579,52 @@ export default function UsersTable() {
                         </div>
                       </td>
 
-                      {/* 3. Assigned Event Column (Purple Outlined Box) */}
+                      {/* 3. Assigned Event — select for Event Owner / Event Editor */}
                       <td className="py-3.5">
-                        <div className="relative inline-block text-start">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenEventMenuId((prev) =>
-                                prev === user.id ? null : user.id,
-                              );
-                              setOpenRoleMenuId(null);
-                              setOpenActionMenuId(null);
-                            }}
-                            className="inline-flex h-9 max-w-[240px] min-w-[170px] items-center justify-between gap-2 rounded-lg border border-purple-400 bg-white px-3 text-xs font-medium text-gray-800 shadow-theme-xs transition-colors hover:border-purple-600 dark:border-purple-600/70 dark:bg-gray-800 dark:text-gray-200"
-                          >
-                            <span className="truncate">
-                              {user.eventName || t("noAssignedEvent")}
-                            </span>
-                            <ChevronDownIcon className="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
-                          </button>
+                        {canAssignEvent(user.role) ? (
+                          <div className="relative inline-block text-start">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenEventMenuId((prev) =>
+                                  prev === user.id ? null : user.id,
+                                );
+                                setOpenRoleMenuId(null);
+                                setOpenActionMenuId(null);
+                              }}
+                              className="inline-flex h-9 max-w-[240px] min-w-[170px] items-center justify-between gap-2 rounded-lg border border-purple-400 bg-white px-3 text-xs font-medium text-gray-800 shadow-theme-xs transition-colors hover:border-purple-600 dark:border-purple-600/70 dark:bg-gray-800 dark:text-gray-200"
+                            >
+                              <span className="truncate">
+                                {user.eventName || t("noAssignedEvent")}
+                              </span>
+                              <ChevronDownIcon className="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                            </button>
 
-                          {isEventOpen && (
-                            <div className="absolute start-0 z-50 mt-1.5 custom-scrollbar max-h-56 w-60 overflow-y-auto rounded-xl border border-gray-100 bg-white py-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-800">
-                              <button
-                                type="button"
-                                onClick={() => handleAssignEvent(user.id, null)}
-                                className="flex w-full items-center justify-between px-3.5 py-2 text-start text-xs font-medium text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700"
-                              >
-                                <span>{t("noAssignedEvent")}</span>
-                                {!user.eventId && (
-                                  <CheckIcon className="size-3.5 text-purple-600" />
-                                )}
-                              </button>
-                              {events.map((evt) => (
-                                <button
-                                  key={evt.id}
-                                  type="button"
-                                  onClick={() =>
-                                    handleAssignEvent(user.id, evt.id)
-                                  }
-                                  className="flex w-full items-center justify-between px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-                                >
-                                  <span className="truncate">{evt.title}</span>
-                                  {user.eventId === evt.id && (
-                                    <CheckIcon className="size-3.5 text-purple-600" />
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                            {isEventOpen && (
+                              <div className="custom-scrollbar absolute start-0 z-50 mt-1.5 max-h-56 w-60 overflow-y-auto rounded-xl border border-gray-100 bg-white py-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-800">
+                                {events.map((evt) => (
+                                  <button
+                                    key={evt.id}
+                                    type="button"
+                                    onClick={() =>
+                                      void handleAssignEvent(user, evt.id)
+                                    }
+                                    className="flex w-full items-center justify-between px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                                  >
+                                    <span className="truncate">{evt.title}</span>
+                                    {user.eventId === evt.id && (
+                                      <CheckIcon className="size-3.5 text-purple-600" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            —
+                          </span>
+                        )}
                       </td>
 
                       {/* 4. Last Active Column */}
@@ -604,22 +650,18 @@ export default function UsersTable() {
                           </button>
 
                           {isActionOpen && (
-                            <div className="absolute end-0 z-50 mt-1 w-44 rounded-xl border border-gray-100 bg-white py-1.5 shadow-theme-lg dark:border-gray-700 dark:bg-gray-800">
-                              {/* Impersonate */}
-                              {user.role !== "super_admin" && (
-                                <button
-                                  type="button"
-                                  disabled={pendingId === user.id}
-                                  onClick={() => void handleImpersonate(user)}
-                                  className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-                                >
-                                  <ArrowRightOnRectangleIcon className="size-4 text-gray-400" />
-                                  <span>{t("actions.impersonate")}</span>
-                                </button>
-                              )}
+                            <div className="absolute end-0 z-50 mt-1 w-48 rounded-xl border border-gray-100 bg-white py-1.5 shadow-theme-lg dark:border-gray-700 dark:bg-gray-800">
+                              <Link
+                                href={`/admin/users/${user.id}/edit`}
+                                onClick={() => setOpenActionMenuId(null)}
+                                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                              >
+                                <PencilSquareIcon className="size-4 text-gray-400" />
+                                <span>{t("actions.edit")}</span>
+                              </Link>
 
                               {/* Inspect Workspace */}
-                              {Boolean(user.eventId) && (
+                              {canInspection && Boolean(user.eventId) ? (
                                 <button
                                   type="button"
                                   disabled={pendingId === user.id}
@@ -629,7 +671,7 @@ export default function UsersTable() {
                                   <EyeIcon className="size-4 text-gray-400" />
                                   <span>{t("actions.inspect")}</span>
                                 </button>
-                              )}
+                              ) : null}
 
                               {/* View Activity */}
                               {canViewActivity && (
@@ -660,6 +702,15 @@ export default function UsersTable() {
                                   <span>{t("actions.platformAccess")}</span>
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteUser(user)}
+                                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-950/30"
+                              >
+                                <TrashIcon className="size-4" />
+                                <span>{t("actions.delete")}</span>
+                              </button>
                             </div>
                           )}
                         </div>
@@ -748,14 +799,15 @@ export default function UsersTable() {
         user={platformUser}
         isOpen={Boolean(platformUser)}
         onClose={() => setPlatformUser(null)}
-        onSaved={(userId: string, flags: PlatformAccessFlags) => {
+        onSaved={(userId: string, matrix: PlatformAccessMatrix) => {
           setUsers((prev) =>
             prev.map((row) =>
               row.id === userId
                 ? {
                     ...row,
-                    canViewActivity: flags.canViewActivity,
-                    canInspection: flags.canInspection,
+                    platformAccess: matrix,
+                    canViewActivity: matrix.canViewActivity,
+                    canInspection: matrix.canInspection,
                   }
                 : row,
             ),
@@ -766,6 +818,7 @@ export default function UsersTable() {
           showToast({ title: t("platformAccessSaved"), variant: "success" });
         }}
       />
+
     </div>
   );
 }

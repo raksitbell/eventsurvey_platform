@@ -4,7 +4,10 @@ import { isInspectingEvent, readAuthSession } from "@/core/auth/cookie";
 import { projectUserPii } from "@/core/auth/pii";
 import { authJson, rejectSession } from "@/core/auth/route-response";
 import { MockApiError, mockApi } from "@/core/api/mock-client";
-import { hasPlatformPermission } from "@/core/mock/access";
+import {
+  getPlatformAccessForUser,
+  platformSessionFlags,
+} from "@/core/mock/access";
 import type { MockEvent, MockEventTranslation } from "@/types/mock";
 
 async function loadInspectedEventName(
@@ -46,10 +49,7 @@ export async function GET(request: NextRequest) {
     return authJson({ error: "SESSION_UNAVAILABLE" }, 503);
   }
 
-  const canViewActivity = await hasPlatformPermission(
-    auth.session.realUserId,
-    "view_platform_activity",
-  );
+  const matrix = await getPlatformAccessForUser(auth.session.realUserId);
 
   return authJson({
     realUser: projectUserPii(auth.realAccount.user, true),
@@ -58,6 +58,6 @@ export async function GET(request: NextRequest) {
       : null,
     inspectedEventId,
     inspectedEventName,
-    canViewActivity,
+    ...platformSessionFlags(matrix),
   });
 }
