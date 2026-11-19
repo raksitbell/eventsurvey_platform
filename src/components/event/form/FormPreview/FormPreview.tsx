@@ -13,6 +13,8 @@ interface FormPreviewProps {
   form: Form;
   hasEnglish?: boolean;
   onExitPreview: () => void;
+  /** When false, exit returns to the forms list instead of the editor. */
+  allowEdit?: boolean;
 }
 
 /**
@@ -38,6 +40,7 @@ export default function FormPreview({
   form,
   hasEnglish = false,
   onExitPreview,
+  allowEdit = true,
 }: FormPreviewProps) {
   const tPreview = useTranslations("form.preview");
 
@@ -246,6 +249,7 @@ export default function FormPreview({
         onChangeLocale={setPreviewLocale}
         onResetForm={clearForm}
         onExitPreview={onExitPreview}
+        allowEdit={allowEdit}
       />
     );
   }
@@ -253,9 +257,10 @@ export default function FormPreview({
   return (
     <div className="font-sans min-h-screen px-3 pt-4 pb-20 text-gray-800 sm:px-6 sm:pt-8 dark:text-gray-100">
       <div className="mx-auto max-w-2xl">
-        {/* Top bar to return to editor */}
+        {/* Top bar to return to editor or forms list */}
         <PreviewTopBar
           onExitPreview={onExitPreview}
+          allowEdit={allowEdit}
           hasEnglish={hasEnglish}
           previewLocale={activeLocale}
           onChangeLocale={setPreviewLocale}

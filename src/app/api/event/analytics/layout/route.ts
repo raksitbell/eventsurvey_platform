@@ -7,7 +7,10 @@ import { saveAnalyticsLayout } from "@/services/event/analytics";
 export async function PATCH(request: NextRequest) {
   const session = await requireEventSession(request);
   if (!isAuthSession(session)) return session;
-  if (session.impersonating) return authJson({ error: "FORBIDDEN" }, 403);
+  // Legacy impersonation is read-only; inspection may edit layouts.
+  if (session.impersonating && !session.inspectedEventId) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   try {
     return authJson(await saveAnalyticsLayout(request, session));

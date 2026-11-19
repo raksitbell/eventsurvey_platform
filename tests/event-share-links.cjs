@@ -66,8 +66,11 @@ const substitutions = {
     },
   },
   "@/core/mock/role-permissions": {
-    getRolePermissions: async (role) =>
-      role === "owner" ? ["manage_sub_user"] : [],
+    // Signature is (userId, eventId); owner vs assistant still toggled via user.role_id in this fixture.
+    getRolePermissions: async (userId) =>
+      userId === user.id && user.role_id === "owner"
+        ? ["manage_sub_user"]
+        : [],
   },
   "@/services/event/forms": {
     getForm: async (kind) => ({

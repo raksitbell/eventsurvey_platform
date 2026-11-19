@@ -8,6 +8,7 @@ import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
 import { slugifyFromTitles } from "@/core/validation/admin-events";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Link, useRouter } from "@/i18n/navigation";
 import type {
   AssignableAdmin,
@@ -21,9 +22,12 @@ type Mode = "existing" | "new";
 
 export default function CreateEventForm() {
   const t = useTranslations("adminEvents.create");
+  const te = useTranslations("adminEvents");
   const tc = useTranslations("confirm");
+  const ti = useTranslations("eventInspection");
   const router = useRouter();
-  const { impersonate } = useAuth();
+  const { confirm } = useConfirm();
+  const { inspectEvent } = useAuth();
 
   const [mode, setMode] = useState<Mode>("new");
   const [titleTh, setTitleTh] = useState("");
@@ -105,10 +109,23 @@ export default function CreateEventForm() {
         body,
       );
 
-      if (result.impersonateUserId) {
+      if (result.event?.id && mode === "existing") {
         await showSuccess(t("successTitle"), t("successCreated"), tc("ok"));
+        const open = await confirm({
+          title: tc("inspectTitle"),
+          message: ti("confirmStart", {
+            event: result.event.title || ti("unnamedEvent"),
+          }),
+          confirmLabel: te("openWorkspace"),
+          cancelLabel: tc("cancel"),
+          variant: "warning",
+        });
+        if (!open) {
+          router.push("/admin/events");
+          return;
+        }
         try {
-          await impersonate(result.impersonateUserId);
+          await inspectEvent(result.event.id);
         } catch {
           await showAlert({
             title: t("successTitle"),

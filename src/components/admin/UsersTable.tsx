@@ -4,18 +4,16 @@ import Button from "@/components/ui/button/Button";
 import { TableBodySkeleton } from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
-import {
-  canImpersonate,
-  isImpersonatableRole,
-} from "@/core/auth";
-import { useConfirm } from "@/hooks/useConfirm";
+import { canAccessAdmin } from "@/core/auth";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
 } from "@/types/admin/users";
 import type { UserRole } from "@/types/user";
 import { translateRole, translateStatus } from "@/utils/i18n-labels";
-import { UsersIcon } from "@heroicons/react/24/outline";
+import { useConfirm } from "@/hooks/useConfirm";
+import { EyeIcon } from "@heroicons/react/24/outline";
+import { showToast } from "@/utils/alert";
 import { useTranslations } from "next-intl";
 import { useLocale } from "next-intl";
 import type { Locale } from "@/i18n/routing";
@@ -30,11 +28,13 @@ const ROLE_FILTERS: Array<UserRole | "all"> = [
 
 export default function UsersTable() {
   const t = useTranslations("adminUsers");
-  const locale = useLocale() as Locale;
+  const te = useTranslations("adminEvents");
   const tc = useTranslations("confirm");
+  const ti = useTranslations("eventInspection");
+  const locale = useLocale() as Locale;
   const tCommon = useTranslations("common");
-  const { realUser, impersonate } = useAuth();
   const { confirm } = useConfirm();
+  const { realUser, inspectEvent } = useAuth();
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [roleFilter, setRoleFilter] = useState<UserRole | "all">("all");
   const [isLoading, setIsLoading] = useState(true);
@@ -70,26 +70,24 @@ export default function UsersTable() {
 
   const filteredUsers = useMemo(() => users, [users]);
 
-  const handleImpersonate = async (target: AdminUserListItem) => {
-    if (!realUser || !canImpersonate(realUser.role)) return;
-    if (!isImpersonatableRole(target.role)) return;
-
+  const openWorkspace = async (target: AdminUserListItem) => {
+    if (!target.eventId || !realUser || !canAccessAdmin(realUser.role)) return;
     const confirmed = await confirm({
-      title: tc("impersonateTitle"),
-      message: t("confirmImpersonate", {
-        name: target.name,
-        role: translateRole(tCommon, target.role),
+      title: tc("inspectTitle"),
+      message: ti("confirmStart", {
+        event: target.eventName?.trim() || ti("unnamedEvent"),
       }),
-      confirmLabel: t("impersonate"),
+      confirmLabel: te("openWorkspace"),
+      cancelLabel: tc("cancel"),
       variant: "warning",
     });
     if (!confirmed) return;
 
     setPendingId(target.id);
     try {
-      await impersonate(target.id);
+      await inspectEvent(target.eventId);
     } catch {
-      setError(t("impersonateError"));
+      showToast({ title: te("openWorkspaceError"), variant: "error" });
       setPendingId(null);
     }
   };
@@ -98,31 +96,25 @@ export default function UsersTable() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         {ROLE_FILTERS.map((role) => (
-          <button
+          <Button
             key={role}
-            type="button"
+            size="sm"
+            variant={roleFilter === role ? "primary" : "outline"}
             onClick={() => setRoleFilter(role)}
-            className={`rounded-lg px-3 py-2 text-theme-sm font-medium transition ${
-              roleFilter === role
-                ? "bg-brand-500 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10"
-            }`}
           >
-            {t(`filters.${role}`)}
-          </button>
+            {role === "all" ? t("allRoles") : translateRole(tCommon, role)}
+          </Button>
         ))}
       </div>
 
       {error ? (
-        <p className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
-          {error}
-        </p>
+        <p className="text-sm text-error-600 dark:text-error-400">{error}</p>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/3">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-            <thead className="bg-gray-50 dark:bg-white/5">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="max-w-full overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="border-b border-gray-100 dark:border-gray-800">
               <tr>
                 <th className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400">
                   {t("columns.name")}
@@ -164,10 +156,10 @@ export default function UsersTable() {
                 </tr>
               ) : (
                 filteredUsers.map((user) => {
-                  const canAct =
+                  const canOpen =
                     Boolean(realUser) &&
-                    canImpersonate(realUser!.role) &&
-                    isImpersonatableRole(user.role) &&
+                    canAccessAdmin(realUser!.role) &&
+                    Boolean(user.eventId) &&
                     user.status === "active";
 
                   return (
@@ -194,19 +186,15 @@ export default function UsersTable() {
                         {translateStatus(tCommon, user.status)}
                       </td>
                       <td className="px-4 py-3 text-end">
-                        {canAct ? (
+                        {canOpen ? (
                           <Button
                             size="sm"
                             variant="outline"
                             disabled={pendingId === user.id}
-                            onClick={() => handleImpersonate(user)}
-                            startIcon={
-                              <UsersIcon className="size-5 text-brand-500" />
-                            }
+                            onClick={() => void openWorkspace(user)}
+                            startIcon={<EyeIcon className="size-5" />}
                           >
-                            {pendingId === user.id
-                              ? t("impersonating")
-                              : t("impersonate")}
+                            {te("openWorkspace")}
                           </Button>
                         ) : (
                           <span className="text-theme-sm text-gray-400">—</span>

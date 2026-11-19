@@ -8,9 +8,16 @@ import SelectField from "@/components/form/SelectField";
 import Button from "@/components/ui/button/Button";
 import { TableBodySkeleton } from "@/components/ui/skeleton/Skeleton";
 import { api, ApiError } from "@/core/api";
+import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Link } from "@/i18n/navigation";
-import { EyeIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowTopRightOnSquareIcon,
+  EyeIcon,
+  PencilSquareIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
+import { showToast } from "@/utils/alert";
 import type { Locale } from "@/i18n/routing";
 import type {
   AdminEventListItem,
@@ -51,8 +58,10 @@ function parseCloseWarnings(body: unknown): EventCloseWarning[] {
 export default function EventsTable() {
   const t = useTranslations("adminEvents");
   const tc = useTranslations("confirm");
+  const ti = useTranslations("eventInspection");
   const locale = useLocale() as Locale;
   const { confirm } = useConfirm();
+  const { inspectEvent } = useAuth();
 
   const [events, setEvents] = useState<AdminEventListItem[]>([]);
   const [q, setQ] = useState("");
@@ -61,6 +70,26 @@ export default function EventsTable() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+
+  const openWorkspace = async (event: AdminEventListItem) => {
+    const confirmed = await confirm({
+      title: tc("inspectTitle"),
+      message: ti("confirmStart", { event: event.title }),
+      confirmLabel: t("openWorkspace"),
+      cancelLabel: tc("cancel"),
+      variant: "warning",
+    });
+    if (!confirmed) return;
+
+    setOpeningId(event.id);
+    try {
+      await inspectEvent(event.id);
+    } catch {
+      showToast({ title: t("openWorkspaceError"), variant: "error" });
+      setOpeningId(null);
+    }
+  };
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -274,7 +303,12 @@ export default function EventsTable() {
                 events.map((event) => (
                   <tr key={event.id}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-800 dark:text-white/90">
-                      {event.title}
+                      <Link
+                        href={`/admin/events/${event.id}`}
+                        className="hover:text-brand-600 dark:hover:text-brand-400"
+                      >
+                        {event.title}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 font-mono text-theme-xs text-gray-500 dark:text-gray-400">
                       {event.slug}
@@ -300,6 +334,16 @@ export default function EventsTable() {
                         >
                           <EyeIcon className="size-5" />
                         </Link>
+                        <button
+                          type="button"
+                          title={t("openWorkspace")}
+                          aria-label={t("openWorkspace")}
+                          disabled={openingId === event.id}
+                          onClick={() => void openWorkspace(event)}
+                          className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
+                        >
+                          <ArrowTopRightOnSquareIcon className="size-5" />
+                        </button>
                         {event.status === "draft" ? (
                           <Link
                             href={`/admin/events/${event.id}/edit`}

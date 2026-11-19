@@ -2,7 +2,7 @@
  * Raw shapes from the mock JSON Server (`event_mock_api/db.json`).
  * Soft-delete uses `deleted_at` / `removed_at` where present.
  * Event titles live in `event_translations`, not on `events`.
- * Permissions live in `role_permissions` / `platform_role_permissions`.
+ * Permissions live in `event_access` / `platform_access` matrices.
  */
 
 export type MockSystemRole = "platform_admin" | "event_user";
@@ -47,7 +47,7 @@ export type MockPlatformPermissionCode =
   | "manage_platform_users"
   | "manage_all_events"
   | "view_platform_overview"
-  | "impersonate_event_user"
+  | "inspect_event"
   | "view_unmasked_pii";
 
 export interface MockUser {
@@ -57,10 +57,10 @@ export interface MockUser {
   password: string;
   display_name: string;
   system_role: MockSystemRole;
-  /** Platform Admin only */
+  /** @deprecated Prefer `platform_access` rows keyed by user_id */
   platform_role_id: string | null;
   event_id: string | null;
-  /** Event-scoped custom role — permissions via `role_permissions` */
+  /** @deprecated Prefer `event_access` rows keyed by user_id */
   role_id: string | null;
   role_assigned_by_user_id: string | null;
   role_assigned_at: string | null;
@@ -72,42 +72,42 @@ export interface MockUser {
   removed_at: string | null;
 }
 
-export interface MockPlatformRole {
+/** Per-user platform module matrix (`/platform_access`) */
+export interface MockPlatformAccess {
   id: string;
-  name: string;
-  description: string | null;
+  user_id: string;
+  matrix: {
+    overview: "restricted" | "view_only" | "can_edit";
+    events: "restricted" | "view_only" | "can_edit";
+    users: "restricted" | "view_only" | "can_edit";
+    activity: "restricted" | "view_only" | "can_edit";
+    canInspection: boolean;
+    canViewUnmaskedPii: boolean;
+  };
   created_at: string;
-  created_by: string | null;
   updated_at: string;
-  updated_by: string | null;
-  deleted_at: string | null;
+  deleted_at?: string | null;
 }
 
-export interface MockPlatformRolePermission {
-  id?: string;
-  platform_role_id: string;
-  permission: MockPlatformPermissionCode;
-}
-
-/** Custom role owned by an Event (`/roles`) */
-export interface MockRole {
+/** Per-user event module matrix (`/event_access`) */
+export interface MockEventAccess {
   id: string;
+  user_id: string;
   event_id: string;
-  name: string;
-  description: string | null;
+  role_name: string | null;
+  can_manage_sub_users: boolean;
+  matrix: {
+    event: "restricted" | "view_only" | "can_edit";
+    registrationForm: "restricted" | "view_only" | "can_edit";
+    surveyForm: "restricted" | "view_only" | "can_edit";
+    dashboard: "restricted" | "view_only" | "can_edit";
+    canViewSubmissions: boolean;
+    canManageSubmissions?: boolean;
+    canExport: boolean;
+  };
   created_at: string;
-  created_by: string;
   updated_at: string;
-  updated_by: string;
-  deleted_at: string | null;
-}
-
-/** One row = role grants that permission (`/role_permissions`) */
-export interface MockRolePermission {
-  /** Present for json-server compatibility; not in production PK */
-  id?: string;
-  role_id: string;
-  permission: MockPermissionCode;
+  deleted_at?: string | null;
 }
 
 export interface MockEvent {

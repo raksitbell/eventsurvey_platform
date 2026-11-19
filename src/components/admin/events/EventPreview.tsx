@@ -6,7 +6,9 @@ import SelectField from "@/components/form/SelectField";
 import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { api } from "@/core/api";
+import { useAuth } from "@/context/AuthContext";
 import {
+  ArrowTopRightOnSquareIcon,
   ChevronLeftIcon,
   PencilSquareIcon,
 } from "@heroicons/react/24/outline";
@@ -14,6 +16,8 @@ import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import type { AdminEventDetail } from "@/types/admin/events";
 import type { MockAccountStatus } from "@/types/mock";
+import { useConfirm } from "@/hooks/useConfirm";
+import { showToast } from "@/utils/alert";
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
@@ -59,11 +63,15 @@ type EventPreviewProps = {
 
 export default function EventPreview({ eventId }: EventPreviewProps) {
   const t = useTranslations("adminEvents");
+  const tc = useTranslations("confirm");
+  const ti = useTranslations("eventInspection");
   const tAccountStatus = useTranslations("common.accountStatus");
   const locale = useLocale() as Locale;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { confirm } = useConfirm();
+  const { inspectEvent } = useAuth();
 
   const tab = parseTab(searchParams.get("tab"));
   const setTab = useCallback(
@@ -79,10 +87,31 @@ export default function EventPreview({ eventId }: EventPreviewProps) {
   const [event, setEvent] = useState<AdminEventDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [openingWorkspace, setOpeningWorkspace] = useState(false);
   const [userQuery, setUserQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [contentLocale, setContentLocale] = useState<string | null>(null);
   const [brokenBanners, setBrokenBanners] = useState<Set<string>>(new Set());
+
+  const openWorkspace = async () => {
+    const eventName = event?.title ?? ti("unnamedEvent");
+    const confirmed = await confirm({
+      title: tc("inspectTitle"),
+      message: ti("confirmStart", { event: eventName }),
+      confirmLabel: t("openWorkspace"),
+      cancelLabel: tc("cancel"),
+      variant: "warning",
+    });
+    if (!confirmed) return;
+
+    setOpeningWorkspace(true);
+    try {
+      await inspectEvent(eventId);
+    } catch {
+      showToast({ title: t("openWorkspaceError"), variant: "error" });
+      setOpeningWorkspace(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -157,6 +186,15 @@ export default function EventPreview({ eventId }: EventPreviewProps) {
           </ol>
         </nav>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={openingWorkspace || isLoading || !event}
+            startIcon={<ArrowTopRightOnSquareIcon className="size-4" />}
+            onClick={() => void openWorkspace()}
+          >
+            {t("openWorkspace")}
+          </Button>
           {event?.status === "draft" ? (
             <Link href={`/admin/events/${eventId}/edit`}>
               <Button

@@ -247,7 +247,7 @@ export async function getAssignedShareLinks(
     !user ||
     !isActiveMockUser(user) ||
     !user.event_id ||
-    resolveAppRole(user, await getRolePermissions(user.role_id)) !==
+    resolveAppRole(user, await getRolePermissions(user.id, user.event_id)) !==
       "event_owner"
   ) {
     throw new ServiceError("FORBIDDEN", 403);

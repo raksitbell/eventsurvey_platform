@@ -1,48 +1,169 @@
 "use client";
 
-import UserDropdown from "@/components/header/UserDropdown";
+import Image from "next/image";
+import { useLocale, useTranslations } from "next-intl";
+import { useId, useRef, useState } from "react";
+import { Dropdown } from "@/components/ui/dropdown/Dropdown";
+import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
+import EventLanguageDropdown from "@/components/event/workspace/EventLanguageDropdown";
+import styles from "@/components/event/workspace/EventWorkspaceChrome.module.css";
+import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
-import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import { useTranslations } from "next-intl";
-import type React from "react";
+import { useConfirm } from "@/hooks/useConfirm";
+import { GlobeAltIcon } from "@heroicons/react/24/outline";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/routing";
+import { showToast } from "@/utils/alert";
+import { translateRole } from "@/utils/i18n-labels";
 
-const AppHeader: React.FC = () => {
-  const t = useTranslations("header");
-  const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+export default function AppHeader() {
+  const h = useTranslations("header");
+  const a = useTranslations("userDropdown");
+  const tc = useTranslations("confirm");
+  const common = useTranslations("common");
+  const { user, isInspectingEvent, stopInspectingEvent, logout } = useAuth();
+  const { toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const { confirm } = useConfirm();
+  const pathname = usePathname();
+  const router = useRouter();
+  const locale = useLocale() as Locale;
+  const [open, setOpen] = useState(false);
+  const menuId = useId();
+  const accountTrigger = useRef<HTMLButtonElement>(null);
 
-  const handleToggle = () => {
-    if (window.innerWidth >= 1280) {
-      toggleSidebar();
-    } else {
-      toggleMobileSidebar();
+  function changeLanguage(language: Locale) {
+    router.replace(
+      pathname + globalThis.location.search + globalThis.location.hash,
+      { locale: language },
+    );
+  }
+
+  async function leaveAccount(inspecting: boolean) {
+    const approved = await confirm({
+      title: tc(inspecting ? "stopInspectTitle" : "signOutTitle"),
+      message: a(inspecting ? "confirmStopImpersonating" : "confirmSignOut"),
+      confirmLabel: a(inspecting ? "stopImpersonating" : "signOut"),
+      variant: inspecting ? "warning" : "danger",
+    });
+    if (!approved) return;
+
+    setOpen(false);
+    try {
+      if (inspecting) await stopInspectingEvent();
+      else await logout();
+    } catch {
+      showToast({
+        title: a(inspecting ? "stopImpersonatingFailed" : "signOutFailed"),
+        variant: "error",
+      });
     }
-  };
+  }
 
   return (
-    <header className="sticky top-0 z-99999 flex w-full border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-900/90">
-      <div className="flex w-full grow items-center gap-3 px-3 py-3 xl:gap-4 xl:px-6 xl:py-4">
-        <button
-          className={`z-99999 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-500 lg:h-11 lg:w-11 dark:border-gray-800 dark:text-gray-400 ${
-            isMobileOpen
-              ? "bg-gray-100 dark:bg-white/3"
-              : "bg-white dark:bg-gray-900"
-          }`}
-          onClick={handleToggle}
-          aria-label={t("toggleSidebar")}
+    <header className={styles.header}>
+      <button
+        type="button"
+        className={styles.toggle}
+        aria-label={h("toggleSidebar")}
+        aria-controls="app-sidebar"
+        onClick={() =>
+          globalThis.innerWidth >= 1280
+            ? toggleSidebar()
+            : toggleMobileSidebar()
+        }
+      >
+        <Image
+          src="/images/event-workspace/icon-outline-menu.svg"
+          alt=""
+          width={20}
+          height={20}
+        />
+      </button>
+      <div className={styles.headerActions}>
+        <EventLanguageDropdown
+          label={a("language")}
+          value={locale}
+          onChange={changeLanguage}
+          onOpen={() => setOpen(false)}
+          className={styles.language}
         >
-          {isMobileOpen ? (
-            <XMarkIcon className="size-6" />
-          ) : (
-            <Bars3Icon className="size-5 rtl:-scale-x-100" />
-          )}
-        </button>
-
-        <div className="ms-auto flex items-center gap-2 sm:gap-3">
-          <UserDropdown />
-        </div>
+          <GlobeAltIcon className="size-[18px] shrink-0" aria-hidden="true" />
+          <span>{locale.toUpperCase()}</span>
+        </EventLanguageDropdown>
+        {user && (
+          <div
+            className="relative"
+            onKeyDown={(event) => {
+              if (open && event.key === "Escape") {
+                setOpen(false);
+                accountTrigger.current?.focus();
+              }
+            }}
+          >
+            <button
+              ref={accountTrigger}
+              type="button"
+              className={`dropdown-toggle ${styles.account}`}
+              aria-controls={open ? menuId : undefined}
+              aria-expanded={open}
+              aria-label={`${user.name}, ${translateRole(common, user.role)}`}
+              onClick={() => setOpen(!open)}
+            >
+              <span className={styles.avatar} aria-hidden="true">
+                {user.name
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((part) => part[0])
+                  .join("")
+                  .toUpperCase()}
+              </span>
+              <span className={styles.identity}>
+                <span>{user.name}</span>
+                <small>{translateRole(common, user.role)}</small>
+              </span>
+              <Image
+                src="/images/event-workspace/icon-chevron-down.svg"
+                alt=""
+                width={16}
+                height={16}
+                className={open ? "rotate-180" : undefined}
+              />
+            </button>
+            <Dropdown
+              isOpen={open}
+              onClose={() => setOpen(false)}
+              className="mt-2 w-65 space-y-1 p-3 dark:text-gray-200"
+            >
+              <div
+                id={menuId}
+                className="border-b border-event-border pb-2 dark:border-gray-700"
+              >
+                <strong className="block truncate text-sm">{user.name}</strong>
+                <span className="block truncate text-xs text-participant-muted dark:text-gray-300">
+                  {user.email}
+                </span>
+              </div>
+              {isInspectingEvent && (
+                <DropdownItem
+                  tag="button"
+                  className="rounded-lg text-warning-700 dark:text-warning-400"
+                  onClick={() => void leaveAccount(true)}
+                >
+                  {a("stopImpersonating")}
+                </DropdownItem>
+              )}
+              <DropdownItem
+                tag="button"
+                className="rounded-lg text-gray-700 dark:text-gray-300"
+                onClick={() => void leaveAccount(false)}
+              >
+                {a("signOut")}
+              </DropdownItem>
+            </Dropdown>
+          </div>
+        )}
       </div>
     </header>
   );
-};
-
-export default AppHeader;
+}

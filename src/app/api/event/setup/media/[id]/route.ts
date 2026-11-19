@@ -43,6 +43,7 @@ export async function GET(
         session.userId,
         "manage_event",
         event.id,
+        session,
       );
       if (denied) return notFound();
     }

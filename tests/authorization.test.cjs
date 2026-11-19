@@ -31,7 +31,7 @@ test("permissions resolve the portal capabilities and default destination of eac
     assert.equal(permissions.canAccessAdmin(role), admin, role);
     assert.equal(permissions.canAccessEvent(role), event, role);
     assert.equal(permissions.canAccessPortal(role), admin || event, role);
-    assert.equal(permissions.canImpersonate(role), admin, role);
+    assert.equal(permissions.canInspectEvent(role), admin, role);
     assert.equal(permissions.isImpersonatableRole(role), event, role);
     assert.equal(permissions.canEnterAdminArea(role, false), admin, role);
     assert.equal(permissions.canEnterEventArea(role, role, false), event, role);
@@ -41,6 +41,16 @@ test("permissions resolve the portal capabilities and default destination of eac
   assert.equal(permissions.canEnterAdminArea("super_admin", true), false);
   assert.equal(permissions.canEnterEventArea("event_owner", "super_admin", false), false);
   assert.equal(permissions.canEnterEventArea("event_owner", "super_admin", true), true);
+  // Platform admin inspecting an event keeps /admin and gains /event for that session.
+  assert.equal(permissions.canEnterAdminArea("super_admin", false), true);
+  assert.equal(
+    permissions.canEnterEventArea("super_admin", "super_admin", false, "event-a"),
+    true,
+  );
+  assert.equal(
+    permissions.canEnterEventArea("super_admin", "super_admin", false, null),
+    false,
+  );
 });
 
 test("User projection masks all three PII fields and always strips passwords", () => {
@@ -61,7 +71,7 @@ test("User projection masks all three PII fields and always strips passwords", (
   assert.deepEqual(projectUserPii({ ...user, phone: null }, false), { ...masked, phone: null });
 });
 
-function sessionCookie(role, realRole = role) {
+function sessionCookie(role, realRole = role, inspectedEventId = null) {
   const response = NextResponse.next();
   const impersonating = role !== realRole;
   setAuthSessionCookie(response, {
@@ -70,6 +80,7 @@ function sessionCookie(role, realRole = role) {
     realRole,
     role,
     impersonating,
+    inspectedEventId,
   });
   return response.cookies.get(AUTH_SESSION_COOKIE).value;
 }
@@ -87,6 +98,13 @@ test("proxy routes the full auth-state matrix before forwarding to localization"
     { name: "event owner", cookie: sessionCookie("event_owner"), admin: "/error/403", event: null, login: "/event" },
     { name: "sub-user", cookie: sessionCookie("sub_user"), admin: "/error/403", event: null, login: "/event" },
     { name: "impersonating", cookie: sessionCookie("event_owner", "super_admin"), admin: "/error/403", event: null, login: "/event" },
+    {
+      name: "inspecting event",
+      cookie: sessionCookie("super_admin", "super_admin", "event-a"),
+      admin: null,
+      event: null,
+      login: "/admin",
+    },
   ];
 
   for (const { name, cookie, admin, event, login = null } of cases) {

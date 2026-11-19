@@ -12,7 +12,7 @@ const { MockApiError } = load("src/core/api/mock-client.ts");
 const owner = {
   id: "owner",
   event_id: "event-a",
-  role_id: "owner-role",
+  role_id: null,
   system_role: "event_user",
   status: "active",
   removed_at: null,
@@ -20,18 +20,64 @@ const owner = {
 const assistant = {
   ...owner,
   id: "assistant",
-  role_id: "assistant-role",
+  role_id: null,
+};
+
+const ADMIN_MATRIX = {
+  event: "can_edit",
+  registrationForm: "can_edit",
+  surveyForm: "can_edit",
+  dashboard: "can_edit",
+  canViewSubmissions: true,
+  canManageSubmissions: true,
+  canExport: true,
+};
+const STAFF_MATRIX = {
+  event: "view_only",
+  registrationForm: "view_only",
+  surveyForm: "view_only",
+  dashboard: "view_only",
+  canViewSubmissions: false,
+  canManageSubmissions: false,
+  canExport: false,
 };
 
 function fixture(rows) {
   const users = new Map(rows.map((row) => [row.id, { ...row }]));
+  const eventAccess = new Map([
+    [
+      "owner",
+      {
+        id: "access-owner",
+        user_id: "owner",
+        event_id: "event-a",
+        role_name: "Event Admin",
+        can_manage_sub_users: true,
+        matrix: ADMIN_MATRIX,
+        deleted_at: null,
+      },
+    ],
+    [
+      "assistant",
+      {
+        id: "access-assistant",
+        user_id: "assistant",
+        event_id: "event-a",
+        role_name: "Staff",
+        can_manage_sub_users: false,
+        matrix: STAFF_MATRIX,
+        deleted_at: null,
+      },
+    ],
+  ]);
   const writes = [];
   const mockApi = {
     async get(query) {
-      if (query === "/role_permissions?role_id=owner-role") {
-        return [{ role_id: "owner-role", permission: "manage_sub_user" }];
+      if (query.startsWith("/event_access?user_id=")) {
+        const userId = query.split("=")[1];
+        const row = eventAccess.get(userId);
+        return row ? [row] : [];
       }
-      if (query === "/role_permissions?role_id=assistant-role") return [];
       assert.ok(query.startsWith("/users/"), `Unexpected read ${query}`);
       const user = users.get(query.slice("/users/".length));
       if (!user) throw new MockApiError("User not found", 404);
@@ -47,9 +93,10 @@ function fixture(rows) {
   const service = load("src/services/event/sub-users.ts", {
     "@/core/api/mock-client": { mockApi, MockApiError },
   });
+  const actorId = rows[0]?.id ?? owner.id;
   return {
     remove: (target = assistant.id) =>
-      service.removeSubUser("event-a", target, owner.id),
+      service.removeSubUser("event-a", target, actorId),
     writes,
   };
 }
@@ -105,7 +152,13 @@ test("removal handles missing and previously removed accounts without writing", 
 
 test("removal requires a current same-event Event Admin and prevents self-removal", async (t) => {
   const cases = [
-    ["missing manage permission", { ...owner, role_id: "assistant-role" }],
+    [
+      "missing manage permission",
+      {
+        ...owner,
+        id: "no-manage",
+      },
+    ],
     ["different event", { ...owner, event_id: "event-b" }],
     ["removed admin", { ...owner, status: "removed" }],
   ];
@@ -130,57 +183,77 @@ function editingFixture(failure = null) {
   const users = new Map(
     [owner, assistant, teammate].map((user) => [user.id, { ...user }]),
   );
-  const roles = new Map([
+  const eventAccess = new Map([
     [
-      assistant.role_id,
-      { id: assistant.role_id, event_id: "event-a", name: "Assistant" },
+      "access-owner",
+      {
+        id: "access-owner",
+        user_id: "owner",
+        event_id: "event-a",
+        role_name: "Event Admin",
+        can_manage_sub_users: true,
+        matrix: ADMIN_MATRIX,
+        deleted_at: null,
+      },
+    ],
+    [
+      "access-assistant",
+      {
+        id: "access-assistant",
+        user_id: "assistant",
+        event_id: "event-a",
+        role_name: "Assistant",
+        can_manage_sub_users: false,
+        matrix: { ...STAFF_MATRIX, event: "can_edit" },
+        deleted_at: null,
+      },
     ],
   ]);
-  const permissions = new Map(
-    [
-      { id: "team", role_id: owner.role_id, permission: "manage_sub_user" },
-      { id: "event", role_id: assistant.role_id, permission: "manage_event" },
-    ].map((row) => [row.id, row]),
-  );
   const writes = [];
   const mockApi = {
     async get(query) {
-      if (query.startsWith("/role_permissions?role_id=")) {
-        return [...permissions.values()].filter(
-          (row) => row.role_id === query.split("=")[1],
+      if (query.startsWith("/event_access?user_id=")) {
+        const userId = decodeURIComponent(query.split("=")[1]);
+        return [...eventAccess.values()].filter((row) => row.user_id === userId);
+      }
+      if (query.startsWith("/event_access?event_id=")) {
+        return [...eventAccess.values()].filter(
+          (row) => row.event_id === "event-a",
         );
       }
-      if (query.startsWith("/roles/")) return roles.get(query.split("/")[2]);
+      if (query.startsWith("/users?")) return [...users.values()];
       if (query.startsWith("/users/")) return users.get(query.split("/")[2]);
       throw new Error(`Unexpected read ${query}`);
     },
     async post(query, row) {
       writes.push(["POST", query]);
       if (query === failure) throw new Error("Permission store unavailable");
-      const rows = query === "/roles" ? roles : permissions;
-      rows.set(row.id, row);
-      return row;
+      if (query === "/event_access") {
+        eventAccess.set(row.id, row);
+        return row;
+      }
+      throw new Error(`Unexpected post ${query}`);
     },
     async patch(query, patch) {
       writes.push(["PATCH", query]);
       if (query === failure) throw new Error("Account store unavailable");
-      const user = Object.assign(users.get(query.split("/")[2]), patch);
-      if (failure === "lost-assignment-response") {
-        throw new Error("Account assignment response lost");
+      if (query.startsWith("/event_access/")) {
+        const id = query.split("/")[2];
+        const row = Object.assign(eventAccess.get(id), patch);
+        return row;
       }
+      const user = Object.assign(users.get(query.split("/")[2]), patch);
       return user;
     },
-    async delete(query) {
-      writes.push(["DELETE", query]);
-      const [, collection, id] = query.split("/");
-      (collection === "roles" ? roles : permissions).delete(id);
+    async delete() {
+      writes.push(["DELETE"]);
     },
   };
   const loadEditing = loadSource({
     "@/core/api/mock-client": { mockApi, MockApiError },
     "@/core/mail/send-invite": {},
   });
-  const { updateSubUserPermissions } = loadEditing(
+  const { updateSubUserPermissions, getSubUsers } = loadEditing(
     "src/services/event/sub-users.ts",
   );
   const { DEFAULT_SUB_USER_MATRIX } = loadEditing(
@@ -199,90 +272,153 @@ function editingFixture(failure = null) {
         },
         owner.id,
       ),
+    getSubUsers: () => getSubUsers("event-a", owner.id),
+    DEFAULT_SUB_USER_MATRIX,
     users,
-    roles,
-    permissions,
+    eventAccess,
     writes,
   };
 }
 
 test("Event Admin permission edits are rejected before any writes", async () => {
-  const { update, permissions, writes } = editingFixture();
+  const { update, writes } = editingFixture();
   await assert.rejects(update(owner.id), { code: "FORBIDDEN", status: 403 });
-  assert.equal(permissions.get("team").permission, "manage_sub_user");
   assert.deepEqual(writes, []);
 });
 
-test("assistant permission edits switch the selected user to a complete new role", async () => {
-  const { update, users, roles, permissions, writes } = editingFixture();
+test("assistant permission edits update event_access matrix in place", async () => {
+  const { update, eventAccess, writes } = editingFixture();
   const updated = await update();
-  assert.equal(users.get("assistant").role_id, updated.roleId);
-  assert.equal(users.get("teammate").role_id, assistant.role_id);
-  assert.equal(permissions.get("event").role_id, assistant.role_id);
+  assert.equal(updated.roleId, "access-assistant");
   assert.deepEqual(updated.rawPermissions, ["manage_dashboard"]);
-  assert.equal(roles.get(updated.roleId).name, "Assistant");
+  assert.equal(eventAccess.get("access-assistant").matrix.dashboard, "can_edit");
+  assert.equal(eventAccess.get("access-assistant").matrix.canViewSubmissions, false);
+  assert.ok(writes.some(([method, path]) => method === "PATCH" && path.includes("/event_access/")));
+  assert.ok(writes.some(([method, path]) => method === "PATCH" && path.includes("/users/assistant")));
+});
+
+test("saving all view_only keeps matrix on event_access", async () => {
+  const { users, eventAccess, writes, DEFAULT_SUB_USER_MATRIX } =
+    editingFixture();
+  const loadEditing = loadSource({
+    "@/core/api/mock-client": {
+      mockApi: {
+        async get(query) {
+          if (query.startsWith("/users?")) return [...users.values()];
+          if (query.startsWith("/event_access?user_id=")) {
+            const userId = decodeURIComponent(query.split("=")[1]);
+            return [...eventAccess.values()].filter(
+              (row) => row.user_id === userId,
+            );
+          }
+          if (query.startsWith("/event_access?event_id=")) {
+            return [...eventAccess.values()];
+          }
+          if (query.startsWith("/users/")) return users.get(query.split("/")[2]);
+          throw new Error(`Unexpected read ${query}`);
+        },
+        async post(query, row) {
+          writes.push(["POST", query]);
+          eventAccess.set(row.id, row);
+          return row;
+        },
+        async patch(query, patch) {
+          writes.push(["PATCH", query]);
+          if (query.startsWith("/event_access/")) {
+            return Object.assign(eventAccess.get(query.split("/")[2]), patch);
+          }
+          return Object.assign(users.get(query.split("/")[2]), patch);
+        },
+        async delete() {},
+      },
+      MockApiError,
+    },
+    "@/core/mail/send-invite": {},
+  });
+  const { updateSubUserPermissions, getSubUsers } = loadEditing(
+    "src/services/event/sub-users.ts",
+  );
+
+  const updated = await updateSubUserPermissions(
+    "event-a",
+    assistant.id,
+    { permissions: { ...DEFAULT_SUB_USER_MATRIX } },
+    owner.id,
+  );
+  assert.deepEqual(updated.rawPermissions, []);
+  assert.equal(updated.permissions.event, "view_only");
+  assert.equal(updated.permissions.dashboard, "view_only");
   assert.equal(
-    JSON.parse(roles.get(updated.roleId).description).canViewSubmissions,
-    false,
+    eventAccess.get("access-assistant").matrix.registrationForm,
+    "view_only",
   );
-  assert.deepEqual(writes, [
-    ["POST", "/roles"],
-    ["POST", "/role_permissions"],
-    ["PATCH", "/users/assistant"],
-  ]);
-  await update();
-  assert.equal(writes.length, 3);
+
+  const listed = await getSubUsers("event-a", owner.id);
+  const row = listed.subUsers.find((user) => user.id === assistant.id);
+  assert.ok(row);
+  assert.equal(row.permissions.event, "view_only");
+  assert.equal(row.permissions.registrationForm, "view_only");
+  assert.equal(row.permissions.surveyForm, "view_only");
+  assert.equal(row.permissions.dashboard, "view_only");
 });
 
-test("failed permission writes or role assignment leave the previous role active", async () => {
-  for (const failure of ["/role_permissions", "/users/assistant"]) {
-    const { update, users, roles, permissions } = editingFixture(failure);
-    await assert.rejects(update(), /store unavailable/);
-    assert.equal(users.get("assistant").role_id, assistant.role_id);
-    assert.deepEqual([...roles.keys()], [assistant.role_id]);
-    assert.deepEqual([...permissions.keys()], ["team", "event"]);
-  }
+test("failed event_access writes leave the previous matrix active", async () => {
+  const { update, eventAccess } = editingFixture("/event_access/access-assistant");
+  const before = structuredClone(eventAccess.get("access-assistant").matrix);
+  await assert.rejects(update(), /store unavailable/);
+  assert.deepEqual(eventAccess.get("access-assistant").matrix, before);
 });
 
-test("a confirmed role assignment is preserved when its response is lost", async () => {
-  const { update, users, roles, permissions, writes } = editingFixture(
-    "lost-assignment-response",
-  );
-  const updated = await update();
-  assert.equal(users.get("assistant").role_id, updated.roleId);
-  assert.ok(roles.has(updated.roleId));
-  assert.ok(
-    [...permissions.values()].some(
-      (row) =>
-        row.role_id === updated.roleId && row.permission === "manage_dashboard",
-    ),
-  );
-  assert.ok(writes.every(([method]) => method !== "DELETE"));
-});
-
-test("team listing filters unscoped mock members and role rows", async () => {
+test("team listing filters unscoped mock members via event_access", async () => {
   const external = {
     ...assistant,
     id: "external",
     email: "external@example.test",
     event_id: "event-b",
   };
+  const eventAccess = [
+    {
+      id: "access-owner",
+      user_id: owner.id,
+      event_id: "event-a",
+      role_name: "Event Admin",
+      can_manage_sub_users: true,
+      matrix: ADMIN_MATRIX,
+      deleted_at: null,
+    },
+    {
+      id: "access-assistant",
+      user_id: assistant.id,
+      event_id: "event-a",
+      role_name: null,
+      can_manage_sub_users: false,
+      matrix: STAFF_MATRIX,
+      deleted_at: null,
+    },
+    {
+      id: "access-external",
+      user_id: external.id,
+      event_id: "event-b",
+      role_name: "External",
+      can_manage_sub_users: true,
+      matrix: ADMIN_MATRIX,
+      deleted_at: null,
+    },
+  ];
   const { getSubUsers } = load("src/services/event/sub-users.ts", {
     "@/core/api/mock-client": {
       mockApi: {
         async get(query) {
           if (query.startsWith("/users?")) return [owner, assistant, external];
-          if (query.startsWith("/roles?")) {
-            return [
-              { id: "owner-role", event_id: "event-a", name: "Owner" },
-              { id: "assistant-role", event_id: "event-b", name: "External" },
-            ];
+          if (query.startsWith("/event_access?event_id=")) {
+            const eventId = decodeURIComponent(query.split("=")[1]);
+            return eventAccess.filter((row) => row.event_id === eventId);
           }
-          assert.equal(query, "/role_permissions");
-          return [
-            { role_id: "owner-role", permission: "manage_sub_user" },
-            { role_id: "assistant-role", permission: "manage_sub_user" },
-          ];
+          if (query.startsWith("/event_access?user_id=")) {
+            const userId = decodeURIComponent(query.split("=")[1]);
+            return eventAccess.filter((row) => row.user_id === userId);
+          }
+          throw new Error(`Unexpected read ${query}`);
         },
       },
     },
@@ -304,7 +440,7 @@ test("team listing filters unscoped mock members and role rows", async () => {
   );
 });
 
-test("team and QR routes await signed access and keep impersonated team view read-only", async (t) => {
+test("team and QR routes await signed access; inspection manages, legacy impersonation stays read-only", async (t) => {
   const previousSecret = process.env.AUTH_SESSION_SECRET;
   t.after(() => {
     if (previousSecret === undefined) delete process.env.AUTH_SESSION_SECRET;
@@ -315,7 +451,7 @@ test("team and QR routes await signed access and keep impersonated team view rea
     id: "platform",
     system_role: "platform_admin",
     status: "active",
-    platform_role_id: "admin-role",
+    platform_role_id: null,
   };
   const accounts = new Map(
     [owner, assistant, platform].map((user) => [user.id, user]),
@@ -326,20 +462,45 @@ test("team and QR routes await signed access and keep impersonated team view rea
       mockApi: {
         async get(query) {
           if (query.startsWith("/users/")) return accounts.get(query.slice(7));
-          if (query === "/role_permissions?role_id=owner-role") {
-            return [{ role_id: "owner-role", permission: "manage_sub_user" }];
+          if (query.startsWith("/event_access?user_id=")) {
+            const userId = decodeURIComponent(query.split("=")[1]);
+            if (userId === owner.id) {
+              return [
+                {
+                  id: "access-owner",
+                  user_id: owner.id,
+                  event_id: owner.event_id,
+                  role_name: "Event Admin",
+                  can_manage_sub_users: true,
+                  matrix: ADMIN_MATRIX,
+                  deleted_at: null,
+                },
+              ];
+            }
+            return [];
           }
-          if (query === "/role_permissions?role_id=assistant-role") return [];
-          assert.equal(
-            query,
-            "/platform_role_permissions?platform_role_id=admin-role",
-          );
-          return [
-            {
-              platform_role_id: "admin-role",
-              permission: "impersonate_event_user",
-            },
-          ];
+          if (query.startsWith("/platform_access?user_id=")) {
+            const userId = decodeURIComponent(query.split("=")[1]);
+            if (userId === platform.id) {
+              return [
+                {
+                  id: "platform-access",
+                  user_id: platform.id,
+                  matrix: {
+                    overview: "can_edit",
+                    events: "can_edit",
+                    users: "can_edit",
+                    activity: "can_edit",
+                    canInspection: true,
+                    canViewUnmaskedPii: true,
+                  },
+                  deleted_at: null,
+                },
+              ];
+            }
+            return [];
+          }
+          throw new Error(`Unexpected read ${query}`);
         },
       },
     },
@@ -377,20 +538,39 @@ test("team and QR routes await signed access and keep impersonated team view rea
   const { setAuthSessionCookie, AUTH_SESSION_COOKIE } = loadRoute(
     "src/core/auth/cookie.ts",
   );
-  function sessionFor(user, role, impersonating = false) {
+  function sessionFor(
+    user,
+    role,
+    { impersonating = false, inspectedEventId = null } = {},
+  ) {
     const response = new NextResponse();
-    setAuthSessionCookie(response, {
-      userId: user.id,
-      role,
-      realUserId: impersonating ? platform.id : user.id,
-      realRole: impersonating ? "super_admin" : role,
-      impersonating,
-    });
+    if (inspectedEventId) {
+      setAuthSessionCookie(response, {
+        userId: platform.id,
+        role: "super_admin",
+        realUserId: platform.id,
+        realRole: "super_admin",
+        impersonating: false,
+        inspectedEventId,
+      });
+    } else {
+      setAuthSessionCookie(response, {
+        userId: user.id,
+        role,
+        realUserId: impersonating ? platform.id : user.id,
+        realRole: impersonating ? "super_admin" : role,
+        impersonating,
+        inspectedEventId: null,
+      });
+    }
     return response.cookies.get(AUTH_SESSION_COOKIE).value;
   }
   const eventOwner = sessionFor(owner, "event_owner");
   const eventAssistant = sessionFor(assistant, "sub_user");
-  const readOnly = sessionFor(owner, "event_owner", true);
+  const readOnly = sessionFor(owner, "event_owner", { impersonating: true });
+  const inspecting = sessionFor(platform, "super_admin", {
+    inspectedEventId: owner.event_id,
+  });
   const portal = "https://portal.example.test";
   function request(pathname, cookie, method = "GET", body) {
     return new NextRequest(portal + pathname, {
@@ -426,6 +606,17 @@ test("team and QR routes await signed access and keep impersonated team view rea
     403,
   );
   assert.deepEqual(calls, []);
+
+  const inspectRead = await team.GET(request(teamPath, inspecting));
+  assertStatus(inspectRead, 200);
+  assert.deepEqual(await inspectRead.json(), {
+    canManageSubUsers: true,
+    subUsers: [],
+  });
+  assertStatus(
+    await team.POST(request(teamPath, inspecting, "POST", null)),
+    400,
+  );
 
   assertStatus(
     await team.POST(request(teamPath, eventOwner, "POST", null)),
@@ -463,13 +654,14 @@ test("team and QR routes await signed access and keep impersonated team view rea
     /eventsurvey-survey-qr\.png/,
   );
   assert.deepEqual(calls, [
+    ["read", owner.event_id, platform.id],
     ["read", owner.event_id, owner.id],
     ["share", owner.id],
     ["share", owner.id],
   ]);
 });
 
-function invitationFixture(t, { failMail = false, failPermission = false, failUserWrite } = {}) {
+function invitationFixture(t, { failMail = false, failAccess = false, failUserWrite } = {}) {
   const settings = {
     APP_URL: "https://portal.example.test",
     AUTH_SESSION_SECRET: "event-invitation-test-signing-secret-only",
@@ -489,8 +681,20 @@ function invitationFixture(t, { failMail = false, failPermission = false, failUs
   }
 
   const users = new Map([[owner.id, owner]]);
-  const grants = new Map();
-  const roles = new Map();
+  const eventAccess = new Map([
+    [
+      "access-owner",
+      {
+        id: "access-owner",
+        user_id: owner.id,
+        event_id: "event-a",
+        role_name: "Event Admin",
+        can_manage_sub_users: true,
+        matrix: ADMIN_MATRIX,
+        deleted_at: null,
+      },
+    ],
+  ]);
   const sent = [];
   const loadInvite = loadSource({
     "@/core/api/mock-client": {
@@ -508,12 +712,10 @@ function invitationFixture(t, { failMail = false, failPermission = false, failUs
               [...params].every(([key, value]) => user[key] === value),
             );
           }
-          if (query === "/role_permissions?role_id=owner-role") {
-            return [{ role_id: "owner-role", permission: "manage_sub_user" }];
-          }
-          if (query.startsWith("/role_permissions?role_id=")) {
-            return [...grants.values()].filter(
-              (grant) => query.endsWith(grant.role_id),
+          if (query.startsWith("/event_access?user_id=")) {
+            const userId = decodeURIComponent(query.split("=")[1]);
+            return [...eventAccess.values()].filter(
+              (row) => row.user_id === userId && !row.deleted_at,
             );
           }
           if (query === "/events/event-a") return { id: "event-a", slug: "test-event" };
@@ -523,17 +725,15 @@ function invitationFixture(t, { failMail = false, failPermission = false, failUs
           assert.fail(`Unexpected read ${query}`);
         },
         async post(query, row) {
-          if (query === "/roles") roles.set(row.id, row);
-          else if (query === "/role_permissions") {
-            if (failPermission && row.permission === "manage_dashboard") {
-              throw new Error("Permission write failed");
-            }
-            grants.set(row.id, row);
+          if (query === "/event_access") {
+            if (failAccess) throw new Error("Permission write failed");
+            eventAccess.set(row.id, row);
           } else if (query === "/users") {
             if (failUserWrite !== "before") users.set(row.id, row);
             if (failUserWrite) throw new Error("User write response failed");
+          } else {
+            assert.fail(`Unexpected write ${query}`);
           }
-          else assert.fail(`Unexpected write ${query}`);
           return row;
         },
         async patch(query, data) {
@@ -543,8 +743,7 @@ function invitationFixture(t, { failMail = false, failPermission = false, failUs
         },
         async delete(query) {
           const [, resource, id] = query.split("/");
-          if (resource === "roles") roles.delete(id);
-          else if (resource === "role_permissions") grants.delete(id);
+          if (resource === "event_access") eventAccess.delete(id);
           else assert.fail(`Unexpected delete ${query}`);
         },
       },
@@ -572,9 +771,8 @@ function invitationFixture(t, { failMail = false, failPermission = false, failUs
   };
   return {
     invite: (overrides) => inviteSubUser("event-a", { ...input, ...overrides }, owner.id),
-    grants,
+    eventAccess,
     loadInvite,
-    roles,
     sent,
     users,
   };
@@ -634,7 +832,7 @@ test("member invitation requires signed password setup before the account can lo
   assert.match(sent[1].text, /invited as Event Admin for "Demo Fair"/);
 });
 
-test("member invitation reports delivery failures and skips account creation when role setup fails", async (t) => {
+test("member invitation reports delivery failures and skips account creation when access setup fails", async (t) => {
   await t.test("SMTP failure leaves the invite pending", async (t) => {
     const { invite, sent, users } = invitationFixture(t, { failMail: true });
     const member = await invite();
@@ -645,33 +843,35 @@ test("member invitation reports delivery failures and skips account creation whe
     await assert.rejects(invite(), { code: "EMAIL_ALREADY_EXISTS", status: 409 });
   });
 
-  await t.test("permission failure discards the staged role", async (t) => {
-    const { invite, grants, roles, sent, users } = invitationFixture(t, { failPermission: true });
+  await t.test("access write failure discards the staged row", async (t) => {
+    const { invite, eventAccess, sent, users } = invitationFixture(t, {
+      failAccess: true,
+    });
     await assert.rejects(invite(), /Permission write failed/);
     assert.deepEqual([...users.keys()], [owner.id]);
-    assert.equal(roles.size, 0);
-    assert.equal(grants.size, 0);
+    assert.deepEqual([...eventAccess.keys()], ["access-owner"]);
     assert.deepEqual(sent, []);
   });
 });
 
-test("member invitation reconciles a failed user write response before sending mail", async (t) => {
-  await t.test("an uncreated account leaves no permissions behind", async (t) => {
-    const { invite, grants, roles, sent, users } = invitationFixture(t, { failUserWrite: "before" });
+test("member invitation rolls back event_access when the user write fails", async (t) => {
+  await t.test("an uncreated account leaves no access behind", async (t) => {
+    const { invite, eventAccess, sent, users } = invitationFixture(t, {
+      failUserWrite: "before",
+    });
     await assert.rejects(invite(), /User write response failed/);
     assert.deepEqual([...users.keys()], [owner.id]);
-    assert.equal(roles.size, 0);
-    assert.equal(grants.size, 0);
+    assert.deepEqual([...eventAccess.keys()], ["access-owner"]);
     assert.deepEqual(sent, []);
   });
 
-  await t.test("a persisted account keeps its permissions and receives mail", async (t) => {
-    const { invite, grants, roles, sent, users } = invitationFixture(t, { failUserWrite: "after" });
-    const member = await invite();
-    assert.equal(users.get(member.id).role_id, member.roleId);
-    assert.ok(roles.has(member.roleId));
-    assert.equal(grants.size, 2);
-    assert.equal(member.inviteSent, true);
-    assert.equal(sent.length, 1);
+  await t.test("a persisted user still rolls back access when the response fails", async (t) => {
+    const { invite, eventAccess, sent, users } = invitationFixture(t, {
+      failUserWrite: "after",
+    });
+    await assert.rejects(invite(), /User write response failed/);
+    assert.equal(users.size, 2);
+    assert.deepEqual([...eventAccess.keys()], ["access-owner"]);
+    assert.deepEqual(sent, []);
   });
 });

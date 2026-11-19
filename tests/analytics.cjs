@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Test-only CommonJS TypeScript loader. */
 /* Run with node --test tests/analytics.cjs. No API writes or network access. */
+process.env.MOCK_API_GET_CACHE_TTL_MS = "0";
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs"),
@@ -51,7 +52,7 @@ function fixture() {
         id: "owner",
         system_role: "event_user",
         event_id: "event",
-        role_id: "role-owner",
+        role_id: null,
         status: "active",
         removed_at: null,
       },
@@ -59,22 +60,46 @@ function fixture() {
         id: "sub",
         system_role: "event_user",
         event_id: "event",
-        role_id: "role-sub",
+        role_id: null,
         status: "active",
         removed_at: null,
       },
     ],
-    roles: [
-      { id: "role-owner", event_id: "event", deleted_at: null },
-      { id: "role-sub", event_id: "event", deleted_at: null },
-    ],
-    role_permissions: [
-      { role_id: "role-owner", permission: "manage_dashboard" },
-      { role_id: "role-owner", permission: "manage_registration_form" },
-      { role_id: "role-owner", permission: "manage_survey_form" },
-      { role_id: "role-owner", permission: "view_unmasked_pii" },
-      { role_id: "role-sub", permission: "manage_dashboard" },
-      { role_id: "role-sub", permission: "manage_registration_form" },
+    event_access: [
+      {
+        id: "access-owner",
+        user_id: "owner",
+        event_id: "event",
+        role_name: "Event Admin",
+        can_manage_sub_users: true,
+        matrix: {
+          event: "can_edit",
+          registrationForm: "can_edit",
+          surveyForm: "can_edit",
+          dashboard: "can_edit",
+          canViewSubmissions: true,
+          canManageSubmissions: true,
+          canExport: true,
+        },
+        deleted_at: null,
+      },
+      {
+        id: "access-sub",
+        user_id: "sub",
+        event_id: "event",
+        role_name: "Staff",
+        can_manage_sub_users: false,
+        matrix: {
+          event: "view_only",
+          registrationForm: "can_edit",
+          surveyForm: "restricted",
+          dashboard: "can_edit",
+          canViewSubmissions: true,
+          canManageSubmissions: false,
+          canExport: false,
+        },
+        deleted_at: null,
+      },
     ],
     events: [
       {
@@ -215,7 +240,25 @@ global.fetch = async (url, init = {}) => {
       );
   return value ? Response.json(value) : new Response("{}", { status: 404 });
 };
-function request(user = "owner", params = "", effective = user) {
+function request(user = "owner", params = "", effective = user, inspectedEventId = null) {
+  if (inspectedEventId) {
+    return {
+      request: {
+        nextUrl: new URL(
+          "http://localhost/api/event/analytics?locale=en&" + params,
+        ),
+      },
+      session: {
+        realUserId: user,
+        userId: user,
+        role: "super_admin",
+        realRole: "super_admin",
+        impersonating: false,
+        inspectedEventId,
+        expiresAt: Date.now() + 60000,
+      },
+    };
+  }
   const role = effective === "sub" ? "sub_user" : "event_owner";
   return {
     request: {
@@ -229,6 +272,7 @@ function request(user = "owner", params = "", effective = user) {
       role,
       realRole: user === "admin" ? "super_admin" : role,
       impersonating: user !== effective,
+      inspectedEventId: null,
       expiresAt: Date.now() + 60000,
     },
   };
@@ -277,19 +321,19 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
     (e) => e.status === 403,
   );
   await assert.rejects(
-    loadAnalytics("admin", "raw=true", "owner"),
+    loadAnalytics("admin", "raw=true", "admin", "event"),
     (e) => e.status === 403,
   );
-  const impersonated = await loadAnalytics("admin", "", "owner");
+  const inspected = await loadAnalytics("admin", "", "admin", "event");
   assert.equal(
-    impersonated.rows.find((row) => row.id === "r1").values.name,
+    inspected.rows.find((row) => row.id === "r1").values.name,
     "••••",
   );
-  assert.equal(impersonated.permissions.manage, false);
+  assert.equal(inspected.permissions.manage, true);
   assert.equal(db.audit_logs.at(-1).actor_user_id, "admin");
   assert.equal(
     JSON.parse(db.audit_logs.at(-1).description).effectiveUserId,
-    "owner",
+    "admin",
   );
   const restricted = await loadAnalytics("sub");
   assert.deepEqual(
@@ -332,10 +376,8 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
   edit.request.json = async () => ({ id: "layout", columns: 2, widgets: [] });
   await saveAnalyticsLayout(edit.request, edit.session);
   assert.equal(db.dashboard_widgets.length, 0);
-  db.role_permissions = db.role_permissions.filter(
-    (row) =>
-      row.role_id !== "role-sub" || row.permission !== "manage_dashboard",
-  );
+  db.event_access.find((row) => row.user_id === "sub").matrix.dashboard =
+    "view_only";
   const denied = request("sub");
   denied.request.json = edit.request.json;
   await assert.rejects(
@@ -355,19 +397,21 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
 
 test("analytics honors submission visibility separately from dashboard editing", async () => {
   db = fixture();
-  const role = db.roles.find((item) => item.id === "role-sub");
-  role.description = JSON.stringify({
+  const access = db.event_access.find((item) => item.user_id === "sub");
+  access.matrix = {
     event: "view_only",
     registrationForm: "can_edit",
+    surveyForm: "restricted",
     dashboard: "can_edit",
     canViewSubmissions: false,
+    canManageSubmissions: false,
     canExport: true,
-  });
-  const savedSubmissions = db.form_submissions;
-  delete db.form_submissions;
+  };
   const data = await loadAnalytics("sub");
   assert.equal(data.permissions.manage, true);
   assert.deepEqual(data.forms.map((form) => form.id), ["reg"]);
+  // Submissions exist in the store but stay hidden without canViewSubmissions.
+  assert.equal(db.form_submissions.length > 0, true);
   assert.deepEqual(data.rows, []);
   assert.equal(data.metrics.total, 0);
   const exportRequest = request("sub");
@@ -376,12 +420,11 @@ test("analytics honors submission visibility separately from dashboard editing",
     { status: 403 },
   );
 
-  db.form_submissions = savedSubmissions;
-  role.description = JSON.stringify({
-    ...JSON.parse(role.description),
+  access.matrix = {
+    ...access.matrix,
     canViewSubmissions: true,
     canExport: false,
-  });
+  };
   assert.equal((await loadAnalytics("sub")).rows.length, 1);
   await assert.rejects(
     getAnalytics(exportRequest.request, exportRequest.session, "analytics.export.csv"),

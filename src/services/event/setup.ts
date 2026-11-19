@@ -50,8 +50,12 @@ async function loadSetupEvent(eventId: string): Promise<MockEvent> {
   return event;
 }
 
-export async function getSetupContext(userId: string, locale: Locale = routing.defaultLocale) {
-  const workspace = await getEventWorkspace(userId, locale);
+export async function getSetupContext(
+  userId: string,
+  locale: Locale = routing.defaultLocale,
+  options: { inspectedEventId?: string | null } = {},
+) {
+  const workspace = await getEventWorkspace(userId, locale, options);
   if (!workspace) throw new ServiceError("EVENT_NOT_FOUND", 404);
   const event = await loadSetupEvent(workspace.eventId);
   return { event, workspace, userId };

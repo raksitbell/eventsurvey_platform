@@ -21,8 +21,19 @@ import {
   FormStatus,
   FormType,
 } from "@/types/event/form";
+import type { ModuleAccessLevel } from "@/types/event/permissions";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { showToast } from "@/utils/alert";
+
+function formAccessForType(
+  list: FormListResponse | null,
+  type: FormType,
+): ModuleAccessLevel {
+  if (!list) return "restricted";
+  return type === "registration"
+    ? list.registrationFormAccess
+    : list.surveyFormAccess;
+}
 
 function statusBadgeClass(status?: FormStatus, enabled = true): string {
   if (!enabled) {
@@ -185,15 +196,21 @@ export default function FormHomePage() {
           <div className="flex flex-col gap-3 sm:gap-4">
             {FORM_TYPES.map((type) => {
               const record = listData?.forms.find((f) => f.type === type);
+              const access = formAccessForType(listData, type);
+              const canEditAccess = access === "can_edit";
+              const canViewAccess = access === "view_only" || canEditAccess;
               const isBusy = busyType === type;
               const localizedTitle =
                 record?.head[locale]?.title?.trim() ||
                 record?.head.th.title?.trim() ||
                 t(type);
 
-              const statusLabel = record
-                ? t(`status.${record.status}`)
-                : t("status.notCreated");
+              const statusLabel =
+                access === "restricted"
+                  ? t("status.disabled")
+                  : record
+                    ? t(`status.${record.status}`)
+                    : t("status.notCreated");
 
               return (
                 <div
@@ -237,12 +254,13 @@ export default function FormHomePage() {
                     <span
                       className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusBadgeClass(
                         record?.status,
+                        canViewAccess,
                       )}`}
                     >
                       {statusLabel}
                     </span>
 
-                    {record && record.canChangeStatus && (
+                    {canEditAccess && record && record.canChangeStatus && (
                       <button
                         type="button"
                         disabled={isBusy}
@@ -258,7 +276,7 @@ export default function FormHomePage() {
                       </button>
                     )}
 
-                    {record && record.canDelete && (
+                    {canEditAccess && record && record.canDelete && (
                       <button
                         type="button"
                         disabled={isBusy}
@@ -271,12 +289,23 @@ export default function FormHomePage() {
                       </button>
                     )}
 
-                    <Link
-                      href={`/form/${type}`}
-                      className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
-                    >
-                      {record ? t("edit") : t("create")}
-                    </Link>
+                    {canEditAccess && (
+                      <Link
+                        href={`/event/form/${type}`}
+                        className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+                      >
+                        {record ? t("edit") : t("create")}
+                      </Link>
+                    )}
+
+                    {access === "view_only" && record && (
+                      <Link
+                        href={`/event/form/${type}`}
+                        className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+                      >
+                        {t("view")}
+                      </Link>
+                    )}
                   </div>
                 </div>
               );

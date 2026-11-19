@@ -4,11 +4,28 @@ import {
   isAuthSession,
   requireEventSession,
 } from "@/core/auth/api-guard";
+import {
+  isInspectingEvent,
+  type AuthSessionCookie,
+} from "@/core/auth/cookie";
 import { authJson, readJsonObject } from "@/core/auth/route-response";
 import { getEventWorkspace } from "@/services/event/workspace";
 import { getSubUsers, inviteSubUser } from "@/services/event/sub-users";
 import type { InviteSubUserInput } from "@/types/event/permissions";
 import type { NextRequest } from "next/server";
+
+function workspaceOptions(
+  session: Pick<
+    AuthSessionCookie,
+    "realRole" | "impersonating" | "inspectedEventId"
+  >,
+) {
+  return {
+    inspectedEventId: isInspectingEvent(session)
+      ? session.inspectedEventId
+      : null,
+  };
+}
 
 /** GET /api/event/sub-users */
 export async function GET(request: NextRequest) {
@@ -16,15 +33,24 @@ export async function GET(request: NextRequest) {
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   try {
-    const workspace = await getEventWorkspace(sessionOrDeny.userId);
+    const inspecting = isInspectingEvent(sessionOrDeny);
+    const workspace = await getEventWorkspace(
+      sessionOrDeny.userId,
+      undefined,
+      workspaceOptions(sessionOrDeny),
+    );
     if (!workspace) {
       return authJson({ error: "Workspace not found" }, 404);
     }
 
-    const data = await getSubUsers(workspace.eventId, sessionOrDeny.userId);
+    const data = await getSubUsers(workspace.eventId, sessionOrDeny.userId, {
+      inspector: inspecting,
+    });
     return authJson({
       ...data,
-      canManageSubUsers: !sessionOrDeny.impersonating && data.canManageSubUsers,
+      canManageSubUsers:
+        inspecting ||
+        (!sessionOrDeny.impersonating && data.canManageSubUsers),
     });
   } catch (error) {
     if (error instanceof ServiceError) {
@@ -41,10 +67,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
-  if (sessionOrDeny.impersonating) return authJson({ error: "FORBIDDEN" }, 403);
+  if (sessionOrDeny.impersonating && !sessionOrDeny.inspectedEventId) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   try {
-    const workspace = await getEventWorkspace(sessionOrDeny.userId);
+    const inspecting = isInspectingEvent(sessionOrDeny);
+    const workspace = await getEventWorkspace(
+      sessionOrDeny.userId,
+      undefined,
+      workspaceOptions(sessionOrDeny),
+    );
     if (!workspace) {
       return authJson({ error: "Workspace not found" }, 404);
     }
@@ -53,6 +86,7 @@ export async function POST(request: NextRequest) {
       sessionOrDeny.userId,
       "manage_sub_user",
       workspace.eventId,
+      sessionOrDeny,
     );
     if (denied) return denied;
 
@@ -90,6 +124,7 @@ export async function POST(request: NextRequest) {
       workspace.eventId,
       input,
       sessionOrDeny.userId,
+      { inspector: inspecting },
     );
     return authJson(created, 201);
   } catch (error) {

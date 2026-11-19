@@ -143,7 +143,25 @@ export async function getSetupMediaEvent(eventId: string) {
   }
 }
 
-export async function getSetupMediaUploadEvent(userId: string) {
+export async function getSetupMediaUploadEvent(
+  userId: string,
+  options: { inspectedEventId?: string | null } = {},
+) {
+  const inspectedEventId = options.inspectedEventId?.trim() || null;
+  if (inspectedEventId) {
+    const user = await mockApi.get<MockUser>(
+      "/users/" + encodeURIComponent(userId),
+    );
+    if (
+      user?.id !== userId ||
+      !isActiveMockUser(user) ||
+      user.system_role !== "platform_admin"
+    ) {
+      return null;
+    }
+    return getSetupMediaEvent(inspectedEventId);
+  }
+
   const user = await mockApi.get<MockUser>("/users/" + encodeURIComponent(userId));
   if (user?.id !== userId || !isActiveMockUser(user) || !user.event_id) {
     return null;

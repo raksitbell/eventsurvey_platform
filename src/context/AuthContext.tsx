@@ -2,12 +2,12 @@
 
 import {
   clearLegacyAuthStorage,
-  endImpersonation,
+  endEventInspection,
   getAuthSnapshot,
   getHomePathForRole,
   loginWithCredentials,
   signOut,
-  startImpersonation,
+  startEventInspection,
   type AuthSnapshot,
 } from "@/core/auth";
 import { usePathname, useRouter } from "@/i18n/navigation";
@@ -26,19 +26,32 @@ import {
 interface AuthContextValue {
   user: User | null;
   realUser: User | null;
+  /** @deprecated Impersonation removed — always false. */
   isImpersonating: boolean;
+  inspectedEventId: string | null;
+  inspectedEventName: string | null;
+  isInspectingEvent: boolean;
   /** True while restoring the server session or navigating after an auth change. */
   isLoading: boolean;
   authUnavailable: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  inspectEvent: (eventId: string) => Promise<void>;
+  stopInspectingEvent: () => Promise<void>;
+  /** @deprecated Use inspectEvent. */
   impersonate: (userId: string) => Promise<void>;
+  /** @deprecated Use stopInspectingEvent. */
   stopImpersonating: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const EMPTY: AuthSnapshot = { realUser: null, impersonatedUser: null };
+const EMPTY: AuthSnapshot = {
+  realUser: null,
+  impersonatedUser: null,
+  inspectedEventId: null,
+  inspectedEventName: null,
+};
 
 /** Safety net so a redirect that never reaches the target cannot strand the UI */
 const HOLD_TIMEOUT_MS = 3000;
@@ -80,9 +93,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const channel = typeof BroadcastChannel === "function"
-      ? new BroadcastChannel("eventsurvey-auth")
-      : null;
+    const channel =
+      typeof BroadcastChannel === "function"
+        ? new BroadcastChannel("eventsurvey-auth")
+        : null;
     authChannel.current = channel;
     channel?.addEventListener("message", refreshSession);
     window.addEventListener("focus", refreshSession);
@@ -96,17 +110,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  /** Arrival is derived, not stored — reaching the target ends the hold on its
-   *  own, so nothing has to clear pendingPath synchronously inside an effect. */
   const isHolding =
     pendingPath !== null &&
     normalizePath(pathname) !== normalizePath(pendingPath);
 
   useEffect(() => {
     if (!isHolding) return;
-    // A guard may redirect somewhere other than the target mid-flight. Without
-    // this the hold never ends and every guarded page sits on "…" until a hard
-    // refresh.
     const timer = setTimeout(() => setPendingPath(null), HOLD_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [isHolding, pathname]);
@@ -124,19 +133,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const realUser = snapshot.realUser;
-  const impersonatedUser = snapshot.impersonatedUser;
-  const isImpersonating = Boolean(impersonatedUser);
-  const user = impersonatedUser ?? realUser;
+  const inspectedEventId = snapshot.inspectedEventId;
+  const inspectedEventName = snapshot.inspectedEventName;
+  const isInspectingEvent = Boolean(inspectedEventId);
+  const isImpersonating = false;
+  const user = realUser;
 
   const changeSession = useCallback(
-    async (updateSession: () => Promise<AuthSnapshot>) => {
+    async (
+      updateSession: () => Promise<AuthSnapshot>,
+      nextPath?: string | null,
+    ) => {
       if (changingSession.current) throw new Error("AUTH_CHANGE_PENDING");
       changingSession.current = true;
       sessionRequest.current?.abort();
       try {
         const next = await updateSession();
-        const effectiveUser = next.impersonatedUser ?? next.realUser;
-        softGo(effectiveUser ? getHomePathForRole(effectiveUser.role) : "/login");
+        const path =
+          nextPath === undefined
+            ? next.realUser
+              ? next.inspectedEventId
+                ? "/event"
+                : getHomePathForRole(next.realUser.role)
+              : "/login"
+            : nextPath;
+        if (path) softGo(path);
         setSnapshot(next);
         setSessionStatus("ready");
         authChannel.current?.postMessage("session-changed");
@@ -152,6 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await changeSession(async () => ({
         realUser: await loginWithCredentials({ email, password }),
         impersonatedUser: null,
+        inspectedEventId: null,
+        inspectedEventName: null,
       }));
     },
     [changeSession],
@@ -164,15 +187,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, [changeSession]);
 
-  const impersonate = useCallback(
-    async (userId: string) => {
-      await changeSession(() => startImpersonation(userId));
+  const inspectEvent = useCallback(
+    async (eventId: string) => {
+      await changeSession(() => startEventInspection(eventId), "/event");
     },
     [changeSession],
   );
 
-  const stopImpersonating = useCallback(async () => {
-    await changeSession(endImpersonation);
+  const stopInspectingEvent = useCallback(async () => {
+    await changeSession(endEventInspection, "/admin/events");
   }, [changeSession]);
 
   const value = useMemo<AuthContextValue>(
@@ -180,23 +203,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       realUser,
       isImpersonating,
+      inspectedEventId,
+      inspectedEventName,
+      isInspectingEvent,
       isLoading: sessionStatus === "loading" || isHolding,
       authUnavailable: sessionStatus === "unavailable",
       login,
       logout,
-      impersonate,
-      stopImpersonating,
+      inspectEvent,
+      stopInspectingEvent,
+      impersonate: async () => {
+        throw new Error("IMPERSONATION_REMOVED");
+      },
+      stopImpersonating: stopInspectingEvent,
     }),
     [
       user,
       realUser,
       isImpersonating,
+      inspectedEventId,
+      inspectedEventName,
+      isInspectingEvent,
       sessionStatus,
       isHolding,
       login,
       logout,
-      impersonate,
-      stopImpersonating,
+      inspectEvent,
+      stopInspectingEvent,
     ],
   );
 

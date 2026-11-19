@@ -172,11 +172,21 @@ function answerValue(
 export async function getReportingData(
   userId: string,
   locale: Locale,
+  _body?: Record<string, unknown>,
+  routeOptions?: { inspectedEventId?: string | null },
 ): Promise<ReportingData> {
-  const scope = await getDashboardScope(userId);
+  const scope = await getDashboardScope(userId, {
+    inspectedEventId: routeOptions?.inspectedEventId,
+  });
   if (!scope) throw new ReportingError(403, "Forbidden");
 
-  const { event, canReadForm, canViewSubmissions, canExport } = scope;
+  const {
+    event,
+    canReadForm,
+    canManageDashboard,
+    canViewSubmissions,
+    canExport,
+  } = scope;
   const [eventTranslations, eventForms, trash, eventUsers, layout] =
     await Promise.all([
       mockApi.get<MockEventTranslation[]>(
@@ -397,12 +407,15 @@ export async function getReportingData(
 
   // Replacing a layout cannot remove widgets for an active form the actor
   // cannot read. Widgets with obsolete sources can still be removed.
-  const canManage = widgets.every(
-    (widget) =>
-      !widget.source_form_id ||
-      !activeEventFormIds.has(widget.source_form_id) ||
-      formIds.has(widget.source_form_id),
-  );
+  // Dashboard edits also require module `can_edit` (not mere view_only).
+  const canManage =
+    canManageDashboard &&
+    widgets.every(
+      (widget) =>
+        !widget.source_form_id ||
+        !activeEventFormIds.has(widget.source_form_id) ||
+        formIds.has(widget.source_form_id),
+    );
 
   return {
     eventId: event.id,
@@ -485,12 +498,15 @@ export async function restoreTrash(
   userId: string,
   _locale: Locale,
   id: unknown,
+  routeOptions?: { inspectedEventId?: string | null },
 ) {
   if (typeof id !== "string") throw new ReportingError(400, "Invalid item");
-  const scope = await getDashboardScope(userId);
+  const scope = await getDashboardScope(userId, {
+    inspectedEventId: routeOptions?.inspectedEventId,
+  });
   if (!scope) throw new ReportingError(403, "Forbidden");
 
-  const { event, canReadForm } = scope;
+  const { event, canReadForm, canManageForm } = scope;
   const [eventForms, items] = await Promise.all([
     mockApi.get<MockForm[]>(`/forms?event_id=${q(event.id)}`),
     loadOptionalTrash(event.id),
@@ -501,7 +517,11 @@ export async function restoreTrash(
   const entry = trashEntries(items, allowedForms, event.id).find(
     ({ item }) => item.id === id,
   );
-  if (!entry?.form || !canRestoreTrash(entry)) {
+  if (
+    !entry?.form ||
+    !canManageForm(entry.form.type) ||
+    !canRestoreTrash(entry)
+  ) {
     throw new ReportingError(403, "Restore not allowed");
   }
 

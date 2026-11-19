@@ -3,6 +3,7 @@
 import InviteSubUserModal from "@/components/event/team/InviteSubUserModal";
 import PermissionModal from "@/components/event/team/PermissionModal";
 import SubUsersTable from "@/components/event/team/SubUsersTable";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
 import useEventWorkspace from "@/hooks/useEventWorkspace";
@@ -14,6 +15,7 @@ import type {
   InviteSubUserResult,
   SubUsersListResponse,
 } from "@/types/event/permissions";
+import { showToast } from "@/utils/alert";
 import { useTranslations } from "next-intl";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -73,29 +75,60 @@ export default function EventTeamPage() {
     roleName: string,
     permissions: EventPermissionMatrix,
   ) => {
-    await api.patch<EventSubUserItem>(`/event/sub-users/${subUserId}`, {
-      roleName,
-      permissions,
-    });
-    await fetchSubUsers();
+    // Trust the PATCH payload returned by the BFF. A full list refetch against
+    // the ephemeral Vercel mock can land on another instance and fall back to
+    // legacy role_permissions (e.g. Form Manager → event restricted + others
+    // can_edit), wiping the view_only / toggle values the user just saved.
+    const updated = await api.patch<EventSubUserItem>(
+      `/event/sub-users/${subUserId}`,
+      {
+        roleName,
+        permissions,
+      },
+    );
+    setSubUsers((prev) =>
+      prev.map((row) =>
+        row.id === updated.id ? { ...row, ...updated } : row,
+      ),
+    );
+    setSelectedSubUser((prev) =>
+      prev && prev.id === updated.id ? { ...prev, ...updated } : prev,
+    );
+    showToast({ title: t("updateSuccess"), variant: "success" });
   };
 
   const handleInviteSubUser = async (input: InviteSubUserInput) => {
-    const result = await api.post<InviteSubUserResult>("/event/sub-users", input);
+    const result = await api.post<InviteSubUserResult>(
+      "/event/sub-users",
+      input,
+    );
     setInviteMailFailed(!result.inviteSent);
-    await fetchSubUsers();
+    setSubUsers((prev) => {
+      if (prev.some((row) => row.id === result.id)) {
+        return prev.map((row) =>
+          row.id === result.id ? { ...row, ...result } : row,
+        );
+      }
+      return [...prev, result];
+    });
+    showToast({ title: t("inviteSuccess"), variant: "success" });
   };
 
   const handleRemoveSubUser = async (subUserId: string) => {
-    await api.delete(`/event/sub-users/${subUserId}`);
-    await fetchSubUsers();
+    try {
+      await api.delete(`/event/sub-users/${subUserId}`);
+      setSubUsers((prev) => prev.filter((row) => row.id !== subUserId));
+      showToast({ title: t("removeSuccess"), variant: "success" });
+    } catch {
+      showToast({ title: t("updateError"), variant: "error" });
+    }
   };
 
   return (
     <div className="space-y-6 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950">
       <header>
         <p className="text-theme-xs font-bold tracking-wide text-event-action dark:text-brand-400">
-          EVENT WORKSPACE
+          {t("workspaceEyebrow")}
         </p>
         <h1 className="mt-1 text-title-sm font-semibold text-gray-900 dark:text-white/90">
           {t("pageTitle")}
@@ -119,9 +152,7 @@ export default function EventTeamPage() {
           {error}
         </div>
       ) : isLoading ? (
-        <div className="rounded-2xl border border-event-border bg-white p-12 text-center text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
-          {t("loading")}
-        </div>
+        <TeamListSkeleton />
       ) : (
         <SubUsersTable
           subUsers={subUsers}
@@ -133,7 +164,6 @@ export default function EventTeamPage() {
         />
       )}
 
-      {/* Permission Edit Modal */}
       <PermissionModal
         isOpen={isPermOpen}
         onClose={closePermModal}
@@ -142,12 +172,75 @@ export default function EventTeamPage() {
         onSave={handleSavePermissions}
       />
 
-      {/* Invite Modal */}
       <InviteSubUserModal
         isOpen={isInviteOpen}
         onClose={closeInviteModal}
         onInvite={handleInviteSubUser}
       />
+    </div>
+  );
+}
+
+function TeamListSkeleton() {
+  return (
+    <div
+      className="overflow-hidden rounded-2xl border border-event-border bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+      aria-busy="true"
+    >
+      <div className="flex flex-col gap-3 border-b border-event-border p-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-3.5 w-72 max-w-full" />
+        </div>
+        <Skeleton className="h-10 w-36 rounded-xl" />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-start text-sm">
+          <thead>
+            <tr className="border-b border-event-border bg-event-subtle dark:border-gray-800 dark:bg-gray-800/50">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <th key={index} className="px-5 py-3.5">
+                  <Skeleton className="h-3 w-16" />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-event-border dark:divide-gray-800">
+            {Array.from({ length: 4 }).map((_, row) => (
+              <tr key={row}>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-9 shrink-0 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <Skeleton className="h-5 w-20 rounded-md" />
+                </td>
+                <td className="px-5 py-4">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Skeleton className="h-5 w-24 rounded" />
+                    <Skeleton className="h-5 w-28 rounded" />
+                    <Skeleton className="h-5 w-24 rounded" />
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex justify-end gap-2">
+                    <Skeleton className="size-8 rounded-lg" />
+                    <Skeleton className="size-8 rounded-lg" />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

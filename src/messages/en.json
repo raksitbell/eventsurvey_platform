@@ -30,16 +30,28 @@
     "ok": "OK",
     "signOutTitle": "Sign out",
     "impersonateTitle": "Impersonate user",
-    "stopImpersonateTitle": "Stop impersonating"
+    "stopImpersonateTitle": "Stop impersonating",
+    "stopInspectTitle": "Leave event workspace",
+    "inspectTitle": "Open event workspace"
+  },
+  "eventInspection": {
+    "banner": "Viewing “{event}” with full platform access. Signed in as {admin}.",
+    "stop": "Back to Events",
+    "stopFailed": "Unable to leave the event workspace. Please try again.",
+    "confirmStop": "Leave this event workspace and return to Event Management?",
+    "confirmStart": "Open “{event}” with full platform access?",
+    "unnamedEvent": "this event"
   },
   "sidebar": {
     "groups": {
       "workspace": "Workspace",
       "event": "EVENT"
     },
+    "appSubtitle": "Event registration and surveys",
     "items": {
       "overview": "System Overview",
       "owners": "User Management",
+      "activity": "User Activity",
       "eventHome": "Overview",
       "eventWorkspace": "Event Workspace",
       "dashboard": "Dashboard",
@@ -83,31 +95,20 @@
     "confirmStopImpersonating": "Stop impersonating and return to the Super Admin account?"
   },
   "auth": {
-    "title": "Sign in",
-    "subtitle": "Enter your email and password to access the EventSurvey workspace.",
+    "title": "Sign in to EventSurvey",
     "email": "Email",
-    "emailPlaceholder": "info@company.com",
+    "emailPlaceholder": "admin@email.com",
     "password": "Password",
     "passwordPlaceholder": "Enter your password",
-    "keepLoggedIn": "Keep me logged in",
+    "keepLoggedIn": "Remember me",
     "forgotPassword": "Forgot password?",
     "signIn": "Sign in",
     "signingIn": "Signing in...",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "noAccount": "Don't have an account?",
-    "contactAdmin": "Contact an administrator",
-    "brandHeadline": "Build better events. Collect better feedback.",
-    "brandSubtext": "Create forms, publish surveys, and turn every response into actionable insight.",
+    "privacy": "Privacy policy",
+    "brandHeadline": "Manage events. Build registration forms and surveys.",
     "language": "Language",
-    "demoTitle": "Demo accounts",
-    "demoPassword": "Password for all accounts: password123",
-    "demoHint": "Click an account to autofill",
-    "demoAccounts": {
-      "admin": "Super Admin → /admin",
-      "owner": "Event Owner → /event",
-      "subUser": "Sub User → /event"
-    },
     "errors": {
       "invalidCredentials": "Invalid email or password.",
       "unsupportedRole": "This account role cannot access the portal.",
@@ -391,6 +392,8 @@
     "endDate": "End date",
     "manage": "Manage",
     "view": "View details",
+    "openWorkspace": "Open event workspace",
+    "openWorkspaceError": "Unable to open the event workspace.",
     "edit": "Edit",
     "start": "Start event",
     "startWaiting": "Waiting for start time",
@@ -549,6 +552,7 @@
     "open": "Open",
     "create": "Create form",
     "edit": "Edit form",
+    "view": "View form",
     "delete": "Delete",
     "deleteConfirmTitle": "Delete form?",
     "deleteConfirmMessage": "Are you sure you want to delete this form?",
@@ -662,6 +666,7 @@
     "preview": {
       "button": "Preview",
       "editForm": "Back to edit",
+      "backToForms": "Back to forms",
       "langThai": "ภาษาไทย",
       "langEnglish": "English",
       "requiredNote": "* Indicates required question",
@@ -706,7 +711,7 @@
   "errors": {
     "403": {
       "title": "Access denied",
-      "message": "You do not have permission to view this page, or you must impersonate before entering the event area.",
+      "message": "You do not have permission to view this page.",
       "backHome": "Back to Home Page"
     },
     "404": {
@@ -949,6 +954,14 @@
       "dashboard": "Dashboard",
       "dashboardDesc": "Dashboard"
     },
+    "badgeEvent": "Event: {level}",
+    "badgeRegistration": "Registration: {level}",
+    "badgeSurvey": "Survey: {level}",
+    "badgeDashboard": "Dashboard: {level}",
+    "badgeSubmissions": "Submissions",
+    "badgeExport": "Export",
+    "eventAdminRole": "Event Admin",
+    "workspaceEyebrow": "Event workspace",
     "toggles": {
       "viewSubmissions": "View Submission",
       "viewSubmissionsDesc": "View successfully submitted responses",
@@ -979,7 +992,10 @@
     "removeButton": "Remove",
     "removeTooltip": "Remove from event",
     "saving": "Saving...",
-    "updateError": "Failed to update permissions. Please try again."
+    "updateSuccess": "Permissions saved",
+    "updateError": "Failed to update permissions. Please try again.",
+    "inviteSuccess": "Sub-user invited",
+    "removeSuccess": "Member removed from this event"
   },
   "eventBranding": {
     "step": "Event setup / Step 2 of 4",

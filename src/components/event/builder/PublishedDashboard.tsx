@@ -20,7 +20,6 @@ import type { DashboardWidget, ReportingData } from "@/types/event/reporting";
 
 export default function PublishedDashboard() {
   const { data, identityKey, errorStatus, reload } = useEventReporting();
-  const { isImpersonating } = useAuth();
 
   return (
     <ReportShell
@@ -33,7 +32,7 @@ export default function PublishedDashboard() {
       {data && (
         <MainDashboardContent
           key={`${identityKey}:${data.eventId}`}
-          initial={isImpersonating ? { ...data, canManage: false } : data}
+          initial={data}
         />
       )}
     </ReportShell>
