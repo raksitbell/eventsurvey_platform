@@ -160,6 +160,9 @@ function answerValue(
     }
     return String(value);
   }
+  if (field.type === "date" && answer.value_date && answer.value_time) {
+    return `${answer.value_date} ${answer.value_time}`;
+  }
   return String(
     answer.value_text ??
       answer.value_boolean ??

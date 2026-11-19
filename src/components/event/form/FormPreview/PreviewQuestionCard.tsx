@@ -2,7 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
-import { FormLocale, Question } from "@/types/event/form";
+import type { FormLocale, Question } from "@/types/event/form";
+import { answerChoicesWithIds } from "@/core/event/public-form-response";
 import PreviewShortText from "./fields/PreviewShortText";
 import PreviewLongText from "./fields/PreviewLongText";
 import PreviewEmail from "./fields/PreviewEmail";
@@ -42,7 +43,7 @@ export default function PreviewQuestionCard({
   const qId = question.id!;
   const labelObj = question.label[locale]?.[0] ?? question.label.th[0];
   const questionTitle = labelObj.label.trim() || tPreview("untitledQuestion");
-  const choices = labelObj.choices[locale];
+  const choices = answerChoicesWithIds(labelObj.choices[locale]);
   const scaleMinLabel =
     labelObj.scale_min_label ?? choices[0]?.scale_min_label ?? "";
   const scaleMaxLabel =
