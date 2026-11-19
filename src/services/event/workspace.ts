@@ -10,6 +10,7 @@ import {
   resolveEventTranslation,
 } from "@/core/event/content";
 import { readSetupState } from "@/core/event/setup-storage";
+import { savedFormBranding } from "@/core/event/branding";
 import { canAccessEventDashboard } from "@/core/event/dashboard-policy";
 import { getEventAccessForUser } from "@/core/mock/access";
 import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
@@ -135,6 +136,13 @@ async function loadWorkspacePayload(
   );
   const canEditEvent = event.status === "draft" && matrix.event === "can_edit";
   const setup = readSetupState(event);
+  const canAccessForms =
+    options.hasAccessRow !== false &&
+    (satisfiesAccessLevel(matrix.registrationForm, "view_only") ||
+      satisfiesAccessLevel(matrix.surveyForm, "view_only"));
+  const showSetup = canEditEvent || !!setup.publication;
+  const { primary, secondary, accent, backgroundMode, gradientEnd, gradientAngle, banner } =
+    savedFormBranding(setup, locale, content.defaultLocale);
   const canManageWhitelist = matrix.registrationForm === "can_edit";
   const whitelistEnabledForSetup =
     canManageWhitelist &&
@@ -142,7 +150,11 @@ async function loadWorkspacePayload(
     (setup.draft?.hasRegistration ?? event.has_registration);
 
   return {
-    setup: canEditEvent || setup.publication ? setup : readSetupState({}),
+    setup: showSetup ? setup : readSetupState({}),
+    formAppearance: !showSetup && canAccessForms ? {
+      primary, secondary, accent, backgroundMode, gradientEnd, gradientAngle,
+      banner: backgroundMode === "blur" ? banner : null,
+    } : undefined,
     whitelistEnabledForSetup,
     registrationCapacity: registrationSettings?.is_unlimited
       ? null
@@ -175,10 +187,7 @@ async function loadWorkspacePayload(
     canAccessDashboard:
       (options.hasAccessRow !== false) &&
       canAccessEventDashboard(event.status, matrix.dashboard, "view_only"),
-    canAccessForms:
-      (options.hasAccessRow !== false) &&
-      (satisfiesAccessLevel(matrix.registrationForm, "view_only") ||
-        satisfiesAccessLevel(matrix.surveyForm, "view_only")),
+    canAccessForms,
     canViewActivity:
       (options.hasAccessRow !== false) && matrix.canViewActivity === true,
   };

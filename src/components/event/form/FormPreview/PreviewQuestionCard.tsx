@@ -69,7 +69,7 @@ export default function PreviewQuestionCard({
         </div>
 
         {question.is_unique && (
-          <span className="rounded-full bg-[#5C54D1]/10 px-2.5 py-0.5 text-xs font-medium text-[#5C54D1]">
+          <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-(--participant-control-text)">
             {tPreview("uniqueBadge")}
           </span>
         )}

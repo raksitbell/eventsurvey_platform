@@ -38,7 +38,7 @@ import FloatingToolbar from "./FloatingToolbar";
 import FormPreview from "./FormPreview/FormPreview";
 
 const builderSurface =
-  "font-outfit min-h-screen bg-gray-50 px-3 pb-24 text-gray-800 sm:px-6 md:px-8 md:pb-8 dark:bg-gray-950 dark:text-gray-100";
+  "event-form-surface font-outfit min-h-screen px-3 pb-24 text-gray-800 sm:px-6 md:px-8 md:pb-8 dark:text-gray-100";
 
 const CHOICE_QUESTION_TYPES: QuestionType[] = [
   "multiple_choice",
@@ -1475,7 +1475,7 @@ export default function FormBuilder({
               type="button"
               disabled={isSaving || isLoading || !eventId}
               onClick={() => void handleSave()}
-              className="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-(--participant-accent) px-4 py-2 text-sm font-medium text-(--form-on-accent) shadow-theme-xs transition-colors hover:brightness-95 disabled:opacity-50"
             >
               <CheckCircleIcon className="h-4 w-4" />
               <span>{isSaving ? tbuilder("saving") : tbuilder("save")}</span>
@@ -1811,8 +1811,8 @@ function FormBuilderSkeleton({ className }: { className: string }) {
       <div className="relative mx-auto flex max-w-4xl items-start gap-4">
         <div className="relative flex min-w-0 flex-1 flex-col gap-4">
           {/* Header Card Skeleton */}
-          <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white px-4 pt-6 pb-5 shadow-theme-xs sm:px-6 sm:pt-8 dark:border-gray-800 dark:bg-gray-900">
-            <div className="absolute top-0 start-0 h-2 w-full bg-brand-500" />
+          <div className="event-form-paper relative overflow-hidden rounded-xl border border-gray-200 bg-white px-4 pt-6 pb-5 shadow-theme-xs sm:px-6 sm:pt-8 dark:border-gray-800 dark:bg-gray-900">
+            <div className="absolute top-0 start-0 h-2 w-full bg-(--participant-accent)" />
             <Skeleton className="mb-3 h-6 w-24 rounded-full" />
             <Skeleton className="h-8 w-64 max-w-full" />
             <Skeleton className="mt-3 h-5 w-96 max-w-full" />
@@ -1822,7 +1822,7 @@ function FormBuilderSkeleton({ className }: { className: string }) {
           {Array.from({ length: 2 }).map((_, i) => (
             <div
               key={i}
-              className="flex flex-col rounded-xl border border-gray-200 bg-white px-4 pt-3 pb-4 shadow-theme-xs sm:px-6 sm:pb-6 dark:border-gray-800 dark:bg-gray-900"
+              className="event-form-paper flex flex-col rounded-xl border border-gray-200 bg-white px-4 pt-3 pb-4 shadow-theme-xs sm:px-6 sm:pb-6 dark:border-gray-800 dark:bg-gray-900"
             >
               <div className="mb-3 flex justify-center">
                 <Skeleton className="h-3 w-8" />

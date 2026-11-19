@@ -258,7 +258,7 @@ export default function FormPreview({
   }
 
   return (
-    <div className="font-sans min-h-screen px-3 pt-4 pb-20 text-gray-800 sm:px-6 sm:pt-8 dark:text-gray-100">
+    <div className="event-form-surface font-sans min-h-screen px-3 pt-4 pb-20 text-gray-800 sm:px-6 sm:pt-8 dark:text-gray-100">
       <div className="mx-auto max-w-2xl">
         {/* Top bar to return to editor or forms list */}
         <PreviewTopBar
@@ -270,7 +270,7 @@ export default function FormPreview({
           onChangeLocale={setPreviewLocale}
         />
 
-        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} noValidate className="event-form-paper flex flex-col gap-4">
           {/* 1. Header Card */}
           <PreviewHeaderCard
             title={currentHead.title}

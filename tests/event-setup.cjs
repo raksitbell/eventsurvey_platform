@@ -198,8 +198,40 @@ test("form labels and translation keys match across locales", () => {
   assert.equal(en.eventHome.surveyForm, "Survey Form");
 });
 
+test("form canvas resolves the saved background and accent for editors and form-only staff", () => {
+  const { formCanvasStyle } = loadSource()("src/components/event/form/form-canvas-style.ts");
+  const gradient = {
+    ...defaultEventBranding, secondary: "#FFFF00", accent: "#FFEE00",
+    backgroundMode: "gradient", gradientEnd: "#FFAA00", gradientAngle: 90,
+  };
+  const workspace = { ...seed, content: { defaultLocale: "th" }, setup: { branding: { th: gradient }, pendingMedia: {} } };
+  const editor = formCanvasStyle(workspace, "en");
+  assert.equal(editor["--form-background"], gradient.secondary);
+  assert.equal(editor["--form-gradient"], "linear-gradient(90deg, #FFFF00, #FFAA00)");
+  assert.equal(editor["--form-on-accent"], "#000000");
+  assert.deepEqual(formCanvasStyle({ ...seed, formAppearance: gradient }, "en"), editor);
+  const banner = { url: "/api/event/setup/media/banner", cropPosition: 80 };
+  const published = formCanvasStyle({
+    ...workspace, setup: { ...workspace.setup, publication: { branding: { ...gradient, backgroundMode: "blur", banner } } },
+  }, "en");
+  assert.equal(published["--form-gradient"], "none");
+  assert.equal(published["--form-banner"], 'url("/api/event/setup/media/banner")');
+  assert.equal(published["--form-banner-position"], "80% 80%");
+});
+
 test("workspace binding returns localized safe DTOs and only active assistants", async (t) => {
   const { mockApi } = load("src/core/api/mock-client.ts");
+  const { encodeSetupRecord, readSetupRecord } = load("src/core/event/setup-storage.ts");
+  const previousSecret = process.env.EVENT_SETUP_DATA_SECRET;
+  process.env.EVENT_SETUP_DATA_SECRET = require("node:crypto").randomBytes(32).toString("hex");
+  t.after(() => {
+    if (previousSecret === undefined) delete process.env.EVENT_SETUP_DATA_SECRET;
+    else process.env.EVENT_SETUP_DATA_SECRET = previousSecret;
+  });
+  const setup = encodeSetupRecord("event-a", {
+    ...readSetupRecord({}),
+    branding: { th: { ...defaultEventBranding, accent: "#C0FFEE", organizer: "private draft organizer" } },
+  });
   const original = mockApi.get;
   t.after(() => {
     mockApi.get = original;
@@ -296,6 +328,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
     if (url.pathname === "/events/event-a")
       return {
         id: "event-a",
+        setup,
         slug: "event",
         default_locale: "TH",
         status,
@@ -369,6 +402,9 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   assert.equal(assistant.eventName, "Event");
   assert.equal(assistant.canEditEvent, false);
   assert.equal(assistant.canAccessForms, true);
+  assert.equal(assistant.formAppearance.accent, "#C0FFEE");
+  assert.deepEqual(assistant.setup.branding, {});
+  assert.ok(!JSON.stringify(assistant).includes("private draft organizer"));
   assert.deepEqual(assistant.subUsers, []);
   assert.equal(await getEventWorkspace("unassigned", "th"), null);
   status = "open";

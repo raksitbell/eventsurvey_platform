@@ -160,9 +160,9 @@ export default function QuestionCard({
           : undefined
       }
       onDragEnd={isStandaloneDraggable ? onDragEnd : undefined}
-      className={`group flex h-full flex-col rounded-xl border bg-white px-4 pt-2 pb-4 shadow-theme-xs transition-all sm:px-6 sm:pb-6 dark:bg-gray-900 ${
+      className={`event-form-paper group flex h-full flex-col rounded-xl border bg-white px-4 pt-2 pb-4 shadow-theme-xs transition-all sm:px-6 sm:pb-6 dark:bg-gray-900 ${
         isActive
-          ? "border-gray-300 border-s-4 border-s-brand-500 dark:border-gray-700 dark:border-s-brand-500"
+          ? "border-gray-300 border-s-4 border-s-(--participant-accent) dark:border-gray-700 dark:border-s-(--participant-accent)"
           : "border-gray-200 dark:border-gray-800"
       } ${isDragging ? "opacity-40" : ""} ${
         isDragOver ? "border-t-4 border-t-brand-500" : ""

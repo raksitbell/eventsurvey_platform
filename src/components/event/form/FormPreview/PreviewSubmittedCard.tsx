@@ -29,7 +29,7 @@ export default function PreviewSubmittedCard({
   const tPreview = useTranslations("form.preview");
 
   return (
-    <div className="font-sans min-h-screen px-3 pt-4 pb-16 text-gray-800 sm:px-6 sm:pt-8 dark:text-gray-100">
+    <div className="event-form-surface font-sans min-h-screen px-3 pt-4 pb-16 text-gray-800 sm:px-6 sm:pt-8 dark:text-gray-100">
       <div className="mx-auto max-w-2xl">
         <PreviewTopBar
           onExitPreview={onExitPreview}
@@ -41,8 +41,8 @@ export default function PreviewSubmittedCard({
           onChangeLocale={onChangeLocale}
         />
 
-        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="absolute top-0 start-0 h-[10px] w-full bg-[#5C54D1]" />
+        <div className="event-form-paper relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="absolute top-0 start-0 h-[10px] w-full bg-(--participant-accent)" />
 
           <div className="flex items-start gap-3 pt-2">
             <CheckCircleIcon className="mt-1 h-7 w-7 shrink-0 text-green-600" />
@@ -57,7 +57,7 @@ export default function PreviewSubmittedCard({
               <button
                 type="button"
                 onClick={onResetForm}
-                className="mt-6 text-sm font-medium text-[#5C54D1] underline hover:text-indigo-800"
+                className="mt-6 text-sm font-medium text-(--participant-control-text) underline hover:brightness-90"
               >
                 {tPreview("submitAnother")}
               </button>

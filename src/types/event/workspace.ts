@@ -2,10 +2,13 @@ import type { MockEventStatus } from "@/types/mock";
 import type { UserRole } from "@/types/user";
 import type { EventSetupState } from "@/types/event/setup";
 import type { EventContent } from "@/types/event/content";
+import type { EventFormAppearance } from "@/types/event/branding";
 
 export interface EventWorkspace {
   eventId: string;
   setup?: EventSetupState;
+  /** Appearance available to form staff who cannot read the event setup draft. */
+  formAppearance?: EventFormAppearance;
   /** A validated browser-only setup draft is applied; never sent to BFF. */
   hasLocalDraft?: boolean;
   /** Browser-only publication receipt; never sent to BFF. */

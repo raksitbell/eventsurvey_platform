@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
 import type { EventBranding } from "@/types/event/branding";
+import type { EventSetupState } from "@/types/event/setup";
 import { IMAGE_MAX_INPUT_BYTES } from "@/utils/image-upload";
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i);
@@ -64,6 +65,15 @@ export const defaultEventBranding: EventBranding = {
   logo: null,
   banner: null,
 };
+
+export function savedFormBranding(
+  setup: EventSetupState | undefined, locale: string, defaultLocale?: string,
+) {
+  if (setup?.publication)
+    return setup.publishedBranding?.[locale] ?? setup.publication.branding;
+  const saved = setup?.branding;
+  return saved?.[locale] ?? saved?.[defaultLocale ?? "th"] ?? Object.values(saved ?? {})[0] ?? defaultEventBranding;
+}
 export function eventBrandingKey(
   userId: string,
   eventId: string,

@@ -36,14 +36,14 @@ export default function FormHeaderCard({
     <div
       ref={sectionRef}
       onClick={onSelect}
-      className={`relative overflow-hidden rounded-xl border bg-white shadow-theme-xs transition-all dark:bg-gray-900 ${
+      className={`event-form-paper relative overflow-hidden rounded-xl border bg-white shadow-theme-xs transition-all dark:bg-gray-900 ${
         isActive
-          ? "border-gray-300 border-s-4 border-s-brand-500 dark:border-gray-700 dark:border-s-brand-500"
+          ? "border-gray-300 border-s-4 border-s-(--participant-accent) dark:border-gray-700 dark:border-s-(--participant-accent)"
           : "border-gray-200 dark:border-gray-800"
       }`}
     >
       {/* Top Border Line */}
-      <div className="absolute top-0 start-0 h-2 w-full bg-brand-500"></div>
+      <div className="absolute top-0 start-0 h-2 w-full bg-(--participant-accent)"></div>
 
       <div className="px-4 pt-6 pb-5 sm:px-6 sm:pt-8">
         {showLocaleBadge && (

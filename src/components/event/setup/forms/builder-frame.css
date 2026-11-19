@@ -8,11 +8,45 @@
   background: var(--es-background-surface);
 }
 .es-builder-canvas {
-  background: var(--es-gradient-start);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
 }
-.es-builder-canvas > .font-outfit {
-  background-color: transparent;
+.es-builder-canvas > .event-form-surface {
+  flex: 1;
   min-height: 70dvh;
+}
+.event-form-surface {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--form-background, var(--color-gray-50));
+  background-image: var(--form-gradient, none);
+  --participant-accent: var(--form-accent, var(--color-event-action));
+  --participant-control-text: var(--form-control, var(--color-event-action));
+  --color-brand-50: color-mix(in srgb, var(--participant-accent) 8%, white);
+  --color-brand-100: color-mix(in srgb, var(--participant-accent) 15%, white);
+  --color-brand-200: color-mix(in srgb, var(--participant-accent) 32%, white);
+  --color-brand-300: color-mix(in srgb, var(--participant-accent) 52%, white);
+  --color-brand-400: color-mix(in srgb, var(--participant-accent) 72%, white);
+  --color-brand-500: var(--participant-control-text);
+  --color-brand-600: color-mix(in srgb, var(--participant-control-text) 88%, black);
+}
+.event-form-surface::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--form-banner, none);
+  background-position: var(--form-banner-position, center);
+  background-size: cover;
+  clip-path: inset(0);
+  filter: blur(14px);
+  opacity: 0.6;
+}
+.event-form-paper {
+  color-scheme: light;
+  color: var(--color-gray-800);
 }
 .es-builder-back {
   display: flex;

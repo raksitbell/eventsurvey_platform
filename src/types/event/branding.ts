@@ -26,3 +26,7 @@ export interface EventBranding {
   logo: BrandingImage | null;
   banner: BrandingBanner | null;
 }
+
+export type EventFormAppearance = Pick<EventBranding,
+  "primary" | "secondary" | "accent" | "backgroundMode" | "gradientEnd" | "gradientAngle" | "banner"
+>;

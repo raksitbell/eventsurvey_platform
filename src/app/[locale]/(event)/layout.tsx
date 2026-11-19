@@ -11,6 +11,7 @@ import EventNavigationGuardProvider, {
 } from "@/components/event/workspace/EventNavigationGuard";
 import EventWorkspaceSidebar from "@/components/event/workspace/EventWorkspaceSidebar";
 import EventWorkspaceHeader from "@/components/event/workspace/EventWorkspaceHeader";
+import { formCanvasStyle } from "@/components/event/form/form-canvas-style";
 import { usePathname } from "@/i18n/navigation";
 import Backdrop from "@/layout/Backdrop";
 import type { ReactNode } from "react";
@@ -23,7 +24,7 @@ import "@/components/event/setup/event-admin-design.css";
 
 function EventShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { workspace, loading } = useEventWorkspace();
+  const { workspace, loading, userId, locale } = useEventWorkspace();
   const navigationGuard = useEventNavigationGuard();
   const isSetup = [
     "/event",
@@ -40,6 +41,7 @@ function EventShell({ children }: { children: ReactNode }) {
   ].includes(pathname);
   const isFormPage =
     pathname === "/event/form" || pathname.startsWith("/event/form/");
+  const isFormBuilder = /^\/event\/(form|setup)\/(registration|survey)$/.test(pathname);
   const usesSetupChrome = isSetup || isFormPage;
   const featureLayout = isEventReportingPath(pathname) ? "dashboard" : undefined;
   const usesWorkspaceChrome = usesSetupChrome || !!featureLayout;
@@ -78,6 +80,7 @@ function EventShell({ children }: { children: ReactNode }) {
           <AppHeader />
         )}
         <div
+          style={workspace && isFormBuilder ? formCanvasStyle(workspace, locale, userId) : undefined}
           className={
             isSetup
               ? "event-admin-body"

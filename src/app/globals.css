@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *):not(:where(.event-form-paper, .event-form-paper *)));
 
 /* Fluid portal sizes retain a readable floor on narrow screens and honor the
    browser root size. The participant views keep using their own type scale. */
