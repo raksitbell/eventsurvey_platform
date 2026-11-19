@@ -4,18 +4,23 @@ import { eventInter, eventThai } from "@/components/event/setup/event-admin-font
 import { Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
+import type { ReactNode } from "react";
 import styles from "./EventWorkspacePageHeader.module.css";
 
 interface EventWorkspacePageHeaderProps {
   title: string;
   description: string;
+  eyebrow?: string;
   back?: false | { label?: string; onClick: () => void; disabled?: boolean };
+  action?: ReactNode;
 }
 
 export default function EventWorkspacePageHeader({
   title,
   description,
+  eyebrow,
   back,
+  action,
 }: EventWorkspacePageHeaderProps) {
   const t = useTranslations("eventHome");
   const backContent = (
@@ -30,28 +35,27 @@ export default function EventWorkspacePageHeader({
       {back && back.label ? back.label : t("backToOverview")}
     </>
   );
+  const backAction = back === undefined ? (
+    <Link href="/event" className={styles.back}>{backContent}</Link>
+  ) : back && (
+    <button
+      type="button"
+      onClick={back.onClick}
+      disabled={back.disabled}
+      className={`${styles.back} enabled:cursor-pointer disabled:opacity-55`}
+    >
+      {backContent}
+    </button>
+  );
 
   return (
     <header className={`${styles.hero} ${eventInter.variable} ${eventThai.variable}`}>
       <div className={styles.intro}>
-        <p className={styles.eyebrow}>{t("eyebrow")}</p>
+        <p className={styles.eyebrow}>{eyebrow ?? t("eyebrow")}</p>
         <h1>{title}</h1>
         <p className={styles.description}>{description}</p>
       </div>
-      {back === undefined ? (
-        <Link href="/event" className={styles.back}>
-          {backContent}
-        </Link>
-      ) : back && (
-        <button
-          type="button"
-          onClick={back.onClick}
-          disabled={back.disabled}
-          className={`${styles.back} enabled:cursor-pointer disabled:opacity-55`}
-        >
-          {backContent}
-        </button>
-      )}
+      {action ? <div className={styles.actions}>{backAction}{action}</div> : backAction}
     </header>
   );
 }

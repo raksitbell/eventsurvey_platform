@@ -76,6 +76,25 @@
   outline-offset: 3px;
 }
 
+.hero:has(.actions) {
+  flex-wrap: wrap;
+}
+
+.hero:has(.actions) .intro {
+  flex: 1 1 18rem;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-inline-size: 100%;
+  inline-size: max-content;
+  margin-inline-start: auto;
+}
+
 :global(.dark) .hero {
   --back-border: var(--es-border-default, var(--color-gray-600));
   --back-background: var(--es-background-surface, var(--color-gray-900));
@@ -94,5 +113,13 @@
 
   .back {
     inline-size: min(192px, 100%);
+  }
+
+  .actions {
+    inline-size: 100%;
+  }
+
+  .actions > * {
+    flex: 1 1 auto;
   }
 }

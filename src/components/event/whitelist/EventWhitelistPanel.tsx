@@ -1,5 +1,6 @@
 "use client";
 import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
+import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspacePageHeader";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import WhitelistTable from "@/components/event/whitelist/WhitelistTable";
 import WhitelistEntryRow from "@/components/event/whitelist/WhitelistEntryRow";
@@ -146,7 +147,7 @@ function WhitelistPageContent({ workspace, userId, locale }: EventSetupPageProps
     }
   };
   const persist = async () => {
-    if (busy || readOnly) return;
+    if (busy || readOnly || entry) return;
     setBusy(true);
     try {
       if (await save()) {
@@ -189,32 +190,36 @@ function WhitelistPageContent({ workspace, userId, locale }: EventSetupPageProps
       pendingDialog.current = false;
     }
   };
-  if (loading) return <WhitelistLoadingSkeleton label={t("loading")} />;
+  if (loading) return <WhitelistLoadingSkeleton />;
 
   const builderPath = whitelistRegistrationBuilderHref(workspace);
-  if (missingUniqueField) return (
-    <WhitelistPrerequisite
-      backLabel={backLabel}
-      onBack={() => void back()}
-      builderHref={builderPath && formBuilderEntryHref(builderPath, "whitelist", contentLocale, destination.origin)}
+  const header = (
+    <EventWorkspacePageHeader
+      eyebrow={view("private")}
+      title={view("title")}
+      description={view(uniqueField?.type === "email" ? "description" : "descriptionUniqueId")}
+      back={{ label: backLabel, onClick: () => void back(), disabled: busy }}
+      action={
+        !missingUniqueField && (
+          <Button disabled={readOnly || busy || !!entry} onClick={() => void persist()} className="es-list-save">
+            {t("save")}
+          </Button>
+        )
+      }
     />
+  );
+  if (missingUniqueField) return (
+    <div className="es-list-page">
+      {header}
+      <WhitelistPrerequisite
+        builderHref={builderPath && formBuilderEntryHref(builderPath, "whitelist", contentLocale, destination.origin)}
+      />
+    </div>
   );
   return (
     <div className="es-list-page" data-inline-edit={entry ? true : undefined}>
+      {header}
       <div className="es-list-content">
-        <header className="es-list-heading">
-          <div>
-            <h1 id="setup-whitelist-title">{view("title")}</h1>
-            <p>
-              {view(
-                uniqueField?.type === "email"
-                  ? "description"
-                  : "descriptionUniqueId",
-              )}
-            </p>
-          </div>
-          <span className="es-list-private">{view("private")}</span>
-        </header>
         <WhitelistTable
           entries={entries}
           uniqueKind={uniqueField?.type}
@@ -241,78 +246,55 @@ function WhitelistPageContent({ workspace, userId, locale }: EventSetupPageProps
           }
           onDelete={(id) => void remove(id)}
         />
-        <p className="es-list-policy">{view("policy")}</p>
-      </div>
-      {recovery &&
-        !readOnly &&
-        !busy &&
-        !recovering &&
-        !entry &&
-        (recovery.matches > 0 ? (
-          <Button variant="outline" onClick={() => void stageRecovery()}>
-            {t("recover")}
-          </Button>
-        ) : (
-          <p role="status">{t("recoverNoMatch")}</p>
-        ))}
-      {recovering && <p role="status">{t("recoverStaged")}</p>}
-      {error && (
-        <div>
-          <p
-            role="alert"
-            className="text-theme-sm text-error-600 dark:text-error-400"
-          >
-            {t(error)}
-          </p>
-          {(error === "loadError" || error === "conflict") && (
-            <Button variant="outline" onClick={() => void reloadSavedEntries()}>
-              {t("reload")}
-            </Button>
-          )}
-        </div>
-      )}
-      {entry ? (
-        <form
-          id={formId}
-          className="es-list-footer whitelist-inline-footer"
-          noValidate
-          onSubmit={(e) => {
-            e.preventDefault();
-            stageEntry();
-          }}
-        >
-          {entryIssue && (
-            <p id={formId + "-issue"} role="alert">
-              {t("errors." + entryIssue)}
-            </p>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => {
-              setEntry(null);
-              setEntryIssue(null);
+        {entry && (
+          <form
+            id={formId}
+            className="es-list-entry-actions"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              stageEntry();
             }}
           >
-            {t("cancel")}
-          </Button>
-          <Button type="submit" className="bg-event-action! text-white!">
-            {t("addEntry")}
-          </Button>
-        </form>
-      ) : (
-        <footer className="es-list-footer">
-          <Button disabled={busy} variant="outline" onClick={() => void back()}>
-            {backLabel}
-          </Button>
-          <Button
-            disabled={readOnly || busy}
-            onClick={() => void persist()}
-            className="es-list-save bg-event-action! hover:bg-event-action/90!"
-          >
-            {t("save")}
-          </Button>
-        </footer>
-      )}
+            {entryIssue && (
+              <p id={formId + "-issue"} role="alert">{t("errors." + entryIssue)}</p>
+            )}
+            <Button variant="outline" onClick={() => { setEntry(null); setEntryIssue(null); }}>
+              {t("cancel")}
+            </Button>
+            <Button type="submit" className="bg-event-action! text-white!">{t("addEntry")}</Button>
+          </form>
+        )}
+        <p className="es-list-policy">{view("policy")}</p>
+        {recovery &&
+          !readOnly &&
+          !busy &&
+          !recovering &&
+          !entry &&
+          (recovery.matches > 0 ? (
+            <Button variant="outline" onClick={() => void stageRecovery()}>
+              {t("recover")}
+            </Button>
+          ) : (
+            <p role="status">{t("recoverNoMatch")}</p>
+          ))}
+        {recovering && <p role="status">{t("recoverStaged")}</p>}
+        {error && (
+          <div>
+            <p
+              role="alert"
+              className="text-theme-sm text-error-600 dark:text-error-400"
+            >
+              {t(error)}
+            </p>
+            {(error === "loadError" || error === "conflict") && (
+              <Button variant="outline" onClick={() => void reloadSavedEntries()}>
+                {t("reload")}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
       {upload.isOpen && !readOnly && uniqueField && (
         <WhitelistImportDialog
           entries={entries}
@@ -329,5 +311,5 @@ function WhitelistPageContent({ workspace, userId, locale }: EventSetupPageProps
 }
 
 export default function EventWhitelistPanel() {
-  return <EventSetupBoundary component={WhitelistPage} />;
+  return <EventSetupBoundary component={WhitelistPage} loadingFallback={<WhitelistLoadingSkeleton />} />;
 }

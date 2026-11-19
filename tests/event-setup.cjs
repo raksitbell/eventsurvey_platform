@@ -1628,6 +1628,48 @@ const whitelistEntry = (uniqueId, status = "available") => ({
   name: "Attendee",
   status,
 });
+test("Whitelist combines status and search while its joined ratio counts all staged entries", () => {
+  const states = new Map();
+  const Table = compileSetupComponent("src/components/event/whitelist/WhitelistTable.tsx", {
+    "@/components/form/Select": { default: "select" },
+    "@/components/ui/table/Table": {
+      default: "table", TableBody: "tbody", TableCell: "td", TableHeader: "thead", TableRow: "tr",
+    },
+    "next-intl": { useTranslations: () => (key, counts) =>
+      key === "summary" ? [counts.used, counts.total].join("/") : key },
+    react: {
+      useState: (initial) => [states.get(initial) ?? initial, (next) => states.set(initial, next)],
+    },
+  });
+  const entries = [whitelistEntry("one@example.com"), { ...whitelistEntry("two@example.com", "joined"), name: "Somchai" }];
+  const render = (overrides = {}) => Table({ entries, ...overrides });
+  const status = findSetupElement(render(), (node) => node.type === "select");
+  const search = findSetupElement(render(), (node) => node.props.type === "search");
+  const row = (view, id) => findSetupElement(view, (node) => node.type === "tr" && node.key === id);
+  const legend = (view) => findSetupElement(view, (node) => node.props.role === "status").props.children;
+  const empty = (view) => findSetupElement(view, (node) => node.props.colSpan === 4)?.props.children;
+
+  assert.deepEqual(status.props.children.map((option) => option.props.value), ["all", "available", "joined"]);
+  assert.equal(status.props["aria-label"], "statusFilter");
+  const heading = findSetupElement(render(), (node) => node.props.className === "es-list-intro");
+  assert.equal(heading.props.children[0].type, "h2");
+  assert.equal(heading.props.children[1].props.role, "status");
+  assert.equal(legend(render()), "1/2");
+  status.props.onChange({ currentTarget: { value: "joined" } });
+  search.props.onChange({ target: { value: "  SOMCHAI  " } });
+  assert.ok(row(render(), entries[1].id));
+  assert.equal(row(render(), entries[0].id), null);
+  assert.equal(legend(render()), "1/2");
+  search.props.onChange({ target: { value: "one@" } });
+  assert.equal(empty(render()), "noMatches");
+  assert.equal(empty(render({ entries: [] })), "empty");
+  assert.equal(findSetupElement(render({ editor: "edit" }), (node) => node.type === "tbody").props.children.at(-1), "edit");
+  entries.push(whitelistEntry("three@example.com"));
+  assert.equal(legend(render()), "1/3");
+  assert.equal(row(render(), entries[2].id), null);
+  status.props.onChange({ currentTarget: { value: "available" } });
+  assert.ok(row(render(), entries[0].id));
+});
 test("Whitelist manual validation trims IDs, ignores email case and never re-grants used IDs", () => {
   assert.equal(
     whitelist.normalizeWhitelistId("  TEST@Example.com "),
