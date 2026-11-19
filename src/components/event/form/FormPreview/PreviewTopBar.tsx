@@ -1,12 +1,17 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { PencilSquareIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowLeftIcon,
+  PencilSquareIcon,
+} from "@heroicons/react/24/outline";
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
 import { FormLocale } from "@/types/event/form";
 
 interface PreviewTopBarProps {
   onExitPreview: () => void;
+  /** When false, exit returns to the forms list instead of the editor. */
+  allowEdit?: boolean;
   showBadge?: boolean;
   hasEnglish?: boolean;
   previewLocale?: FormLocale;
@@ -15,6 +20,7 @@ interface PreviewTopBarProps {
 
 export default function PreviewTopBar({
   onExitPreview,
+  allowEdit = true,
   showBadge = true,
   hasEnglish = false,
   previewLocale = "th",
@@ -72,11 +78,16 @@ export default function PreviewTopBar({
           onClick={onExitPreview}
           className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-theme-xs transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         >
-          <PencilSquareIcon className="h-4 w-4" />
-          <span>{tPreview("editForm")}</span>
+          {allowEdit ? (
+            <PencilSquareIcon className="h-4 w-4" />
+          ) : (
+            <ArrowLeftIcon className="h-4 w-4 rtl:rotate-180" />
+          )}
+          <span>
+            {allowEdit ? tPreview("editForm") : tPreview("backToForms")}
+          </span>
         </button>
       </div>
     </div>
   );
 }
-

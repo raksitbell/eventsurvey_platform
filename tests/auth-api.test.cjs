@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Node's standalone test runner loads compiled TypeScript. */
+process.env.MOCK_API_GET_CACHE_TTL_MS = "0";
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const { NextRequest } = require("next/server");
@@ -14,7 +15,7 @@ const { AUTH_SESSION_COOKIE, parseAuthSessionCookie } = load("src/core/auth/cook
 const { POST: login } = load("src/app/api/auth/login/route.ts");
 const { POST: logout } = load("src/app/api/auth/logout/route.ts");
 const { GET: getSession } = load("src/app/api/auth/session/route.ts");
-const { POST: startImpersonation, DELETE: stopImpersonation } = load("src/app/api/auth/impersonation/route.ts");
+const { POST: startInspectEvent, DELETE: stopInspectEvent } = load("src/app/api/auth/inspect-event/route.ts");
 const { GET: getAdminUsers } = load("src/app/api/admin/users/route.ts");
 const { GET: getAdminUser } = load("src/app/api/admin/users/[id]/route.ts");
 const { GET: getAdminEvents } = load("src/app/api/admin/events/route.ts");
@@ -169,7 +170,11 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
   const { cookie: team } = await signIn(assistant);
   await assertDenied(await getAdminUsers(request("/api/admin/users", { cookie: own })), 403);
   await assertDenied(await getWorkspace(request("/api/event/workspace", { cookie: adm })), 403);
-  await assertDenied(await getForms(request("/api/event/forms?eventId=event-a", { cookie: team })), 403);
+  // view_only staff may list their event forms, but not another event's
+  assert.equal(
+    (await getForms(request("/api/event/forms?eventId=event-a", { cookie: team }))).status,
+    200,
+  );
   await assertDenied(await getForms(request("/api/event/forms?eventId=event-b", { cookie: own })), 403);
 });
 
@@ -204,53 +209,70 @@ test("workspace follows the authenticated account and suspended accounts lose ac
   await assertDenied(await getWorkspace(request("/api/event/workspace", { cookie })), 401);
 });
 
-test("impersonation uses explicit authority, target scope and the original expiry", async (t) => {
-  const { admin, reviewer, owner, platformPermissions } = setupMockData(t);
+test("event inspection uses canInspection, keeps admin role, and restores the original expiry", async (t) => {
+  const { admin, reviewer, owner, platformPermissions, collections } = setupMockData(t);
+  collections.event_translations.push({
+    id: "tr-a",
+    event_id: "event-a",
+    locale_code: "en",
+    title: "Fixture Event A",
+  });
   const { cookie: adminCookie } = await signIn(admin);
   const { cookie: reviewerCookie } = await signIn(reviewer);
   const { cookie: ownerCookie } = await signIn(owner);
-  const impersonationPath = "/api/auth/impersonation";
+  const inspectPath = "/api/auth/inspect-event";
   for (const cookie of [reviewerCookie, ownerCookie]) {
-    const denied = await startImpersonation(request(impersonationPath, {
-      method: "POST", cookie, body: { userId: owner.id },
+    const denied = await startInspectEvent(request(inspectPath, {
+      method: "POST", cookie, body: { eventId: owner.event_id },
     }));
     await assertDenied(denied, 403);
   }
 
-  const started = await startImpersonation(request(impersonationPath, {
-    method: "POST", cookie: adminCookie, body: { userId: owner.id },
+  const started = await startInspectEvent(request(inspectPath, {
+    method: "POST", cookie: adminCookie, body: { eventId: owner.event_id },
   }));
   assert.equal(started.status, 200);
-  const impersonationCookie = cookieValue(started);
+  const inspectCookie = cookieValue(started);
   const snapshot = await started.json();
   assert.equal(snapshot.realUser.id, admin.id);
-  assert.equal(snapshot.impersonatedUser.id, owner.id);
-  assertNoPersonalDetails(snapshot.impersonatedUser, [owner]);
+  assert.equal(snapshot.impersonatedUser, null);
+  assert.equal(snapshot.inspectedEventId, owner.event_id);
+  assert.equal(snapshot.inspectedEventName, "Fixture Event A");
   assertNoStore(started);
-  await assertDenied(
-    await getAdminUsers(request("/api/admin/users", { cookie: impersonationCookie })),
-    403,
+  const claims = parseAuthSessionCookie(inspectCookie);
+  assert.equal(claims.role, "super_admin");
+  assert.equal(claims.userId, admin.id);
+  assert.equal(claims.impersonating, false);
+  assert.equal(claims.inspectedEventId, owner.event_id);
+  // Inspecting keeps /admin access while also opening the event workspace.
+  assert.equal(
+    (await getAdminUsers(request("/api/admin/users", { cookie: inspectCookie }))).status,
+    200,
   );
-  const workspace = await getWorkspace(request("/api/event/workspace", { cookie: impersonationCookie }));
+  const workspace = await getWorkspace(request("/api/event/workspace", { cookie: inspectCookie }));
   assert.equal(workspace.status, 200);
   assert.equal((await workspace.json()).eventId, owner.event_id);
 
-  const grant = platformPermissions.findIndex((row) => row.permission === "impersonate_event_user");
-  platformPermissions.splice(grant, 1);
+  const grant = platformPermissions.find(
+    (row) => row.user_id === admin.id,
+  );
+  grant.matrix.canInspection = false;
   await assertDenied(
-    await getWorkspace(request("/api/event/workspace", { cookie: impersonationCookie })),
+    await getWorkspace(request("/api/event/workspace", { cookie: inspectCookie })),
     401,
   );
 
-  const restored = await stopImpersonation(request(impersonationPath, {
-    method: "DELETE", cookie: impersonationCookie,
+  grant.matrix.canInspection = true;
+  const restored = await stopInspectEvent(request(inspectPath, {
+    method: "DELETE", cookie: inspectCookie,
   }));
   assert.equal(restored.status, 200);
   const restoredClaims = parseAuthSessionCookie(cookieValue(restored));
   assert.equal(restoredClaims.userId, admin.id);
   assert.equal(restoredClaims.impersonating, false);
+  assert.equal(restoredClaims.inspectedEventId, null);
   assert.equal(restoredClaims.expiresAt, parseAuthSessionCookie(adminCookie).expiresAt);
-  assert.equal((await restored.json()).impersonatedUser, null);
+  assert.equal((await restored.json()).inspectedEventId, null);
 });
 
 test("admin user and event responses mask fields until the viewer has the current PII grant", async (t) => {
@@ -280,7 +302,10 @@ test("admin user and event responses mask fields until the viewer has the curren
   assert.equal(unmasked.email, owner.email);
   assert.equal("password" in unmasked, false);
 
-  platformPermissions.splice(platformPermissions.findIndex((row) => row.permission === "view_unmasked_pii"), 1);
+  const reviewerAccess = platformPermissions.find(
+    (row) => row.user_id === reviewer.id,
+  );
+  reviewerAccess.matrix.canViewUnmaskedPii = false;
   const afterRevocation = await getAdminUsers(request("/api/admin/users", { cookie: reviewerCookie }));
   assert.equal(afterRevocation.status, 200);
   assertNoPersonalDetails(await afterRevocation.json(), [owner, assistant]);
@@ -317,7 +342,9 @@ test("admin can create events with either owner mode and an invite failure prese
     assert.equal(response.status, 201);
     const result = await response.json();
     const assigned = collections.users.find((user) => user.id === result.event.adminUserId);
-    const role = collections.roles.find((role) => role.id === assigned.role_id);
+    const access = collections.event_access.find(
+      (row) => row.user_id === assigned.id && row.event_id === result.event.id,
+    );
     const isExisting = input.mode === "existing";
     assert.equal(result.event.slug, input.slug);
     assert.equal(result.event.title, input.titleEn);
@@ -326,8 +353,9 @@ test("admin can create events with either owner mode and an invite failure prese
     assert.equal(result.inviteSent, false);
     assert.equal(assigned.status, isExisting ? "active" : "invited");
     assert.equal(assigned.event_id, result.event.id);
-    assert.equal(role.event_id, result.event.id);
-    assert.equal(collections.role_permissions.filter((item) => item.role_id === role.id).length, 5);
+    assert.ok(access);
+    assert.equal(access.can_manage_sub_users, true);
+    assert.equal(access.matrix.event, "can_edit");
     assert.equal(collections.event_translations.filter((item) => item.event_id === result.event.id).length, isExisting ? 1 : 2);
     assertNoPersonalDetails(result, [assigned]);
   }
@@ -348,11 +376,11 @@ test("upstream write failures roll back created resources and allow resubmission
         titleTh: "",
         existingUserId: assignable.id,
       };
-      const failingRequest = mode === "new" ? "POST /role_permissions" : "PATCH /users/" + assignable.id;
-      failures.set(failingRequest, (body) =>
-        mode === "existing" || body?.permission === "manage_sub_user"
-          ? "Fixture upstream write rejected"
-          : undefined);
+      // new: fail after access is staged by rejecting the invited user write
+      // existing: fail the owner assignment patch
+      const failingRequest =
+        mode === "new" ? "POST /users" : "PATCH /users/" + assignable.id;
+      failures.set(failingRequest, "Fixture upstream write rejected");
 
       const failed = await create(createEventRequest(cookie, input));
       assert.equal(failed.status, 502);

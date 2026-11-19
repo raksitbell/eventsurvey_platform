@@ -55,27 +55,54 @@ function fixture(t) {
         status: "active",
         event_id: "event",
         system_role: "event_user",
-        role_id: "owner-role",
+        role_id: null,
       },
       {
         id: "viewer",
         status: "active",
         event_id: "event",
         system_role: "event_user",
-        role_id: "viewer-role",
+        role_id: null,
       },
     ],
     events: [
       { id: "event", slug: "fixture", status: "open", default_locale: "en" },
     ],
-    roles: [
-      { id: "owner-role", event_id: "event" },
-      { id: "viewer-role", event_id: "event" },
-    ],
-    role_permissions: [
-      { role_id: "owner-role", permission: "manage_dashboard" },
-      { role_id: "owner-role", permission: "manage_survey_form" },
-      { role_id: "viewer-role", permission: "manage_dashboard" },
+    event_access: [
+      {
+        id: "access-owner",
+        user_id: "owner",
+        event_id: "event",
+        role_name: "Event Admin",
+        can_manage_sub_users: true,
+        matrix: {
+          event: "can_edit",
+          registrationForm: "restricted",
+          surveyForm: "can_edit",
+          dashboard: "can_edit",
+          canViewSubmissions: true,
+          canManageSubmissions: true,
+          canExport: true,
+        },
+        deleted_at: null,
+      },
+      {
+        id: "access-viewer",
+        user_id: "viewer",
+        event_id: "event",
+        role_name: "Viewer",
+        can_manage_sub_users: false,
+        matrix: {
+          event: "view_only",
+          registrationForm: "restricted",
+          surveyForm: "restricted",
+          dashboard: "can_edit",
+          canViewSubmissions: false,
+          canManageSubmissions: false,
+          canExport: false,
+        },
+        deleted_at: null,
+      },
     ],
     event_translations: [],
     forms: [form],
@@ -88,6 +115,7 @@ function fixture(t) {
     field_option_translations: [],
     form_submissions: [],
     dashboard_layouts: [],
+    audit_logs: [],
   };
 
   class MockApiError extends Error {
@@ -125,6 +153,13 @@ function fixture(t) {
       mockApi: {
         async get(resourcePath) {
           return structuredClone(lookup(resourcePath));
+        },
+        async post(resourcePath, body) {
+          const url = new URL(resourcePath, "https://fixture.example.test");
+          const collection = url.pathname.split("/").filter(Boolean)[0];
+          if (collection !== "audit_logs") throw new MockApiError(404);
+          collections.audit_logs.push(body);
+          return structuredClone(body);
         },
         async put(resourcePath, body) {
           Object.assign(lookup(resourcePath), body);

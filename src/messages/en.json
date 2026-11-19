@@ -30,16 +30,28 @@
     "ok": "OK",
     "signOutTitle": "Sign out",
     "impersonateTitle": "Impersonate user",
-    "stopImpersonateTitle": "Stop impersonating"
+    "stopImpersonateTitle": "Stop impersonating",
+    "stopInspectTitle": "Leave event workspace",
+    "inspectTitle": "Open event workspace"
+  },
+  "eventInspection": {
+    "banner": "Viewing “{event}” with full platform access. Signed in as {admin}.",
+    "stop": "Back to Events",
+    "stopFailed": "Unable to leave the event workspace. Please try again.",
+    "confirmStop": "Leave this event workspace and return to Event Management?",
+    "confirmStart": "Open “{event}” with full platform access?",
+    "unnamedEvent": "this event"
   },
   "sidebar": {
     "groups": {
       "workspace": "Workspace",
       "event": "EVENT"
     },
+    "appSubtitle": "Event registration and surveys",
     "items": {
       "overview": "System Overview",
       "owners": "User Management",
+      "activity": "User Activity",
       "eventHome": "Overview",
       "eventWorkspace": "Event Workspace",
       "dashboard": "Dashboard",
@@ -83,31 +95,20 @@
     "confirmStopImpersonating": "Stop impersonating and return to the Super Admin account?"
   },
   "auth": {
-    "title": "Sign in",
-    "subtitle": "Enter your email and password to access the EventSurvey workspace.",
+    "title": "Sign in to EventSurvey",
     "email": "Email",
-    "emailPlaceholder": "info@company.com",
+    "emailPlaceholder": "admin@email.com",
     "password": "Password",
     "passwordPlaceholder": "Enter your password",
-    "keepLoggedIn": "Keep me logged in",
+    "keepLoggedIn": "Remember me",
     "forgotPassword": "Forgot password?",
     "signIn": "Sign in",
     "signingIn": "Signing in...",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "noAccount": "Don't have an account?",
-    "contactAdmin": "Contact an administrator",
-    "brandHeadline": "Build better events. Collect better feedback.",
-    "brandSubtext": "Create forms, publish surveys, and turn every response into actionable insight.",
+    "privacy": "Privacy policy",
+    "brandHeadline": "Manage events. Build registration forms and surveys.",
     "language": "Language",
-    "demoTitle": "Demo accounts",
-    "demoPassword": "Password for all accounts: password123",
-    "demoHint": "Click an account to autofill",
-    "demoAccounts": {
-      "admin": "Super Admin → /admin",
-      "owner": "Event Owner → /event",
-      "subUser": "Sub User → /event"
-    },
     "errors": {
       "invalidCredentials": "Invalid email or password.",
       "unsupportedRole": "This account role cannot access the portal.",
@@ -200,6 +201,246 @@
       "customRoles": "Event role",
       "status": "Status",
       "actions": "Actions"
+    },
+    "viewProfile": "Profile",
+    "editPlatformAccess": "Permissions",
+    "platformAccessTitle": "Platform permissions",
+    "platformAccessSaving": "Saving…",
+    "platformAccessSaved": "Platform permissions saved",
+    "platformAccessSaveError": "Could not save platform permissions",
+    "platformFlags": {
+      "canViewActivity": "View User Activity",
+      "canViewActivityDesc": "Allow opening the User Activity dashboard and timelines",
+      "canInspection": "Inspect events",
+      "canInspectionDesc": "Allow opening event workspaces with full platform access"
+    }
+  },
+  "adminActivity": {
+    "title": "User Activity",
+    "description": "Audit trail of create, update, and delete actions across platform and event APIs.",
+    "loadError": "Failed to load activity.",
+    "profileLoadError": "Failed to load this user’s activity.",
+    "loading": "Loading…",
+    "empty": "No activity yet.",
+    "platformOnly": "Platform",
+    "profileTitle": "User profile",
+    "profileSubtitle": "Activity timeline",
+    "timelineTitle": "Activity history",
+    "membershipsTitle": "Events",
+    "membershipsEmpty": "This user is not assigned to any event.",
+    "permissionsUnknown": "Permissions are unavailable for this event.",
+    "viewRelatedUser": "View related user",
+    "filterByEventHint": "Filter the table by this event",
+    "openModuleHint": "Open this module",
+    "inspectModuleConfirm": "Inspect “{event}” and open {module}?",
+    "inspectModuleConfirmLabel": "Inspect & open",
+    "openModuleTitle": "Open module",
+    "openModuleConfirm": "Go to {module}?",
+    "openModuleConfirmLabel": "Open",
+    "permissionModules": {
+      "event": "Event",
+      "registrationForm": "Registration Form",
+      "surveyForm": "Survey Form",
+      "dashboard": "Dashboard"
+    },
+    "permissionToggles": {
+      "canViewSubmissions": "View submissions",
+      "canManageSubmissions": "Manage submissions",
+      "canExport": "Export",
+      "canViewActivity": "View User Activity"
+    },
+    "modules": {
+      "event_setup": "Event Setup",
+      "user_management": "User Management",
+      "event_management": "Event Management",
+      "registration_builder": "Registration Builder",
+      "survey_builder": "Survey Builder",
+      "dashboard": "Dashboard"
+    },
+    "stats": {
+      "total": "Total activities",
+      "users": "Users",
+      "events": "Events involved",
+      "platform": "Platform actions"
+    },
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Search user, event, module, or detail",
+      "event": "Event",
+      "allEvents": "All events",
+      "accountType": "Account type",
+      "allAccounts": "All",
+      "platform": "Platform",
+      "eventAccount": "Event",
+      "dateRange": "Date range",
+      "dateRangePlaceholder": "Select date range"
+    },
+    "columns": {
+      "time": "Time",
+      "user": "User",
+      "event": "Event",
+      "action": "Action",
+      "detail": "Detail",
+      "module": "Module"
+    },
+    "actions": {
+      "create": "Create",
+      "update": "Edit",
+      "delete": "Delete",
+      "other": "Other"
+    },
+    "roles": {
+      "super_admin": "Platform Admin",
+      "event_owner": "Event Admin",
+      "sub_user": "Sub User",
+      "participant": "Participant"
+    },
+    "meta": {
+      "email": "Email: {value}",
+      "roleName": "Role: {value}",
+      "slug": "Slug: {value}",
+      "field": "Field: {value}",
+      "count": "{count} items",
+      "pair": "{field}: {value}",
+      "change": "{field}: {from} → {to}",
+      "empty": "—",
+      "bool": {
+        "on": "On",
+        "off": "Off"
+      },
+      "levels": {
+        "can_edit": "Can edit",
+        "view_only": "View only",
+        "restricted": "No access"
+      },
+      "fields": {
+        "email": "Email",
+        "roleName": "Role",
+        "slug": "Slug",
+        "count": "Count",
+        "field": "Field",
+        "event": "Event",
+        "registrationForm": "Registration Form",
+        "surveyForm": "Survey Form",
+        "dashboard": "Dashboard",
+        "canViewSubmissions": "View submissions",
+        "canManageSubmissions": "Manage submissions",
+        "canExport": "Export",
+        "canViewActivity": "View User Activity",
+        "canInspection": "Event inspection",
+        "status": "Status",
+        "before": "Before",
+        "after": "After"
+      }
+    }
+  },
+  "eventActivity": {
+    "title": "User Activity",
+    "description": "Audit trail of create, update, and delete actions for this event.",
+    "loadError": "Failed to load activity.",
+    "profileLoadError": "Failed to load this user’s activity.",
+    "loading": "Loading…",
+    "empty": "No activity yet.",
+    "platformOnly": "Platform",
+    "profileTitle": "User profile",
+    "profileSubtitle": "Activity timeline",
+    "timelineTitle": "Activity history",
+    "membershipsTitle": "Events",
+    "membershipsEmpty": "This user is not assigned to any event.",
+    "permissionsUnknown": "Permissions are unavailable for this event.",
+    "viewRelatedUser": "View related user",
+    "openModuleHint": "Open this module",
+    "openModuleTitle": "Open module",
+    "openModuleConfirm": "Go to {module}?",
+    "openModuleConfirmLabel": "Open",
+    "permissionModules": {
+      "event": "Event",
+      "registrationForm": "Registration Form",
+      "surveyForm": "Survey Form",
+      "dashboard": "Dashboard"
+    },
+    "permissionToggles": {
+      "canViewSubmissions": "View submissions",
+      "canManageSubmissions": "Manage submissions",
+      "canExport": "Export",
+      "canViewActivity": "View User Activity"
+    },
+    "modules": {
+      "event_setup": "Event Setup",
+      "user_management": "User Management",
+      "event_management": "Event Management",
+      "registration_builder": "Registration Builder",
+      "survey_builder": "Survey Builder",
+      "dashboard": "Dashboard"
+    },
+    "stats": {
+      "total": "Total activities",
+      "users": "Users"
+    },
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Search user, module, or detail",
+      "event": "Event",
+      "allEvents": "All events",
+      "dateRange": "Date range",
+      "dateRangePlaceholder": "Select date range"
+    },
+    "columns": {
+      "time": "Time",
+      "user": "User",
+      "action": "Action",
+      "detail": "Detail",
+      "module": "Module"
+    },
+    "actions": {
+      "create": "Create",
+      "update": "Edit",
+      "delete": "Delete",
+      "other": "Other"
+    },
+    "roles": {
+      "super_admin": "Platform Admin",
+      "event_owner": "Event Admin",
+      "sub_user": "Sub User",
+      "participant": "Participant"
+    },
+    "meta": {
+      "email": "Email: {value}",
+      "roleName": "Role: {value}",
+      "slug": "Slug: {value}",
+      "field": "Field: {value}",
+      "count": "{count} items",
+      "pair": "{field}: {value}",
+      "change": "{field}: {from} → {to}",
+      "empty": "—",
+      "bool": {
+        "on": "On",
+        "off": "Off"
+      },
+      "levels": {
+        "can_edit": "Can edit",
+        "view_only": "View only",
+        "restricted": "No access"
+      },
+      "fields": {
+        "email": "Email",
+        "roleName": "Role",
+        "slug": "Slug",
+        "count": "Count",
+        "field": "Field",
+        "event": "Event",
+        "registrationForm": "Registration Form",
+        "surveyForm": "Survey Form",
+        "dashboard": "Dashboard",
+        "canViewSubmissions": "View submissions",
+        "canManageSubmissions": "Manage submissions",
+        "canExport": "Export",
+        "canViewActivity": "View User Activity",
+        "canInspection": "Event inspection",
+        "status": "Status",
+        "before": "Before",
+        "after": "After"
+      }
     }
   },
   "eventHome": {
@@ -375,6 +616,50 @@
       "saveFailed": "Failed to save password"
     }
   },
+  "forgotPassword": {
+    "title": "Forgot password",
+    "description": "Enter the email for your EventSurvey account. If it matches an active portal account, we will send a reset link.",
+    "email": "Email",
+    "emailPlaceholder": "admin@email.com",
+    "submit": "Send reset link",
+    "sending": "Sending...",
+    "sentTitle": "Check your email",
+    "sentDescription": "If an account exists for that email, a password reset link has been sent. The link does not expire until you change your password.",
+    "backToLogin": "Back to sign in",
+    "brandHeadline": "Reset access to your EventSurvey workspace.",
+    "errors": {
+      "generic": "Unable to send the reset link. Please try again."
+    }
+  },
+  "resetPassword": {
+    "eyebrow": "Password reset",
+    "title": "Set a new password",
+    "description": "Choose a new password for your EventSurvey account. You can sign in with this email afterward.",
+    "accountLabel": "Account",
+    "password": "New password",
+    "confirmPassword": "Confirm password",
+    "passwordPlaceholder": "At least 8 characters",
+    "confirmPlaceholder": "Re-enter your password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "submit": "Save new password",
+    "saving": "Saving...",
+    "backToLogin": "Back to sign in",
+    "requestAgain": "Request a new link",
+    "unavailableTitle": "Reset link unavailable",
+    "brandHeadline": "One password. Full event control.",
+    "brandSubtext": "After you save, sign in to manage your events and team.",
+    "rules": {
+      "minLength": "At least 8 characters",
+      "match": "Both passwords match"
+    },
+    "errors": {
+      "unavailable": "This link is unavailable or no longer valid",
+      "tooShort": "Password must be at least 8 characters",
+      "mismatch": "Passwords do not match",
+      "saveFailed": "Failed to save password"
+    }
+  },
   "adminEvents": {
     "title": "Event Management",
     "description": "Create and manage all platform events, including Event Admin assignment.",
@@ -391,6 +676,8 @@
     "endDate": "End date",
     "manage": "Manage",
     "view": "View details",
+    "openWorkspace": "Open event workspace",
+    "openWorkspaceError": "Unable to open the event workspace.",
     "edit": "Edit",
     "start": "Start event",
     "startWaiting": "Waiting for start time",
@@ -549,6 +836,7 @@
     "open": "Open",
     "create": "Create form",
     "edit": "Edit form",
+    "view": "View form",
     "delete": "Delete",
     "deleteConfirmTitle": "Delete form?",
     "deleteConfirmMessage": "Are you sure you want to delete this form?",
@@ -663,6 +951,7 @@
     "preview": {
       "button": "Preview",
       "editForm": "Back to edit",
+      "backToForms": "Back to forms",
       "langThai": "ภาษาไทย",
       "langEnglish": "English",
       "requiredNote": "* Indicates required question",
@@ -707,7 +996,7 @@
   "errors": {
     "403": {
       "title": "Access denied",
-      "message": "You do not have permission to view this page, or you must impersonate before entering the event area.",
+      "message": "You do not have permission to view this page.",
       "backHome": "Back to Home Page"
     },
     "404": {
@@ -783,7 +1072,11 @@
       "pdfHint": "A printable event summary. Choose Save as PDF in the print dialog.",
       "print": "Print / Save PDF",
       "last": "Last export in this session",
-      "noApproved": "No responses from approved forms are available for export."
+      "noApproved": "No responses from approved forms are available for export.",
+      "generated": "Export file ready: {name}",
+      "downloaded": "Download started: {name}",
+      "printReady": "Print dialog opened. Choose Save as PDF if needed.",
+      "failed": "Could not create the export. Please try again."
     },
     "analyticsExport": {
       "responseId": "Response ID",
@@ -950,13 +1243,24 @@
       "dashboard": "Dashboard",
       "dashboardDesc": "Dashboard"
     },
+    "badgeEvent": "Event: {level}",
+    "badgeRegistration": "Registration: {level}",
+    "badgeSurvey": "Survey: {level}",
+    "badgeDashboard": "Dashboard: {level}",
+    "badgeSubmissions": "Submissions",
+    "badgeExport": "Export",
+    "badgeActivity": "Activity",
+    "eventAdminRole": "Event Admin",
+    "workspaceEyebrow": "Event workspace",
     "toggles": {
       "viewSubmissions": "View Submission",
       "viewSubmissionsDesc": "View successfully submitted responses",
       "manageSubmissions": "Manage Submission",
       "manageSubmissionsDesc": "Manage / delete responses (Requires View)",
       "exportData": "Export",
-      "exportDataDesc": "Export data / reports"
+      "exportDataDesc": "Export data / reports",
+      "viewActivity": "View User Activity",
+      "viewActivityDesc": "View this event’s activity timeline (view only)"
     },
     "rules": {
       "rule1": "Manage Submission → Automatically enables View Submission",
@@ -980,7 +1284,10 @@
     "removeButton": "Remove",
     "removeTooltip": "Remove from event",
     "saving": "Saving...",
-    "updateError": "Failed to update permissions. Please try again."
+    "updateSuccess": "Permissions saved",
+    "updateError": "Failed to update permissions. Please try again.",
+    "inviteSuccess": "Sub-user invited",
+    "removeSuccess": "Member removed from this event"
   },
   "eventBranding": {
     "step": "Event setup / Step 2 of 4",
@@ -1094,6 +1401,7 @@
   },
   "eventForms": {
     "title": "Form setup",
+    "loading": "Loading forms…",
     "registration": "Registration Form",
     "survey": "Survey Form",
     "enabled": "Enabled",
@@ -1361,6 +1669,7 @@
     "invalidAnswer": "Enter a valid answer."
   },
   "eventPublishedView": {
+    "loading": "Loading QR codes…",
     "eventLink": "Event page link",
     "linksUnavailable": "Sharing links are unavailable for this event.",
     "linksLoadError": "Could not load sharing links.",

@@ -209,12 +209,14 @@ export async function getPublicEventBySlug(
     };
   }
 
+  const floorZone = content?.floor_zone?.trim() || null;
+
   return {
     draft: {
       eventName: content?.title || event.slug,
       description: content?.description ?? null,
       locationName: content?.location_name ?? null,
-      locationDetail: content?.address_text ?? undefined,
+      locationDetail: floorZone ?? undefined,
       startsAt: event.start_at,
       endsAt: event.end_at,
       isPrivate: event.is_private,
@@ -247,7 +249,7 @@ export async function getAssignedShareLinks(
     !user ||
     !isActiveMockUser(user) ||
     !user.event_id ||
-    resolveAppRole(user, await getRolePermissions(user.role_id)) !==
+    resolveAppRole(user, await getRolePermissions(user.id, user.event_id)) !==
       "event_owner"
   ) {
     throw new ServiceError("FORBIDDEN", 403);

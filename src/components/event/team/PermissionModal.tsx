@@ -73,24 +73,25 @@ export default function PermissionModal({
     canViewSubmissions: false,
     canManageSubmissions: false,
     canExport: false,
+    canViewActivity: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (subUser) {
-      setPermissions({
-        event: subUser.permissions.event ?? "view_only",
-        registrationForm: subUser.permissions.registrationForm ?? "view_only",
-        surveyForm: subUser.permissions.surveyForm ?? "view_only",
-        dashboard: subUser.permissions.dashboard ?? "view_only",
-        canViewSubmissions: Boolean(subUser.permissions.canViewSubmissions),
-        canManageSubmissions: Boolean(subUser.permissions.canManageSubmissions),
-        canExport: Boolean(subUser.permissions.canExport),
-      });
-      setError(null);
-    }
-  }, [subUser]);
+    if (!isOpen || !subUser) return;
+    setPermissions({
+      event: subUser.permissions.event ?? "view_only",
+      registrationForm: subUser.permissions.registrationForm ?? "view_only",
+      surveyForm: subUser.permissions.surveyForm ?? "view_only",
+      dashboard: subUser.permissions.dashboard ?? "view_only",
+      canViewSubmissions: Boolean(subUser.permissions.canViewSubmissions),
+      canManageSubmissions: Boolean(subUser.permissions.canManageSubmissions),
+      canExport: Boolean(subUser.permissions.canExport),
+      canViewActivity: Boolean(subUser.permissions.canViewActivity),
+    });
+    setError(null);
+  }, [isOpen, subUser]);
 
   const handleModuleChange = (
     moduleKey: keyof Pick<
@@ -106,7 +107,11 @@ export default function PermissionModal({
   };
 
   const handleToggleChange = (
-    key: "canViewSubmissions" | "canManageSubmissions" | "canExport",
+    key:
+      | "canViewSubmissions"
+      | "canManageSubmissions"
+      | "canExport"
+      | "canViewActivity",
     value: boolean,
   ) => {
     setPermissions((prev) => {
@@ -321,6 +326,25 @@ export default function PermissionModal({
                 id="toggle-export"
                 checked={permissions.canExport}
                 onChange={(checked) => handleToggleChange("canExport", checked)}
+              />
+            </div>
+
+            {/* 4. User Activity (view only) */}
+            <div className="flex items-center justify-between rounded-xl bg-[#F9F8FA] px-4 py-3 dark:bg-gray-800/60">
+              <div>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                  {t("toggles.viewActivity")}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t("toggles.viewActivityDesc")}
+                </p>
+              </div>
+              <CustomSwitch
+                id="toggle-view-activity"
+                checked={permissions.canViewActivity}
+                onChange={(checked) =>
+                  handleToggleChange("canViewActivity", checked)
+                }
               />
             </div>
           </div>

@@ -3,6 +3,24 @@ import type { AuthSnapshot } from "@/core/auth/session";
 import type { LoginCredentials } from "@/types/auth";
 import type { User } from "@/types/user";
 
+const EMPTY_SNAPSHOT: AuthSnapshot = {
+  realUser: null,
+  impersonatedUser: null,
+  inspectedEventId: null,
+  inspectedEventName: null,
+  canViewActivity: false,
+};
+
+function normalizeSnapshot(data: Partial<AuthSnapshot>): AuthSnapshot {
+  return {
+    realUser: data.realUser ?? null,
+    impersonatedUser: data.impersonatedUser ?? null,
+    inspectedEventId: data.inspectedEventId ?? null,
+    inspectedEventName: data.inspectedEventName ?? null,
+    canViewActivity: data.canViewActivity === true,
+  };
+}
+
 export async function loginWithCredentials(
   credentials: LoginCredentials,
 ): Promise<User> {
@@ -12,10 +30,11 @@ export async function loginWithCredentials(
 
 export async function getAuthSnapshot(signal: AbortSignal): Promise<AuthSnapshot> {
   try {
-    return await api.get<AuthSnapshot>("/auth/session", signal);
+    const data = await api.get<AuthSnapshot>("/auth/session", signal);
+    return normalizeSnapshot(data);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
-      return { realUser: null, impersonatedUser: null };
+      return EMPTY_SNAPSHOT;
     }
     throw error;
   }
@@ -25,10 +44,22 @@ export function signOut() {
   return api.post<void>("/auth/logout", {});
 }
 
-export function startImpersonation(userId: string) {
-  return api.post<AuthSnapshot>("/auth/impersonation", { userId });
+export async function startEventInspection(eventId: string) {
+  const data = await api.post<AuthSnapshot>("/auth/inspect-event", { eventId });
+  return normalizeSnapshot(data);
 }
 
+export async function endEventInspection() {
+  const data = await api.delete<AuthSnapshot>("/auth/inspect-event");
+  return normalizeSnapshot(data);
+}
+
+/** @deprecated Use startEventInspection — kept for transitional imports. */
+export function startImpersonation(_userId: string) {
+  return Promise.reject(new Error("IMPERSONATION_REMOVED"));
+}
+
+/** @deprecated Use endEventInspection. */
 export function endImpersonation() {
-  return api.delete<AuthSnapshot>("/auth/impersonation");
+  return endEventInspection();
 }

@@ -2,7 +2,9 @@ import {
   denyUnlessEventFormManager,
   isAuthSession,
   requireEventSession,
+  resolveEventFormAccess,
 } from "@/core/auth/api-guard";
+import { satisfiesAccessLevel } from "@/core/auth/event-permissions";
 import { ServiceError } from "@/core/api/service-error";
 import { createFormBodySchema, formatZodError } from "@/core/validation/forms";
 import { createForm, listForms } from "@/services/event/forms";
@@ -25,25 +27,36 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const regDenied = await denyUnlessEventFormManager(
+  const resolved = await resolveEventFormAccess(
     sessionOrDeny.userId,
-    "registration",
     eventId,
+    sessionOrDeny,
   );
-  const surveyDenied = await denyUnlessEventFormManager(
-    sessionOrDeny.userId,
-    "survey",
-    eventId,
+  if (!resolved.ok) return resolved.response;
+
+  const canViewRegistration = satisfiesAccessLevel(
+    resolved.access.registrationForm,
+    "view_only",
   );
-  if (regDenied && surveyDenied) return regDenied;
+  const canViewSurvey = satisfiesAccessLevel(
+    resolved.access.surveyForm,
+    "view_only",
+  );
+  if (!canViewRegistration && !canViewSurvey) {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
 
   const allowedTypes: FormType[] = [];
-  if (!regDenied) allowedTypes.push("registration");
-  if (!surveyDenied) allowedTypes.push("survey");
+  if (canViewRegistration) allowedTypes.push("registration");
+  if (canViewSurvey) allowedTypes.push("survey");
 
   try {
     const data = await listForms(eventId, allowedTypes);
-    return NextResponse.json(data);
+    return NextResponse.json({
+      ...data,
+      registrationFormAccess: resolved.access.registrationForm,
+      surveyFormAccess: resolved.access.surveyForm,
+    });
   } catch (error) {
     if (error instanceof ServiceError) {
       return NextResponse.json(
@@ -76,6 +89,7 @@ export async function POST(request: NextRequest) {
     sessionOrDeny.userId,
     parsed.data.type,
     parsed.data.eventId,
+    sessionOrDeny,
   );
   if (denied) return denied;
 

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { DocumentTextIcon, UserGroupIcon } from "@heroicons/react/24/outline";
@@ -12,7 +13,9 @@ import styles from "./EventWorkspaceChrome.module.css";
 
 export default function EventWorkspaceSidebar() {
   const { workspace, loading } = useEventWorkspace();
-  const currentWorkspace = loading ? null : workspace;
+  // Prefer cached/loaded workspace; only treat as empty on the first cold load.
+  const currentWorkspace = workspace;
+  const menuReady = !loading || currentWorkspace !== null;
   const published =
     !!currentWorkspace?.setup?.publication ||
     !!currentWorkspace?.localPublishedAt ||
@@ -36,77 +39,111 @@ export default function EventWorkspaceSidebar() {
     });
   }
 
-  const items = [
-    {
-      label: t("overview"),
-      icon: (
-        <Image
-          src="/images/event-workspace/frame.svg"
-          width={20}
-          height={20}
-          alt=""
-        />
-      ),
-      href: "/event",
-    },
-    {
-      label: sidebar("Form"),
-      icon: <DocumentTextIcon className="size-5" aria-hidden="true" />,
-      href: "/form",
-    },
-    {
-      label: t("activity"),
-      icon: (
-        <Image
-          src="/images/event-workspace/heroicon.svg"
-          width={20}
-          height={20}
-          alt=""
-        />
-      ),
-      href: null,
-    },
-    ...(currentWorkspace?.canAccessDashboard
-      ? [
-          {
-            label: t("dashboard"),
-            icon: (
-              <Image
-                src="/images/event-workspace/dashboard-nav.svg"
-                width={20}
-                height={20}
-                alt=""
-              />
-            ),
-            href: "/event/dashboard",
-          },
-        ]
-      : []),
-    ...(published && currentWorkspace?.userRole === "event_owner"
-      ? [
-          {
-            label: t("qrTitle"),
-            icon: (
-              <Image
-                src="/images/event-workspace/qr-nav.svg"
-                width={20}
-                height={20}
-                alt=""
-              />
-            ),
-            href: "/event/qr",
-          },
-          {
-            label: t("team"),
-            icon: <UserGroupIcon className="size-5" aria-hidden="true" />,
-            href: "/event/team",
-          },
-        ]
-      : []),
-  ];
-  const activeHref = isEventReportingPath(pathname)
-    ? "/event/dashboard"
-    : (items.find(({ href }) => href === pathname)?.href ?? "/event");
+  type NavItem = {
+    label: string;
+    icon: ReactNode;
+    href: string | null;
+  };
+  const items: NavItem[] = !menuReady
+    ? []
+    : [
+        {
+          label: t("overview"),
+          icon: (
+            <Image
+              src="/images/event-workspace/frame.svg"
+              width={20}
+              height={20}
+              alt=""
+            />
+          ),
+          href: "/event",
+        },
+        ...(currentWorkspace?.canAccessForms
+          ? [
+              {
+                label: sidebar("Form"),
+                icon: (
+                  <DocumentTextIcon className="size-5" aria-hidden="true" />
+                ),
+                href: "/event/form",
+              },
+            ]
+          : []),
+        ...(currentWorkspace?.canViewActivity
+          ? [
+              {
+                label: t("activity"),
+                icon: (
+                  <Image
+                    src="/images/event-workspace/heroicon.svg"
+                    width={20}
+                    height={20}
+                    alt=""
+                  />
+                ),
+                href: "/event/activity",
+              },
+            ]
+          : []),
+        ...(currentWorkspace?.canAccessDashboard
+          ? [
+              {
+                label: t("dashboard"),
+                icon: (
+                  <Image
+                    src="/images/event-workspace/dashboard-nav.svg"
+                    width={20}
+                    height={20}
+                    alt=""
+                  />
+                ),
+                href: "/event/dashboard",
+              },
+            ]
+          : []),
+        ...(published && currentWorkspace?.userRole === "event_owner"
+          ? [
+              {
+                label: t("qrTitle"),
+                icon: (
+                  <Image
+                    src="/images/event-workspace/qr-nav.svg"
+                    width={20}
+                    height={20}
+                    alt=""
+                  />
+                ),
+                href: "/event/qr",
+              },
+              {
+                label: t("team"),
+                icon: <UserGroupIcon className="size-5" aria-hidden="true" />,
+                href: "/event/team",
+              },
+            ]
+          : []),
+      ];
+  const activeHref = (() => {
+    if (isEventReportingPath(pathname)) return "/event/dashboard";
+    // Form home + builder nested routes share the Form nav item.
+    if (pathname === "/event/form" || pathname.startsWith("/event/form/")) {
+      return "/event/form";
+    }
+    if (pathname === "/event/activity" || pathname.startsWith("/event/activity/")) {
+      return "/event/activity";
+    }
+    const match = items
+      .filter((item): item is NavItem & { href: string } => Boolean(item.href))
+      .filter(
+        (item) =>
+          pathname === item.href ||
+          // Keep `/event` exact-only so nested workspace routes do not highlight Overview.
+          (item.href !== "/event" && pathname.startsWith(`${item.href}/`)),
+      )
+      .sort((a, b) => b.href.length - a.href.length)[0];
+    return match?.href ?? "/event";
+  })();
 
   return (
     <aside
@@ -139,41 +176,55 @@ export default function EventWorkspaceSidebar() {
           </span>
         )}
       </Link>
-      <nav aria-label={t("overview")}>
+      <nav aria-label={t("overview")} aria-busy={!menuReady}>
         <h2 className={expanded ? styles.section : "sr-only"}>WORKSPACE</h2>
-        <ul>
-          {items.map(({ label, icon, href }) => {
-            const content = (
-              <>
-                {icon}
-                {expanded && <span>{label}</span>}
-              </>
-            );
-            return (
-              <li key={label}>
-                {href ? (
-                  <Link
-                    className={styles.item}
-                    href={href}
-                    onNavigate={(event) => guardLink(event, href)}
-                    aria-label={label}
-                    aria-current={href === activeHref ? "page" : undefined}
+        <ul className="space-y-1">
+          {!menuReady
+            ? Array.from({ length: 5 }, (_, index) => (
+                <li key={`workspace-nav-skeleton-${index}`}>
+                  <div
+                    className={`${styles.item} pointer-events-none opacity-40`}
+                    aria-hidden="true"
                   >
-                    {content}
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    disabled
-                    className={styles.item}
-                    aria-label={label}
-                  >
-                    {content}
-                  </button>
-                )}
-              </li>
-            );
-          })}
+                    <span className="size-5 shrink-0 rounded bg-white/25" />
+                    {expanded && (
+                      <span className="h-3 w-24 rounded bg-white/20" />
+                    )}
+                  </div>
+                </li>
+              ))
+            : items.map(({ label, icon, href }) => {
+                const content = (
+                  <>
+                    {icon}
+                    {expanded && <span>{label}</span>}
+                  </>
+                );
+                return (
+                  <li key={label}>
+                    {href ? (
+                      <Link
+                        className={styles.item}
+                        href={href}
+                        onNavigate={(event) => guardLink(event, href)}
+                        aria-label={label}
+                        aria-current={href === activeHref ? "page" : undefined}
+                      >
+                        {content}
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className={styles.item}
+                        aria-label={label}
+                      >
+                        {content}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
         </ul>
       </nav>
     </aside>

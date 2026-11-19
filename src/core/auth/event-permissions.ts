@@ -2,7 +2,14 @@ import type {
   EventPermissionMatrix,
   ModuleAccessLevel,
 } from "@/types/event/permissions";
+import type { FormType } from "@/types/event/form";
 import type { MockPermissionCode } from "@/types/mock";
+
+export type FormPermissionModule = "registrationForm" | "surveyForm";
+
+export function formPermissionModule(type: FormType): FormPermissionModule {
+  return type === "registration" ? "registrationForm" : "surveyForm";
+}
 
 export const DEFAULT_ADMIN_MATRIX: EventPermissionMatrix = {
   event: "can_edit",
@@ -12,6 +19,7 @@ export const DEFAULT_ADMIN_MATRIX: EventPermissionMatrix = {
   canViewSubmissions: true,
   canManageSubmissions: true,
   canExport: true,
+  canViewActivity: true,
 };
 
 export const DEFAULT_SUB_USER_MATRIX: EventPermissionMatrix = {
@@ -22,6 +30,7 @@ export const DEFAULT_SUB_USER_MATRIX: EventPermissionMatrix = {
   canViewSubmissions: false,
   canManageSubmissions: false,
   canExport: false,
+  canViewActivity: false,
 };
 
 /**
@@ -33,61 +42,96 @@ export function serializePermissionMatrix(
   return JSON.stringify(matrix);
 }
 
+function parseMatrixPayload(
+  value: unknown,
+): Partial<Record<keyof EventPermissionMatrix, unknown>> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Partial<Record<keyof EventPermissionMatrix, unknown>>;
+  }
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Partial<Record<keyof EventPermissionMatrix, unknown>>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function matrixFromParsed(
+  parsed: Partial<Record<keyof EventPermissionMatrix, unknown>>,
+): EventPermissionMatrix | null {
+  if (!("event" in parsed) || !("dashboard" in parsed)) return null;
+  return {
+    event: readAccessLevel(parsed.event),
+    registrationForm: readAccessLevel(parsed.registrationForm),
+    surveyForm: readAccessLevel(parsed.surveyForm),
+    dashboard: readAccessLevel(parsed.dashboard),
+    canViewSubmissions: parsed.canViewSubmissions === true,
+    canManageSubmissions:
+      parsed.canViewSubmissions === true &&
+      parsed.canManageSubmissions === true,
+    canExport: parsed.canExport === true,
+    canViewActivity: parsed.canViewActivity === true,
+  };
+}
+
 /**
- * Deserialize matrix from JSON or fallback to deriving it from MockPermissionCode list.
+ * Deserialize matrix from JSON (string or already-parsed object) or fall back
+ * to deriving it from MockPermissionCode list.
  */
 export function deserializePermissionMatrix(
-  jsonText: string | null | undefined,
+  jsonText: unknown,
   fallbackCodes: readonly MockPermissionCode[] = [],
 ): EventPermissionMatrix {
   if (fallbackCodes.includes("manage_sub_user")) {
     return { ...DEFAULT_ADMIN_MATRIX };
   }
 
-  if (jsonText) {
-    try {
-      const parsed = JSON.parse(jsonText) as Partial<
-        Record<keyof EventPermissionMatrix, unknown>
-      >;
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        "event" in parsed &&
-        "dashboard" in parsed
-      ) {
-        return {
-          event: readAccessLevel(parsed.event),
-          registrationForm: readAccessLevel(parsed.registrationForm),
-          surveyForm: readAccessLevel(parsed.surveyForm),
-          dashboard: readAccessLevel(parsed.dashboard),
-          canViewSubmissions: parsed.canViewSubmissions === true,
-          canManageSubmissions:
-            parsed.canViewSubmissions === true &&
-            parsed.canManageSubmissions === true,
-          canExport: parsed.canExport === true,
-        };
-      }
-    } catch {
-      // Ignore parse errors and fall through to fallbackCodes mapping
-    }
+  const parsed = parseMatrixPayload(jsonText);
+  if (parsed) {
+    const matrix = matrixFromParsed(parsed);
+    if (matrix) return matrix;
   }
 
-  // Derive from standard mock permission codes
+  // Legacy code-only roles: manage_* means can_edit. Absence means restricted.
+  // Explicit view_only access is stored in the saved matrix JSON, not inferred.
   return {
-    event: fallbackCodes.includes("manage_event") ? "can_edit" : "view_only",
+    event: fallbackCodes.includes("manage_event") ? "can_edit" : "restricted",
     registrationForm: fallbackCodes.includes("manage_registration_form")
       ? "can_edit"
-      : "view_only",
+      : "restricted",
     surveyForm: fallbackCodes.includes("manage_survey_form")
       ? "can_edit"
-      : "view_only",
+      : "restricted",
     dashboard: fallbackCodes.includes("manage_dashboard")
       ? "can_edit"
-      : "view_only",
+      : "restricted",
     canViewSubmissions: fallbackCodes.includes("manage_dashboard"),
     canManageSubmissions: fallbackCodes.includes("manage_dashboard"),
     canExport: fallbackCodes.includes("manage_dashboard"),
+    canViewActivity: false,
   };
+}
+
+/**
+ * Prefer the user-embedded matrix, then role.description, then legacy codes.
+ */
+export function resolvePermissionMatrix(
+  userMatrix: unknown,
+  roleDescription: unknown,
+  fallbackCodes: readonly MockPermissionCode[] = [],
+): EventPermissionMatrix {
+  const fromUser = parseMatrixPayload(userMatrix);
+  if (fromUser) {
+    const matrix = matrixFromParsed(fromUser);
+    if (matrix) return matrix;
+  }
+  return deserializePermissionMatrix(roleDescription, fallbackCodes);
 }
 
 function readAccessLevel(value: unknown): ModuleAccessLevel {

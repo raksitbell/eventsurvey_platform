@@ -15,7 +15,7 @@ export function canAccessEvent(role: UserRole): boolean {
   return EVENT_ROLES.includes(role);
 }
 
-/** Super Admin enters /admin only when not impersonating */
+/** Super Admin enters /admin only when not impersonating (inspect keeps admin access). */
 export function canEnterAdminArea(
   realRole: UserRole | undefined,
   isImpersonating: boolean,
@@ -24,21 +24,32 @@ export function canEnterAdminArea(
 }
 
 /**
- * /event is for event_owner / sub_user only.
- * Super Admin may enter only while impersonating one of those roles.
+ * /event is for event_owner / sub_user.
+ * Platform admin enters only while inspecting a specific event (no role swap).
+ * Legacy impersonation still opens /event for compatibility.
  */
 export function canEnterEventArea(
   effectiveRole: UserRole | undefined,
   realRole: UserRole | undefined,
   isImpersonating: boolean,
+  inspectedEventId: string | null = null,
 ): boolean {
+  if (realRole && canAccessAdmin(realRole)) {
+    if (inspectedEventId && !isImpersonating) return true;
+    return isImpersonating && Boolean(effectiveRole && canAccessEvent(effectiveRole));
+  }
   if (!effectiveRole || !canAccessEvent(effectiveRole)) return false;
-  if (realRole && canAccessAdmin(realRole)) return isImpersonating;
   return true;
 }
 
-export function canImpersonate(role: UserRole): boolean {
+/** Platform admins may open an event workspace for inspection. */
+export function canInspectEvent(role: UserRole): boolean {
   return role === "super_admin";
+}
+
+/** @deprecated Use canInspectEvent. */
+export function canImpersonate(role: UserRole): boolean {
+  return canInspectEvent(role);
 }
 
 export function isImpersonatableRole(role: UserRole): boolean {

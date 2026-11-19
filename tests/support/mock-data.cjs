@@ -27,19 +27,19 @@ function user(id, attributes) {
 function setupMockData(t, { eventWrites = false } = {}) {
   const admin = user("LimitedAdmin", {
     system_role: "platform_admin",
-    platform_role_id: "limited-role",
+    platform_role_id: null,
   });
   const reviewer = user("PrivacyReviewer", {
     system_role: "platform_admin",
-    platform_role_id: "pii-role",
+    platform_role_id: null,
   });
-  const owner = user("EventOwner", { event_id: "event-a", role_id: "owner-role" });
+  const owner = user("EventOwner", { event_id: "event-a", role_id: null });
   const assistant = user("Assistant", {
     event_id: "event-a",
-    role_id: "assistant-role",
+    role_id: null,
     invited_by_user_id: owner.id,
   });
-  const otherOwner = user("OtherOwner", { event_id: "event-b", role_id: "owner-role" });
+  const otherOwner = user("OtherOwner", { event_id: "event-b", role_id: null });
   const assignable = user("Assignable", {
     id: "65f045de-1f66-4bb4-af3c-651de7f113a2",
     display_name: null,
@@ -54,15 +54,100 @@ function setupMockData(t, { eventWrites = false } = {}) {
     event_translations: [],
     event_banners: [],
     event_form_settings: [],
-    roles: [],
-    role_permissions: [
-      { role_id: "owner-role", permission: "manage_sub_user" },
-      { role_id: "owner-role", permission: "manage_registration_form" },
+    event_access: [
+      {
+        id: "access-owner",
+        user_id: owner.id,
+        event_id: "event-a",
+        role_name: "Event Admin",
+        can_manage_sub_users: true,
+        matrix: {
+          event: "can_edit",
+          registrationForm: "can_edit",
+          surveyForm: "can_edit",
+          dashboard: "can_edit",
+          canViewSubmissions: true,
+          canManageSubmissions: true,
+          canExport: true,
+        },
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+      },
+      {
+        id: "access-assistant",
+        user_id: assistant.id,
+        event_id: "event-a",
+        role_name: "Staff",
+        can_manage_sub_users: false,
+        matrix: {
+          event: "view_only",
+          registrationForm: "view_only",
+          surveyForm: "view_only",
+          dashboard: "view_only",
+          canViewSubmissions: false,
+          canManageSubmissions: false,
+          canExport: false,
+        },
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+      },
+      {
+        id: "access-other-owner",
+        user_id: otherOwner.id,
+        event_id: "event-b",
+        role_name: "Event Admin",
+        can_manage_sub_users: true,
+        matrix: {
+          event: "can_edit",
+          registrationForm: "can_edit",
+          surveyForm: "can_edit",
+          dashboard: "can_edit",
+          canViewSubmissions: true,
+          canManageSubmissions: true,
+          canExport: true,
+        },
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+      },
     ],
-    platform_role_permissions: [
-      { platform_role_id: "limited-role", permission: "impersonate_event_user" },
-      { platform_role_id: "pii-role", permission: "view_unmasked_pii" },
+    platform_access: [
+      {
+        id: "plat-limited",
+        user_id: admin.id,
+        matrix: {
+          overview: "can_edit",
+          events: "can_edit",
+          users: "can_edit",
+          canViewActivity: true,
+          canInspection: true,
+          canViewUnmaskedPii: false,
+        },
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+      },
+      {
+        id: "plat-pii",
+        user_id: reviewer.id,
+        matrix: {
+          overview: "view_only",
+          events: "view_only",
+          users: "view_only",
+          canViewActivity: false,
+          canInspection: false,
+          canViewUnmaskedPii: true,
+        },
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+      },
     ],
+    forms: [],
+    // Fire-and-forget audit writes must not fail primary flows in fixtures.
+    audit_logs: [],
   };
   const calls = [];
   const failures = new Map();
@@ -102,7 +187,8 @@ function setupMockData(t, { eventWrites = false } = {}) {
       return Response.json(rows.filter((row) =>
         filters.every(([field, value]) => String(row[field]) === value)));
     }
-    if (eventWrites && method === "POST" && !id) {
+    // Allow audit POSTs even when the fixture is otherwise read-only.
+    if ((eventWrites || collection === "audit_logs") && method === "POST" && !id) {
       rows.push(body);
       return Response.json(body, { status: 201 });
     }
@@ -112,7 +198,7 @@ function setupMockData(t, { eventWrites = false } = {}) {
 
   return {
     admin, reviewer, owner, assistant, otherOwner, assignable, invited,
-    platformPermissions: collections.platform_role_permissions,
+    platformPermissions: collections.platform_access,
     calls, failures, collections,
   };
 }

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Isolated CommonJS harness transpiles TypeScript without adding dependencies. */
 // Run with node tests/event-reporting.cjs. Uses isolated in-memory API fixtures.
+process.env.MOCK_API_GET_CACHE_TTL_MS = "0";
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -31,9 +32,18 @@ const user = {
   display_name: "Private Owner",
   event_id: "event-a",
   system_role: "event_user",
-  role_id: "role-owner",
+  role_id: null,
   status: "active",
   removed_at: null,
+};
+const OWNER_MATRIX = {
+  event: "can_edit",
+  registrationForm: "restricted",
+  surveyForm: "can_edit",
+  dashboard: "can_edit",
+  canViewSubmissions: true,
+  canManageSubmissions: true,
+  canExport: true,
 };
 let db;
 let failWidgetTitle;
@@ -44,7 +54,7 @@ function reset() {
       {
         ...user,
         id: "viewer",
-        role_id: "role-viewer",
+        role_id: null,
       },
     ],
     events: [
@@ -62,14 +72,33 @@ function reset() {
       { id: "et", event_id: "event-a", locale_code: "th", title: "กิจกรรม" },
       { id: "ee", event_id: "event-a", locale_code: "en", title: "Event" },
     ],
-    roles: [
-      { id: "role-owner", event_id: "event-a", deleted_at: null },
-      { id: "role-viewer", event_id: "event-a", deleted_at: null },
-    ],
-    role_permissions: [
-      { role_id: "role-owner", permission: "manage_dashboard" },
-      { role_id: "role-owner", permission: "manage_survey_form" },
-      { role_id: "role-owner", permission: "view_unmasked_pii" },
+    event_access: [
+      {
+        id: "access-owner",
+        user_id: "owner",
+        event_id: "event-a",
+        role_name: "Event Admin",
+        can_manage_sub_users: true,
+        matrix: { ...OWNER_MATRIX },
+        deleted_at: null,
+      },
+      {
+        id: "access-viewer",
+        user_id: "viewer",
+        event_id: "event-a",
+        role_name: "Viewer",
+        can_manage_sub_users: false,
+        matrix: {
+          event: "view_only",
+          registrationForm: "restricted",
+          surveyForm: "restricted",
+          dashboard: "view_only",
+          canViewSubmissions: false,
+          canManageSubmissions: false,
+          canExport: false,
+        },
+        deleted_at: null,
+      },
     ],
     forms: [
       {
@@ -272,12 +301,15 @@ global.fetch = async (url, init = {}) => {
     () => restoreTrash("viewer", "en", "trash-form"),
     (e) => e.status === 403,
   );
-  db.trash_items[0].deleted_at = "2020-01-01T00:00:00Z";
+  const expiredAt = "2020-01-01T00:00:00Z";
+  db.trash_items[0].deleted_at = expiredAt;
+  db.forms.find((form) => form.id === "deleted-form").deleted_at = expiredAt;
   await assert.rejects(
     () => restoreTrash("owner", "en", "trash-form"),
     (e) => e.status === 403,
   );
   db.trash_items[0].deleted_at = now;
+  db.forms.find((form) => form.id === "deleted-form").deleted_at = now;
   await restoreTrash("owner", "en", "trash-form");
   assert.equal(db.forms.find((f) => f.id === "deleted-form").deleted_at, null);
   assert(db.trash_items[0].restored_at);
@@ -537,15 +569,19 @@ global.fetch = async (url, init = {}) => {
   );
   db.events[0].status = "closed";
   assert.equal((await getReportingData("owner", "en")).responses.length, 1);
-  db.roles[0].event_id = "event-b";
+  db.event_access[0].event_id = "event-b";
   await assert.rejects(
     () => getReportingData("owner", "en"),
     (e) => e.status === 403,
   );
-  db.roles[0].event_id = "event-a";
-  db.role_permissions = db.role_permissions.filter(
-    (row) => row.permission !== "manage_survey_form",
-  );
+  db.event_access[0].event_id = "event-a";
+  db.event_access[0].can_manage_sub_users = false;
+  db.event_access[0].matrix = {
+    ...OWNER_MATRIX,
+    surveyForm: "restricted",
+    dashboard: "view_only",
+    canViewSubmissions: true,
+  };
   const restricted = await getReportingData("owner", "en");
   assert.deepEqual(restricted.responses, []);
   assert.deepEqual(restricted.forms, []);
@@ -556,13 +592,16 @@ global.fetch = async (url, init = {}) => {
     (error) => error.status === 403,
   );
   reset();
-  db.roles[0].description = JSON.stringify({
+  db.event_access[0].can_manage_sub_users = false;
+  db.event_access[0].matrix = {
     event: "view_only",
+    registrationForm: "restricted",
     surveyForm: "can_edit",
     dashboard: "can_edit",
     canViewSubmissions: false,
+    canManageSubmissions: false,
     canExport: true,
-  });
+  };
   delete db.form_submissions;
   delete db.submission_answers;
   const dashboardOnly = await getReportingData("owner", "en");

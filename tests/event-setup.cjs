@@ -248,14 +248,51 @@ test("workspace binding returns localized safe DTOs and only active assistants",
       return users.find(
         (user) => user.id === decodeURIComponent(url.pathname.slice(7)),
       );
-    if (url.pathname === "/role_permissions")
-      return url.searchParams.get("role_id") === "owner-role"
-        ? [
-            { role_id: "owner-role", permission: "manage_sub_user" },
-            { role_id: "owner-role", permission: "manage_event" },
-            { role_id: "owner-role", permission: "manage_dashboard" },
-          ]
-        : [];
+    if (url.pathname === "/event_access") {
+      const all = [
+        {
+          id: "access-owner",
+          user_id: "owner",
+          event_id: "event-a",
+          role_name: "Event Admin",
+          can_manage_sub_users: true,
+          matrix: {
+            event: "can_edit",
+            registrationForm: "can_edit",
+            surveyForm: "can_edit",
+            dashboard: "can_edit",
+            canViewSubmissions: true,
+            canManageSubmissions: true,
+            canExport: true,
+          },
+          deleted_at: null,
+        },
+        {
+          id: "access-assistant",
+          user_id: "assistant",
+          event_id: "event-a",
+          role_name: "Assistant role",
+          can_manage_sub_users: false,
+          matrix: {
+            event: "view_only",
+            registrationForm: "view_only",
+            surveyForm: "view_only",
+            dashboard: "restricted",
+            canViewSubmissions: false,
+            canManageSubmissions: false,
+            canExport: false,
+          },
+          deleted_at: null,
+        },
+      ];
+      const userId = url.searchParams.get("user_id");
+      const eventId = url.searchParams.get("event_id");
+      return all.filter(
+        (row) =>
+          (!userId || row.user_id === userId) &&
+          (!eventId || row.event_id === eventId),
+      );
+    }
     if (url.pathname === "/events/event-a")
       return {
         id: "event-a",
@@ -297,11 +334,6 @@ test("workspace binding returns localized safe DTOs and only active assistants",
           floor_zone: "2e étage",
         },
       ];
-    if (url.pathname === "/roles")
-      return [
-        { id: "owner-role", event_id: "event-a", name: "Owner" },
-        { id: "assistant-role", event_id: "event-a", name: "Assistant role" },
-      ];
     if (url.pathname === "/users")
       return [
         ...users,
@@ -327,6 +359,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   assert.equal(workspace.registrationCapacity, 200);
   assert.equal(workspace.canEditEvent, true);
   assert.equal(workspace.canAccessDashboard, false);
+  assert.equal(workspace.canAccessForms, true);
   assert.deepEqual(workspace.subUsers, [
     { id: "assistant", name: "Assistant" },
   ]);
@@ -335,6 +368,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   const assistant = await getEventWorkspace("assistant", "en");
   assert.equal(assistant.eventName, "Event");
   assert.equal(assistant.canEditEvent, false);
+  assert.equal(assistant.canAccessForms, true);
   assert.deepEqual(assistant.subUsers, []);
   assert.equal(await getEventWorkspace("unassigned", "th"), null);
   status = "open";
@@ -2041,6 +2075,7 @@ function setupStep(kind, options = {}) {
     "branding/BrandingAppearance",
     "branding/BrandingPreview",
     "forms/SetupFormCard",
+    "forms/SetupFormsLoadingSkeleton",
     "publish/PublishFormSummary",
     "publish/PublishParticipantPreview",
   ])
@@ -2504,6 +2539,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     canAccessDashboard = false,
     confirmLeave = null,
     push = () => {},
+    canAccessForms = true,
   ) => {
     const Sidebar = compileSetupComponent(
       "src/components/event/workspace/EventWorkspaceSidebar.tsx",
@@ -2518,7 +2554,12 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
         ),
         "@/hooks/useEventWorkspace": {
           default: () => ({
-            workspace: { userRole, localPublishedAt, canAccessDashboard },
+            workspace: {
+              userRole,
+              localPublishedAt,
+              canAccessDashboard,
+              canAccessForms,
+            },
           }),
         },
         "@/i18n/navigation": {
@@ -2541,7 +2582,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
   const dashboard = (node) =>
     node.type === link && node.props.href === "/event/dashboard";
   const formManagement = (node) =>
-    node.type === link && node.props.href === "/form";
+    node.type === link && node.props.href === "/event/form";
   for (const pathname of ["/event", "/event/qr", "/event/team"]) {
     const owner = render("event_owner", "2027-01-01T00:00:00.000Z", pathname);
     assert.equal(
@@ -2555,6 +2596,13 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     assert.equal(findSetupElement(owner, formManagement).props["aria-label"], "Form");
   }
   assert.ok(findSetupElement(render("sub_user", null, "/event"), formManagement));
+  assert.equal(
+    findSetupElement(
+      render("sub_user", null, "/event", false, null, () => {}, false),
+      formManagement,
+    ),
+    null,
+  );
   assert.equal(
     findSetupElement(
       render("sub_user", "2027-01-01T00:00:00.000Z", "/event"),
@@ -2602,7 +2650,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
   await Promise.resolve();
   assert.equal(prompts, 2);
   assert.equal(cancelled, 2);
-  assert.deepEqual(locations, ["/form"]);
+  assert.deepEqual(locations, ["/event/form"]);
 });
 
 function multilingualDraft() {

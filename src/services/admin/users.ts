@@ -1,71 +1,87 @@
 import { mockApi } from "@/core/api/mock-client";
+import { ServiceError } from "@/core/api/service-error";
+import { writeAuditLog } from "@/core/audit/write";
 import {
   maskName,
   mayViewPii,
   projectUserPii,
   type PiiViewer,
 } from "@/core/auth/pii";
+import {
+  getPlatformAccessForUser,
+  getPlatformAccessRow,
+} from "@/core/mock/access";
 import { resolveEventTitle } from "@/core/mock/event-title";
 import {
   isActiveMockUser,
   mapMockUserToUser,
 } from "@/core/mock/map-user";
+import { getRolePermissions } from "@/core/mock/role-permissions";
 import { getActivePortalAccount } from "@/services/auth/session";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
+  PlatformAccessFlags,
 } from "@/types/admin/users";
 import type {
   MockEvent,
+  MockEventAccess,
   MockEventTranslation,
-  MockPermissionCode,
-  MockRole,
-  MockRolePermission,
+  MockPlatformAccess,
   MockUser,
 } from "@/types/mock";
 import type { User, UserRole } from "@/types/user";
+import { randomUUID } from "node:crypto";
 
 const PORTAL_ROLES: UserRole[] = ["super_admin", "event_owner", "sub_user"];
 
-function permissionsByRoleId(
-  rows: MockRolePermission[],
-): Map<string, MockPermissionCode[]> {
-  const map = new Map<string, MockPermissionCode[]>();
-  for (const row of rows) {
-    const list = map.get(row.role_id) ?? [];
-    list.push(row.permission);
-    map.set(row.role_id, list);
-  }
-  return map;
-}
-
-/** Bind users + events + event_translations + roles for the admin users table */
+/** Bind users + events + event_translations + event_access for the admin users table */
 export async function getBoundAdminUsers(
   role?: string,
   locale: Locale = routing.defaultLocale,
   viewer?: PiiViewer,
 ): Promise<AdminUsersResponse> {
-  const [mockUsers, events, translations, roles, rolePermissions] =
+  const [mockUsers, events, translations, eventAccess, platformAccess] =
     await Promise.all([
       mockApi.get<MockUser[]>("/users?_sort=created_at&_order=asc"),
       mockApi.get<MockEvent[]>("/events"),
       mockApi.get<MockEventTranslation[]>("/event_translations"),
-      mockApi.get<MockRole[]>("/roles"),
-      mockApi.get<MockRolePermission[]>("/role_permissions"),
+      mockApi.get<MockEventAccess[]>("/event_access"),
+      mockApi.get<MockPlatformAccess[]>("/platform_access").catch(() => []),
     ]);
 
+  const platformByUser = new Map(
+    platformAccess
+      .filter((row) => !row.deleted_at)
+      .map((row) => [row.user_id, row]),
+  );
+
   const liveEvents = new Set(events.map((event) => event.id));
-  const rolesById = new Map(roles.map((item) => [item.id, item]));
-  const permsByRole = permissionsByRoleId(rolePermissions);
+  const accessByUser = new Map(
+    eventAccess
+      .filter((row) => !row.deleted_at)
+      .map((row) => [row.user_id, row]),
+  );
+
+  const permissionsByUserId = new Map<string, Awaited<ReturnType<typeof getRolePermissions>>>();
+  await Promise.all(
+    mockUsers.map(async (mock) => {
+      if (mock.system_role !== "event_user") {
+        permissionsByUserId.set(mock.id, []);
+        return;
+      }
+      permissionsByUserId.set(
+        mock.id,
+        await getRolePermissions(mock.id, mock.event_id),
+      );
+    }),
+  );
 
   const usersById = new Map(
     mockUsers
       .map((mock) =>
-        mapMockUserToUser(
-          mock,
-          mock.role_id ? (permsByRole.get(mock.role_id) ?? []) : [],
-        ),
+        mapMockUserToUser(mock, permissionsByUserId.get(mock.id) ?? []),
       )
       .filter((user): user is User => Boolean(user))
       .map((user) => [user.id, user]),
@@ -74,10 +90,7 @@ export async function getBoundAdminUsers(
   let portalUsers = mockUsers
     .filter(isActiveMockUser)
     .map((mock) =>
-      mapMockUserToUser(
-        mock,
-        mock.role_id ? (permsByRole.get(mock.role_id) ?? []) : [],
-      ),
+      mapMockUserToUser(mock, permissionsByUserId.get(mock.id) ?? []),
     )
     .filter(
       (user): user is User =>
@@ -98,11 +111,17 @@ export async function getBoundAdminUsers(
         ? resolveEventTitle(translations, eventId, locale)
         : null;
 
-    /** Custom role name from `/roles` via `users.role_id` (sub_user / optional admin) */
     const customRoleName =
-      mock?.role_id && user.role === "sub_user"
-        ? (rolesById.get(mock.role_id)?.name ?? null)
+      user.role === "sub_user"
+        ? (accessByUser.get(user.id)?.role_name ?? null)
         : null;
+
+    const platformRow = platformByUser.get(user.id);
+    const rawMatrix = platformRow?.matrix as
+      | (MockPlatformAccess["matrix"] & { activity?: string })
+      | undefined;
+    const legacyActivity =
+      rawMatrix?.activity === "view_only" || rawMatrix?.activity === "can_edit";
 
     return {
       id: safe.id,
@@ -113,11 +132,21 @@ export async function getBoundAdminUsers(
       status: safe.status,
       ownerId: safe.ownerId,
       ownerName: owner
-        ? mayViewPii(viewer, owner.id) ? owner.name : maskName(owner.name)
+        ? mayViewPii(viewer, owner.id)
+          ? owner.name
+          : maskName(owner.name)
         : null,
       canViewSensitiveData: safe.canViewSensitiveData,
+      eventId: eventId && liveEvents.has(eventId) ? eventId : null,
       eventName,
       customRoleName,
+      ...(user.role === "super_admin"
+        ? {
+            canViewActivity:
+              rawMatrix?.canViewActivity === true || legacyActivity,
+            canInspection: rawMatrix?.canInspection === true,
+          }
+        : {}),
       createdAt: safe.createdAt,
       updatedAt: safe.updatedAt,
     };
@@ -142,4 +171,66 @@ export async function getUserForImpersonation(
 ): Promise<User | null> {
   const account = await getActivePortalAccount(userId);
   return account?.user ?? null;
+}
+
+/** Update boolean platform flags for a super_admin (creates platform_access if missing). */
+export async function updatePlatformAccessFlags(
+  targetUserId: string,
+  flags: PlatformAccessFlags,
+  actorUserId: string,
+): Promise<PlatformAccessFlags> {
+  const account = await getActivePortalAccount(targetUserId);
+  if (!account || account.user.role !== "super_admin") {
+    throw new ServiceError("INVALID_TARGET", 400, "Not a platform admin");
+  }
+
+  const current = await getPlatformAccessForUser(targetUserId);
+  const nextMatrix = {
+    ...current,
+    canViewActivity: flags.canViewActivity,
+    canInspection: flags.canInspection,
+  };
+  const now = new Date().toISOString();
+  const existing = await getPlatformAccessRow(targetUserId);
+
+  if (existing) {
+    await mockApi.patch<MockPlatformAccess>(
+      `/platform_access/${encodeURIComponent(existing.id)}`,
+      {
+        matrix: nextMatrix,
+        updated_at: now,
+      },
+    );
+  } else {
+    await mockApi.post<MockPlatformAccess>("/platform_access", {
+      id: randomUUID(),
+      user_id: targetUserId,
+      matrix: nextMatrix,
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+    });
+  }
+
+  await writeAuditLog({
+    actorUserId,
+    eventId: null,
+    action: "update",
+    resourceType: "platform_access",
+    resourceId: targetUserId,
+    module: "user_management",
+    descriptionTh: "แก้ไขสิทธิ์แพลตฟอร์ม",
+    descriptionEn: "Updated platform access",
+    metadata: {
+      after: {
+        canViewActivity: nextMatrix.canViewActivity,
+        canInspection: nextMatrix.canInspection,
+      },
+    },
+  });
+
+  return {
+    canViewActivity: nextMatrix.canViewActivity,
+    canInspection: nextMatrix.canInspection,
+  };
 }

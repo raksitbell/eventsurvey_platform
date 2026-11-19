@@ -1,4 +1,8 @@
 import { isAuthSession, requireEventSession } from "@/core/auth/api-guard";
+import {
+  isInspectingEvent,
+  type AuthSessionCookie,
+} from "@/core/auth/cookie";
 import { authJson } from "@/core/auth/route-response";
 import { setupRevisionSchema } from "@/core/event/setup-state";
 import { whitelistEntriesSchema } from "@/core/event/whitelist";
@@ -25,6 +29,19 @@ function requestLocale(request: NextRequest) {
     : routing.defaultLocale;
 }
 
+function inspectOptions(
+  session: Pick<
+    AuthSessionCookie,
+    "realRole" | "impersonating" | "inspectedEventId"
+  >,
+) {
+  return {
+    inspectedEventId: isInspectingEvent(session)
+      ? session.inspectedEventId
+      : null,
+  };
+}
+
 export async function GET(request: NextRequest) {
   const session = await requireEventSession(request);
   if (!isAuthSession(session)) return session;
@@ -33,6 +50,7 @@ export async function GET(request: NextRequest) {
     const context = await getSetupContext(
       session.userId,
       requestLocale(request),
+      inspectOptions(session),
     );
     if (request.nextUrl.searchParams.get("eventId") !== context.event.id) {
       return authJson({ error: "SETUP_EVENT_CHANGED" }, 409);
@@ -55,6 +73,7 @@ export async function PATCH(request: NextRequest) {
     const context = await getSetupContext(
       session.userId,
       requestLocale(request),
+      inspectOptions(session),
     );
     if (parsed.data.eventId !== context.event.id) {
       return authJson({ error: "SETUP_EVENT_CHANGED" }, 409);

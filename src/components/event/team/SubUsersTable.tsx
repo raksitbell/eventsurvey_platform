@@ -1,10 +1,23 @@
 "use client";
 
-import type { EventSubUserItem } from "@/types/event/permissions";
+import type {
+  EventSubUserItem,
+  ModuleAccessLevel,
+} from "@/types/event/permissions";
 import { useConfirm } from "@/hooks/useConfirm";
 import { KeyIcon, TrashIcon, UserPlusIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import React from "react";
+
+function accessBadgeClass(level: ModuleAccessLevel): string {
+  if (level === "can_edit") {
+    return "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300";
+  }
+  if (level === "view_only") {
+    return "bg-blue-light-50 text-blue-light-700 dark:bg-blue-light-950/40 dark:text-blue-light-300";
+  }
+  return "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500";
+}
 
 interface SubUsersTableProps {
   subUsers: EventSubUserItem[];
@@ -126,7 +139,10 @@ export default function SubUsersTable({
 
                     <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
                       <span className="inline-flex items-center rounded-md bg-event-tile px-2 py-0.5 text-xs font-medium text-event-action dark:bg-gray-800 dark:text-gray-300">
-                        {user.customRoleName || (isAdmin ? "Event Admin" : t("defaultRoleName"))}
+                        {user.customRoleName ||
+                          (isAdmin
+                            ? t("eventAdminRole")
+                            : t("defaultRoleName"))}
                       </span>
                     </td>
 
@@ -147,59 +163,56 @@ export default function SubUsersTable({
                     <td className="px-5 py-4">
                       <div className="flex max-w-xs flex-wrap gap-1.5">
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                            user.permissions.event === "can_edit"
-                              ? "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
-                              : user.permissions.event === "view_only"
-                                ? "bg-blue-light-50 text-blue-light-700 dark:bg-blue-light-950/40 dark:text-blue-light-300"
-                                : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
-                          }`}
+                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${accessBadgeClass(
+                            user.permissions.event,
+                          )}`}
                         >
-                          Event: {t(`levels.${user.permissions.event}`)}
+                          {t("badgeEvent", {
+                            level: t(`levels.${user.permissions.event}`),
+                          })}
                         </span>
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                            user.permissions.registrationForm === "can_edit"
-                              ? "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
-                              : user.permissions.registrationForm ===
-                                  "view_only"
-                                ? "bg-blue-light-50 text-blue-light-700 dark:bg-blue-light-950/40 dark:text-blue-light-300"
-                                : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
-                          }`}
+                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${accessBadgeClass(
+                            user.permissions.registrationForm,
+                          )}`}
                         >
-                          Reg:{" "}
-                          {t(`levels.${user.permissions.registrationForm}`)}
+                          {t("badgeRegistration", {
+                            level: t(
+                              `levels.${user.permissions.registrationForm}`,
+                            ),
+                          })}
                         </span>
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                            user.permissions.surveyForm === "can_edit"
-                              ? "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
-                              : user.permissions.surveyForm === "view_only"
-                                ? "bg-blue-light-50 text-blue-light-700 dark:bg-blue-light-950/40 dark:text-blue-light-300"
-                                : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
-                          }`}
+                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${accessBadgeClass(
+                            user.permissions.surveyForm,
+                          )}`}
                         >
-                          Survey: {t(`levels.${user.permissions.surveyForm}`)}
+                          {t("badgeSurvey", {
+                            level: t(`levels.${user.permissions.surveyForm}`),
+                          })}
                         </span>
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                            user.permissions.dashboard === "can_edit"
-                              ? "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
-                              : user.permissions.dashboard === "view_only"
-                                ? "bg-blue-light-50 text-blue-light-700 dark:bg-blue-light-950/40 dark:text-blue-light-300"
-                                : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
-                          }`}
+                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${accessBadgeClass(
+                            user.permissions.dashboard,
+                          )}`}
                         >
-                          Dash: {t(`levels.${user.permissions.dashboard}`)}
+                          {t("badgeDashboard", {
+                            level: t(`levels.${user.permissions.dashboard}`),
+                          })}
                         </span>
                         {user.permissions.canViewSubmissions && (
                           <span className="rounded bg-success-50 px-1.5 py-0.5 text-[11px] font-medium text-success-700 dark:bg-success-950/40 dark:text-success-300">
-                            Submissions
+                            {t("badgeSubmissions")}
                           </span>
                         )}
                         {user.permissions.canExport && (
                           <span className="rounded bg-orange-50 px-1.5 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
-                            Export
+                            {t("badgeExport")}
+                          </span>
+                        )}
+                        {user.permissions.canViewActivity && (
+                          <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+                            {t("badgeActivity")}
                           </span>
                         )}
                       </div>

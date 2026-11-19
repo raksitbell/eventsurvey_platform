@@ -4,6 +4,10 @@ import {
   isAuthSession,
   requireEventSession,
 } from "@/core/auth/api-guard";
+import {
+  isInspectingEvent,
+  type AuthSessionCookie,
+} from "@/core/auth/cookie";
 import { authJson, readJsonObject } from "@/core/auth/route-response";
 import { getEventWorkspace } from "@/services/event/workspace";
 import {
@@ -15,16 +19,36 @@ import type { NextRequest } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+function workspaceOptions(
+  session: Pick<
+    AuthSessionCookie,
+    "realRole" | "impersonating" | "inspectedEventId"
+  >,
+) {
+  return {
+    inspectedEventId: isInspectingEvent(session)
+      ? session.inspectedEventId
+      : null,
+  };
+}
+
 /** PATCH /api/event/sub-users/[id] - Update permissions or role name */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
-  if (sessionOrDeny.impersonating) return authJson({ error: "FORBIDDEN" }, 403);
+  if (sessionOrDeny.impersonating && !sessionOrDeny.inspectedEventId) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   const { id } = await context.params;
 
   try {
-    const workspace = await getEventWorkspace(sessionOrDeny.userId);
+    const inspecting = isInspectingEvent(sessionOrDeny);
+    const workspace = await getEventWorkspace(
+      sessionOrDeny.userId,
+      undefined,
+      workspaceOptions(sessionOrDeny),
+    );
     if (!workspace) {
       return authJson({ error: "Workspace not found" }, 404);
     }
@@ -33,6 +57,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       sessionOrDeny.userId,
       "manage_sub_user",
       workspace.eventId,
+      sessionOrDeny,
     );
     if (denied) return denied;
 
@@ -64,6 +89,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       id,
       input,
       sessionOrDeny.userId,
+      { inspector: inspecting },
     );
     return authJson(updated);
   } catch (error) {
@@ -81,12 +107,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
-  if (sessionOrDeny.impersonating) return authJson({ error: "FORBIDDEN" }, 403);
+  if (sessionOrDeny.impersonating && !sessionOrDeny.inspectedEventId) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
 
   const { id } = await context.params;
 
   try {
-    const workspace = await getEventWorkspace(sessionOrDeny.userId);
+    const inspecting = isInspectingEvent(sessionOrDeny);
+    const workspace = await getEventWorkspace(
+      sessionOrDeny.userId,
+      undefined,
+      workspaceOptions(sessionOrDeny),
+    );
     if (!workspace) {
       return authJson({ error: "Workspace not found" }, 404);
     }
@@ -95,10 +128,13 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       sessionOrDeny.userId,
       "manage_sub_user",
       workspace.eventId,
+      sessionOrDeny,
     );
     if (denied) return denied;
 
-    await removeSubUser(workspace.eventId, id, sessionOrDeny.userId);
+    await removeSubUser(workspace.eventId, id, sessionOrDeny.userId, {
+      inspector: inspecting,
+    });
     return authJson({ ok: true });
   } catch (error) {
     if (error instanceof ServiceError) {

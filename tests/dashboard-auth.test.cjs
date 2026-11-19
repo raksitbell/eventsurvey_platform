@@ -65,24 +65,96 @@ function fixture({ allowImpersonation = true } = {}) {
       MockApiError,
       mockApi: {
         async get(path) {
-          if (
-            path === "/platform_role_permissions?platform_role_id=administrator"
-          ) {
-            return grant
-              ? [
-                  {
-                    platform_role_id: "administrator",
-                    permission: "impersonate_event_user",
-                  },
-                ]
-              : [];
+          if (path.startsWith("/platform_access")) {
+            const url = new URL(path, "https://fixture.test");
+            const userId = url.searchParams.get("user_id");
+            if (!grant) return [];
+            const rows = [
+              {
+                id: "plat-platform",
+                user_id: "platform",
+                matrix: {
+                  overview: "can_edit",
+                  events: "can_edit",
+                  users: "can_edit",
+                  canViewActivity: true,
+                  canInspection: true,
+                  canViewUnmaskedPii: false,
+                },
+                deleted_at: null,
+              },
+            ];
+            return userId
+              ? rows.filter((row) => row.user_id === userId)
+              : rows;
+          }
+          if (path.startsWith("/event_access")) {
+            const url = new URL(path, "https://fixture.test");
+            const userId = url.searchParams.get("user_id");
+            const rows = [
+              {
+                id: "access-owner",
+                user_id: "owner",
+                event_id: "event",
+                role_name: "Event Admin",
+                can_manage_sub_users: true,
+                matrix: {
+                  event: "can_edit",
+                  registrationForm: "can_edit",
+                  surveyForm: "can_edit",
+                  dashboard: "can_edit",
+                  canViewSubmissions: true,
+                  canManageSubmissions: true,
+                  canExport: true,
+                },
+                deleted_at: null,
+              },
+              {
+                id: "access-other",
+                user_id: "other-owner",
+                event_id: "another-event",
+                role_name: "Event Admin",
+                can_manage_sub_users: true,
+                matrix: {
+                  event: "can_edit",
+                  registrationForm: "can_edit",
+                  surveyForm: "can_edit",
+                  dashboard: "can_edit",
+                  canViewSubmissions: true,
+                  canManageSubmissions: true,
+                  canExport: true,
+                },
+                deleted_at: null,
+              },
+            ];
+            return userId
+              ? rows.filter((row) => row.user_id === userId)
+              : rows;
           }
           if (path.startsWith("/users?")) {
             // Deliberately return unfiltered accounts, including the administrator first.
             return Array.from(accounts.values());
           }
-          if (path === "/role_permissions?role_id=event-admin") {
-            return [{ role_id: "event-admin", permission: "manage_sub_user" }];
+          if (path.startsWith("/events/")) {
+            const id = decodeURIComponent(path.slice("/events/".length));
+            if (id === "event") {
+              return {
+                id: "event",
+                slug: "fixture-event",
+                default_locale: "th",
+                deleted_at: null,
+              };
+            }
+            return null;
+          }
+          if (path.startsWith("/event_translations")) {
+            return [
+              {
+                event_id: "event",
+                locale_code: "th",
+                title: "Fixture Event",
+              },
+            ];
           }
           const id = path.match(/^\/users\/([^/?]+)$/)?.[1];
           assert.ok(id, `Unexpected fixture lookup: ${path}`);
@@ -92,12 +164,18 @@ function fixture({ allowImpersonation = true } = {}) {
     },
     "@/services/event/reporting": {
       ReportingError,
-      async getReportingData(id, locale) {
-        actions.push(["view", id, locale]);
-        return { id, locale };
+      async getReportingData(id, locale, _body, options) {
+        const scopeId = options?.inspectedEventId || id;
+        actions.push(["view", scopeId, locale]);
+        return { id: scopeId, locale };
       },
-      async restoreTrash(id, locale) {
-        actions.push(["restore", id, locale]);
+      async restoreTrash(id, locale, itemId, options) {
+        actions.push([
+          "restore",
+          options?.inspectedEventId || id,
+          locale,
+          itemId,
+        ]);
         return { ok: true };
       },
     },
@@ -112,8 +190,8 @@ function fixture({ allowImpersonation = true } = {}) {
       },
     },
     "@/services/event/dashboard": {
-      async publishDashboard(id, locale) {
-        actions.push(["publish", id, locale]);
+      async publishDashboard(id, locale, _widgets, options) {
+        actions.push(["publish", options?.inspectedEventId || id, locale]);
         return { widgets: [] };
       },
     },
@@ -124,8 +202,8 @@ function fixture({ allowImpersonation = true } = {}) {
     ...cookies,
     login: load("src/app/api/auth/login/route.ts").POST,
     logout: load("src/app/api/auth/logout/route.ts").POST,
-    start: load("src/app/api/auth/impersonation/route.ts").POST,
-    stop: load("src/app/api/auth/impersonation/route.ts").DELETE,
+    start: load("src/app/api/auth/inspect-event/route.ts").POST,
+    stop: load("src/app/api/auth/inspect-event/route.ts").DELETE,
     dashboardApi: load("src/app/api/event/dashboard/route.ts").POST,
     dataApi: load("src/app/api/event/data/route.ts").GET,
     trashApi: load("src/app/api/event/trash/route.ts").POST,
@@ -259,66 +337,76 @@ test("Dashboard uses the signed user, rejects expired or inactive sessions and k
   assert.equal(env.actions.length, 1);
 });
 
-test("Dashboard impersonation needs a current platform grant and stays read-only", async () => {
+test("Dashboard event inspection needs canInspection and keeps full write access", async () => {
   const env = fixture();
   const cookie = signedCookie(env, "platform", undefined, "super_admin");
   const start = await env.start(
-    request("/api/auth/impersonation", {
+    request("/api/auth/inspect-event", {
       cookie,
       method: "POST",
-      body: { userId: "owner" },
+      body: { eventId: "event" },
     }),
   );
   assert.equal(start.status, 200);
-  const delegatedCookie = cookieHeader(start);
+  const inspectCookie = cookieHeader(start);
+  const started = env.readAuthSession(
+    request("/api/event/data", { cookie: inspectCookie }),
+  );
+  assert.equal(started.role, "super_admin");
+  assert.equal(started.inspectedEventId, "event");
+  assert.equal(started.impersonating, false);
+
   const view = await env.dataApi(
-    request("/api/event/data", { cookie: delegatedCookie }),
+    request("/api/event/data", { cookie: inspectCookie }),
   );
   assert.equal(view.status, 200);
-  assert.deepEqual(await view.json(), { id: "owner", locale: "th" });
+  assert.deepEqual(await view.json(), { id: "event", locale: "th" });
 
   const publish = await env.dashboardApi(
     request("/api/event/dashboard", {
-      cookie: delegatedCookie,
+      cookie: inspectCookie,
       method: "POST",
       body: { widgets: [] },
     }),
   );
   const restore = await env.trashApi(
     request("/api/event/trash", {
-      cookie: delegatedCookie,
+      cookie: inspectCookie,
       method: "POST",
       body: { id: "entry" },
     }),
   );
   const analytics = await env.analyticsApi(
-    request("/api/event/analytics", { cookie: delegatedCookie }),
+    request("/api/event/analytics", { cookie: inspectCookie }),
   );
   const layout = await env.layoutApi(
     request("/api/event/analytics/layout", {
-      cookie: delegatedCookie,
+      cookie: inspectCookie,
       method: "PATCH",
       body: {},
     }),
   );
   assert.equal(analytics.status, 200);
-  assert.equal(publish.status, 403);
-  assert.equal(restore.status, 403);
-  assert.equal(layout.status, 403);
+  assert.equal(publish.status, 200);
+  assert.equal(restore.status, 200);
+  assert.equal(layout.status, 200);
   assert.deepEqual(env.actions, [
-    ["view", "owner", "th"],
-    ["analytics", "owner", "platform"],
+    ["view", "event", "th"],
+    ["publish", "event", "th"],
+    ["restore", "event", "th", "entry"],
+    ["analytics", "platform", "platform"],
+    ["layout", "platform", "platform"],
   ]);
 
   env.revokeGrant();
   assert.equal(
-    (await env.dataApi(request("/api/event/data", { cookie: delegatedCookie })))
+    (await env.dataApi(request("/api/event/data", { cookie: inspectCookie })))
       .status,
     401,
   );
   const end = await env.stop(
-    request("/api/auth/impersonation", {
-      cookie: delegatedCookie,
+    request("/api/auth/inspect-event", {
+      cookie: inspectCookie,
       method: "DELETE",
     }),
   );
@@ -328,12 +416,13 @@ test("Dashboard impersonation needs a current platform grant and stays read-only
   );
   assert.equal(restored.userId, "platform");
   assert.equal(restored.impersonating, false);
+  assert.equal(restored.inspectedEventId, null);
 
   const startWithoutGrant = await env.start(
-    request("/api/auth/impersonation", {
+    request("/api/auth/inspect-event", {
       cookie,
       method: "POST",
-      body: { userId: "owner" },
+      body: { eventId: "event" },
     }),
   );
   assert.equal(startWithoutGrant.status, 403);
@@ -399,7 +488,7 @@ test("An authenticated non-impersonated user can reach reporting write services"
   assert.equal(restore.status, 200);
   assert.deepEqual(env.actions, [
     ["publish", "owner", "en"],
-    ["restore", "owner", "th"],
+    ["restore", "owner", "th", "entry"],
   ]);
 });
 

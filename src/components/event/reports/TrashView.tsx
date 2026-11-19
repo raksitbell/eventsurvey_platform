@@ -4,19 +4,16 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEventReporting } from "@/hooks/useEventReporting";
 import { useConfirm } from "@/hooks/useConfirm";
 import { api } from "@/core/api";
-import { useAuth } from "@/context/AuthContext";
 import Button from "@/components/ui/button/Button";
 import { showToast } from "@/utils/toast";
 import ReportShell, { panelClass } from "./ReportShell";
 export default function TrashView() {
   const { data, errorStatus, reload } = useEventReporting();
   const t = useTranslations("eventReports");
-  const { isImpersonating } = useAuth();
   const locale = useLocale();
   const { confirm } = useConfirm();
   const [pending, setPending] = useState<string | null>(null);
   async function restore(id: string) {
-    if (isImpersonating) return;
     if (!(await confirm({ title: t("restore"), message: t("trash.confirm") })))
       return;
     setPending(id);
@@ -90,15 +87,12 @@ export default function TrashView() {
                     <td>
                       <Button
                         size="sm"
-                        disabled={
-                          (!row.canRestore && !isImpersonating) ||
-                          pending !== null
-                        }
+                        disabled={!row.canRestore || pending !== null}
                         onClick={() => void restore(row.id)}
                       >
                         {pending === row.id ? t("loading") : t("restore")}
                       </Button>
-                      {!row.canRestore && !isImpersonating && (
+                      {!row.canRestore && (
                         <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
                           {t("trash.unavailable")}
                         </p>

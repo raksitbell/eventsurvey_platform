@@ -1,5 +1,6 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { writeAuditLog } from "@/core/audit/write";
 import { maskEmail, maskName, mayViewPii, type PiiViewer } from "@/core/auth/pii";
 import { isPastScheduleMinute } from "@/core/event/schedule";
 import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
@@ -19,26 +20,18 @@ import type {
   EventCloseWarning,
   UpdateAdminEventInput,
 } from "@/types/admin/events";
+import { DEFAULT_ADMIN_MATRIX } from "@/core/auth/event-permissions";
 import type {
   MockEvent,
+  MockEventAccess,
   MockEventBanner,
   MockEventStatus,
   MockEventTranslation,
   MockForm,
   MockFormType,
-  MockPermissionCode,
-  MockRole,
   MockUser,
 } from "@/types/mock";
 import { randomBytes, randomUUID } from "crypto";
-
-const EVENT_ADMIN_PERMISSIONS: MockPermissionCode[] = [
-  "manage_dashboard",
-  "manage_event",
-  "manage_registration_form",
-  "manage_survey_form",
-  "manage_sub_user",
-];
 
 export type ListAdminEventsQuery = {
   q?: string;
@@ -251,10 +244,11 @@ export async function getAdminEvent(
   locale: Locale = routing.defaultLocale,
   viewer?: PiiViewer,
 ): Promise<AdminEventDetail> {
-  const [{ events, translations, users, banners }, roles] = await Promise.all([
-    loadEventBundle(),
-    mockApi.get<MockRole[]>("/roles"),
-  ]);
+  const [{ events, translations, users, banners }, eventAccess] =
+    await Promise.all([
+      loadEventBundle(),
+      mockApi.get<MockEventAccess[]>("/event_access"),
+    ]);
   const event = events.find((row) => row.id === id);
   if (!event) throw new ServiceError("EVENT_NOT_FOUND", 404);
 
@@ -270,7 +264,11 @@ export async function getAdminEvent(
       addressText: row.address_text,
     }));
 
-  const roleById = new Map(roles.map((role) => [role.id, role]));
+  const accessByUser = new Map(
+    eventAccess
+      .filter((row) => row.event_id === event.id && !row.deleted_at)
+      .map((row) => [row.user_id, row]),
+  );
   const members: AdminEventMember[] = users
     .filter(
       (user) =>
@@ -281,9 +279,7 @@ export async function getAdminEvent(
     .map((user) => ({
       ...toMemberContact(user, viewer),
       status: user.status,
-      roleName: user.role_id
-        ? (roleById.get(user.role_id)?.name ?? null)
-        : null,
+      roleName: accessByUser.get(user.id)?.role_name ?? null,
     }))
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
@@ -403,7 +399,7 @@ export async function createAdminEvent(
 
   const now = nowIso();
   const eventId = randomUUID();
-  const roleId = randomUUID();
+  const accessId = randomUUID();
   const titleTh = input.titleTh.trim();
   const titleEn = input.titleEn.trim();
   const defaultLocale: Locale =
@@ -425,7 +421,7 @@ export async function createAdminEvent(
   const translationRows: MockEventTranslation[] = [];
   const assignment = {
     event_id: eventId,
-    role_id: roleId,
+    role_id: null,
     role_assigned_by_user_id: platformAdminUserId,
     role_assigned_at: now,
     updated_at: now,
@@ -469,24 +465,17 @@ export async function createAdminEvent(
       translationRows.push(row);
     }
 
-    await createRow<MockRole>("/roles", {
-      id: roleId,
+    await createRow<MockEventAccess>("/event_access", {
+      id: accessId,
+      user_id: admin.userId,
       event_id: eventId,
-      name: "Event Admin",
-      description: "Full access for event admin",
+      role_name: "Event Admin",
+      can_manage_sub_users: true,
+      matrix: { ...DEFAULT_ADMIN_MATRIX },
       created_at: now,
-      created_by: platformAdminUserId,
       updated_at: now,
-      updated_by: platformAdminUserId,
       deleted_at: null,
     });
-    for (const permission of EVENT_ADMIN_PERMISSIONS) {
-      await createRow("/role_permissions", {
-        id: randomUUID(),
-        role_id: roleId,
-        permission,
-      });
-    }
 
     if (admin.mode === "new") {
       // Save the invited account and its assignment in a single write.
@@ -511,7 +500,7 @@ export async function createAdminEvent(
         .patch<MockUser>(path, assignment)
         .catch(async (error: unknown) => {
           const current = await mockApi.get<MockUser>(path).catch(() => null);
-          if (current?.event_id === eventId && current.role_id === roleId) {
+          if (current?.event_id === eventId) {
             return current;
           }
           // Retain the records if the account may still reference this event.
@@ -550,6 +539,18 @@ export async function createAdminEvent(
       // The draft and the invited account are already saved.
     }
   }
+
+  await writeAuditLog({
+    actorUserId: platformAdminUserId,
+    eventId: event.id,
+    action: "create",
+    resourceType: "event",
+    resourceId: event.id,
+    module: "event_management",
+    descriptionTh: "สร้างอีเวนต์ใหม่",
+    descriptionEn: "Created a new event",
+    metadata: { slug: input.slug },
+  });
 
   return {
     event: toListItem(event, translationRows, [adminUser], locale, viewer),
@@ -637,6 +638,21 @@ export async function updateAdminEvent(
   await upsertTitle("th", titleTh);
   await upsertTitle("en", titleEn);
 
+  await writeAuditLog({
+    actorUserId: actorUserId,
+    eventId: eventId,
+    action: "update",
+    resourceType: "event",
+    resourceId: eventId,
+    module: "event_management",
+    descriptionTh: "แก้ไขชื่อและ slug อีเวนต์",
+    descriptionEn: "Updated event name and slug",
+    metadata: {
+      before: { slug: event.slug },
+      after: { slug },
+    },
+  });
+
   const { translations, users } = await loadEventBundle();
   return toListItem(updated, translations, users, locale, viewer);
 }
@@ -710,6 +726,19 @@ export async function updateAdminEventStatus(
     ...(action === "start" ? { opens_at: event.opens_at ?? now } : {}),
     ...(action === "close" ? { closes_at: now } : {}),
   });
+
+  await writeAuditLog({
+    actorUserId: actorUserId,
+    eventId: eventId,
+    action: "update",
+    resourceType: "event",
+    resourceId: eventId,
+    module: "event_management",
+    descriptionTh: action === "start" ? "เปิดอีเวนต์" : "ปิดอีเวนต์",
+    descriptionEn: action === "start" ? "Started event" : "Closed event",
+    metadata: { before: { status: event.status }, after: { status: transition.to } },
+  });
+
   const { translations, users } = await loadEventBundle();
   return toListItem(updated, translations, users, locale, viewer);
 }

@@ -1,13 +1,16 @@
 import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { writeAuditLog } from "@/core/audit/write";
 import {
   deserializePermissionMatrix,
-  matrixToMockPermissions,
   serializePermissionMatrix,
 } from "@/core/auth/event-permissions";
 import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
+import {
+  eventMatrixToLegacyCodes,
+  getEventAccessForUser,
+} from "@/core/mock/access";
 import { isActiveMockUser } from "@/core/mock/map-user";
-import { getRolePermissions } from "@/core/mock/role-permissions";
 import type {
   EventSubUserItem,
   InviteSubUserInput,
@@ -17,33 +20,17 @@ import type {
 } from "@/types/event/permissions";
 import type {
   MockEvent,
+  MockEventAccess,
   MockEventTranslation,
-  MockPermissionCode,
-  MockRole,
-  MockRolePermission,
   MockUser,
 } from "@/types/mock";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 
-function permissionsByRoleId(
-  rows: MockRolePermission[],
-): Map<string, MockPermissionCode[]> {
-  const map = new Map<string, MockPermissionCode[]>();
-  for (const row of rows) {
-    const list = map.get(row.role_id) ?? [];
-    list.push(row.permission);
-    map.set(row.role_id, list);
-  }
-  return map;
-}
-
-/**
- * Check if the current user belongs to the event and has the 'manage_sub_user' permission.
- */
 async function assertEventAdmin(
   eventId: string,
   currentUserId: string,
+  options: { inspector?: boolean } = {},
 ): Promise<MockUser> {
   let currentUser: MockUser;
   try {
@@ -55,11 +42,7 @@ async function assertEventAdmin(
     throw error;
   }
 
-  if (
-    !currentUser ||
-    !isActiveMockUser(currentUser) ||
-    currentUser.event_id !== eventId
-  ) {
+  if (!currentUser || !isActiveMockUser(currentUser)) {
     throw new ServiceError(
       "FORBIDDEN",
       403,
@@ -67,8 +50,23 @@ async function assertEventAdmin(
     );
   }
 
-  const permissions = await getRolePermissions(currentUser.role_id);
-  if (!permissions.includes("manage_sub_user")) {
+  if (options.inspector) {
+    if (currentUser.system_role !== "platform_admin") {
+      throw new ServiceError("FORBIDDEN", 403);
+    }
+    return currentUser;
+  }
+
+  if (currentUser.event_id !== eventId) {
+    throw new ServiceError(
+      "FORBIDDEN",
+      403,
+      "User does not belong to this event",
+    );
+  }
+
+  const access = await getEventAccessForUser(currentUser.id, eventId);
+  if (!access.canManageSubUsers) {
     throw new ServiceError(
       "FORBIDDEN",
       403,
@@ -79,19 +77,39 @@ async function assertEventAdmin(
   return currentUser;
 }
 
-/**
- * List all sub-users belonging to the event with their resolved permission matrix.
- */
+function toSubUserItem(
+  user: MockUser,
+  access: Awaited<ReturnType<typeof getEventAccessForUser>>,
+): EventSubUserItem {
+  return {
+    id: user.id,
+    name: user.display_name,
+    email: user.email,
+    roleId: access.row?.id ?? null,
+    customRoleName: access.roleName,
+    status: user.status,
+    joinedAt: user.joined_at,
+    createdAt: user.created_at,
+    permissions: access.matrix,
+    rawPermissions: eventMatrixToLegacyCodes(
+      access.matrix,
+      access.canManageSubUsers,
+    ),
+  };
+}
+
 export async function getSubUsers(
   eventId: string,
   currentUserId: string,
+  options: { inspector?: boolean } = {},
 ): Promise<SubUsersListResponse> {
-  const [mockUsers, roles, rolePermissions] = await Promise.all([
+  const [mockUsers, eventAccessRows] = await Promise.all([
     mockApi.get<MockUser[]>(
       `/users?event_id=${encodeURIComponent(eventId)}&_sort=created_at&_order=asc`,
     ),
-    mockApi.get<MockRole[]>(`/roles?event_id=${encodeURIComponent(eventId)}`),
-    mockApi.get<MockRolePermission[]>("/role_permissions"),
+    mockApi.get<MockEventAccess[]>(
+      `/event_access?event_id=${encodeURIComponent(eventId)}`,
+    ),
   ]);
 
   const members = mockUsers.filter(
@@ -101,43 +119,22 @@ export async function getSubUsers(
       user.status !== "removed" &&
       !user.removed_at,
   );
-  const rolesById = new Map(
-    roles
-      .filter((role) => role.event_id === eventId && !role.deleted_at)
-      .map((role) => [role.id, role]),
-  );
-  const permsByRole = permissionsByRoleId(rolePermissions);
-  const currentUser = members.find(
-    (user) => user.id === currentUserId && isActiveMockUser(user),
-  );
-  const currentRoleId = currentUser?.role_id;
-  const canManageSubUsers = Boolean(
-    currentRoleId &&
-    rolesById.has(currentRoleId) &&
-    permsByRole.get(currentRoleId)?.includes("manage_sub_user"),
+  const accessByUser = new Map(
+    eventAccessRows
+      .filter((row) => row.event_id === eventId && !row.deleted_at)
+      .map((row) => [row.user_id, row]),
   );
 
-  const subUsersList: EventSubUserItem[] = members.map((user) => {
-    const role = user.role_id ? rolesById.get(user.role_id) : null;
-    const rawPerms = role ? (permsByRole.get(role.id) ?? []) : [];
-    const permissions = deserializePermissionMatrix(
-      role?.description,
-      rawPerms,
-    );
+  const currentAccess = accessByUser.get(currentUserId);
+  const canManageSubUsers = options.inspector
+    ? true
+    : Boolean(currentAccess?.can_manage_sub_users);
 
-    return {
-      id: user.id,
-      name: user.display_name,
-      email: user.email,
-      roleId: role?.id ?? null,
-      customRoleName: role?.name ?? null,
-      status: user.status,
-      joinedAt: user.joined_at,
-      createdAt: user.created_at,
-      permissions,
-      rawPermissions: rawPerms,
-    };
-  });
+  const subUsersList: EventSubUserItem[] = [];
+  for (const user of members) {
+    const access = await getEventAccessForUser(user.id, eventId);
+    subUsersList.push(toSubUserItem(user, access));
+  }
 
   return {
     subUsers: subUsersList,
@@ -166,16 +163,14 @@ async function getEventMember(
   return user;
 }
 
-/**
- * Update the permission matrix and custom role name for a sub-user.
- */
 export async function updateSubUserPermissions(
   eventId: string,
   subUserId: string,
   input: UpdateSubUserPermissionsInput,
   currentUserId: string,
+  options: { inspector?: boolean } = {},
 ): Promise<EventSubUserItem> {
-  await assertEventAdmin(eventId, currentUserId);
+  await assertEventAdmin(eventId, currentUserId, options);
 
   const targetUser = await getEventMember(eventId, subUserId);
   if (
@@ -185,144 +180,83 @@ export async function updateSubUserPermissions(
   ) {
     throw new ServiceError("USER_NOT_IN_EVENT", 400);
   }
-  const currentCodes = await getRolePermissions(targetUser.role_id);
-  if (currentCodes.includes("manage_sub_user")) {
+
+  const existing = await getEventAccessForUser(subUserId, eventId);
+  if (existing.canManageSubUsers) {
     throw new ServiceError("FORBIDDEN", 403);
   }
 
-  const currentRole = targetUser.role_id
-    ? await mockApi.get<MockRole>(
-        `/roles/${encodeURIComponent(targetUser.role_id)}`,
-      )
-    : null;
-  if (currentRole && (currentRole.event_id !== eventId || currentRole.deleted_at)) {
-    throw new ServiceError("FORBIDDEN", 403);
-  }
   const permissionMatrix = deserializePermissionMatrix(
     serializePermissionMatrix(input.permissions),
   );
-  const serializedMatrix = serializePermissionMatrix(permissionMatrix);
-  const newMockCodes = matrixToMockPermissions(permissionMatrix);
-  if (currentCodes.includes("view_unmasked_pii")) {
-    newMockCodes.push("view_unmasked_pii");
-  }
-  const roleName = input.roleName?.trim() || currentRole?.name || "Sub-User Role";
-  const unchanged =
-    currentRole &&
-    currentRole.name === roleName &&
-    currentRole.description === serializedMatrix &&
-    currentCodes.length === newMockCodes.length &&
-    newMockCodes.every((code) => currentCodes.includes(code));
-  let roleId = currentRole?.id ?? null;
-  if (!unchanged) {
-    const now = new Date().toISOString();
-    const userPath = `/users/${encodeURIComponent(subUserId)}`;
-    const staged = await stageSubUserRole({
-      eventId,
-      actorUserId: currentUserId,
-      name: roleName,
-      description: serializedMatrix,
-      permissions: newMockCodes,
-      now,
-    });
+  const roleName =
+    input.roleName?.trim() || existing.roleName || "Sub-User Role";
+  const now = new Date().toISOString();
 
-    // The new grants become active together. Other members can continue
-    // using the previous role.
-    try {
-      await mockApi.patch<MockUser>(userPath, {
-        role_id: staged.id,
-        role_assigned_by_user_id: currentUserId,
-        role_assigned_at: now,
+  let row = existing.row;
+  if (row) {
+    row = await mockApi.patch<MockEventAccess>(
+      `/event_access/${encodeURIComponent(row.id)}`,
+      {
+        role_name: roleName,
+        can_manage_sub_users: false,
+        matrix: permissionMatrix,
         updated_at: now,
-      });
-    } catch (error) {
-      const assignedUser = await mockApi
-        .get<MockUser>(userPath)
-        .catch(() => null);
-      if (assignedUser?.role_id !== staged.id) {
-        if (assignedUser) await discardStagedRole(staged.stagedPaths);
-        throw error;
-      }
-    }
-    roleId = staged.id;
-  }
-
-  return {
-    id: targetUser.id,
-    name: targetUser.display_name,
-    email: targetUser.email,
-    roleId,
-    customRoleName: roleName,
-    status: targetUser.status,
-    joinedAt: targetUser.joined_at,
-    createdAt: targetUser.created_at,
-    permissions: permissionMatrix,
-    rawPermissions: newMockCodes,
-  };
-}
-
-async function stageSubUserRole({
-  eventId,
-  actorUserId,
-  name,
-  description,
-  permissions,
-  now,
-}: {
-  eventId: string;
-  actorUserId: string;
-  name: string;
-  description: string;
-  permissions: readonly MockPermissionCode[];
-  now: string;
-}): Promise<{ id: string; stagedPaths: string[] }> {
-  const roleId = randomUUID();
-  const stagedPaths = [`/roles/${roleId}`];
-  try {
-    await mockApi.post<MockRole>("/roles", {
-      id: roleId,
+      },
+    );
+  } else {
+    row = await mockApi.post<MockEventAccess>("/event_access", {
+      id: randomUUID(),
+      user_id: subUserId,
       event_id: eventId,
-      name,
-      description,
+      role_name: roleName,
+      can_manage_sub_users: false,
+      matrix: permissionMatrix,
       created_at: now,
-      created_by: actorUserId,
       updated_at: now,
-      updated_by: actorUserId,
       deleted_at: null,
     });
-    for (const permission of permissions) {
-      const id = randomUUID();
-      stagedPaths.push(`/role_permissions/${id}`);
-      await mockApi.post<MockRolePermission>("/role_permissions", {
-        id,
-        role_id: roleId,
-        permission,
-      });
-    }
-  } catch (error) {
-    await discardStagedRole(stagedPaths);
-    throw error;
   }
 
-  return { id: roleId, stagedPaths };
-}
+  await mockApi.patch<MockUser>(`/users/${encodeURIComponent(subUserId)}`, {
+    role_assigned_by_user_id: currentUserId,
+    role_assigned_at: now,
+    updated_at: now,
+  });
 
-async function discardStagedRole(paths: string[]): Promise<void> {
-  for (const path of paths.reverse()) {
-    // An unassigned role cannot authorize anyone. Preserve the original error.
-    await mockApi.delete(path).catch(() => undefined);
-  }
+  await writeAuditLog({
+    actorUserId: currentUserId,
+    eventId,
+    action: "update",
+    resourceType: "event_access",
+    resourceId: subUserId,
+    module: "user_management",
+    descriptionTh: "แก้ไขสิทธิ์ผู้ใช้ย่อย",
+    descriptionEn: "Updated sub-user permissions",
+    metadata: {
+      before: existing.matrix,
+      after: permissionMatrix,
+      roleName,
+    },
+  });
+
+  return toSubUserItem(targetUser, {
+    row,
+    matrix: permissionMatrix,
+    canManageSubUsers: false,
+    roleName,
+  });
 }
 
 const pendingInviteEmails = new Set<string>();
 
-/** Invite a new sub-user and deliver the signed password setup link. */
 export async function inviteSubUser(
   eventId: string,
   input: InviteSubUserInput,
   currentUserId: string,
+  options: { inspector?: boolean } = {},
 ): Promise<InviteSubUserResult> {
-  await assertEventAdmin(eventId, currentUserId);
+  await assertEventAdmin(eventId, currentUserId, options);
 
   const email = input.email.trim().toLowerCase();
   if (!z.email().max(320).safeParse(email).success) {
@@ -377,14 +311,18 @@ async function createSubUserInvite(
   const permissionMatrix = deserializePermissionMatrix(
     serializePermissionMatrix(input.permissions),
   );
-  const newMockCodes = matrixToMockPermissions(permissionMatrix);
-  const { id: roleId, stagedPaths } = await stageSubUserRole({
-    eventId,
-    actorUserId: currentUserId,
-    name: roleName,
-    description: serializePermissionMatrix(permissionMatrix),
-    permissions: newMockCodes,
-    now,
+  const accessId = randomUUID();
+
+  await mockApi.post<MockEventAccess>("/event_access", {
+    id: accessId,
+    user_id: userId,
+    event_id: eventId,
+    role_name: roleName,
+    can_manage_sub_users: false,
+    matrix: permissionMatrix,
+    created_at: now,
+    updated_at: now,
+    deleted_at: null,
   });
 
   const newUser: MockUser = {
@@ -395,7 +333,7 @@ async function createSubUserInvite(
     system_role: "event_user",
     platform_role_id: null,
     event_id: eventId,
-    role_id: roleId,
+    role_id: null,
     role_assigned_by_user_id: currentUserId,
     role_assigned_at: now,
     status: "invited",
@@ -409,19 +347,8 @@ async function createSubUserInvite(
   try {
     await mockApi.post<MockUser>("/users", newUser);
   } catch (error) {
-    // A lost response may still have created the account with its new role.
-    const persistedUser = await mockApi
-      .get<MockUser | null>(`/users/${userId}`)
-      .catch((lookupError) => {
-        if (lookupError instanceof MockApiError && lookupError.status === 404) {
-          return null;
-        }
-        throw error;
-      });
-    if (!persistedUser) await discardStagedRole(stagedPaths);
-    if (persistedUser?.id !== userId || persistedUser.role_id !== roleId) {
-      throw error;
-    }
+    await mockApi.delete(`/event_access/${accessId}`).catch(() => undefined);
+    throw error;
   }
 
   const eventTitles = translations.filter((row) => row.event_id === eventId);
@@ -441,30 +368,46 @@ async function createSubUserInvite(
     // Keep the account pending and report the actual delivery outcome.
   }
 
+  await writeAuditLog({
+    actorUserId: currentUserId,
+    eventId,
+    action: "create",
+    resourceType: "sub_user",
+    resourceId: userId,
+    module: "user_management",
+    descriptionTh: "เชิญผู้ใช้ย่อย",
+    descriptionEn: "Invited a sub-user",
+    metadata: { email, roleName },
+  });
+
   return {
-    id: userId,
-    name: newUser.display_name,
-    email: newUser.email,
-    roleId,
-    customRoleName: roleName,
-    status: newUser.status,
-    joinedAt: newUser.joined_at,
-    createdAt: newUser.created_at,
-    permissions: permissionMatrix,
-    rawPermissions: newMockCodes,
+    ...toSubUserItem(newUser, {
+      row: {
+        id: accessId,
+        user_id: userId,
+        event_id: eventId,
+        role_name: roleName,
+        can_manage_sub_users: false,
+        matrix: permissionMatrix,
+        created_at: now,
+        updated_at: now,
+        deleted_at: null,
+      },
+      matrix: permissionMatrix,
+      canManageSubUsers: false,
+      roleName,
+    }),
     inviteSent,
   };
 }
 
-/**
- * Soft remove a sub-user from the event.
- */
 export async function removeSubUser(
   eventId: string,
   subUserId: string,
   currentUserId: string,
+  options: { inspector?: boolean } = {},
 ): Promise<void> {
-  await assertEventAdmin(eventId, currentUserId);
+  await assertEventAdmin(eventId, currentUserId, options);
 
   if (subUserId === currentUserId) {
     throw new ServiceError(
@@ -485,5 +428,16 @@ export async function removeSubUser(
     status: "removed",
     removed_at: now,
     updated_at: now,
+  });
+
+  await writeAuditLog({
+    actorUserId: currentUserId,
+    eventId,
+    action: "delete",
+    resourceType: "sub_user",
+    resourceId: subUserId,
+    module: "user_management",
+    descriptionTh: "ลบผู้ใช้ย่อยออกจากอีเวนต์",
+    descriptionEn: "Removed a sub-user from the event",
   });
 }

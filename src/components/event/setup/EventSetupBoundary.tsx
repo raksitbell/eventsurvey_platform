@@ -5,7 +5,7 @@ import useEventWorkspace from "@/hooks/useEventWorkspace";
 import { Link } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { useTranslations } from "next-intl";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import EventSetupRecovery from "./EventSetupRecovery";
 
 export interface EventSetupPageProps {
@@ -16,24 +16,38 @@ export interface EventSetupPageProps {
 export default function EventSetupBoundary({
   component: Component,
   recoverDraft = false,
+  loadingFallback,
 }: {
   component: ComponentType<EventSetupPageProps>;
   recoverDraft?: boolean;
+  loadingFallback?: ReactNode;
 }) {
   const t = useTranslations("eventHome");
   const { workspace, userId, locale, identity, loading, error, retry } =
     useEventWorkspace();
   if (loading)
     return (
-      <div
-        role="status"
-        aria-label={t("loading")}
-        aria-busy="true"
-        className="space-y-6"
-      >
-        <Skeleton className="h-10 w-2/3" />
-        <Skeleton className="h-96 w-full" />
-      </div>
+      loadingFallback ?? (
+        <div
+          role="status"
+          aria-label={t("loading")}
+          aria-busy="true"
+          className="flex min-h-160 flex-col gap-6 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950"
+        >
+          <Skeleton className="h-7 w-48" />
+          <div className="flex flex-wrap gap-2">
+            <Skeleton className="h-9 w-28 rounded-full" />
+            <Skeleton className="h-9 w-28 rounded-full" />
+            <Skeleton className="h-9 w-28 rounded-full" />
+            <Skeleton className="h-9 w-28 rounded-full" />
+          </div>
+          <Skeleton className="h-80 w-full rounded-2xl" />
+          <div className="mt-auto flex flex-wrap justify-end gap-3">
+            <Skeleton className="h-10 w-24 rounded-lg" />
+            <Skeleton className="h-10 w-32 rounded-lg" />
+          </div>
+        </div>
+      )
     );
   if (!workspace || !userId || error)
     return (

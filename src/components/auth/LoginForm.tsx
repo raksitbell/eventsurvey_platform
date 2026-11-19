@@ -1,29 +1,15 @@
 "use client";
 
+import AuthBrandPanel from "@/components/auth/AuthBrandPanel";
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/AuthContext";
-import { MOCK_DEMO_PASSWORD } from "@/core/auth/constants";
+import { Link } from "@/i18n/navigation";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import { FormEvent, useState } from "react";
-
-const DEMO_ACCOUNTS = [
-  {
-    key: "admin" as const,
-    email: "admin@example.com",
-  },
-  {
-    key: "owner" as const,
-    email: "thanawat@example.com",
-  },
-  {
-    key: "subUser" as const,
-    email: "kittisak@example.com",
-  },
-];
 
 export default function LoginForm() {
   const t = useTranslations("auth");
@@ -34,12 +20,6 @@ export default function LoginForm() {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const fillDemoAccount = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword(MOCK_DEMO_PASSWORD);
-    setError(null);
-  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -64,15 +44,14 @@ export default function LoginForm() {
 
   return (
     <>
+      <AuthBrandPanel headline={t("brandHeadline")} />
+
       <div className="flex min-h-dvh w-full flex-col bg-white px-6 py-10 lg:w-1/2 lg:px-16 xl:px-24 dark:bg-gray-900">
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
           <div className="mb-8">
-            <h1 className="mb-3 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl dark:text-white">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl dark:text-white">
               {t("title")}
             </h1>
-            <p className="text-sm leading-6 text-gray-500 dark:text-gray-400">
-              {t("subtitle")}
-            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -125,12 +104,12 @@ export default function LoginForm() {
                   {t("keepLoggedIn")}
                 </span>
               </div>
-              <button
-                type="button"
+              <Link
+                href="/forgot-password"
                 className="text-theme-sm font-medium text-brand-500 hover:text-brand-600"
               >
                 {t("forgotPassword")}
-              </button>
+              </Link>
             </div>
 
             {error ? (
@@ -141,7 +120,7 @@ export default function LoginForm() {
 
             <Button
               type="submit"
-              className="w-full !rounded-xl !py-3.5"
+              className="w-full !rounded-xl !bg-[var(--color-event-sidebar)] !py-3.5 hover:!opacity-90"
               size="md"
               disabled={isSubmitting}
             >
@@ -149,73 +128,14 @@ export default function LoginForm() {
             </Button>
           </form>
 
-          <div className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/5">
-            <p className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-              {t("demoTitle")}
-            </p>
-            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-              {t("demoHint")}
-            </p>
-            <ul className="mt-3 space-y-2">
-              {DEMO_ACCOUNTS.map((account) => (
-                <li key={account.key}>
-                  <button
-                    type="button"
-                    onClick={() => fillDemoAccount(account.email)}
-                    className="flex w-full items-start justify-between gap-3 rounded-xl border border-transparent bg-white px-3 py-2.5 text-start transition hover:border-brand-200 hover:bg-brand-25 dark:bg-gray-900 dark:hover:border-brand-500/30 dark:hover:bg-brand-500/10"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                        {account.email}
-                      </span>
-                      <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-                        {t(`demoAccounts.${account.key}`)}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-theme-xs font-medium text-brand-500">
-                      {t("signIn")}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-theme-xs text-gray-500 dark:text-gray-400">
-              {t("demoPassword")}
-            </p>
-          </div>
-
-          <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            {t("noAccount")}{" "}
+          <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
             <button
               type="button"
-              className="font-medium text-brand-500 hover:text-brand-600"
+              className="font-medium text-gray-600 hover:text-brand-500 dark:text-gray-300 dark:hover:text-brand-400"
             >
-              {t("contactAdmin")}
+              {t("privacy")}
             </button>
           </p>
-        </div>
-      </div>
-
-      <div className="relative hidden min-h-dvh w-full overflow-hidden bg-gray-950 lg:flex lg:w-1/2 lg:items-center lg:justify-center">
-        <div className="absolute -start-24 -top-24 size-80 rounded-full bg-brand-600/20 blur-3xl" />
-        <div className="absolute -end-16 -bottom-20 size-96 rounded-full bg-brand-500/15 blur-3xl" />
-        <div className="absolute end-10 top-10 grid grid-cols-4 gap-2 opacity-40">
-          {Array.from({ length: 16 }).map((_, index) => (
-            <span
-              key={index}
-              className="size-1.5 rounded-full bg-blue-light-400/70"
-            />
-          ))}
-        </div>
-
-        <div className="relative z-10 mx-auto max-w-md px-10 text-center">
-          <div className="mx-auto mb-8 flex size-16 items-center justify-center rounded-2xl bg-brand-500 text-2xl font-bold text-white shadow-theme-lg">
-            E
-          </div>
-          <h2 className="mb-4 text-3xl font-bold leading-tight text-white">
-            {t("brandHeadline")}
-          </h2>
-          <p className="text-base leading-7 text-gray-400">{t("brandSubtext")}</p>
         </div>
       </div>
     </>

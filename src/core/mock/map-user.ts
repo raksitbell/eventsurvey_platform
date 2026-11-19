@@ -3,8 +3,7 @@ import type { User, UserRole, UserStatus } from "@/types/user";
 
 /**
  * Map mock membership → portal `UserRole`.
- * `system_role` + `role_permissions` decide area access (no denormalized
- * `event_role` / `can_*` on users in the current seed).
+ * `system_role` + event_access-derived codes decide area access.
  */
 export function resolveAppRole(
   user: MockUser,
@@ -12,7 +11,6 @@ export function resolveAppRole(
 ): UserRole | null {
   if (user.system_role === "platform_admin") return "super_admin";
   if (user.system_role !== "event_user" || !user.event_id) return null;
-  // Event Admin roles grant manage_sub_user; narrower roles do not.
   if (permissions.includes("manage_sub_user")) return "event_owner";
   return "sub_user";
 }
@@ -38,8 +36,7 @@ export function mapMockUserToUser(
     phone: null,
     role,
     status: mapStatus(user.status),
-    ownerId:
-      role === "sub_user" ? user.invited_by_user_id : null,
+    ownerId: role === "sub_user" ? user.invited_by_user_id : null,
     canViewSensitiveData: permissions.includes("view_unmasked_pii"),
     isDeleted: isRemoved,
     deletedAt: user.removed_at,

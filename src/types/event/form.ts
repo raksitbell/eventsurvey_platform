@@ -1,3 +1,5 @@
+import type { ModuleAccessLevel } from "@/types/event/permissions";
+
 /**
  * Form Builder payload shape — aligned with `feature/form-builder`
  * (`FormBuilder` state). BFF accepts/returns this; mock mapping stays in service.
@@ -124,12 +126,19 @@ export interface FormRecord extends Form {
   canChangeStatus: boolean;
 }
 
-/** GET /api/event/forms?eventId= — list + event form capability flags */
-export interface FormListResponse {
+/** Service payload before the BFF attaches caller permission levels. */
+export interface FormListData {
   eventId: string;
   hasRegistration: boolean;
   hasSurvey: boolean;
   forms: FormRecord[];
+}
+
+/** GET /api/event/forms?eventId= — list + event form capability flags */
+export interface FormListResponse extends FormListData {
+  /** Permission matrix levels for this caller (restricted / view_only / can_edit). */
+  registrationFormAccess: ModuleAccessLevel;
+  surveyFormAccess: ModuleAccessLevel;
 }
 
 /** POST body = builder Form + eventId (workspace supplies event) */

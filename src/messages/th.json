@@ -30,16 +30,28 @@
     "ok": "ตกลง",
     "signOutTitle": "ออกจากระบบ",
     "impersonateTitle": "สวมสิทธิ์ผู้ใช้",
-    "stopImpersonateTitle": "หยุดสวมสิทธิ์"
+    "stopImpersonateTitle": "หยุดสวมสิทธิ์",
+    "stopInspectTitle": "ออกจากพื้นที่อีเวนต์",
+    "inspectTitle": "เปิดพื้นที่อีเวนต์"
+  },
+  "eventInspection": {
+    "banner": "กำลังดู “{event}” ด้วยสิทธิ์แพลตฟอร์มเต็มรูปแบบ ลงชื่อเข้าใช้ในฐานะ {admin}",
+    "stop": "กลับไปหน้าอีเวนต์",
+    "stopFailed": "ไม่สามารถออกจากพื้นที่อีเวนต์ได้ กรุณาลองอีกครั้ง",
+    "confirmStop": "ออกจากพื้นที่อีเวนต์นี้แล้วกลับไปที่การจัดการอีเวนต์หรือไม่?",
+    "confirmStart": "เปิด “{event}” ด้วยสิทธิ์แพลตฟอร์มเต็มรูปแบบหรือไม่?",
+    "unnamedEvent": "อีเวนต์นี้"
   },
   "sidebar": {
     "groups": {
       "workspace": "พื้นที่ทำงาน",
       "event": "EVENT"
     },
+    "appSubtitle": "ลงทะเบียนและแบบสอบถามกิจกรรม",
     "items": {
       "overview": "ภาพรวมระบบ",
       "owners": "จัดการผู้ใช้",
+      "activity": "กิจกรรมผู้ใช้",
       "eventHome": "ภาพรวม",
       "eventWorkspace": "Event Workspace",
       "dashboard": "แดชบอร์ด",
@@ -83,31 +95,20 @@
     "confirmStopImpersonating": "ต้องการหยุดสวมสิทธิ์และกลับไปบัญชีผู้ดูแลระบบหรือไม่?"
   },
   "auth": {
-    "title": "เข้าสู่ระบบ",
-    "subtitle": "กรอกอีเมลและรหัสผ่านเพื่อเข้าใช้งาน EventSurvey",
+    "title": "เข้าสู่ระบบ EventSurvey",
     "email": "อีเมล",
-    "emailPlaceholder": "info@company.com",
+    "emailPlaceholder": "admin@email.com",
     "password": "รหัสผ่าน",
     "passwordPlaceholder": "กรอกรหัสผ่าน",
-    "keepLoggedIn": "ให้ฉันอยู่ในระบบต่อไป",
+    "keepLoggedIn": "จดจำการเข้าสู่ระบบ",
     "forgotPassword": "ลืมรหัสผ่าน?",
     "signIn": "เข้าสู่ระบบ",
     "signingIn": "กำลังเข้าสู่ระบบ...",
     "showPassword": "แสดงรหัสผ่าน",
     "hidePassword": "ซ่อนรหัสผ่าน",
-    "noAccount": "ยังไม่มีบัญชี?",
-    "contactAdmin": "ติดต่อผู้ดูแลระบบ",
-    "brandHeadline": "สร้างอีเวนต์ที่ดีกว่า รวบรวมคำติชมที่ดีขึ้น",
-    "brandSubtext": "สร้างฟอร์ม เผยแพร่แบบสำรวจ และเปลี่ยนทุกการตอบกลับให้เป็นข้อมูลเชิงลึกที่นำไปใช้ได้จริง",
+    "privacy": "นโยบายความเป็นส่วนตัว",
+    "brandHeadline": "จัดการระบบอีเวนต์ สร้างแบบฟอร์มลงทะเบียนและแบบสอบถาม",
     "language": "ภาษา",
-    "demoTitle": "บัญชีทดลอง",
-    "demoPassword": "รหัสผ่านทุกบัญชี: password123",
-    "demoHint": "คลิกบัญชีเพื่อกรอกให้อัตโนมัติ",
-    "demoAccounts": {
-      "admin": "ผู้ดูแลระบบ → /admin",
-      "owner": "เจ้าของอีเวนต์ → /event",
-      "subUser": "ผู้ใช้ย่อย → /event"
-    },
     "errors": {
       "invalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
       "unsupportedRole": "บัญชีนี้ไม่มีสิทธิ์เข้าใช้งานพอร์ทัล",
@@ -200,6 +201,246 @@
       "customRoles": "บทบาทในอีเวนต์",
       "status": "สถานะ",
       "actions": "การกระทำ"
+    },
+    "viewProfile": "โปรไฟล์",
+    "editPlatformAccess": "สิทธิ์",
+    "platformAccessTitle": "สิทธิ์แพลตฟอร์ม",
+    "platformAccessSaving": "กำลังบันทึก…",
+    "platformAccessSaved": "บันทึกสิทธิ์แพลตฟอร์มแล้ว",
+    "platformAccessSaveError": "บันทึกสิทธิ์แพลตฟอร์มไม่สำเร็จ",
+    "platformFlags": {
+      "canViewActivity": "ดูกิจกรรมผู้ใช้",
+      "canViewActivityDesc": "เปิดดูแดชบอร์ดและไทม์ไลน์กิจกรรมผู้ใช้ได้",
+      "canInspection": "ตรวจสอบอีเวนต์",
+      "canInspectionDesc": "เปิดพื้นที่อีเวนต์ด้วยสิทธิ์แพลตฟอร์มเต็มได้"
+    }
+  },
+  "adminActivity": {
+    "title": "กิจกรรมผู้ใช้",
+    "description": "บันทึกการเพิ่ม แก้ไข และลบจากการทำงานของ API ทั้งฝั่งแพลตฟอร์มและอีเวนต์",
+    "loadError": "โหลดกิจกรรมไม่สำเร็จ",
+    "profileLoadError": "โหลดไทม์ไลน์ผู้ใช้ไม่สำเร็จ",
+    "loading": "กำลังโหลด…",
+    "empty": "ยังไม่มีกิจกรรม",
+    "platformOnly": "แพลตฟอร์ม",
+    "profileTitle": "โปรไฟล์ผู้ใช้",
+    "profileSubtitle": "ไทม์ไลน์กิจกรรม",
+    "timelineTitle": "ประวัติกิจกรรม",
+    "membershipsTitle": "อีเวนต์",
+    "membershipsEmpty": "ผู้ใช้นี้ยังไม่ถูกมอบหมายให้อีเวนต์ใด",
+    "permissionsUnknown": "ไม่พบสิทธิ์สำหรับอีเวนต์นี้",
+    "viewRelatedUser": "ดูผู้ใช้ที่เกี่ยวข้อง",
+    "filterByEventHint": "กรองตารางตามอีเวนต์นี้",
+    "openModuleHint": "เปิดโมดูลนี้",
+    "inspectModuleConfirm": "ตรวจสอบ “{event}” แล้วเปิด {module} หรือไม่?",
+    "inspectModuleConfirmLabel": "ตรวจสอบและเปิด",
+    "openModuleTitle": "เปิดโมดูล",
+    "openModuleConfirm": "ไปที่ {module} หรือไม่?",
+    "openModuleConfirmLabel": "เปิด",
+    "permissionModules": {
+      "event": "อีเวนต์",
+      "registrationForm": "ฟอร์มลงทะเบียน",
+      "surveyForm": "ฟอร์มแบบสอบถาม",
+      "dashboard": "แดชบอร์ด"
+    },
+    "permissionToggles": {
+      "canViewSubmissions": "ดูคำตอบ",
+      "canManageSubmissions": "จัดการคำตอบ",
+      "canExport": "ส่งออก",
+      "canViewActivity": "ดูกิจกรรมผู้ใช้"
+    },
+    "modules": {
+      "event_setup": "ตั้งค่าอีเวนต์",
+      "user_management": "จัดการผู้ใช้",
+      "event_management": "จัดการอีเวนต์",
+      "registration_builder": "สร้างฟอร์มลงทะเบียน",
+      "survey_builder": "สร้างแบบสอบถาม",
+      "dashboard": "แดชบอร์ด"
+    },
+    "stats": {
+      "total": "กิจกรรมทั้งหมด",
+      "users": "ผู้ใช้",
+      "events": "อีเวนต์ที่เกี่ยวข้อง",
+      "platform": "การกระทำระดับแพลตฟอร์ม"
+    },
+    "filters": {
+      "search": "ค้นหา",
+      "searchPlaceholder": "ค้นหาผู้ใช้ อีเวนต์ โมดูล หรือรายละเอียด",
+      "event": "อีเวนต์",
+      "allEvents": "ทุกอีเวนต์",
+      "accountType": "ประเภทบัญชี",
+      "allAccounts": "ทั้งหมด",
+      "platform": "แพลตฟอร์ม",
+      "eventAccount": "อีเวนต์",
+      "dateRange": "ช่วงวันที่",
+      "dateRangePlaceholder": "เลือกช่วงวันที่"
+    },
+    "columns": {
+      "time": "เวลา",
+      "user": "ผู้ใช้",
+      "event": "อีเวนต์",
+      "action": "การกระทำ",
+      "detail": "รายละเอียด",
+      "module": "โมดูล"
+    },
+    "actions": {
+      "create": "สร้าง",
+      "update": "แก้ไข",
+      "delete": "ลบ",
+      "other": "อื่น ๆ"
+    },
+    "roles": {
+      "super_admin": "ผู้ดูแลแพลตฟอร์ม",
+      "event_owner": "Event Admin",
+      "sub_user": "ผู้ใช้ย่อย",
+      "participant": "ผู้เข้าร่วม"
+    },
+    "meta": {
+      "email": "อีเมล: {value}",
+      "roleName": "บทบาท: {value}",
+      "slug": "Slug: {value}",
+      "field": "ฟิลด์: {value}",
+      "count": "{count} รายการ",
+      "pair": "{field}: {value}",
+      "change": "{field}: {from} → {to}",
+      "empty": "—",
+      "bool": {
+        "on": "เปิด",
+        "off": "ปิด"
+      },
+      "levels": {
+        "can_edit": "แก้ไขได้",
+        "view_only": "ดูอย่างเดียว",
+        "restricted": "ไม่มีสิทธิ์"
+      },
+      "fields": {
+        "email": "อีเมล",
+        "roleName": "บทบาท",
+        "slug": "Slug",
+        "count": "จำนวน",
+        "field": "ฟิลด์",
+        "event": "อีเวนต์",
+        "registrationForm": "ฟอร์มลงทะเบียน",
+        "surveyForm": "ฟอร์มแบบสอบถาม",
+        "dashboard": "แดชบอร์ด",
+        "canViewSubmissions": "ดูคำตอบ",
+        "canManageSubmissions": "จัดการคำตอบ",
+        "canExport": "ส่งออก",
+        "canViewActivity": "ดูกิจกรรมผู้ใช้",
+        "canInspection": "ตรวจสอบอีเวนต์",
+        "status": "สถานะ",
+        "before": "ก่อน",
+        "after": "หลัง"
+      }
+    }
+  },
+  "eventActivity": {
+    "title": "กิจกรรมผู้ใช้",
+    "description": "บันทึกการเพิ่ม แก้ไข และลบของการทำงานในอีเวนต์นี้",
+    "loadError": "โหลดกิจกรรมไม่สำเร็จ",
+    "profileLoadError": "โหลดไทม์ไลน์ผู้ใช้ไม่สำเร็จ",
+    "loading": "กำลังโหลด…",
+    "empty": "ยังไม่มีกิจกรรม",
+    "platformOnly": "แพลตฟอร์ม",
+    "profileTitle": "โปรไฟล์ผู้ใช้",
+    "profileSubtitle": "ไทม์ไลน์กิจกรรม",
+    "timelineTitle": "ประวัติกิจกรรม",
+    "membershipsTitle": "อีเวนต์",
+    "membershipsEmpty": "ผู้ใช้นี้ยังไม่ถูกมอบหมายให้อีเวนต์ใด",
+    "permissionsUnknown": "ไม่พบสิทธิ์สำหรับอีเวนต์นี้",
+    "viewRelatedUser": "ดูผู้ใช้ที่เกี่ยวข้อง",
+    "openModuleHint": "เปิดโมดูลนี้",
+    "openModuleTitle": "เปิดโมดูล",
+    "openModuleConfirm": "ไปที่ {module} หรือไม่?",
+    "openModuleConfirmLabel": "เปิด",
+    "permissionModules": {
+      "event": "อีเวนต์",
+      "registrationForm": "ฟอร์มลงทะเบียน",
+      "surveyForm": "ฟอร์มแบบสอบถาม",
+      "dashboard": "แดชบอร์ด"
+    },
+    "permissionToggles": {
+      "canViewSubmissions": "ดูคำตอบ",
+      "canManageSubmissions": "จัดการคำตอบ",
+      "canExport": "ส่งออก",
+      "canViewActivity": "ดูกิจกรรมผู้ใช้"
+    },
+    "modules": {
+      "event_setup": "ตั้งค่าอีเวนต์",
+      "user_management": "จัดการผู้ใช้",
+      "event_management": "จัดการอีเวนต์",
+      "registration_builder": "สร้างฟอร์มลงทะเบียน",
+      "survey_builder": "สร้างแบบสอบถาม",
+      "dashboard": "แดชบอร์ด"
+    },
+    "stats": {
+      "total": "กิจกรรมทั้งหมด",
+      "users": "ผู้ใช้"
+    },
+    "filters": {
+      "search": "ค้นหา",
+      "searchPlaceholder": "ค้นหาผู้ใช้ โมดูล หรือรายละเอียด",
+      "event": "อีเวนต์",
+      "allEvents": "ทุกอีเวนต์",
+      "dateRange": "ช่วงวันที่",
+      "dateRangePlaceholder": "เลือกช่วงวันที่"
+    },
+    "columns": {
+      "time": "เวลา",
+      "user": "ผู้ใช้",
+      "action": "การกระทำ",
+      "detail": "รายละเอียด",
+      "module": "โมดูล"
+    },
+    "actions": {
+      "create": "สร้าง",
+      "update": "แก้ไข",
+      "delete": "ลบ",
+      "other": "อื่น ๆ"
+    },
+    "roles": {
+      "super_admin": "ผู้ดูแลแพลตฟอร์ม",
+      "event_owner": "Event Admin",
+      "sub_user": "ผู้ใช้ย่อย",
+      "participant": "ผู้เข้าร่วม"
+    },
+    "meta": {
+      "email": "อีเมล: {value}",
+      "roleName": "บทบาท: {value}",
+      "slug": "Slug: {value}",
+      "field": "ฟิลด์: {value}",
+      "count": "{count} รายการ",
+      "pair": "{field}: {value}",
+      "change": "{field}: {from} → {to}",
+      "empty": "—",
+      "bool": {
+        "on": "เปิด",
+        "off": "ปิด"
+      },
+      "levels": {
+        "can_edit": "แก้ไขได้",
+        "view_only": "ดูอย่างเดียว",
+        "restricted": "ไม่มีสิทธิ์"
+      },
+      "fields": {
+        "email": "อีเมล",
+        "roleName": "บทบาท",
+        "slug": "Slug",
+        "count": "จำนวน",
+        "field": "ฟิลด์",
+        "event": "อีเวนต์",
+        "registrationForm": "ฟอร์มลงทะเบียน",
+        "surveyForm": "ฟอร์มแบบสอบถาม",
+        "dashboard": "แดชบอร์ด",
+        "canViewSubmissions": "ดูคำตอบ",
+        "canManageSubmissions": "จัดการคำตอบ",
+        "canExport": "ส่งออก",
+        "canViewActivity": "ดูกิจกรรมผู้ใช้",
+        "canInspection": "ตรวจสอบอีเวนต์",
+        "status": "สถานะ",
+        "before": "ก่อน",
+        "after": "หลัง"
+      }
     }
   },
   "eventHome": {
@@ -375,6 +616,50 @@
       "saveFailed": "บันทึกรหัสผ่านไม่สำเร็จ"
     }
   },
+  "forgotPassword": {
+    "title": "ลืมรหัสผ่าน",
+    "description": "กรอกอีเมลของบัญชี EventSurvey หากพบบัญชีที่ใช้งานได้ ระบบจะส่งลิงก์รีเซ็ตรหัสผ่านไปให้",
+    "email": "อีเมล",
+    "emailPlaceholder": "admin@email.com",
+    "submit": "ส่งลิงก์รีเซ็ตรหัสผ่าน",
+    "sending": "กำลังส่ง...",
+    "sentTitle": "ตรวจสอบอีเมลของคุณ",
+    "sentDescription": "หากมีบัญชีที่ใช้อีเมลนี้ ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว ลิงก์ไม่มีวันหมดอายุจนกว่าคุณจะเปลี่ยนรหัสผ่าน",
+    "backToLogin": "กลับไปหน้าเข้าสู่ระบบ",
+    "brandHeadline": "กู้สิทธิ์เข้าใช้งานพื้นที่ EventSurvey ของคุณ",
+    "errors": {
+      "generic": "ส่งลิงก์รีเซ็ตรหัสผ่านไม่สำเร็จ กรุณาลองอีกครั้ง"
+    }
+  },
+  "resetPassword": {
+    "eyebrow": "รีเซ็ตรหัสผ่าน",
+    "title": "ตั้งรหัสผ่านใหม่",
+    "description": "เลือกรหัสผ่านใหม่สำหรับบัญชี EventSurvey จากนั้นเข้าสู่ระบบด้วยอีเมลนี้ได้ทันที",
+    "accountLabel": "บัญชี",
+    "password": "รหัสผ่านใหม่",
+    "confirmPassword": "ยืนยันรหัสผ่าน",
+    "passwordPlaceholder": "อย่างน้อย 8 ตัวอักษร",
+    "confirmPlaceholder": "พิมพ์รหัสผ่านอีกครั้ง",
+    "showPassword": "แสดงรหัสผ่าน",
+    "hidePassword": "ซ่อนรหัสผ่าน",
+    "submit": "บันทึกรหัสผ่านใหม่",
+    "saving": "กำลังบันทึก...",
+    "backToLogin": "กลับไปหน้าเข้าสู่ระบบ",
+    "requestAgain": "ขอลิงก์ใหม่",
+    "unavailableTitle": "ลิงก์รีเซ็ตไม่พร้อมใช้งาน",
+    "brandHeadline": "รหัสผ่านเดียว คุมทั้งอีเวนต์",
+    "brandSubtext": "หลังบันทึกแล้ว เข้าสู่ระบบเพื่อจัดการอีเวนต์และทีมงาน",
+    "rules": {
+      "minLength": "อย่างน้อย 8 ตัวอักษร",
+      "match": "รหัสผ่านทั้งสองช่องตรงกัน"
+    },
+    "errors": {
+      "unavailable": "ลิงก์นี้ไม่พร้อมใช้งานหรือใช้ไม่ได้แล้ว",
+      "tooShort": "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร",
+      "mismatch": "รหัสผ่านไม่ตรงกัน",
+      "saveFailed": "บันทึกรหัสผ่านไม่สำเร็จ"
+    }
+  },
   "adminEvents": {
     "title": "จัดการอีเวนต์",
     "description": "สร้างและจัดการอีเวนต์ทั้งหมดบนแพลตฟอร์ม รวมถึงมอบหมายผู้ดูแลอีเวนต์",
@@ -391,6 +676,8 @@
     "endDate": "วันสิ้นสุด",
     "manage": "จัดการ",
     "view": "ดูรายละเอียด",
+    "openWorkspace": "เปิดพื้นที่อีเวนต์",
+    "openWorkspaceError": "ไม่สามารถเปิดพื้นที่อีเวนต์ได้",
     "edit": "แก้ไข",
     "start": "เริ่มงาน",
     "startWaiting": "รอถึงเวลาเริ่ม",
@@ -549,6 +836,7 @@
     "open": "เปิด",
     "create": "สร้างฟอร์ม",
     "edit": "แก้ไขฟอร์ม",
+    "view": "ดูฟอร์ม",
     "delete": "ลบฟอร์ม",
     "deleteConfirmTitle": "ยืนยันการลบฟอร์ม",
     "deleteConfirmMessage": "คุณต้องการลบฟอร์มนี้ใช่หรือไม่?",
@@ -663,6 +951,7 @@
     "preview": {
       "button": "ดูตัวอย่าง",
       "editForm": "กลับไปแก้ไขฟอร์ม",
+      "backToForms": "กลับไปหน้าฟอร์ม",
       "langThai": "ภาษาไทย",
       "langEnglish": "English",
       "requiredNote": "* ระบุว่าเป็นคำถามที่จำเป็น",
@@ -707,7 +996,7 @@
   "errors": {
     "403": {
       "title": "ไม่มีสิทธิ์เข้าถึง",
-      "message": "คุณไม่มีสิทธิ์เข้าถึงหน้านี้ หรือต้องสวมสิทธิ์ก่อนเข้าพื้นที่อีเวนต์",
+      "message": "คุณไม่มีสิทธิ์เข้าถึงหน้านี้",
       "backHome": "กลับหน้าหลัก"
     },
     "404": {
@@ -783,7 +1072,11 @@
       "pdfHint": "สรุปกิจกรรมสำหรับพิมพ์ เลือกบันทึกเป็น PDF ในหน้าต่างพิมพ์",
       "print": "พิมพ์ / บันทึก PDF",
       "last": "ไฟล์ส่งออกล่าสุดในครั้งนี้",
-      "noApproved": "ยังไม่มีคำตอบจากแบบฟอร์มที่อนุมัติสำหรับส่งออก"
+      "noApproved": "ยังไม่มีคำตอบจากแบบฟอร์มที่อนุมัติสำหรับส่งออก",
+      "generated": "สร้างไฟล์ส่งออกแล้ว: {name}",
+      "downloaded": "เริ่มดาวน์โหลดแล้ว: {name}",
+      "printReady": "เปิดหน้าต่างพิมพ์แล้ว หากต้องการให้เลือกบันทึกเป็น PDF",
+      "failed": "สร้างไฟล์ส่งออกไม่สำเร็จ กรุณาลองอีกครั้ง"
     },
     "analyticsExport": {
       "responseId": "รหัสคำตอบ",
@@ -936,31 +1229,42 @@
     "submissionsSectionTitle": "สิทธิ์ข้อมูลคำตอบและการส่งออก",
     "submissionsSectionDesc": "กำหนดแยกจาก Dashboard และจากระดับการเข้าถึงแบบฟอร์ม",
     "levels": {
-      "restricted": "Restricted",
-      "view_only": "View Only",
-      "can_edit": "Can Edit"
+      "restricted": "จำกัดสิทธิ์",
+      "view_only": "ดูได้อย่างเดียว",
+      "can_edit": "แก้ไขได้"
     },
     "modules": {
-      "event": "Event",
+      "event": "อีเวนต์",
       "eventDesc": "รายละเอียดอีเวนต์",
-      "registrationForm": "Registration Form",
+      "registrationForm": "ฟอร์มลงทะเบียน",
       "registrationFormDesc": "แบบฟอร์มลงทะเบียน",
-      "surveyForm": "Survey Form",
+      "surveyForm": "ฟอร์มแบบสอบถาม",
       "surveyFormDesc": "แบบสอบถาม",
-      "dashboard": "Dashboard",
+      "dashboard": "แดชบอร์ด",
       "dashboardDesc": "แดชบอร์ด"
     },
+    "badgeEvent": "อีเวนต์: {level}",
+    "badgeRegistration": "ลงทะเบียน: {level}",
+    "badgeSurvey": "แบบสอบถาม: {level}",
+    "badgeDashboard": "แดชบอร์ด: {level}",
+    "badgeSubmissions": "คำตอบ",
+    "badgeExport": "ส่งออก",
+    "badgeActivity": "กิจกรรม",
+    "eventAdminRole": "ผู้ดูแลอีเวนต์",
+    "workspaceEyebrow": "พื้นที่ทำงานอีเวนต์",
     "toggles": {
-      "viewSubmissions": "View Submission",
+      "viewSubmissions": "ดูคำตอบ",
       "viewSubmissionsDesc": "ดูคำตอบที่ส่งสำเร็จ",
-      "manageSubmissions": "Manage Submission",
-      "manageSubmissionsDesc": "จัดการ / ลบคำตอบ (ต้องเปิด View)",
-      "exportData": "Export",
-      "exportDataDesc": "ส่งออกข้อมูล / รายงาน"
+      "manageSubmissions": "จัดการคำตอบ",
+      "manageSubmissionsDesc": "จัดการ / ลบคำตอบ (ต้องเปิดสิทธิ์ดู)",
+      "exportData": "ส่งออก",
+      "exportDataDesc": "ส่งออกข้อมูล / รายงาน",
+      "viewActivity": "ดูกิจกรรมผู้ใช้",
+      "viewActivityDesc": "ดูไทม์ไลน์กิจกรรมของอีเวนต์นี้ (ดูอย่างเดียว)"
     },
     "rules": {
-      "rule1": "Manage Submission → เปิด View Submission อัตโนมัติ",
-      "rule2": "ปิด View Submission → ปิด Manage Submission ด้วย • Export แยกอิสระ"
+      "rule1": "เปิดจัดการคำตอบ → เปิดดูคำตอบอัตโนมัติ",
+      "rule2": "ปิดดูคำตอบ → ปิดจัดการคำตอบด้วย • ส่งออกแยกอิสระ"
     },
     "savePermissions": "บันทึกสิทธิ์",
     "colMember": "สมาชิก",
@@ -980,7 +1284,10 @@
     "removeButton": "นำออก",
     "removeTooltip": "นำออกจากอีเวนต์",
     "saving": "กำลังบันทึก...",
-    "updateError": "ไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง"
+    "updateSuccess": "บันทึกสิทธิ์แล้ว",
+    "updateError": "ไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง",
+    "inviteSuccess": "เชิญ Sub-User แล้ว",
+    "removeSuccess": "นำสมาชิกออกจากอีเวนต์แล้ว"
   },
   "eventBranding": {
     "step": "ตั้งค่าอีเวนต์ / ขั้นตอนที่ 2 จาก 4",
@@ -1094,6 +1401,7 @@
   },
   "eventForms": {
     "title": "จัดการฟอร์ม",
+    "loading": "กำลังโหลดฟอร์ม…",
     "registration": "ฟอร์มลงทะเบียน",
     "survey": "ฟอร์มแบบสอบถาม",
     "enabled": "เปิดใช้งาน",
@@ -1311,7 +1619,7 @@
     "incomplete": "ยังไม่ครบ",
     "previewHint": "แสดงผลตามรูปแบบแบนเนอร์ ประเภทอีเวนต์ และฟอร์มที่เลือกใน Event Setup",
     "publish": "ตรวจสอบและเผยแพร่",
-    "qrTitle": "QR Code Management",
+    "qrTitle": "จัดการ QR Code",
     "published": "เผยแพร่แล้ว",
     "closed": "ปิดแล้ว",
     "eventQr": "QR หน้าอีเวนต์",
@@ -1327,8 +1635,8 @@
     "start": "เริ่มตั้งค่าอีเวนต์",
     "backSummary": "กลับไปหน้าสรุป",
     "previewTitle": "ตัวอย่างหน้าผู้เข้าร่วม",
-    "team": "Event User Management",
-    "activity": "User Activity",
+    "team": "จัดการผู้ใช้ในอีเวนต์",
+    "activity": "กิจกรรมผู้ใช้",
     "overview": "ภาพรวม",
     "dashboard": "แดชบอร์ด",
     "appSubtitle": "ลงทะเบียนและแบบสอบถามกิจกรรม",
@@ -1361,6 +1669,7 @@
     "invalidAnswer": "โปรดกรอกคำตอบให้ถูกต้อง"
   },
   "eventPublishedView": {
+    "loading": "กำลังโหลด QR Code…",
     "eventLink": "ลิงก์หน้าอีเวนต์",
     "linksUnavailable": "ยังไม่สามารถแชร์ลิงก์ของอีเวนต์นี้ได้",
     "linksLoadError": "โหลดลิงก์ไม่สำเร็จ",

@@ -35,6 +35,8 @@ export async function PATCH(request: NextRequest) {
   const denied = await denyUnlessEventPermission(
     sessionOrDeny.userId,
     "manage_event",
+    undefined,
+    sessionOrDeny,
   );
   if (denied) return denied;
 

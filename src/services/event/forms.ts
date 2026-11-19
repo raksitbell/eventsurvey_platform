@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { writeAuditLog } from "@/core/audit/write";
 import { isPastScheduleMinute } from "@/core/event/schedule";
 import {
   assertManualFormStatusTransition,
@@ -17,7 +18,7 @@ import type {
   Form,
   FormCreateBody,
   FormCronResult,
-  FormListResponse,
+  FormListData,
   FormRecord,
   FormStatus,
   FormStatusPatchInput,
@@ -1347,7 +1348,7 @@ async function compensateOrThrow(
 export async function listForms(
   eventId: string,
   allowedTypes: readonly FormType[],
-): Promise<FormListResponse> {
+): Promise<FormListData> {
   const event = await loadEvent(eventId);
   const forms = await mockApi.get<MockForm[]>(
     `/forms?event_id=${encodeURIComponent(eventId)}`,
@@ -1485,6 +1486,25 @@ export async function createForm(
       savedQuestions,
     );
     saveCachedFormRecord(authoritative);
+    await writeAuditLog({
+      actorUserId: userId,
+      eventId: input.eventId,
+      action: "create",
+      resourceType: "form",
+      resourceId: id,
+      module:
+        input.type === "registration"
+          ? "registration_builder"
+          : "survey_builder",
+      descriptionTh:
+        input.type === "registration"
+          ? "สร้างฟอร์มลงทะเบียน"
+          : "สร้างแบบสอบถาม",
+      descriptionEn:
+        input.type === "registration"
+          ? "Created registration form"
+          : "Created survey form",
+    });
     return authoritative;
   } catch (error) {
     return compensateOrThrow(() => cleanupCreatedForm(id), error);
@@ -1538,6 +1558,25 @@ export async function updateForm(
       savedQuestions,
     );
     saveCachedFormRecord(authoritative);
+    await writeAuditLog({
+      actorUserId: userId,
+      eventId: form.event_id,
+      action: "update",
+      resourceType: "form",
+      resourceId: id,
+      module:
+        form.type === "registration"
+          ? "registration_builder"
+          : "survey_builder",
+      descriptionTh:
+        form.type === "registration"
+          ? "แก้ไขฟอร์มลงทะเบียน"
+          : "แก้ไขแบบสอบถาม",
+      descriptionEn:
+        form.type === "registration"
+          ? "Updated registration form"
+          : "Updated survey form",
+    });
     return authoritative;
   } catch (error) {
     return compensateOrThrow(() => restoreFormTree(snapshot), error);
@@ -1687,6 +1726,25 @@ export async function deleteForm(id: string, userId: string): Promise<void> {
       updated_at: stamp,
     });
     markCachedFormDeleted(id, stamp);
+    await writeAuditLog({
+      actorUserId: userId,
+      eventId: form.event_id,
+      action: "delete",
+      resourceType: "form",
+      resourceId: id,
+      module:
+        form.type === "registration"
+          ? "registration_builder"
+          : "survey_builder",
+      descriptionTh:
+        form.type === "registration"
+          ? "ลบฟอร์มลงทะเบียน"
+          : "ลบแบบสอบถาม",
+      descriptionEn:
+        form.type === "registration"
+          ? "Deleted registration form"
+          : "Deleted survey form",
+    });
   } catch (error) {
     await compensateOrThrow(() => restoreFormTree(snapshot), error);
   }
