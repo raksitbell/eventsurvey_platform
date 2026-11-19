@@ -16,7 +16,7 @@ export default function EventSetupSteps({
   return (
     <ol
       aria-label={t("stepsLabel")}
-      className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+      className="es-setup-steps grid grid-cols-2 gap-3 lg:grid-cols-4"
     >
       {(["details", "branding", "forms", "publish"] as const).map(
         (step, index) => {
@@ -32,7 +32,7 @@ export default function EventSetupSteps({
               {t(`steps.${step}`)}
             </>
           );
-          const classes = `flex h-full items-center gap-3 rounded-xl px-3 py-3 text-theme-xs ${active ? "bg-event-action text-white dark:bg-event-action" : "bg-event-tile text-event-action dark:bg-gray-800 dark:text-gray-400"}`;
+          const classes = `flex h-full items-center gap-3 rounded-xl px-3 py-3 text-portal-label ${active ? "bg-event-action text-white dark:bg-event-action" : "bg-event-tile text-event-action dark:bg-gray-800 dark:text-gray-400"}`;
           return (
             <li key={step} aria-current={active ? "step" : undefined}>
               {!active ? (

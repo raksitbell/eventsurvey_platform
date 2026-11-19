@@ -9,10 +9,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 24px;
+  padding-block: 16px;
+  padding-inline: var(--es-setup-chrome-inline, 1.5rem);
   border: 1px solid
     color-mix(in srgb, var(--header-foreground) 20%, transparent);
-  border-radius: 16px;
+  border-radius: var(--radius-2xl);
   background: color-mix(
     in srgb,
     var(--es-platform-sidebar-background, var(--color-event-sidebar)) 87%,
@@ -89,7 +90,6 @@
 @media (max-width: 539px) {
   .hero {
     flex-wrap: wrap;
-    padding-inline: 16px;
   }
 
   .back {

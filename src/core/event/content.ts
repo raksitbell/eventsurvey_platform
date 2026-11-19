@@ -6,7 +6,7 @@ import { z } from "zod";
 
 // Alpha-2 column of the Library of Congress ISO 639 code list.
 // https://www.loc.gov/standards/iso639-2/php/code_list.php
-const languageCodes = new Set(
+export const contentLanguageCodes: readonly string[] =
   `aa ab ae af ak am an ar as av ay az ba be bg bi bm bn bo br bs ca ce ch
    co cr cs cu cv cy da de dv dz ee el en eo es et eu fa ff fi fj fo fr fy
    ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it
@@ -14,8 +14,9 @@ const languageCodes = new Set(
    lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny
    oc oj om or os pa pi pl ps pt qu rm rn ro ru rw sa sc sd se sg si sk sl
    sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty
-   ug uk ur uz ve vi vo wa wo xh yi yo za zh zu`.split(/\s+/),
-);
+   ug uk ur uz ve vi vo wa wo xh yi yo za zh zu`.split(/\s+/);
+
+const languageCodes = new Set(contentLanguageCodes);
 
 export function normalizeContentLocale(raw: unknown): string | null {
   if (typeof raw !== "string") return null;

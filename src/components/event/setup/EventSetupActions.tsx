@@ -29,14 +29,9 @@ export default function EventSetupActions({
   children,
 }: EventSetupActionsProps) {
   const weight = regularWeight ? "font-normal!" : "font-bold!";
+  const control = `min-h-11 rounded-preview-control! px-4! py-2! text-portal-label! ${weight}`;
   return (
-    <footer
-      className={
-        saveDraft
-          ? "es-setup-actionbar sticky bottom-0 z-9 mt-auto bg-white dark:bg-gray-900"
-          : "mt-auto space-y-3"
-      }
-    >
+    <footer className="es-setup-actionbar sticky bottom-0 z-9 mt-auto">
       {error && (
         <p
           role="alert"
@@ -49,7 +44,7 @@ export default function EventSetupActions({
       <div
         className={
           saveDraft
-            ? "grid gap-2 sm:grid-cols-3"
+            ? "es-setup-action-buttons"
             : "flex flex-wrap justify-end gap-3"
         }
       >
@@ -57,14 +52,14 @@ export default function EventSetupActions({
           variant="outline"
           onClick={back.onClick}
           disabled={back.disabled}
-          className={`h-10 ${saveDraft ? "w-full" : "w-36"} rounded-preview-control! border border-event-action bg-white! px-4! py-2! text-theme-xs! text-event-action! ring-0! dark:border-brand-400 dark:bg-gray-900! dark:text-brand-400! ${weight}`}
+          className={`${control} ${saveDraft ? "w-full" : "w-36"} border border-event-action bg-white! text-event-action! ring-0! dark:border-brand-400 dark:bg-gray-900! dark:text-brand-400!`}
         >
           {back.label}
         </Button>
         {saveDraft && (
           <Button
             variant="outline"
-            className="h-10"
+            className={control}
             onClick={saveDraft.onClick}
             disabled={saveDraft.disabled}
           >
@@ -74,7 +69,7 @@ export default function EventSetupActions({
         <Button
           type="submit"
           disabled={primary.disabled}
-          className={`h-10 rounded-preview-control! bg-event-action! px-4! py-2! text-theme-xs! text-white shadow-none! hover:bg-event-action/90! dark:bg-event-action! dark:hover:bg-event-action/90! ${saveDraft ? "w-full" : primary.wide ? "w-55" : "w-36"} ${weight}`}
+          className={`es-setup-primary ${control} shadow-none! ${saveDraft ? "w-full" : primary.wide ? "w-55" : "w-36"}`}
         >
           {primary.label}
         </Button>

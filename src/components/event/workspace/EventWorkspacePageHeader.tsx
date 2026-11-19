@@ -9,13 +9,27 @@ import styles from "./EventWorkspacePageHeader.module.css";
 interface EventWorkspacePageHeaderProps {
   title: string;
   description: string;
+  back?: false | { onClick: () => void; disabled?: boolean };
 }
 
 export default function EventWorkspacePageHeader({
   title,
   description,
+  back,
 }: EventWorkspacePageHeaderProps) {
   const t = useTranslations("eventHome");
+  const backContent = (
+    <>
+      <Image
+        src="/images/event-workspace/team-back-arrow.svg"
+        alt=""
+        width={18}
+        height={18}
+        className="rtl:rotate-180"
+      />
+      {t("backToOverview")}
+    </>
+  );
 
   return (
     <header className={`${styles.hero} ${eventInter.variable} ${eventThai.variable}`}>
@@ -24,16 +38,20 @@ export default function EventWorkspacePageHeader({
         <h1>{title}</h1>
         <p className={styles.description}>{description}</p>
       </div>
-      <Link href="/event" className={styles.back}>
-        <Image
-          src="/images/event-workspace/team-back-arrow.svg"
-          alt=""
-          width={18}
-          height={18}
-          className="rtl:rotate-180"
-        />
-        {t("backToOverview")}
-      </Link>
+      {back === undefined ? (
+        <Link href="/event" className={styles.back}>
+          {backContent}
+        </Link>
+      ) : back && (
+        <button
+          type="button"
+          onClick={back.onClick}
+          disabled={back.disabled}
+          className={`${styles.back} enabled:cursor-pointer disabled:opacity-55`}
+        >
+          {backContent}
+        </button>
+      )}
     </header>
   );
 }

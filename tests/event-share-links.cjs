@@ -312,7 +312,6 @@ test("both cron jobs honor the published Survey window after the Event closes", 
   const { withPublishedFormSchedule } = cronLoad("src/core/forms/published-schedule.ts");
   const { encodeSetupRecord } = load("@/core/event/setup-storage");
   const { defaultEventBranding } = load("@/core/event/branding");
-  const { surveyClosingTime } = load("@/core/event/schedule");
   const secret = process.env.EVENT_SETUP_DATA_SECRET;
   process.env.EVENT_SETUP_DATA_SECRET = "eventsurvey-schedule-regression-test-key";
   t.after(() => {
@@ -331,7 +330,9 @@ test("both cron jobs honor the published Survey window after the Event closes", 
     hasSurvey: true,
     surveyAccess: "public",
   };
-  const publishedClose = surveyClosingTime(draft);
+  // Historical publications stored the resolved closing time even when the
+  // draft omitted its (then one-week) default.
+  const publishedClose = "2099-01-15T00:00:00.000Z";
   const head = {
     en: { title: "Survey", description: "" },
     th: { title: "แบบสอบถาม", description: "" },

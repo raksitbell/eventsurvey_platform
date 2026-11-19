@@ -5,6 +5,7 @@ import Button from "@/components/ui/button/Button";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { EventDraft } from "@/types/event/setup";
 import type { EventWorkspace } from "@/types/event/workspace";
+import { UserGroupIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 
 interface Props {
@@ -43,7 +44,7 @@ export default function EventAccessSettings({
     onChange({ hasRegistration: value });
   }
   return (
-    <section className="es-access">
+    <section id="event-access" tabIndex={-1} className="es-access">
       <fieldset disabled={readOnly} className="grid grid-cols-2 gap-2">
         <legend className="mb-2 font-semibold">{s("access")}</legend>
         {([false, true] as const).map((value) => (
@@ -141,8 +142,8 @@ export default function EventAccessSettings({
             )}
             {registration && draft.isPrivate && enabled && (
               <Button
-                variant="outline"
                 className="es-whitelist-link"
+                startIcon={<UserGroupIcon className="size-4.5 shrink-0" aria-hidden="true" />}
                 disabled={readOnly || !workspace.canManageWhitelist}
                 onClick={onOpenWhitelist}
               >

@@ -5,6 +5,7 @@ import SetupFormCard from "@/components/event/setup/forms/SetupFormCard";
 import SetupFormsLoadingSkeleton from "@/components/event/setup/forms/SetupFormsLoadingSkeleton";
 import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
+import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import Button from "@/components/ui/button/Button";
 import useEventDraft from "@/hooks/useEventDraft";
@@ -38,11 +39,16 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
         void navigate("/event/publish");
       }}
       aria-busy={setup.pending}
-      className="flex min-h-160 flex-col gap-6 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950"
+      className="es-setup-form gap-6 bg-event-page dark:bg-gray-950"
     >
-      <h1 className="text-title-sm font-bold text-gray-900 dark:text-white/90">
-        {t("title")}
-      </h1>
+      <EventWorkspacePageHeader
+        title={t("title")}
+        description={t("description")}
+        back={{
+          onClick: () => void navigate("/event"),
+          disabled: setup.pending,
+        }}
+      />
       <EventSetupSteps current={3} onNavigate={() => !setup.pending && save()} />
       {loading ? (
         <SetupFormsLoadingSkeleton label={t("loading")} />

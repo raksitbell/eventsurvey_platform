@@ -1,5 +1,4 @@
-import SurveyCloseDialog from "./SurveyCloseDialog";
-import { useModal } from "@/hooks/useModal";
+import SurveyClosePicker from "./SurveyClosePicker";
 import { toBangkokInput } from "@/core/i18n/bangkok-datetime";
 import { surveyClosingTime } from "@/core/event/schedule";
 import type { EventDraft } from "@/types/event/setup";
@@ -18,18 +17,18 @@ export default function EventFormSchedule({
 }: Props) {
   const t = useTranslations("eventSetup");
   const v = useTranslations("eventSetupDesign");
-  const dialog = useModal();
-  const selected = draft.surveyCloseMode ?? "week";
+  const selected = draft.surveyCloseMode ?? "event";
+  const closesAt = selected === "custom" ? draft.surveyCustomClose ?? null : surveyClosingTime(draft);
   const end = {
     event: v("withEvent"),
     week: v("afterWeek"),
     fortnight: v("afterFortnight"),
     custom:
-      toBangkokInput(draft.surveyCustomClose ?? null).replace("T", " ") ||
+      toBangkokInput(draft.surveyCustomClose ?? null).replace(/^(\d{4})-(\d{2})-(\d{2})T/, "$3/$2/$1 ") ||
       v("custom"),
   }[selected];
   return (
-    <section className="es-window">
+    <section id="survey-schedule" tabIndex={-1} className="es-window">
       <h2 className="es-icon-label es-date-label">{t("schedule")}</h2>
       <div className="es-window-reg">
         <span className="es-window-icon" aria-hidden="true" />
@@ -49,58 +48,31 @@ export default function EventFormSchedule({
             <strong>{v("survey")}</strong>
             <small>{v("surveyHint")}</small>
           </div>
-          <span className="es-window-badge">{v("postSurvey")}</span>
+          <span className="es-window-badge">{v(selected === "event" ? "eventBound" : "postSurvey")}</span>
         </header>
         <div className="es-survey-times">
           <div>
             <span>{v("opens")}</span>
             <strong>{v("onStart")}</strong>
           </div>
-          <div>
-            <span>{v("closes")}</span>
-            <strong>{end}</strong>
-          </div>
-        </div>
-        <div className="es-schedule-presets">
-          <span>{v("closes")}</span>
-          {(["event", "week", "fortnight", "custom"] as const).map((mode) => (
-            <button
-              type="button"
-              key={mode}
-              className="event-option"
-              aria-pressed={(draft.surveyCloseMode ?? "week") === mode}
-              onClick={() =>
-                mode === "custom"
-                  ? dialog.openModal()
-                  : onChange({ surveyCloseMode: mode })
-              }
-            >
-              {t(mode)}
-            </button>
-          ))}
+          <SurveyClosePicker
+            initial={closesAt}
+            endsAt={draft.endsAt}
+            displayValue={end}
+            readOnly={readOnly || !draft.hasSurvey}
+            onSelectCustom={(surveyCustomClose) => onChange({ surveyCloseMode: "custom", surveyCustomClose })}
+            onUseEventEnd={() => onChange({ surveyCloseMode: "event" })}
+          />
         </div>
         {draft.hasSurvey &&
           draft.surveyCloseMode === "custom" &&
           draft.endsAt &&
-          (!surveyClosingTime(draft) ||
-            Date.parse(surveyClosingTime(draft)!) <
-              Date.parse(draft.endsAt)) && (
+          (!closesAt || Date.parse(closesAt) < Date.parse(draft.endsAt)) && (
             <p role="alert" className="text-error-600 dark:text-error-400">
               {t("closeError")}
             </p>
           )}
       </fieldset>
-      {dialog.isOpen && (
-        <SurveyCloseDialog
-          initial={draft.surveyCustomClose ?? null}
-          endsAt={draft.endsAt}
-          onClose={dialog.closeModal}
-          onApply={(surveyCustomClose) => {
-            onChange({ surveyCloseMode: "custom", surveyCustomClose });
-            dialog.closeModal();
-          }}
-        />
-      )}
     </section>
   );
 }

@@ -13,15 +13,17 @@ import EventWorkspaceSidebar from "@/components/event/workspace/EventWorkspaceSi
 import EventWorkspaceHeader from "@/components/event/workspace/EventWorkspaceHeader";
 import { usePathname } from "@/i18n/navigation";
 import Backdrop from "@/layout/Backdrop";
-import React from "react";
+import type { ReactNode } from "react";
+import useEventWorkspace from "@/hooks/useEventWorkspace";
 import {
   eventInter,
   eventThai,
 } from "@/components/event/setup/event-admin-fonts";
 import "@/components/event/setup/event-admin-design.css";
 
-function EventShell({ children }: { children: React.ReactNode }) {
+function EventShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { workspace, loading } = useEventWorkspace();
   const navigationGuard = useEventNavigationGuard();
   const isSetup = [
     "/event",
@@ -45,7 +47,6 @@ function EventShell({ children }: { children: React.ReactNode }) {
     ? `${eventInter.variable} ${eventThai.variable} event-admin-shell`
     : "";
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
-
   // Must match AppSidebar dock breakpoint (`xl`). Using `lg` left a gap
   // between 1024–1279px where the sidebar is off-canvas but content still indented.
   const mainContentMargin = isMobileOpen
@@ -55,47 +56,45 @@ function EventShell({ children }: { children: React.ReactNode }) {
       : "xl:ms-[90px]";
 
   return (
-    <>
+    <div
+      className={`min-h-screen xl:flex dark:bg-gray-950 ${setupTheme} ${isSetup ? "" : "bg-gray-50"}`}
+    >
+      {usesWorkspaceChrome ? (
+        <EventWorkspaceSidebar featureLayout={featureLayout} workspace={workspace} loading={loading} />
+      ) : (
+        <AppSidebar />
+      )}
       <div
-        className={`min-h-screen xl:flex dark:bg-gray-950 ${setupTheme} ${isSetup ? "" : "bg-gray-50"}`}
+        data-screen={isSetup ? pathname : undefined}
+        className={`event-workspace-main flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin} ${isSetup ? "event-admin-main" : ""}`}
       >
-        {usesWorkspaceChrome ? (
-          <EventWorkspaceSidebar featureLayout={featureLayout} />
-        ) : (
-          <AppSidebar />
-        )}
         <Backdrop />
+        <ImpersonationBanner
+          beforeLeave={() => navigationGuard?.current?.() ?? true}
+        />
+        {usesWorkspaceChrome ? (
+          <EventWorkspaceHeader featureLayout={!!featureLayout} />
+        ) : (
+          <AppHeader />
+        )}
         <div
-          data-screen={isSetup ? pathname : undefined}
-          className={`flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin} ${isSetup ? "event-admin-main" : ""}`}
+          className={
+            isSetup
+              ? "event-admin-body"
+              : "mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6"
+          }
         >
-          <ImpersonationBanner
-            beforeLeave={() => navigationGuard?.current?.() ?? true}
-          />
-          {usesWorkspaceChrome ? (
-            <EventWorkspaceHeader featureLayout={!!featureLayout} />
-          ) : (
-            <AppHeader />
-          )}
-          <div
-            className={
-              isSetup
-                ? "event-admin-body"
-                : "mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6"
-            }
-          >
-            {children}
-          </div>
+          {children}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
 export default function EventLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <AuthGuard area="event">

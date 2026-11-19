@@ -44,7 +44,8 @@ export default function PublishedOverview({
       )}
     </div>
   );
-  const surveyEnd = surveyClosingTime(data);
+  const publishedSurvey = workspace.setup?.publication?.forms.survey;
+  const surveyEnd = publishedSurvey ? publishedSurvey.closesAt : surveyClosingTime(data);
   return (
     <article
       data-published-overview

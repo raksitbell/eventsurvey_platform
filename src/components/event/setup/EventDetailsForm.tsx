@@ -8,6 +8,7 @@ import EventSetupBoundary, {
 } from "./EventSetupBoundary";
 import EventSetupActions from "./EventSetupActions";
 import EventSetupPendingMedia from "@/components/event/setup/EventSetupPendingMedia";
+import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
 import { WhitelistPage } from "@/components/event/whitelist/EventWhitelistPanel";
 import { afterSaved, createSavedNavigation } from "@/core/event/draft";
 import { eventWorkspaceDisplayStatus } from "@/core/event/workspace";
@@ -19,6 +20,14 @@ import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
 import { showToast } from "@/utils/alert";
 import { useTranslations } from "next-intl";
+
+function focusChecklistTarget(form: HTMLFormElement | null) {
+  if (!form || !globalThis.location.hash) return;
+  const target = globalThis.document.getElementById(globalThis.location.hash.slice(1));
+  if (!target || !form.contains(target)) return;
+  target.focus({ preventScroll: true });
+  target.scrollIntoView({ block: "center" });
+}
 
 function DetailsForm(props: EventSetupPageProps) {
   const { workspace, userId, locale } = props;
@@ -68,7 +77,8 @@ function DetailsForm(props: EventSetupPageProps) {
   return (
     <>
       <form
-        className="event-details-page"
+        ref={focusChecklistTarget}
+        className="es-setup-form event-details-page gap-4"
         inert={list.isOpen}
         aria-busy={pending}
         onSubmit={(e) => {
@@ -76,6 +86,11 @@ function DetailsForm(props: EventSetupPageProps) {
           void navigate("/event/publish");
         }}
       >
+        <EventWorkspacePageHeader
+          title={d("title")}
+          description={d("description")}
+          back={false}
+        />
         <div className="event-details-sheet">
           <SetupMediaPanel
             branding={media.branding}

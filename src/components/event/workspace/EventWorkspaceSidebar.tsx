@@ -12,17 +12,20 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
-import useEventWorkspace from "@/hooks/useEventWorkspace";
+import type { EventWorkspace } from "@/types/event/workspace";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { translateRole } from "@/utils/i18n-labels";
 import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
 
 export default function EventWorkspaceSidebar({
-  featureLayout,
-}: { featureLayout?: "dashboard" } = {}) {
+  featureLayout, workspace, loading,
+}: {
+  featureLayout?: "dashboard";
+  workspace: EventWorkspace | null;
+  loading: boolean;
+}) {
   const { user } = useAuth();
-  const { workspace, loading } = useEventWorkspace();
   // Prefer cached/loaded workspace; only treat as empty on the first cold load.
   const currentWorkspace = workspace;
   const menuReady = !loading || currentWorkspace !== null;

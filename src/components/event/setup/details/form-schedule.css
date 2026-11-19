@@ -66,10 +66,15 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
-.es-survey-times span,
-.es-schedule-presets > span {
+.es-survey-times > div > span,
+.es-survey-times > div > label {
   font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
   color: var(--es-text-secondary);
+}
+.es-survey-times > div > label {
+  margin-block-end: 4px;
 }
 .es-survey-times strong {
   font-size: 14px;
@@ -78,15 +83,6 @@
   border: 1px solid var(--es-field-border);
   border-radius: 8px;
   background: var(--es-background-surface);
-}
-.es-schedule-presets {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.es-schedule-presets button {
-  min-height: 36px;
 }
 .es-survey-window {
   padding: 13px 14px;
@@ -104,28 +100,30 @@
   min-width: 128px;
   color: var(--es-action-primary);
 }
-.es-schedule-presets {
-  min-height: 38px;
-  justify-content: space-between;
-}
-.es-schedule-presets .event-option {
-  display: inline-flex;
+.es-survey-times .event-datetime-popover-trigger {
+  display: flex;
+  inline-size: 100%;
+  min-block-size: 40px;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 8px;
-  min-height: 32px;
-  padding: 4px 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--es-field-border);
+  border-radius: 9px;
   background: var(--es-background-surface);
-  border-color: var(--es-border-default);
-  font-size: 12px;
   color: var(--es-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
 }
-.es-schedule-presets .event-option[aria-pressed="true"]::after {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--es-action-primary);
+.es-survey-times .event-datetime-popover-trigger:disabled {
+  cursor: default;
+}
+.es-survey-times .event-datetime-popover-trigger:focus-visible,
+.es-survey-close-actions button:focus-visible {
+  outline: 2px solid var(--es-action-primary);
+  outline-offset: 2px;
 }
 @media (max-width: 639px) {
   .es-window-badge,
@@ -136,91 +134,75 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-.es-setup-scrim {
-  background: rgb(21 16 32 / 40%);
+.es-survey-times .flatpickr-calendar.event-datetime-popover {
+  position: fixed;
+  width: min(348px, calc(100vw - 16px)) !important;
+  margin: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  border-color: var(--es-field-border) !important;
+  border-radius: 14px !important;
+  background: var(--es-background-surface) !important;
+  box-shadow: var(--shadow-theme-lg) !important;
 }
-.es-survey-close-dialog[role="dialog"] {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-width: 480px;
-  max-height: calc(100dvh - 28px);
-  overflow: auto;
-  padding: 22px 24px;
-  border: 1px solid var(--es-border-default);
-  border-radius: 16px;
+.es-survey-times .flatpickr-calendar.event-datetime-popover
+  :is(.flatpickr-rContainer, .flatpickr-days, .dayContainer) {
+  width: 100%;
+  max-width: none;
+}
+.event-datetime-popover .flatpickr-weekdays {
+  margin-block: 8px 4px;
+}
+.event-datetime-popover .flatpickr-day {
+  block-size: 35px;
+}
+.es-survey-times .flatpickr-calendar.event-datetime-popover .flatpickr-day.selected {
+  border-color: transparent !important;
+  background-color: transparent !important;
+}
+.event-datetime-popover .flatpickr-day.selected::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  margin: auto;
+  inline-size: min(34px, 100%);
+  block-size: 34px;
+  border-radius: 50%;
+  background: var(--color-brand-500);
+}
+.event-datetime-popover .event-datetime-clock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2rem minmax(0, 1fr);
+  gap: 0;
+  text-align: center;
+}
+.event-datetime-popover .event-datetime-clock input {
+  justify-self: center;
+  border-color: var(--es-field-border);
   background: var(--es-background-surface);
   color: var(--es-text-primary);
+  font-weight: 400;
+  text-align: center;
 }
-.es-survey-close-dialog header {
-  min-height: 62px;
+.es-survey-close-actions {
+  display: grid;
+  gap: 8px;
+  margin-block-start: 12px;
 }
-.es-survey-close-dialog h2 {
-  font-size: 21px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-.es-survey-close-dialog p {
-  font-size: 13px;
+.es-survey-close-actions button {
+  min-block-size: 2.75rem;
   color: var(--es-text-secondary);
+  font-size: var(--text-portal-label, 0.875rem);
+  font-weight: 500;
+  cursor: pointer;
 }
-.es-survey-close-dialog [role="alert"] {
-  color: var(--color-error-600);
-}
-.es-survey-end {
-  min-height: 44px;
-  padding-inline: 14px;
-  border-radius: 10px;
-  background: var(--es-background-surface-subtle);
-  font-size: 13px;
-}
-.es-survey-close-fields label {
-  display: block;
-  font-size: 12px;
-  color: var(--es-text-secondary);
-  margin-bottom: 6px;
-}
-.es-survey-close-fields input {
-  display: block;
-  width: 100%;
-  height: 40px;
-  min-width: 0;
-  border: 1px solid var(--es-border-default);
+.es-survey-close-actions button:first-of-type {
+  padding-inline: 8px;
   border-radius: 9px;
-  background-color: var(--es-background-surface);
-  padding-inline: 11px;
+  border: 1px solid var(--es-border-default);
+  background: var(--es-background-surface);
   color: var(--es-text-primary);
   font-weight: 600;
-}
-body:has(.es-survey-close-dialog) .event-datetime-calendar.open {
-  z-index: 100000;
-}
-.es-survey-close-dialog footer {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-.es-survey-close-dialog footer button {
-  height: 42px;
-  border-radius: 9px;
-  border: 1px solid var(--es-border-default);
-  font-size: 14px;
-  font-weight: 600;
-}
-.es-survey-close-dialog footer button:last-child {
-  background: var(--es-action-primary);
-  color: white;
-}
-@media (min-width: 540px) {
-  .es-survey-close-dialog[role="dialog"] {
-    display: grid;
-    grid-template-rows:
-      minmax(62px, auto) minmax(44px, auto) minmax(65px, auto)
-      minmax(15px, auto) 42px;
-    padding-block: 22px 16px;
-  }
-  .es-survey-close-dialog .contents > p {
-    font-size: 12px;
-    line-height: 15px;
-  }
 }

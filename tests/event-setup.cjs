@@ -1894,6 +1894,7 @@ function detailsActions(save) {
       "@/components/event/setup/EventSetupPendingMedia": noop,
       "./EventSetupBoundary": noop,
       "./EventSetupActions": { default: setupActions },
+      "../workspace/EventWorkspacePageHeader": noop,
       "@/components/event/whitelist/EventWhitelistPanel": noop,
       "@/hooks/useModal": { useModal: () => ({ isOpen: false }) },
       "@/hooks/useSetupApiState": { default: () => ({ pending: false }) },
@@ -2070,6 +2071,7 @@ function setupStep(kind, options = {}) {
   const noop = { default: () => null };
   const mocks = {
     "./publish/PublishChecklist": noop,
+    "../workspace/EventWorkspacePageHeader": noop,
     "@/core/api": {
       ApiError: Error,
       api: { post: async (path, input) => {
@@ -2388,6 +2390,7 @@ test("Publish Full Preview link only navigates after its API save succeeds", asy
 
 test("Event information configuration preserves field bindings, limits, labels, null values and read-only state", () => {
   const placeholder = () => null;
+  const query = new URLSearchParams();
   const Fields = compileSetupComponent(
     "src/components/event/setup/details/EventInformationFields.tsx",
     {
@@ -2399,6 +2402,7 @@ test("Event information configuration preserves field bindings, limits, labels, 
       "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
       "@/components/form/Label": { default: placeholder },
       "@/components/form/input/InputField": { default: placeholder },
+      "next/navigation": { useSearchParams: () => query },
       react: { useState: (v) => [v, () => {}] },
       "next-intl": {
         useLocale: () => "th",
@@ -2436,6 +2440,7 @@ test("Event information configuration preserves field bindings, limits, labels, 
       } else {
         assert.equal(input.props.value, null);
         assert.equal(input.props.blockPast, true);
+        assert.equal(input.props.showBoundsHint, false);
         input.props.onChange("2027-01-01T03:00:00.000Z");
         assert.deepEqual(changes.at(-1), {
           [field]: "2027-01-01T03:00:00.000Z",
@@ -2443,6 +2448,34 @@ test("Event information configuration preserves field bindings, limits, labels, 
       }
     }
   }
+  const { emptyEventTranslation } = load("src/core/event/content.ts");
+  const translated = {
+    ...seed,
+    content: {
+      defaultLocale: "th",
+      translations: ["th", "en"].map(emptyEventTranslation),
+    },
+  };
+  for (const lang of ["th", "en"]) {
+    query.set("lang", lang);
+    const screen = Fields({ draft: translated, uiLocale: "th", readOnly: false, onChange() {} });
+    for (const id of ["event-name", "event-location"]) {
+      const field = findSetupElement(screen, (node) => node.props?.id === id);
+      assert.equal(field.props.lang, lang);
+    }
+  }
+  const changes = [];
+  const screen = Fields({
+    draft: translated, uiLocale: "th", readOnly: false,
+    onChange: (value) => changes.push(value),
+  });
+  const languageMenu = findSetupElement(screen, (node) => typeof node.props?.onRemove === "function");
+  languageMenu.props.onRemove("th");
+  assert.equal(changes.length, 0);
+  languageMenu.props.onRemove("en");
+  assert.deepEqual(changes, [{
+    content: { defaultLocale: "th", translations: [translated.content.translations[0]] },
+  }]);
 });
 
 test("Post Survey closes at the selected offset from the event end in Bangkok", () => {
@@ -2465,8 +2498,43 @@ test("Post Survey closes at the selected offset from the event end in Bangkok", 
   assert.equal(surveyClosingTime({ ...draft, endsAt: null }), null);
   assert.equal(
     surveyClosingTime(draft),
-    surveyClosingTime({ ...draft, surveyCloseMode: "week" }),
+    surveyClosingTime({ ...draft, surveyCloseMode: "event" }),
   );
+  const movedEnd = "2027-05-01T10:00:00.000Z";
+  assert.equal(surveyClosingTime({ ...draft, endsAt: movedEnd }), movedEnd);
+});
+
+test("the survey closing picker can restore a linked event end after a custom date", () => {
+  const mocks = {
+    "next-intl": { useTranslations: () => (key) => key },
+    "@/core/event/schedule": load("src/core/event/schedule.ts"),
+    "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
+  };
+  const Picker = compileSetupComponent("src/components/event/setup/details/SurveyClosePicker.tsx", {
+    ...mocks,
+    react: { useState: (value) => [value, () => {}] },
+    "@/components/form/DateTimePicker": { default: () => null },
+  });
+  const Schedule = compileSetupComponent("src/components/event/setup/details/EventFormSchedule.tsx", {
+    ...mocks,
+    "./SurveyClosePicker": { default: Picker },
+  });
+  let draft = {
+    ...publishDraft, surveyCloseMode: "custom", surveyCustomClose: "2099-02-05T04:00:00.000Z",
+  };
+  function picker() {
+    const schedule = Schedule({
+      draft, readOnly: false, onChange: (updates) => { draft = { ...draft, ...updates }; },
+    });
+    return Picker(findSetupElement(schedule, (node) => node.type === Picker).props).props;
+  }
+  const custom = picker();
+  assert.equal(custom.value, draft.surveyCustomClose);
+  custom.popover.preset.onSelect();
+  assert.equal(draft.surveyCloseMode, "event");
+  assert.equal(picker().popover.displayValue, "withEvent");
+  draft.endsAt = "2099-01-30T06:00:00.000Z";
+  assert.equal(picker().value, draft.endsAt);
 });
 
 test("Publication reads the team Builder email question and its actual unique field", () => {
@@ -2537,6 +2605,38 @@ test("Banner orientation and branding material survive reload and invalid saves 
     "invalid",
   );
   assert.deepEqual(loadEventBranding(key), value);
+});
+
+test("Registration and Survey capacity accept only positive whole digits, with blank meaning unlimited", () => {
+  const Capacity = compileSetupComponent(
+    "src/components/event/setup/details/EventCapacitySettings.tsx",
+    {
+      "@/components/form/input/InputField": { default: () => null },
+      "next-intl": { useTranslations: () => (key) => key },
+      react: { useId: () => "capacity", useState: (value) => [value, () => {}] },
+    },
+  );
+  for (const kind of ["registration", "survey"]) {
+    const changes = [];
+    const view = Capacity({
+      kind,
+      capacity: 200,
+      readOnly: false,
+      onChange: (value) => changes.push(value),
+    });
+    const input = findSetupElement(
+      view,
+      (node) => node.props.inputMode === "numeric",
+    );
+    assert.equal(input.props.value, "200");
+    for (const value of ["1e2", "2.5", "-3", "0", "9007199254740992"]) {
+      input.props.onChange({ currentTarget: { value } });
+    }
+    assert.deepEqual(changes, []);
+    input.props.onChange({ currentTarget: { value: "500" } });
+    input.props.onChange({ currentTarget: { value: "" } });
+    assert.deepEqual(changes, [500, null]);
+  }
 });
 
 test("Private access leaves the Registration switch editable and shows the relevant Whitelist action", () => {
@@ -2646,16 +2746,6 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
         "@/core/event/public-event-paths": load(
           "src/core/event/public-event-paths.ts",
         ),
-        "@/hooks/useEventWorkspace": {
-          default: () => ({
-            workspace: {
-              userRole,
-              localPublishedAt,
-              canAccessDashboard,
-              canAccessForms,
-            },
-          }),
-        },
         "@/i18n/navigation": {
           Link: link,
           usePathname: () => pathname,
@@ -2667,7 +2757,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
         "./EventWorkspaceChrome.module.css": { default: {} },
       },
     );
-    return Sidebar();
+    return Sidebar({ loading: false, workspace: { userRole, localPublishedAt, canAccessDashboard, canAccessForms } });
   };
   const team = (node) =>
     node.type === link && node.props.href === "/event/team";

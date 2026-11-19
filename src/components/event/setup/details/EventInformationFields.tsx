@@ -4,12 +4,14 @@ import DateTimePicker from "@/components/form/DateTimePicker";
 import {
   emptyEventTranslation,
   getEventContent,
+  normalizeContentLocale,
   resolveEventTranslation,
 } from "@/core/event/content";
 import { shiftBangkokMinute } from "@/core/i18n/bangkok-datetime";
 import type { EventContentTranslation } from "@/types/event/content";
 import type { EventDraft } from "@/types/event/setup";
 import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 interface Props {
@@ -30,8 +32,9 @@ export default function EventInformationFields({
   const s = useTranslations("eventSetup");
   const v = useTranslations("eventSetupDesign");
   const [selectedLocale, setSelectedLocale] = useState<string>();
+  const requestedLocale = useSearchParams().get("lang");
   const content = getEventContent(draft, uiLocale);
-  const translation = resolveEventTranslation(content, selectedLocale);
+  const translation = resolveEventTranslation(content, selectedLocale ?? requestedLocale);
   const range = { start: draft.startsAt, end: draft.endsAt };
   const localizedInput = {
     lang: translation.localeCode,
@@ -54,9 +57,11 @@ export default function EventInformationFields({
       },
     });
   }
-  function add(localeCode: string) {
+  function add(code: string) {
+    const localeCode = normalizeContentLocale(code);
     if (
       readOnly ||
+      !localeCode ||
       content.translations.some((item) => item.localeCode === localeCode)
     )
       return;
@@ -71,10 +76,20 @@ export default function EventInformationFields({
     });
     setSelectedLocale(localeCode);
   }
+  function remove(localeCode: string) {
+    if (readOnly || localeCode === content.defaultLocale) return;
+    onChange({
+      content: {
+        ...content,
+        translations: content.translations.filter((item) => item.localeCode !== localeCode),
+      },
+    });
+    if (translation.localeCode === localeCode) setSelectedLocale(content.defaultLocale);
+  }
   return (
     <section className="es-info">
       <header className="es-info-heading">
-        <h1 className="es-icon-label es-info-title">{t("information")}</h1>
+        <h2 className="es-icon-label es-info-title">{t("information")}</h2>
         <EventLanguageDropdown
           content={content}
           selected={translation.localeCode}
@@ -82,6 +97,7 @@ export default function EventInformationFields({
           readOnly={readOnly}
           onSelect={setSelectedLocale}
           onAdd={add}
+          onRemove={remove}
         />
         <span className="es-info-status">
           <i aria-hidden="true" />
@@ -128,6 +144,7 @@ export default function EventInformationFields({
               min={key === "endsAt" ? shiftBangkokMinute(draft.startsAt, 1) : null}
               max={key === "startsAt" ? shiftBangkokMinute(draft.endsAt, -1) : null}
               range={range}
+              showBoundsHint={false}
               onChange={(value) => onChange({ [key]: value })}
             />
           ))}
