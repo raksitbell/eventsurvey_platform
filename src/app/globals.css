@@ -1351,6 +1351,10 @@ pre[class*="language-"].line-numbers {
   background: #3641f5 !important;
 }
 
+.es-swal-event-accent {
+  @apply bg-event-action! text-white! hover:bg-event-action/90!;
+}
+
 .es-swal-confirm-warning {
   background: #f79009 !important;
   color: #fff !important;

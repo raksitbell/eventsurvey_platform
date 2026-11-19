@@ -3,7 +3,6 @@
 import EventSetupBoundary, { type EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
 import PublishParticipantPreview from "@/components/event/setup/publish/PublishParticipantPreview";
-import Button from "@/components/ui/button/Button";
 import { api, ApiError } from "@/core/api";
 import { contentLanguageName, normalizeContentLocale } from "@/core/event/content";
 import { createSavedNavigation, type EventDetailIssue } from "@/core/event/draft";
@@ -35,9 +34,10 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
   const language = useParticipantPreviewLanguage(draft);
   const detailsHref = eventSetupStepHref("details", language.contentLocale);
   const [busy, setBusy] = useState(false);
+  const [publishedHere, setPublishedHere] = useState(false);
   const [failure, setFailure] = useState<{ message: string; href?: string } | "save" | null>(null);
   const pending = busy || setupApi.pending;
-  const published = !!workspace.setup?.publication;
+  const published = publishedHere || !!workspace.setup?.publication;
   const isOwner = workspace.userRole === "event_owner";
   const unavailable = pending || readOnly || published || !isOwner;
 
@@ -116,10 +116,9 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       const revision = setupApi.getRevision();
       const confirmed = await confirm({
         appearance: "event",
+        layout: "standard",
         title: t("confirmTitle"),
-        subtitle: t("confirmSubtitle"),
         message: t("confirmBody"),
-        note: t("confirmNote"),
         confirmLabel: t("confirm"),
         cancelLabel: t("cancel"),
       });
@@ -127,17 +126,18 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       await api.post<EventSetupState>("/event/setup/publish", {
         eventId: workspace.eventId, revision, locale,
       });
+      setPublishedHere(true);
       notifyEventSetupSaved(eventSetupStateKey(workspace.eventId));
-      await confirm({
+      const openQr = await confirm({
         appearance: "event",
+        layout: "standard",
+        variant: "success",
         title: t("successTitle"),
-        subtitle: t("successSubtitle"),
         message: t("successBody"),
-        note: t("successNote"),
         showCancel: false,
-        confirmLabel: t("close"),
+        confirmLabel: t("viewQr"),
       });
-      router.push("/event/qr");
+      if (openQr) router.push("/event/qr");
     } catch (cause) {
       setFailure(publishFailure(cause));
     } finally {
@@ -192,15 +192,16 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           },
         }}
         primary={{ label: s("publish"), wide: true, disabled: unavailable }}
-        error={feedback?.message}
+        error={feedback ? {
+          title: failure === "save" ? t("saveFailureTitle") : t("publishFailureTitle"),
+          message: feedback.message,
+          action: correctionHref ? {
+            label: t("fix"),
+            onClick: () => router.push(correctionHref),
+            disabled: pending,
+          } : undefined,
+        } : undefined}
       >
-        {correctionHref && (
-          <div className="flex justify-end">
-            <Button size="sm" variant="outline" disabled={pending} onClick={() => router.push(correctionHref)}>
-              {t("fix")}
-            </Button>
-          </div>
-        )}
         {disabledReason && (
           <p role="status" className="text-end text-theme-sm text-gray-700 dark:text-gray-300">
             {disabledReason}

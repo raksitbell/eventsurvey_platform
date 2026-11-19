@@ -1,6 +1,7 @@
 "use client";
 
 import Button from "@/components/ui/button/Button";
+import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
 
 interface EventSetupActionsProps {
@@ -14,7 +15,11 @@ interface EventSetupActionsProps {
     disabled?: boolean;
     wide?: boolean;
   };
-  error?: string;
+  error?: string | {
+    title: string;
+    message: string;
+    action?: { label: string; onClick: () => void; disabled?: boolean };
+  };
   saveDraft?: { label: string; onClick: () => void; disabled?: boolean };
   regularWeight?: boolean;
   children?: ReactNode;
@@ -32,13 +37,32 @@ export default function EventSetupActions({
   const control = `min-h-11 rounded-preview-control! px-4! py-2! text-portal-label! ${weight}`;
   return (
     <footer className="es-setup-actionbar sticky bottom-0 z-9 mt-auto">
-      {error && (
+      {typeof error === "string" && error && (
         <p
           role="alert"
           className="text-end text-theme-sm text-error-600 dark:text-error-400"
         >
           {error}
         </p>
+      )}
+      {error && typeof error === "object" && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-xl border border-error-200 bg-error-50 p-4 text-start dark:border-error-500/30 dark:bg-error-500/10"
+        >
+          <div className="flex min-w-0 flex-auto items-start gap-3 sm:flex-1">
+            <ExclamationCircleIcon aria-hidden="true" className="size-5 shrink-0 text-error-600 dark:text-error-400" />
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900 dark:text-white">{error.title}</p>
+              <p className="mt-1 text-theme-sm text-gray-700 dark:text-gray-300">{error.message}</p>
+            </div>
+          </div>
+          {error.action && (
+            <Button size="sm" variant="outline" onClick={error.action.onClick} disabled={error.action.disabled}>
+              {error.action.label}
+            </Button>
+          )}
+        </div>
       )}
       {children}
       <div

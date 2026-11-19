@@ -2516,6 +2516,8 @@ function setupStep(kind, options = {}) {
   const publishRequests = [];
   const confirmations = [];
   const states = [];
+  const stateValues = [];
+  let hookIndex;
   const messages = JSON.parse(
     fs.readFileSync(path.join(root, "src/messages/th.json")),
   );
@@ -2586,7 +2588,7 @@ function setupStep(kind, options = {}) {
           confirmations.push(value);
           assert.ok(globalThis.localStorage.getItem(brandingKey));
           assert.ok(restoreEventDraft(workspace, "owner", "th").hasLocalDraft);
-          return options.confirm ?? true;
+          return value.showCancel === false ? options.openQr ?? true : options.confirm ?? true;
         },
       }),
     },
@@ -2606,10 +2608,14 @@ function setupStep(kind, options = {}) {
     },
     react: {
       ...require("react"),
-      useState: (initial) => [
-        typeof initial === "function" ? initial() : initial,
-        (value) => states.push(value),
-      ],
+      useState: (initial) => {
+        const index = hookIndex++;
+        if (!(index in stateValues)) stateValues[index] = typeof initial === "function" ? initial() : initial;
+        return [stateValues[index], (value) => {
+          stateValues[index] = typeof value === "function" ? value(stateValues[index]) : value;
+          states.push(stateValues[index]);
+        }];
+      },
     },
   };
   for (const component of [
@@ -2631,7 +2637,11 @@ function setupStep(kind, options = {}) {
   );
   const props = { workspace, userId: "owner", locale: "th" };
   const entry = Component(props);
-  const form = entry.props.component(props);
+  const render = () => {
+    hookIndex = 0;
+    return entry.props.component(props);
+  };
+  const form = render();
   const submit = async () => {
     let prevented = false;
     form.props.onSubmit({
@@ -2644,6 +2654,7 @@ function setupStep(kind, options = {}) {
   };
   return {
     form,
+    render,
     ...setupActionButtons(form),
     navigation,
     saves,
@@ -2754,6 +2765,9 @@ test("Publish Back and Preview save the draft, while submit sends a separate con
   );
   await ui.submit();
   assert.equal(ui.confirmations.length, 2);
+  assert.equal(ui.confirmations[0].layout, "standard");
+  assert.equal(ui.confirmations[1].layout, "standard");
+  assert.equal(ui.confirmations[1].variant, "success");
   assert.deepEqual(ui.publishRequests, [{
     path: "/event/setup/publish",
     input: { eventId: ui.workspace.eventId, revision: 3, locale: "th" },
@@ -2762,6 +2776,17 @@ test("Publish Back and Preview save the draft, while submit sends a separate con
   assert.equal(ui.workspace.eventStatus, "draft");
   assert.deepEqual(ui.navigation, ["/event/details", "/event/qr"]);
 });
+test("dismissing publish success keeps the published event on screen while the workspace refreshes", async (t) => {
+  storage(t);
+  const ui = setupStep("publish", { openQr: false });
+  await ui.submit();
+  assert.equal(ui.publishRequests.length, 1);
+  assert.deepEqual(ui.navigation, []);
+  const actions = setupActionButtons(ui.render());
+  assert.equal(actions.next.props.disabled, true);
+  assert.equal(actions.saveDraft.props.disabled, true);
+});
+
 test("Details and both Publish Back actions keep the selected content language and respect the save guard", async (t) => {
   storage(t);
   const details = detailsActions(async () => true, new URLSearchParams("lang=ja"));
@@ -2909,6 +2934,10 @@ test("Publish and Branding open the selected preview page only after a successfu
 
 test("Publish reports the server prerequisite and links to the editor permitted to correct it", async (t) => {
   storage(t);
+  function feedbackCard(ui) {
+    const actions = findSetupElement(ui.render(), (node) => node.type === setupActions);
+    return findSetupElement(setupActions(actions.props), (node) => node.props.role === "alert");
+  }
   const workspace = { canManageWhitelist: true, canManageSurveyForm: true };
   for (const [code, href] of [
     ["SETUP_EVENT_DETAILS_REQUIRED", "/event/details?lang=en"],
@@ -2923,6 +2952,12 @@ test("Publish reports the server prerequisite and links to the editor permitted 
     assert.equal(ui.confirmations.length, 1);
     assert.deepEqual(ui.navigation, []);
     assert.ok(ui.states.some((state) => state?.message && state.href === href), code);
+    const card = feedbackCard(ui);
+    const failure = ui.states.find((state) => state?.href === href);
+    assert.ok(findSetupElement(card, (node) => node.props.children === failure.message));
+    const fix = findSetupElement(card, (node) => node.type === setupButton);
+    fix.props.onClick();
+    assert.deepEqual(ui.navigation, [href]);
   }
   const messages = JSON.parse(fs.readFileSync(path.join(root, "src/messages/th.json")));
   const required = messages.eventHome.details.requiredFields;
@@ -2944,6 +2979,8 @@ test("Publish reports the server prerequisite and links to the editor permitted 
   const restricted = setupStep("publish", { publishError: { code: "SETUP_WHITELIST_REQUIRED" } });
   await restricted.submit();
   assert.ok(restricted.states.some((state) => state?.message && !state.href));
+  assert.ok(feedbackCard(restricted));
+  assert.equal(findSetupElement(feedbackCard(restricted), (node) => node.type === setupButton), null);
 });
 
 test("Event information configuration preserves field bindings, limits, labels, null values and read-only state", () => {
