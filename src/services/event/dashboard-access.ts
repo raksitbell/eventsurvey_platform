@@ -1,4 +1,5 @@
 import { mockApi } from "@/core/api/mock-client";
+import { deserializePermissionMatrix } from "@/core/auth/event-permissions";
 import { canUseEventDashboard } from "@/core/event/dashboard-policy";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import type { MockEvent, MockFormType, MockRole, MockUser } from "@/types/mock";
@@ -6,6 +7,8 @@ import type { MockEvent, MockFormType, MockRole, MockUser } from "@/types/mock";
 interface DashboardScope {
   event: MockEvent;
   canReadForm: (type: MockFormType) => boolean;
+  canViewSubmissions: boolean;
+  canExport: boolean;
 }
 
 export async function getDashboardScope(
@@ -43,8 +46,11 @@ export async function getDashboardScope(
     return null;
   }
 
+  const matrix = deserializePermissionMatrix(role.description, permissions);
   return {
     event,
+    canViewSubmissions: matrix.canViewSubmissions,
+    canExport: matrix.canViewSubmissions && matrix.canExport,
     canReadForm: (type) =>
       type === "registration"
         ? permissions.includes("manage_registration_form")

@@ -97,6 +97,7 @@ test("proxy routes the full auth-state matrix before forwarding to localization"
         ["/admin/users", admin],
         ["/event", event],
         ["/event/forms", event],
+        ["/preview/event", event],
       ];
       for (const [path, target] of destinations) {
         const response = navigate(path, cookie);
@@ -105,6 +106,20 @@ test("proxy routes the full auth-state matrix before forwarding to localization"
         assert.equal(response.headers.has("x-test-intl"), target === null, path);
       }
     });
+  }
+});
+
+test("proxy passes through the localized Full Preview rewrite after checking the event session", () => {
+  const owner = sessionCookie("event_owner");
+  for (const prefix of ["/th", "/en"]) {
+    const path = `${prefix}/preview/event?device=desktop&from=branding`;
+    const allowed = navigate(path, owner);
+    assert.equal(allowed.headers.get("x-middleware-next"), "1", path);
+    assert.equal(allowed.headers.get("x-test-intl"), null, path);
+    assert.equal(allowed.headers.get("location"), null, path);
+    assert.equal(new URL(navigate(path).headers.get("location")).pathname, "/login", path);
+    const admin = navigate(path, sessionCookie("super_admin"));
+    assert.equal(new URL(admin.headers.get("location")).pathname, "/error/403", path);
   }
 });
 

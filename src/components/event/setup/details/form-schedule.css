@@ -1,0 +1,237 @@
+.es-window {
+  gap: 13px;
+  padding: 17px;
+  background: var(--es-background-surface);
+}
+.es-window h2 {
+  min-height: 28px;
+}
+.es-window-reg,
+.es-survey-window {
+  padding: 12px;
+  background: var(--es-background-surface-subtle);
+  border-radius: 12px;
+}
+.es-window-reg,
+.es-survey-window header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+}
+.es-window-reg {
+  min-height: 70px;
+}
+.es-window strong {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+}
+.es-window small {
+  display: block;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--es-text-secondary);
+}
+.es-window-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 10px;
+  --es-icon: url("/images/event-workspace/icon-outline-calendar.svg");
+  background: var(--es-brand-secondary);
+}
+.es-window-badge {
+  margin-inline-start: auto;
+  display: grid;
+  place-items: center;
+  min-width: 102px;
+  min-height: 29px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--es-brand-secondary);
+  color: #4f3e64;
+}
+.es-survey-window {
+  display: grid;
+  gap: 12px;
+}
+.es-survey-times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.es-survey-times span,
+.es-schedule-presets > span {
+  font-size: 12px;
+  color: var(--es-text-secondary);
+}
+.es-survey-times strong {
+  font-size: 14px;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--es-field-border);
+  border-radius: 8px;
+  background: var(--es-background-surface);
+}
+.es-schedule-presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.es-schedule-presets button {
+  min-height: 36px;
+}
+.es-survey-window {
+  padding: 13px 14px;
+  border: 1px solid var(--es-border-default);
+}
+.es-survey-window header::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  flex: none;
+  background: url("/images/event-workspace/icon-outline-calendar.svg")
+    center/contain no-repeat;
+}
+.es-survey-window header .es-window-badge {
+  min-width: 128px;
+  color: var(--es-action-primary);
+}
+.es-schedule-presets {
+  min-height: 38px;
+  justify-content: space-between;
+}
+.es-schedule-presets .event-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 10px;
+  background: var(--es-background-surface);
+  border-color: var(--es-border-default);
+  font-size: 12px;
+  color: var(--es-text-primary);
+}
+.es-schedule-presets .event-option[aria-pressed="true"]::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--es-action-primary);
+}
+@media (max-width: 639px) {
+  .es-window-badge,
+  .es-survey-window header .es-window-badge {
+    min-width: 0;
+  }
+  .es-survey-times {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.es-setup-scrim {
+  background: rgb(21 16 32 / 40%);
+}
+.es-survey-close-dialog[role="dialog"] {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 480px;
+  max-height: calc(100dvh - 28px);
+  overflow: auto;
+  padding: 22px 24px;
+  border: 1px solid var(--es-border-default);
+  border-radius: 16px;
+  background: var(--es-background-surface);
+  color: var(--es-text-primary);
+}
+.es-survey-close-dialog header {
+  min-height: 62px;
+}
+.es-survey-close-dialog h2 {
+  font-size: 21px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.es-survey-close-dialog p {
+  font-size: 13px;
+  color: var(--es-text-secondary);
+}
+.es-survey-close-dialog [role="alert"] {
+  color: var(--color-error-600);
+}
+.es-survey-end {
+  min-height: 44px;
+  padding-inline: 14px;
+  border-radius: 10px;
+  background: var(--es-background-surface-subtle);
+  font-size: 13px;
+}
+.es-survey-close-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 264fr) minmax(100px, 152fr);
+  gap: 16px;
+}
+.es-survey-close-fields label {
+  display: block;
+  font-size: 12px;
+  color: var(--es-text-secondary);
+  margin-bottom: 6px;
+}
+.es-survey-close-fields input {
+  display: block;
+  width: 100%;
+  height: 40px;
+  min-width: 0;
+  border: 1px solid var(--es-border-default);
+  border-radius: 9px;
+  background-color: var(--es-background-surface);
+  padding-inline: 11px;
+  color: var(--es-text-primary);
+  font-weight: 600;
+}
+.es-survey-close-fields input[type="time"] {
+  margin-top: 6px;
+}
+body:has(.es-survey-close-dialog) .event-datetime-calendar.open {
+  z-index: 100000;
+}
+.es-survey-close-dialog footer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.es-survey-close-dialog footer button {
+  height: 42px;
+  border-radius: 9px;
+  border: 1px solid var(--es-border-default);
+  font-size: 14px;
+  font-weight: 600;
+}
+.es-survey-close-dialog footer button:last-child {
+  background: var(--es-action-primary);
+  color: white;
+}
+@media (min-width: 540px) {
+  .es-survey-close-dialog[role="dialog"] {
+    display: grid;
+    grid-template-rows:
+      minmax(62px, auto) minmax(44px, auto) minmax(65px, auto)
+      minmax(15px, auto) 42px;
+    padding-block: 22px 16px;
+  }
+  .es-survey-close-dialog .contents > p {
+    font-size: 12px;
+    line-height: 15px;
+  }
+}
+.es-survey-close-fields > label {
+  margin-block-end: 0;
+}

@@ -1,0 +1,290 @@
+.es-list-modal[role="dialog"] {
+  max-width: 1132px;
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 0;
+  background: var(--es-background-surface);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 18%);
+}
+.es-list-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: min(640px, calc(100dvh - 32px));
+  border-radius: 18px;
+  background: var(--es-background-surface);
+  color: var(--es-text-primary);
+  font-family: var(--overview-font-inter), sans-serif;
+}
+.es-list-content {
+  overflow: auto;
+  flex: 1;
+  padding: 40px 46px 24px;
+}
+.es-list-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.es-list-heading h1 {
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 38px;
+}
+.es-list-heading p,
+.es-list-policy {
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--es-text-secondary);
+}
+.es-list-heading p {
+  margin-top: 6px;
+}
+.es-list-private {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 8px;
+  margin-inline-start: auto;
+  border-radius: 999px;
+  padding: 6px 14px;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--es-brand-secondary);
+  color: var(--es-banner-text);
+}
+.es-list-private::before,
+.es-list-policy::before,
+.es-list-tools button::before,
+.es-list-footer .es-list-save::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background: var(--icon) center/contain no-repeat;
+}
+.es-list-private {
+  --icon: url("/images/event-setup/lock.svg");
+}
+.es-list-close {
+  width: 36px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent url("/images/event-setup/icon-outline-x.svg")
+    center/20px no-repeat;
+}
+.es-list-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 25px 0 20px;
+}
+.es-list-totals div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 64px;
+  padding: 10px 18px;
+  border: 1px solid var(--es-panel-border);
+  border-radius: 12px;
+  background: var(--es-background-surface-subtle);
+}
+.es-list-totals dt {
+  font-size: 13px;
+  font-weight: 500;
+}
+.es-list-totals dd {
+  font-size: 26px;
+  line-height: 36px;
+  font-weight: 700;
+}
+.es-list-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.es-list-tools h2 {
+  margin-inline-end: auto;
+  font-size: 18px;
+  font-weight: 600;
+}
+.es-list-tools input {
+  width: 260px;
+  max-width: 100%;
+  height: 44px;
+  border: 1px solid var(--es-border-default);
+  border-radius: 10px;
+  background: var(--es-background-surface) url("/images/event-setup/search.svg")
+    12px center/18px no-repeat;
+  padding-inline: 40px 12px;
+  font-size: 14px;
+}
+[dir="rtl"] .es-list-tools input {
+  background-position: right 12px center;
+}
+.es-list-tools button,
+.es-list-footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding-inline: 16px;
+  border: 1px solid var(--es-border-default);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.es-list-tools button:disabled,
+.es-list-footer button:disabled {
+  opacity: 0.5;
+}
+.es-list-import {
+  --icon: url("/images/event-setup/icon-outline-upload.svg");
+}
+.es-list-add {
+  --icon: url("/images/event-setup/add-attendee.svg");
+}
+.es-list-grid {
+  border: 1px solid var(--es-border-default);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+.es-list-grid table {
+  width: 100%;
+  min-width: 530px;
+}
+.es-list-grid th,
+.es-list-grid td {
+  white-space: normal;
+  padding-inline: 20px;
+  text-align: start;
+}
+.es-list-grid th {
+  height: 42px;
+  background: var(--es-background-surface-subtle);
+}
+.es-list-grid td {
+  height: 66px;
+  border-top: 1px solid var(--es-panel-border);
+}
+.es-list-grid td:last-child,
+.es-list-grid th:last-child {
+  text-align: center;
+}
+.es-list-grid td button {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+}
+.es-list-trash {
+  width: 18px;
+  height: 18px;
+  background: url("/images/event-setup/icon-outline-trash-danger.svg")
+    center/contain no-repeat;
+}
+.es-list-grid button:disabled .es-list-trash {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+.es-list-policy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 17px;
+  --icon: url("/images/event-setup/info.svg");
+}
+.es-list-footer {
+  min-height: 67px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 22px;
+  border-top: 1px solid var(--es-panel-border);
+}
+.es-list-footer button {
+  min-width: 124px;
+}
+.es-list-footer .es-list-save {
+  min-width: 144px;
+  --icon: url("/images/event-setup/save-white.svg");
+}
+@media (max-width: 639px) {
+  .es-list-content {
+    padding: 16px;
+  }
+  .es-list-heading {
+    flex-wrap: wrap;
+  }
+  .es-list-heading h1 {
+    font-size: 23px;
+  }
+  .es-list-private {
+    margin: 0;
+  }
+  .es-list-close {
+    margin-inline-start: auto;
+  }
+  .es-list-totals {
+    gap: 6px;
+  }
+  .es-list-totals div {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px;
+  }
+  .es-list-tools h2 {
+    flex-basis: 100%;
+  }
+  .es-list-tools input {
+    width: 100%;
+  }
+  .es-list-footer {
+    padding: 10px;
+  }
+}
+
+.es-list-totals div {
+  border-color: var(--es-border-default);
+}
+.es-list-totals dt {
+  color: var(--es-text-secondary);
+}
+.es-list-totals div:first-child dd {
+  color: var(--es-action-primary);
+}
+.es-list-totals div:nth-child(2) {
+  background: var(--es-green-50);
+}
+.es-list-totals div:nth-child(2) dd {
+  color: var(--es-green-700);
+}
+.es-list-tools .es-list-add,
+.es-list-private {
+  border: 1px solid var(--es-brand-secondary);
+  background: var(--es-background-surface-subtle);
+  color: var(--es-action-primary);
+}
+@media (min-width: 900px) {
+  .es-list-tools {
+    gap: 12px;
+  }
+  .es-list-tools .es-list-import {
+    min-width: 139px;
+  }
+  .es-list-tools .es-list-add {
+    min-width: 156px;
+  }
+  .es-list-private {
+    min-width: 171px;
+  }
+}

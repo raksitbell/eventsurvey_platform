@@ -34,11 +34,12 @@ function mailConfig() {
   };
 }
 
-/** Send bilingual (TH + EN) setup-password invite to a new Event Admin. */
+/** Send a bilingual (TH + EN) setup-password invite to a new event account. */
 export async function sendSetupPasswordInvite(input: {
   to: string;
   displayName: string;
   userId: string;
+  audience?: "event-admin" | "event-member";
   /** Thai title — used in the TH section (falls back to English / slug). */
   eventTitleTh?: string | null;
   /** English title — used in the EN section (falls back to Thai / slug). */
@@ -62,6 +63,9 @@ export async function sendSetupPasswordInvite(input: {
   const fallback = input.eventTitleFallback?.trim() || "EventSurvey";
   const eventTitleTh = thRaw || enRaw || fallback;
   const eventTitleEn = enRaw || thRaw || fallback;
+  const isEventMember = input.audience === "event-member";
+  const roleTh = isEventMember ? "สมาชิกทีมอีเวนต์" : "ผู้ดูแลอีเวนต์";
+  const roleEn = isEventMember ? "an Event Team member" : "Event Admin";
 
   const name = escapeHtml(input.displayName);
   const safeTitleTh = escapeHtml(eventTitleTh);
@@ -80,14 +84,14 @@ export async function sendSetupPasswordInvite(input: {
       `สวัสดี ${input.displayName} / Hello ${input.displayName}`,
       "",
       "— ภาษาไทย —",
-      `คุณได้รับเชิญเป็นผู้ดูแลอีเวนต์ของ "${eventTitleTh}" บน EventSurvey`,
+      `คุณได้รับเชิญเป็น${roleTh}ของ "${eventTitleTh}" บน EventSurvey`,
       "กรุณาตั้งรหัสผ่านเพื่อเข้าใช้งานพื้นที่จัดการอีเวนต์:",
       setupUrl,
       `ลิงก์นี้มีอายุ ${SETUP_PASSWORD_INVITE_DAYS} วันและใช้ได้ขณะบัญชียังรอตั้งรหัสผ่าน`,
       "หากคุณไม่ได้คาดหวังอีเมลนี้ สามารถเพิกเฉยได้",
       "",
       "— English —",
-      `You have been invited as Event Admin for "${eventTitleEn}" on EventSurvey.`,
+      `You have been invited as ${roleEn} for "${eventTitleEn}" on EventSurvey.`,
       "Please set your password to access the event workspace:",
       setupUrl,
       `This link expires in ${SETUP_PASSWORD_INVITE_DAYS} days and works while the account is awaiting password setup.`,
@@ -98,6 +102,8 @@ export async function sendSetupPasswordInvite(input: {
       eventTitleTh: safeTitleTh,
       eventTitleEn: safeTitleEn,
       setupUrl: safeUrl,
+      roleTh,
+      roleEn,
     }),
   });
 }
@@ -107,6 +113,8 @@ function buildInviteHtml(input: {
   eventTitleTh: string;
   eventTitleEn: string;
   setupUrl: string;
+  roleTh: string;
+  roleEn: string;
 }): string {
   // brand-500 ≈ #465fff — table + inline CSS for email clients
   return `<!DOCTYPE html>
@@ -134,7 +142,7 @@ function buildInviteHtml(input: {
                 สวัสดี <strong style="color:#111827;">${input.name}</strong>
               </p>
               <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#4b5563;">
-                คุณได้รับเชิญให้เป็น <strong style="color:#3641f5;">ผู้ดูแลอีเวนต์</strong>
+                คุณได้รับเชิญให้เป็น <strong style="color:#3641f5;">${input.roleTh}</strong>
                 ของอีเวนต์
               </p>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;background-color:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;">
@@ -156,7 +164,7 @@ function buildInviteHtml(input: {
                 Hello <strong style="color:#111827;">${input.name}</strong>
               </p>
               <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#4b5563;">
-                You have been invited as <strong style="color:#3641f5;">Event Admin</strong>
+                You have been invited as <strong style="color:#3641f5;">${input.roleEn}</strong>
                 for this event.
               </p>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;background-color:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;">

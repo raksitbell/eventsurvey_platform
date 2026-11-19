@@ -10,7 +10,17 @@ export type MockAccountStatus = "invited" | "active" | "suspended" | "removed";
 export type MockEventStatus = "draft" | "scheduled" | "open" | "closed";
 export type MockSurveyAccess = "public" | "registered_only";
 export type MockFormType = "registration" | "survey";
-export type MockFormStatus = "draft" | "scheduled" | "open" | "closed";
+export type MockFormStatus =
+  | "draft"
+  | "scheduled"
+  | "open"
+  | "closed"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "published"
+  | "paused"
+  | "archived";
 export type MockFieldType =
   | "short_text"
   | "long_text"
@@ -102,6 +112,7 @@ export interface MockRolePermission {
 
 export interface MockEvent {
   id: string;
+  setup?: unknown;
   slug: string;
   status: MockEventStatus;
   default_locale: string;
@@ -128,6 +139,7 @@ export interface MockEventTranslation {
   title: string;
   description: string | null;
   location_name: string | null;
+  floor_zone?: string | null;
   address_text: string | null;
   created_at: string;
   updated_at: string;

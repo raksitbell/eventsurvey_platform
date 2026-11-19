@@ -9,6 +9,7 @@ import {
   nextCronFormStatus,
   resolveEffectiveFormStatus,
 } from "@/core/forms/lifecycle";
+import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
 import { validatePublishReady } from "@/core/validation/forms";
 import type {
   Choice,
@@ -1597,7 +1598,8 @@ export async function runFormsCron(
       eventCache.set(form.event_id, event);
     }
 
-    const next = nextCronFormStatus(form, event, nowMs);
+    const scheduledForm = withPublishedFormSchedule(form, event);
+    const next = nextCronFormStatus(scheduledForm, event, nowMs);
     if (!next || next === form.status) continue;
 
     const updatedForm: MockForm = {

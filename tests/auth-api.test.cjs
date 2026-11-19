@@ -59,6 +59,26 @@ async function signIn(account) {
   return { cookie: cookieValue(response), response };
 }
 
+function createEventHandler(sendSetupPasswordInvite = async () => {}) {
+  const loadCreate = loadSource({
+    "@/core/mail/send-invite": { sendSetupPasswordInvite },
+  });
+  return loadCreate("src/app/api/admin/events/route.ts").POST;
+}
+
+function createEventRequest(cookie, body) {
+  return request("/api/admin/events?locale=en", { method: "POST", cookie, body });
+}
+
+const newEventInput = {
+  mode: "new",
+  slug: "qa-new-owner",
+  titleEn: "New owner",
+  titleTh: "ผู้จัดใหม่",
+  adminName: "QA Event Owner",
+  adminEmail: "qa-owner@example.test",
+};
+
 async function assertDenied(response, status, path) {
   assert.equal(response.status, status, path);
   const body = await response.json();
@@ -131,6 +151,7 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
     ["/api/admin/events/cron", ["POST"]],
     ["/api/event/workspace", ["GET"]],
     ["/api/event/workspace/submit-approval", ["PATCH"]],
+    ["/api/event/setup/whitelist", ["GET", "PATCH"]],
     ["/api/event/forms?eventId=event-a", ["GET", "POST"], "/api/event/forms"],
     ["/api/event/forms/form-a", ["GET", "PUT", "DELETE"], "/api/event/forms/[id]"],
     ["/api/event/forms/form-a/status", ["PATCH"], "/api/event/forms/[id]/status"],
@@ -150,6 +171,21 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
   await assertDenied(await getWorkspace(request("/api/event/workspace", { cookie: adm })), 403);
   await assertDenied(await getForms(request("/api/event/forms?eventId=event-a", { cookie: team })), 403);
   await assertDenied(await getForms(request("/api/event/forms?eventId=event-b", { cookie: own })), 403);
+});
+
+test("Setup Whitelist rejects other-event IDs and requires Registration permission", async (t) => {
+  const { owner, assistant, calls } = setupMockData(t);
+  const { GET, PATCH } = load("src/app/api/event/setup/whitelist/route.ts");
+  const { cookie } = await signIn(owner);
+  const { cookie: team } = await signIn(assistant);
+  const endpoint = "/api/event/setup/whitelist";
+  await assertDenied(await GET(request(endpoint + "?eventId=event-b", { cookie })), 409);
+  await assertDenied(await PATCH(request(endpoint, {
+    method: "PATCH", cookie,
+    body: { eventId: "event-b", revision: 0, entries: [] },
+  })), 409);
+  await assertDenied(await GET(request(endpoint + "?eventId=event-a", { cookie: team })), 403);
+  assert.ok(!calls.some(({ method, url }) => method === "PATCH" || url.pathname === "/events/event-b"));
 });
 
 test("workspace follows the authenticated account and suspended accounts lose access", async (t) => {
@@ -258,6 +294,90 @@ test("upstream failure details stay in the API layer", async (t) => {
   const response = await getAdminUsers(request("/api/admin/users", { cookie }));
   assert.equal(response.status, 502);
   assertNoPersonalDetails(await response.json(), [owner]);
+});
+
+test("admin can create events with either owner mode and an invite failure preserves the draft", async (t) => {
+  const { admin, assignable, collections } = setupMockData(t, { eventWrites: true });
+  const { cookie } = await signIn(admin);
+  const invitations = [];
+  const create = createEventHandler(async (invitation) => {
+    invitations.push(invitation.to);
+    throw new Error("Fixture mail delivery failed");
+  });
+  const existingInput = {
+    mode: "existing",
+    slug: "qa-existing-owner",
+    titleEn: "Existing owner",
+    titleTh: "",
+    existingUserId: assignable.id,
+  };
+
+  for (const input of [existingInput, newEventInput]) {
+    const response = await create(createEventRequest(cookie, input));
+    assert.equal(response.status, 201);
+    const result = await response.json();
+    const assigned = collections.users.find((user) => user.id === result.event.adminUserId);
+    const role = collections.roles.find((role) => role.id === assigned.role_id);
+    const isExisting = input.mode === "existing";
+    assert.equal(result.event.slug, input.slug);
+    assert.equal(result.event.title, input.titleEn);
+    assert.equal(result.event.status, "draft");
+    assert.equal(result.impersonateUserId, isExisting ? assignable.id : null);
+    assert.equal(result.inviteSent, false);
+    assert.equal(assigned.status, isExisting ? "active" : "invited");
+    assert.equal(assigned.event_id, result.event.id);
+    assert.equal(role.event_id, result.event.id);
+    assert.equal(collections.role_permissions.filter((item) => item.role_id === role.id).length, 5);
+    assert.equal(collections.event_translations.filter((item) => item.event_id === result.event.id).length, isExisting ? 1 : 2);
+    assertNoPersonalDetails(result, [assigned]);
+  }
+  assert.deepEqual(invitations, [newEventInput.adminEmail]);
+});
+
+test("upstream write failures roll back created resources and allow resubmission", async (t) => {
+  for (const mode of ["new", "existing"]) {
+    await t.test(mode, async (t) => {
+      const { admin, assignable, collections, failures } = setupMockData(t, { eventWrites: true });
+      const { cookie } = await signIn(admin);
+      const create = createEventHandler();
+      const baseline = structuredClone(collections);
+      const input = mode === "new" ? newEventInput : {
+        mode,
+        slug: "qa-existing-owner",
+        titleEn: "Existing owner",
+        titleTh: "",
+        existingUserId: assignable.id,
+      };
+      const failingRequest = mode === "new" ? "POST /role_permissions" : "PATCH /users/" + assignable.id;
+      failures.set(failingRequest, (body) =>
+        mode === "existing" || body?.permission === "manage_sub_user"
+          ? "Fixture upstream write rejected"
+          : undefined);
+
+      const failed = await create(createEventRequest(cookie, input));
+      assert.equal(failed.status, 502);
+      assert.deepEqual(await failed.json(), { error: "MOCK_API_ERROR" });
+      assert.deepEqual(collections, baseline);
+
+      failures.delete(failingRequest);
+      const retried = await create(createEventRequest(cookie, input));
+      assert.equal(retried.status, 201);
+      assert.equal((await retried.json()).event.slug, input.slug);
+    });
+  }
+});
+
+test("read-only upstream storage returns a safe error and creates no owner", async (t) => {
+  const { admin, collections, failures } = setupMockData(t, { eventWrites: true });
+  const { cookie } = await signIn(admin);
+  const create = createEventHandler();
+  const baseline = structuredClone(collections);
+  failures.set("POST /events", "EROFS: read-only file system, open '/private/db.json'");
+
+  const response = await create(createEventRequest(cookie, newEventInput));
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "MOCK_READ_ONLY" });
+  assert.deepEqual(collections, baseline);
 });
 
 test("setup-password requires a current invitation and masks preview details", async (t) => {

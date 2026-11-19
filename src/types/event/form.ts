@@ -35,7 +35,17 @@ export type FormLocale = (typeof FORM_LOCALES)[number];
 export type QuestionType = (typeof QUESTIONS_TYPES)[number];
 
 /** Aligns with `form_status` in mock db / database-schema.dbml */
-export type FormStatus = "draft" | "scheduled" | "open" | "closed";
+export type FormStatus =
+  | "draft"
+  | "scheduled"
+  | "open"
+  | "closed"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "published"
+  | "paused"
+  | "archived";
 
 export interface Choice {
   id?: string;
