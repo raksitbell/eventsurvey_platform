@@ -11,6 +11,7 @@ import EventNavigationGuardProvider, {
 } from "@/components/event/workspace/EventNavigationGuard";
 import EventWorkspaceSidebar from "@/components/event/workspace/EventWorkspaceSidebar";
 import EventWorkspaceHeader from "@/components/event/workspace/EventWorkspaceHeader";
+import activityChrome from "@/components/event/workspace/EventWorkspaceChrome.module.css";
 import { usePathname } from "@/i18n/navigation";
 import Backdrop from "@/layout/Backdrop";
 import React from "react";
@@ -19,10 +20,12 @@ import {
   eventThai,
 } from "@/components/event/setup/event-admin-fonts";
 import "@/components/event/setup/event-admin-design.css";
+import { cn } from "@/utils";
 
 function EventShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const navigationGuard = useEventNavigationGuard();
+  const isActivity = pathname === "/event/activity";
   const isSetup = [
     "/event",
     "/event/details",
@@ -35,7 +38,8 @@ function EventShell({ children }: { children: React.ReactNode }) {
     "/event/setup/registration",
     "/event/setup/survey",
   ].includes(pathname);
-  const usesWorkspaceChrome = isSetup || isEventReportingPath(pathname);
+  const usesWorkspaceChrome =
+    isActivity || isSetup || isEventReportingPath(pathname);
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   // Must match AppSidebar dock breakpoint (`xl`). Using `lg` left a gap
@@ -49,13 +53,26 @@ function EventShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div
-        className={`min-h-screen xl:flex dark:bg-gray-950 ${usesWorkspaceChrome ? eventInter.variable + " " + eventThai.variable + " event-admin-shell" : "bg-gray-50"}`}
+        className={cn(
+          "min-h-screen xl:flex dark:bg-gray-950",
+          usesWorkspaceChrome
+            ? [eventInter.variable, eventThai.variable, "event-admin-shell"]
+            : "bg-gray-50",
+          isActivity && activityChrome.activityShell,
+        )}
       >
         {usesWorkspaceChrome ? <EventWorkspaceSidebar /> : <AppSidebar />}
         <Backdrop />
         <div
           data-screen={isSetup ? pathname : undefined}
-          className={`flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin} ${isSetup ? "event-admin-main" : ""}`}
+          className={cn(
+            "flex min-h-screen min-w-0 flex-1 flex-col",
+            isActivity
+              ? "xl:transition-[margin-inline-start] xl:duration-300 xl:ease-in-out"
+              : "transition-all duration-300 ease-in-out",
+            mainContentMargin,
+            isSetup && "event-admin-main",
+          )}
         >
           <ImpersonationBanner
             beforeLeave={() => navigationGuard?.current?.() ?? true}
@@ -65,7 +82,9 @@ function EventShell({ children }: { children: React.ReactNode }) {
             className={
               isSetup
                 ? "event-admin-body"
-                : "mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6"
+                : isActivity
+                  ? activityChrome.activityBody
+                  : "mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6"
             }
           >
             {children}

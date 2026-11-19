@@ -1,4 +1,127 @@
 {
+  "userActivity": {
+    "title": "User Activity",
+    "eventTitle": "User Activity",
+    "platformTitle": "User Activity · All Events",
+    "platformEventTitle": "User Activity · By Event",
+    "platformBreadcrumb": "Platform Admin",
+    "eventBreadcrumb": "Event Workspace",
+    "platformBadge": "ALL EVENTS · PLATFORM",
+    "platformEventBadge": "ONE EVENT · PLATFORM",
+    "platformDescription": "Review user activity and related pages across events.",
+    "eventDescription": "Review additions, edits, and deletions and open the related pages in this event.",
+    "organizedBy": "Organized by",
+    "tableLabel": "User activity log",
+    "columns": {
+      "when": "Date and time",
+      "actor": "Actor",
+      "action": "Action",
+      "event": "Event",
+      "entity": "Item",
+      "related": "Related page",
+      "profile": "Profile"
+    },
+    "metrics": {
+      "total": "Total activity",
+      "eventCount": "Events with activity",
+      "actorCount": "Actors",
+      "edit": "Edits",
+      "delete": "Deletions"
+    },
+    "metricNotes": {
+      "platformTotal": "Across all events",
+      "platformEvents": "History available by event",
+      "platformActors": "Platform + Event Admin",
+      "platformEdits": "Records that were updated",
+      "selectedTotal": "In this event",
+      "selectedEvents": "Selected event only",
+      "selectedActors": "Users who made changes",
+      "selectedEdits": "Changes in this event",
+      "eventTotal": "Records in this event",
+      "eventActors": "People who made changes",
+      "eventEdits": "Form and settings updates",
+      "eventDeletes": "History available to review"
+    },
+    "filters": {
+      "searchLabel": "Search activity",
+      "platformSearch": "Search users or changes…",
+      "eventSearch": "Search users or changed data…",
+      "allEvents": "Event: All events",
+      "allActions": "Action: All",
+      "monthLabel": "Period",
+      "allMonths": "Period: All",
+      "allActors": "Actor: Everyone",
+      "reset": "Reset filters"
+    },
+    "table": {
+      "platform": "Activity across all events",
+      "selected": "Activity for this event",
+      "event": "Activity log",
+      "platformHint": "Select an event name to view its activity",
+      "selectedHint": "Filtered by {event}",
+      "eventHint": "{count, plural, one {Showing # sample record} other {Showing # sample records}} · Asia/Bangkok (ICT)"
+    },
+    "actions": {
+      "edit": "Edit",
+      "add": "Add",
+      "delete": "Delete"
+    },
+    "entities": {
+      "postEventSurvey": "Post-event survey",
+      "surveyForm": "Survey Form",
+      "registrationForm": "Registration Form",
+      "eventDetails": "Event details",
+      "teamMember": "Event User Management",
+      "whitelist": "Whitelist"
+    },
+    "pages": {
+      "survey": "Survey Builder",
+      "registration": "Registration Builder",
+      "setup": "Event Setup",
+      "access": "Event Access",
+      "team": "User Management"
+    },
+    "fields": {
+      "questions": "Questions",
+      "settings": "Settings",
+      "title": "Title",
+      "description": "Description",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "location": "Venue",
+      "access": "Access",
+      "role": "Role",
+      "permissions": "Permissions",
+      "capacity": "Capacity",
+      "status": "Status",
+      "responseDeadline": "Response deadline",
+      "registrationCapacity": "Registration capacity"
+    },
+    "roles": {
+      "eventAdmin": "Event Admin",
+      "platformAdmin": "Platform Admin"
+    },
+    "profile": {
+      "title": "User Profile",
+      "open": "View profile",
+      "openFor": "View profile for {name}",
+      "platformDescription": "View this user’s activity across events.",
+      "eventDescription": "See what this user did and what changed.",
+      "relatedEvents": "{count, plural, one {# related event} other {# related events}}",
+      "timeline": "Activity history",
+      "close": "Close window",
+      "empty": "No activity for this user."
+    },
+    "pagination": {
+      "label": "Activity pages",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {number}"
+    },
+    "resultCount": "Showing {shown, number} of {total, number} records",
+    "empty": "No activity matches your filters.",
+    "time": "{time}"
+  },
   "common": {
     "home": "Home",
     "loading": "Loading...",

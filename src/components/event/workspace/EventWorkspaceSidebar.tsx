@@ -9,6 +9,7 @@ import useEventWorkspace from "@/hooks/useEventWorkspace";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
+import WorkspaceSidebarBrand from "./WorkspaceSidebarBrand";
 
 export default function EventWorkspaceSidebar() {
   const { workspace, loading } = useEventWorkspace();
@@ -63,7 +64,7 @@ export default function EventWorkspaceSidebar() {
           alt=""
         />
       ),
-      href: null,
+      href: currentWorkspace ? "/event/activity" : null,
     },
     ...(currentWorkspace?.canAccessDashboard
       ? [
@@ -117,27 +118,11 @@ export default function EventWorkspaceSidebar() {
       onMouseLeave={() => setIsHovered(false)}
       className={`${styles.sidebar} ${isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full xl:visible xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
     >
-      <Link
+      <WorkspaceSidebarBrand
         href="/event"
+        expanded={expanded}
         onNavigate={(event) => guardLink(event, "/event")}
-        className={styles.brand}
-        aria-label="EventSurvey"
-      >
-        <span className={styles.mark}>
-          <Image
-            alt=""
-            width={27}
-            height={26}
-            src="/images/event-workspace/ticket-speech-symbol.svg"
-          />
-        </span>
-        {expanded && (
-          <span className={styles.wordmark}>
-            <strong>EventSurvey</strong>
-            <small>{t("appSubtitle")}</small>
-          </span>
-        )}
-      </Link>
+      />
       <nav aria-label={t("overview")}>
         <h2 className={expanded ? styles.section : "sr-only"}>WORKSPACE</h2>
         <ul>

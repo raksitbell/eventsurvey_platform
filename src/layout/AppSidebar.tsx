@@ -1,5 +1,8 @@
 "use client";
 
+import dashboardTheme from "@/components/event/reports/dashboard-theme.module.css";
+import workspaceStyles from "@/components/event/workspace/EventWorkspaceChrome.module.css";
+import WorkspaceSidebarBrand from "@/components/event/workspace/WorkspaceSidebarBrand";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { api } from "@/core/api";
@@ -7,10 +10,10 @@ import { canEnterAdminArea, canEnterEventArea } from "@/core/auth";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
-import dashboardTheme from "@/components/event/reports/dashboard-theme.module.css";
 import { cn } from "@/utils";
 import {
   ChartPieIcon,
+  ClockIcon,
   EllipsisHorizontalIcon,
   Squares2X2Icon,
   UserGroupIcon,
@@ -27,8 +30,11 @@ type NavItem = {
   disabled?: boolean;
 };
 
-export default function AppSidebar() {
+export default function AppSidebar({
+  workspaceChrome = false,
+}: { workspaceChrome?: boolean }) {
   const t = useTranslations("sidebar");
+  const activity = useTranslations("userActivity");
   const pathname = usePathname();
   const locale = useLocale();
   const { user, realUser, isImpersonating } = useAuth();
@@ -47,7 +53,7 @@ export default function AppSidebar() {
     isImpersonating,
   );
 
-  const dashboardAccessKey =
+  const workspaceAccessKey =
     allowEvent && (isEventArea || isFormArea)
       ? JSON.stringify([
           user?.id,
@@ -58,37 +64,46 @@ export default function AppSidebar() {
           pathname,
         ])
       : null;
-  const [dashboardAccess, setDashboardAccess] = useState<{
+  const [workspaceAccess, setWorkspaceAccess] = useState<{
     key: string;
-    allowed: boolean;
+    hasWorkspace: boolean;
+    canAccessDashboard: boolean;
   } | null>(null);
 
   useEffect(() => {
-    if (!dashboardAccessKey) return;
+    if (!workspaceAccessKey) return;
     let current = true;
     api.get<EventWorkspace | null>(`/event/workspace?locale=${locale}`).then(
       (workspace) => {
         if (current) {
-          setDashboardAccess({
-            key: dashboardAccessKey,
-            allowed: workspace?.canAccessDashboard === true,
+          setWorkspaceAccess({
+            key: workspaceAccessKey,
+            hasWorkspace: workspace !== null,
+            canAccessDashboard: workspace?.canAccessDashboard === true,
           });
         }
       },
       () => {
-        if (current)
-          setDashboardAccess({ key: dashboardAccessKey, allowed: false });
+        if (current) setWorkspaceAccess(null);
       },
     );
     return () => {
       current = false;
     };
-  }, [dashboardAccessKey, locale]);
+  }, [locale, workspaceAccessKey]);
+
+  const currentWorkspaceAccess =
+    workspaceAccess?.key === workspaceAccessKey ? workspaceAccess : null;
 
   const adminNav: NavItem[] = [
     { key: "overview", icon: <Squares2X2Icon />, path: "/admin" },
     { key: "events", icon: <Squares2X2Icon />, path: "/admin/events" },
     { key: "owners", icon: <UsersIcon />, path: "/admin/users" },
+    {
+      key: "activity",
+      icon: <ClockIcon />,
+      path: "/admin/activity",
+    },
   ];
 
   const eventNav: NavItem[] = [
@@ -96,11 +111,19 @@ export default function AppSidebar() {
     { key: "Form", icon: <Squares2X2Icon />, path: "/form" },
   ];
 
+  if (currentWorkspaceAccess?.hasWorkspace) {
+    eventNav.push({
+      key: "activity",
+      icon: <ClockIcon />,
+      path: "/event/activity",
+    });
+  }
+
   if (user?.role === "event_owner") {
     eventNav.push({ key: "eventTeam", icon: <UserGroupIcon />, path: "/event/team" });
   }
 
-  if (dashboardAccess?.key === dashboardAccessKey && dashboardAccess?.allowed) {
+  if (currentWorkspaceAccess?.canAccessDashboard) {
     eventNav.push({
       key: "dashboard",
       icon: <ChartPieIcon />,
@@ -154,10 +177,15 @@ export default function AppSidebar() {
 
   return (
     <aside
+      id="app-sidebar"
+      data-expanded={workspaceChrome ? showExpanded : undefined}
       className={cn(
-        "fixed top-0 z-99999 flex h-screen flex-col bg-gray-950 px-4 text-white transition-all duration-300 ease-in-out",
+        workspaceChrome
+          ? workspaceStyles.sidebar
+          : "fixed top-0 z-99999 flex h-screen flex-col bg-gray-950 px-4 text-white transition-all duration-300 ease-in-out",
         isDashboardPath && allowEvent && dashboardTheme.sidebar,
-        showExpanded ? "w-[280px]" : "w-[90px]",
+        !workspaceChrome && (showExpanded ? "w-[280px]" : "w-[90px]"),
+        workspaceChrome && !isMobileOpen && "invisible xl:visible",
         isMobileOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
         "rtl:translate-x-full xl:rtl:translate-x-0",
         isMobileOpen && "rtl:translate-x-0",
@@ -167,60 +195,87 @@ export default function AppSidebar() {
       }}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div
-        className={cn(
-          "flex items-center gap-3 py-7",
-          !showExpanded ? "xl:justify-center" : "justify-start",
-        )}
-      >
-        <Link href={homePath} className="flex items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white">
-            E
-          </span>
-          {showExpanded ? (
-            <span className="text-sm font-semibold tracking-[0.18em] text-white">
-              EVENTSURVEY
+      {workspaceChrome ? (
+        <WorkspaceSidebarBrand href={homePath} expanded={showExpanded} />
+      ) : (
+        <div
+          className={cn(
+            "flex items-center gap-3 py-7",
+            !showExpanded ? "xl:justify-center" : "justify-start",
+          )}
+        >
+          <Link href={homePath} className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white">
+              E
             </span>
-          ) : null}
-        </Link>
-      </div>
+            {showExpanded ? (
+              <span className="text-sm font-semibold tracking-[0.18em] text-white">
+                EVENTSURVEY
+              </span>
+            ) : null}
+          </Link>
+        </div>
+      )}
 
-      <div className="no-scrollbar flex flex-1 flex-col overflow-y-auto pb-6">
+      <nav
+        aria-label={t("groups.workspace")}
+        className={
+          workspaceChrome
+            ? undefined
+            : "no-scrollbar flex flex-1 flex-col overflow-y-auto pb-6"
+        }
+      >
         <div className="mb-3">
           <h2
-            className={cn(
-              "mb-3 flex px-3 text-[11px] font-semibold tracking-[0.16em] uppercase",
-              isDashboardPath ? "text-brand-200" : "text-gray-500",
-              !showExpanded ? "xl:justify-center" : "justify-start",
-            )}
+            className={
+              workspaceChrome
+                ? showExpanded
+                  ? cn(workspaceStyles.section, "uppercase")
+                  : "sr-only"
+                : cn(
+                    "mb-3 flex px-3 text-[11px] font-semibold tracking-[0.16em] uppercase",
+                    isDashboardPath ? "text-brand-200" : "text-gray-500",
+                    !showExpanded ? "xl:justify-center" : "justify-start",
+                  )
+            }
           >
-            {showExpanded ? t("groups.workspace") : <EllipsisHorizontalIcon />}
+            {showExpanded || workspaceChrome ? (
+              t("groups.workspace")
+            ) : (
+              <EllipsisHorizontalIcon />
+            )}
           </h2>
 
-          <ul className="flex flex-col gap-1.5">
+          <ul className={workspaceChrome ? undefined : "flex flex-col gap-1.5"}>
             {navItems.map((item) => {
               const active = isActive(item.path);
-              const className = cn(
-                "group flex w-full items-center gap-3 rounded-full px-3 py-2.5 text-theme-sm font-medium transition",
-                active
-                  ? "bg-brand-500 text-white"
-                  : isDashboardPath
-                    ? "text-brand-50 hover:bg-white/10"
-                    : "text-gray-400 hover:bg-white/5 hover:text-white",
-                item.disabled &&
-                  "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-gray-400",
-                !showExpanded && "justify-center px-0",
-              );
+              const label =
+                item.key === "activity"
+                  ? activity("title")
+                  : t(`items.${item.key}`);
+              const className = workspaceChrome
+                ? workspaceStyles.item
+                : cn(
+                    "group flex w-full items-center gap-3 rounded-full px-3 py-2.5 text-theme-sm font-medium transition",
+                    active
+                      ? "bg-brand-500 text-white"
+                      : isDashboardPath
+                        ? "text-brand-50 hover:bg-white/10"
+                        : "text-gray-400 hover:bg-white/5 hover:text-white",
+                    item.disabled &&
+                      "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-gray-400",
+                    !showExpanded && "justify-center px-0",
+                  );
 
               if (item.disabled || !item.path) {
                 return (
                   <li key={item.key}>
-                    <span className={className} title={t(`items.${item.key}`)}>
+                    <span className={className} title={label}>
                       <span className="flex size-5 items-center justify-center [&_svg]:size-5">
                         {item.icon}
                       </span>
                       {showExpanded ? (
-                        <span>{t(`items.${item.key}`)}</span>
+                        <span>{label}</span>
                       ) : null}
                     </span>
                   </li>
@@ -233,13 +288,13 @@ export default function AppSidebar() {
                     href={item.path}
                     className={className}
                     aria-current={active ? "page" : undefined}
-                    aria-label={t(`items.${item.key}`)}
+                    aria-label={label}
                   >
                     <span className="flex size-5 items-center justify-center [&_svg]:size-5">
                       {item.icon}
                     </span>
                     {showExpanded ? (
-                      <span>{t(`items.${item.key}`)}</span>
+                      <span>{label}</span>
                     ) : null}
                   </Link>
                 </li>
@@ -247,9 +302,9 @@ export default function AppSidebar() {
             })}
           </ul>
         </div>
-      </div>
+      </nav>
 
-      {user ? (
+      {user && !workspaceChrome ? (
         <div
           className={cn(
             "mb-5 rounded-2xl border border-white/10 bg-white/5 p-3",

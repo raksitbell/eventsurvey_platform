@@ -91,6 +91,7 @@ test("reserves Portal routes in both creation and editing validation", () => {
     existingUserId: "f890f8dc-fabe-45a0-a118-4c5006e2b4b1",
   };
   for (const slug of [
+    "activity",
     "analytics",
     "branding",
     "dashboard",
@@ -152,6 +153,7 @@ test("keeps Portal routes guarded with or without an internal locale segment", (
   for (const prefix of ["", "/en", "/th"]) {
     for (const pathname of [
       "/event",
+      "/event/activity",
       "/event/analytics",
       "/event/dashboard",
       "/event/dashboard/builder",

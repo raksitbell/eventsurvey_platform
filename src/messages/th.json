@@ -1,4 +1,127 @@
 {
+  "userActivity": {
+    "title": "User Activity",
+    "eventTitle": "ประวัติกิจกรรมผู้ใช้",
+    "platformTitle": "User Activity · ทุกอีเวนต์",
+    "platformEventTitle": "User Activity · รายอีเวนต์",
+    "platformBreadcrumb": "Platform Admin",
+    "eventBreadcrumb": "Event Workspace",
+    "platformBadge": "ALL EVENTS · PLATFORM",
+    "platformEventBadge": "ONE EVENT · PLATFORM",
+    "platformDescription": "ตรวจสอบกิจกรรมของผู้ใช้และส่วนงานที่เกี่ยวข้อง โดยแยกตามอีเวนต์",
+    "eventDescription": "ตรวจสอบการเพิ่ม แก้ไข และลบ พร้อมเปิดหน้าที่เกี่ยวข้องในอีเวนต์",
+    "organizedBy": "จัดโดย",
+    "tableLabel": "ประวัติกิจกรรมผู้ใช้",
+    "columns": {
+      "when": "วันและเวลา",
+      "actor": "ผู้ดำเนินการ",
+      "action": "การกระทำ",
+      "event": "อีเวนต์",
+      "entity": "รายการ",
+      "related": "หน้าที่เกี่ยวข้อง",
+      "profile": "โปรไฟล์"
+    },
+    "metrics": {
+      "total": "กิจกรรมทั้งหมด",
+      "eventCount": "อีเวนต์ที่มีประวัติ",
+      "actorCount": "ผู้ดำเนินการ",
+      "edit": "การแก้ไข",
+      "delete": "การลบ"
+    },
+    "metricNotes": {
+      "platformTotal": "รวมจากทุกอีเวนต์",
+      "platformEvents": "แยกดูประวัติได้",
+      "platformActors": "Platform + Event Admin",
+      "platformEdits": "รายการข้อมูลที่ถูกอัปเดต",
+      "selectedTotal": "ในอีเวนต์นี้",
+      "selectedEvents": "แสดงเฉพาะงานที่เลือก",
+      "selectedActors": "ผู้ใช้ที่เปลี่ยนข้อมูล",
+      "selectedEdits": "การเปลี่ยนแปลงของงาน",
+      "eventTotal": "รายการภายในอีเวนต์",
+      "eventActors": "คนที่มีการเปลี่ยนแปลง",
+      "eventEdits": "อัปเดตฟอร์มและการตั้งค่า",
+      "eventDeletes": "มีประวัติให้ตรวจสอบ"
+    },
+    "filters": {
+      "searchLabel": "ค้นหากิจกรรม",
+      "platformSearch": "ค้นหาชื่อผู้ใช้หรือการเปลี่ยนแปลง…",
+      "eventSearch": "ค้นหาผู้ใช้หรือข้อมูลที่เปลี่ยนแปลง…",
+      "allEvents": "Event: ทุกอีเวนต์",
+      "allActions": "การกระทำ: ทั้งหมด",
+      "monthLabel": "ช่วงเวลา",
+      "allMonths": "ช่วงเวลา: ทั้งหมด",
+      "allActors": "ผู้ดำเนินการ: ทุกคน",
+      "reset": "รีเซ็ตตัวกรอง"
+    },
+    "table": {
+      "platform": "กิจกรรมจากทุกอีเวนต์",
+      "selected": "กิจกรรมเฉพาะอีเวนต์",
+      "event": "รายการกิจกรรม",
+      "platformHint": "เลือกชื่ออีเวนต์เพื่อดูประวัติเฉพาะงาน",
+      "selectedHint": "ตัวกรอง: {event}",
+      "eventHint": "แสดงตัวอย่าง {count, number} รายการ · เวลา Asia/Bangkok (ICT)"
+    },
+    "actions": {
+      "edit": "แก้ไข",
+      "add": "เพิ่ม",
+      "delete": "ลบ"
+    },
+    "entities": {
+      "postEventSurvey": "แบบสอบถามหลังงาน",
+      "surveyForm": "ฟอร์มแบบสอบถาม",
+      "registrationForm": "ฟอร์มลงทะเบียน",
+      "eventDetails": "ข้อมูลอีเวนต์",
+      "teamMember": "Event User Management",
+      "whitelist": "Whitelist"
+    },
+    "pages": {
+      "survey": "Survey Builder",
+      "registration": "Registration Builder",
+      "setup": "Event Setup",
+      "access": "Event Access",
+      "team": "User Management"
+    },
+    "fields": {
+      "questions": "คำถาม",
+      "settings": "การตั้งค่า",
+      "title": "ชื่ออีเวนต์",
+      "description": "รายละเอียด",
+      "startDate": "วันเริ่มต้น",
+      "endDate": "วันสิ้นสุด",
+      "location": "สถานที่",
+      "access": "การเข้าถึง",
+      "role": "บทบาท",
+      "permissions": "สิทธิ์",
+      "capacity": "จำนวนที่รับ",
+      "status": "สถานะ",
+      "responseDeadline": "วันปิดรับคำตอบ",
+      "registrationCapacity": "จำนวนรับสมัคร"
+    },
+    "roles": {
+      "eventAdmin": "Event Admin",
+      "platformAdmin": "Platform Admin"
+    },
+    "profile": {
+      "title": "โปรไฟล์ผู้ใช้งาน",
+      "open": "ดูโปรไฟล์",
+      "openFor": "ดูโปรไฟล์ {name}",
+      "platformDescription": "ดูประวัติของผู้ใช้นี้ในอีเวนต์ต่าง ๆ ของระบบ",
+      "eventDescription": "ดูว่าใครดำเนินการอะไรและเปลี่ยนแปลงข้อมูลใดบ้าง",
+      "relatedEvents": "{count, number} อีเวนต์ที่เกี่ยวข้อง",
+      "timeline": "ประวัติการดำเนินการ",
+      "close": "ปิดหน้าต่าง",
+      "empty": "ไม่มีประวัติกิจกรรมสำหรับผู้ใช้นี้"
+    },
+    "pagination": {
+      "label": "หน้ารายการกิจกรรม",
+      "previous": "ก่อนหน้า",
+      "next": "ถัดไป",
+      "page": "หน้า {number}"
+    },
+    "resultCount": "แสดง {shown, number} จาก {total, number} รายการ",
+    "empty": "ไม่พบกิจกรรมที่ตรงกับตัวกรอง",
+    "time": "{time} น."
+  },
   "common": {
     "home": "หน้าหลัก",
     "loading": "กำลังโหลด...",

@@ -22,6 +22,7 @@ export function isEventReportingPath(pathname: string): boolean {
 // The portal uses these same first segments under /event.
 const workspaceSegments = new Set([
   ...reportingSegments,
+  "activity",
   "branding",
   "details",
   "forms",

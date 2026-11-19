@@ -1,4 +1,22 @@
 /* Event Admin sidebar and header, component instances in 844:1413. */
+.activityShell {
+  --workspace-font-ui-inter: var(--es-font-inter), var(--es-font-thai), sans-serif;
+  --workspace-font-outfit: Outfit, var(--es-font-thai), sans-serif;
+  background: var(--color-event-page);
+}
+:global(.dark) .activityShell {
+  background: var(--color-gray-950);
+}
+.activityBody {
+  flex: 1;
+  inline-size: 100%;
+  max-inline-size: 1536px;
+  min-inline-size: 0;
+  margin-inline: auto;
+  padding: 20px 32px 24px;
+  font-family: var(--workspace-font-ui-inter);
+}
+
 .sidebar {
   --es-platform-sidebar-background: var(--color-event-sidebar);
   --es-platform-sidebar-text-strong: var(--color-white);
@@ -243,6 +261,9 @@ a.item:hover {
   filter: brightness(0) invert(1);
 }
 @media (max-width: 639px) {
+  .activityBody {
+    padding: 16px 12px;
+  }
   .header {
     padding-inline: 16px;
   }

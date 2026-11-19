@@ -17,7 +17,9 @@ import EventLanguageDropdown from "./EventLanguageDropdown";
 import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
 
-export default function EventWorkspaceHeader() {
+export default function EventWorkspaceHeader({
+  sidebarId = "event-workspace-sidebar",
+}: { sidebarId?: string }) {
   const h = useTranslations("header");
   const a = useTranslations("userDropdown");
   const tc = useTranslations("confirm");
@@ -72,7 +74,7 @@ export default function EventWorkspaceHeader() {
         type="button"
         className={styles.toggle}
         aria-label={h("toggleSidebar")}
-        aria-controls="event-workspace-sidebar"
+        aria-controls={sidebarId}
         onClick={() =>
           globalThis.innerWidth >= 1280
             ? toggleSidebar()

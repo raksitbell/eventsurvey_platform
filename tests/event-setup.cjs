@@ -2173,7 +2173,7 @@ test("Private access leaves the Registration switch editable and shows the relev
   );
 });
 
-test("workspace navigation preserves form management, guards dirty Whitelist links and highlights the active page", async () => {
+test("workspace navigation reflects activity assignment and guards dirty Whitelist links", async () => {
   const link = () => null;
   const render = (
     userRole,
@@ -2196,7 +2196,9 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
         ),
         "@/hooks/useEventWorkspace": {
           default: () => ({
-            workspace: { userRole, localPublishedAt, canAccessDashboard },
+            workspace: userRole
+              ? { userRole, localPublishedAt, canAccessDashboard }
+              : null,
           }),
         },
         "@/i18n/navigation": {
@@ -2208,6 +2210,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
           useEventNavigationGuard: () => ({ current: confirmLeave }),
         },
         "./EventWorkspaceChrome.module.css": { default: {} },
+        "./WorkspaceSidebarBrand": { default: () => null },
       },
     );
     return Sidebar();
@@ -2220,6 +2223,19 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     node.type === link && node.props.href === "/event/dashboard";
   const formManagement = (node) =>
     node.type === link && node.props.href === "/form";
+  const activity = (node) =>
+    node.type === link && node.props.href === "/event/activity";
+  for (const userRole of ["event_owner", "sub_user"]) {
+    assert.equal(
+      findSetupElement(render(userRole, null, "/event/activity"), activity)
+        .props["aria-current"],
+      "page",
+    );
+  }
+  assert.equal(
+    findSetupElement(render(null, null, "/event"), activity),
+    null,
+  );
   for (const pathname of ["/event", "/event/qr", "/event/team"]) {
     const owner = render("event_owner", "2027-01-01T00:00:00.000Z", pathname);
     assert.equal(

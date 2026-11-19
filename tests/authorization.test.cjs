@@ -94,8 +94,10 @@ test("proxy routes the full auth-state matrix before forwarding to localization"
       const destinations = [
         ["/login", login],
         ["/admin", admin],
+        ["/admin/activity", admin],
         ["/admin/users", admin],
         ["/event", event],
+        ["/event/activity", event],
         ["/event/forms", event],
       ];
       for (const [path, target] of destinations) {
