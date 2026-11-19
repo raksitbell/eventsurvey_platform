@@ -12,6 +12,10 @@ import {
   rejectCrossOrigin,
 } from "@/core/auth/route-response";
 import { MockApiError, mockApi } from "@/core/api/mock-client";
+import {
+  getPlatformAccessForUser,
+  platformSessionFlags,
+} from "@/core/mock/access";
 import { hasPlatformPermission } from "@/core/mock/role-permissions";
 import type { MockEvent, MockEventTranslation } from "@/types/mock";
 
@@ -52,10 +56,7 @@ export async function POST(request: NextRequest) {
   try {
     const { realAccount, session } = auth;
     if (
-      !(await hasPlatformPermission(
-        realAccount.platformRoleId,
-        "inspect_event",
-      ))
+      !(await hasPlatformPermission(session.realUserId, "inspect_event"))
     ) {
       return authJson({ error: "FORBIDDEN" }, 403);
     }
@@ -63,16 +64,15 @@ export async function POST(request: NextRequest) {
     const eventTitle = await resolveEventTitle(eventId);
     if (!eventTitle) return authJson({ error: "INVALID_TARGET" }, 404);
 
-    const canViewActivity = await hasPlatformPermission(
-      realAccount.platformRoleId,
-      "view_platform_activity",
+    const flags = platformSessionFlags(
+      await getPlatformAccessForUser(session.realUserId),
     );
     const response = authJson({
       realUser: projectUserPii(realAccount.user, true),
       impersonatedUser: null,
       inspectedEventId: eventId,
       inspectedEventName: eventTitle,
-      canViewActivity,
+      ...flags,
     });
     setAuthSessionCookie(
       response,
@@ -104,16 +104,15 @@ export async function DELETE(request: NextRequest) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
 
-  const canViewActivity = await hasPlatformPermission(
-    realAccount.platformRoleId,
-    "view_platform_activity",
+  const flags = platformSessionFlags(
+    await getPlatformAccessForUser(session.realUserId),
   );
   const response = authJson({
     realUser: projectUserPii(realAccount.user, true),
     impersonatedUser: null,
     inspectedEventId: null,
     inspectedEventName: null,
-    canViewActivity,
+    ...flags,
   });
   if (session.inspectedEventId || session.impersonating) {
     setAuthSessionCookie(

@@ -23,8 +23,46 @@ import type {
   AdminActivityItem,
   AdminActivityResponse,
 } from "@/types/admin/activity";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+const PAGE_SIZE = 10;
+
+function getPageNumbers(
+  currentPage: number,
+  totalPages: number,
+): (number | "...")[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "...", totalPages];
+  }
+  if (currentPage >= totalPages - 3) {
+    return [
+      1,
+      "...",
+      totalPages - 4,
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
+  }
+  return [
+    1,
+    "...",
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    "...",
+    totalPages,
+  ];
+}
 
 export default function AdminActivityPanel() {
   const t = useTranslations("adminActivity");
@@ -32,7 +70,7 @@ export default function AdminActivityPanel() {
   const ti = useTranslations("eventInspection");
   const locale = useLocale();
   const { confirm } = useConfirm();
-  const { inspectEvent } = useAuth();
+  const { inspectEvent, canInspection } = useAuth();
   const router = useRouter();
   const translateMeta = useMemo<ActivityMetaTranslate>(
     () => (key, values) => t(key as never, values as never),
@@ -49,6 +87,7 @@ export default function AdminActivityPanel() {
   const [search, setSearch] = useState("");
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [openingModule, setOpeningModule] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +130,7 @@ export default function AdminActivityPanel() {
     );
 
     if (item.eventId) {
+      if (!canInspection) return;
       const eventLabel = item.eventName ?? ti("unnamedEvent");
       const confirmed = await confirm({
         title: tc("inspectTitle"),
@@ -135,6 +175,25 @@ export default function AdminActivityPanel() {
       }),
     );
   }, [data?.items, search, t, translateMeta]);
+
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalItems);
+  const paginatedItems = useMemo(
+    () => items.slice(startIndex, endIndex),
+    [items, startIndex, endIndex],
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, eventId, accountType, dateRange]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <div className="space-y-6">
@@ -259,7 +318,7 @@ export default function AdminActivityPanel() {
                   </td>
                 </tr>
               ) : (
-                items.map((item) => (
+                paginatedItems.map((item) => (
                   <ActivityRow
                     key={item.id}
                     item={item}
@@ -277,6 +336,63 @@ export default function AdminActivityPanel() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex flex-col gap-4 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+          <div className="text-xs text-gray-400 dark:text-gray-500">
+            {t("showingCount", {
+              start: totalItems === 0 ? 0 : startIndex + 1,
+              end: endIndex,
+              total: totalItems,
+            })}
+          </div>
+          <div className="flex items-center gap-2.5 text-xs sm:gap-3">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="inline-flex size-6 items-center justify-center text-gray-500 transition-colors hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30 dark:text-gray-400 dark:hover:text-white"
+              aria-label="Previous page"
+            >
+              <ChevronLeftIcon className="size-3.5" />
+            </button>
+            {getPageNumbers(currentPage, totalPages).map((item, idx) => {
+              if (item === "...") {
+                return (
+                  <span
+                    key={`ellipsis-${idx}`}
+                    className="inline-flex min-w-[20px] items-center justify-center px-1 text-xs text-gray-400 select-none dark:text-gray-500"
+                  >
+                    …
+                  </span>
+                );
+              }
+              const isActive = item === currentPage;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setCurrentPage(item)}
+                  className={`inline-flex min-w-[20px] items-center justify-center px-1 text-xs transition-colors ${
+                    isActive
+                      ? "font-bold text-gray-900 dark:text-white"
+                      : "font-normal text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+                  }`}
+                >
+                  {item}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="inline-flex size-6 items-center justify-center text-gray-500 transition-colors hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30 dark:text-gray-400 dark:hover:text-white"
+              aria-label="Next page"
+            >
+              <ChevronRightIcon className="size-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { authJson } from "@/core/auth/route-response";
 import { hasPlatformPermission } from "@/core/mock/access";
 import { routing, type Locale } from "@/i18n/routing";
 import { getAdminUserActivity } from "@/services/admin/activity";
+import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import type { NextRequest } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -25,9 +26,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
 
-    const profile = await getAdminUserActivity(id, locale, {
-      eventId: params.get("eventId") || null,
-    });
+    const viewer = await getPlatformPiiViewer(session);
+    const profile = await getAdminUserActivity(
+      id,
+      locale,
+      {
+        eventId: params.get("eventId") || null,
+      },
+      viewer,
+    );
     if (!profile) return authJson({ error: "USER_NOT_FOUND" }, 404);
     return authJson(profile);
   } catch {

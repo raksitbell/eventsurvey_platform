@@ -45,7 +45,9 @@ export type MockPermissionCode =
   | "view_unmasked_pii";
 export type MockPlatformPermissionCode =
   | "manage_platform_users"
+  | "view_platform_users"
   | "manage_all_events"
+  | "view_all_events"
   | "view_platform_overview"
   | "view_platform_activity"
   | "inspect_event"

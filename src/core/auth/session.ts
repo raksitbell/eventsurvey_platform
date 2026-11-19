@@ -7,8 +7,18 @@ export type AuthSnapshot = {
   impersonatedUser: User | null;
   inspectedEventId: string | null;
   inspectedEventName: string | null;
+  /** platform_access.overview is view_only+ */
+  canViewOverview: boolean;
+  /** platform_access.events is view_only+ */
+  canViewEvents: boolean;
+  /** platform_access.users is view_only+ */
+  canViewUsers: boolean;
   /** From platform_access.canViewActivity (super_admin User Activity). */
   canViewActivity: boolean;
+  /** From platform_access.canInspection — open event workspace as platform. */
+  canInspection: boolean;
+  /** From platform_access.events === can_edit (create / edit / status). */
+  canManageEvents: boolean;
 };
 
 export function clearLegacyAuthStorage() {

@@ -1,5 +1,11 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { normalizeAuditModuleKey } from "@/core/audit/module-path";
+import {
+  maskEmail,
+  maskName,
+  mayViewPii,
+  type PiiViewer,
+} from "@/core/auth/pii";
 import { normalizeContentLocale } from "@/core/event/content";
 import { getEventAccessForUser } from "@/core/mock/access";
 import { mapMockUserToUser } from "@/core/mock/map-user";
@@ -20,6 +26,24 @@ import type {
   MockEventTranslation,
   MockUser,
 } from "@/types/mock";
+
+function bindPersonName(
+  raw: string,
+  userId: string,
+  viewer?: PiiViewer,
+): string {
+  if (!viewer || mayViewPii(viewer, userId)) return raw;
+  return maskName(raw);
+}
+
+function bindPersonEmail(
+  raw: string,
+  userId: string,
+  viewer?: PiiViewer,
+): string {
+  if (!viewer || mayViewPii(viewer, userId)) return raw;
+  return maskEmail(raw);
+}
 
 function actionKind(action: string): AuditActionKind {
   const normalized = action.trim().toLowerCase();
@@ -76,6 +100,7 @@ async function toActivityItem(
   events: MockEvent[],
   translations: MockEventTranslation[],
   locale: Locale,
+  viewer?: PiiViewer,
 ): Promise<AdminActivityItem> {
   const actor = usersById.get(row.actor_user_id) ?? null;
   let actorRole: string | null = null;
@@ -87,11 +112,13 @@ async function toActivityItem(
     actorRole = mapMockUserToUser(actor, permissions)?.role ?? null;
   }
 
+  const rawName = actor?.display_name?.trim() || row.actor_user_id;
+
   return {
     id: row.id,
     occurredAt: row.occurred_at,
     actorUserId: row.actor_user_id,
-    actorName: actor?.display_name ?? row.actor_user_id,
+    actorName: bindPersonName(rawName, row.actor_user_id, viewer),
     actorRole,
     eventId: row.event_id,
     eventName: bindEventName(row.event_id, events, translations, locale),
@@ -137,6 +164,7 @@ function matchesFilters(
 export async function listAdminActivity(
   locale: Locale = routing.defaultLocale,
   filters: AdminActivityFilters = {},
+  viewer?: PiiViewer,
 ): Promise<AdminActivityResponse> {
   const [logs, users, events, translations] = await Promise.all([
     mockApi.get<MockAuditLog[]>("/audit_logs").catch((error: unknown) => {
@@ -158,7 +186,7 @@ export async function listAdminActivity(
 
   const items = await Promise.all(
     filtered.map((row) =>
-      toActivityItem(row, usersById, events, translations, locale),
+      toActivityItem(row, usersById, events, translations, locale, viewer),
     ),
   );
 
@@ -234,6 +262,7 @@ export async function getAdminUserActivity(
   userId: string,
   locale: Locale = routing.defaultLocale,
   filters: Pick<AdminActivityFilters, "eventId"> = {},
+  viewer?: PiiViewer,
 ): Promise<AdminUserActivityProfile | null> {
   let user: MockUser;
   try {
@@ -245,10 +274,14 @@ export async function getAdminUserActivity(
   if (!user || user.removed_at) return null;
 
   const [data, memberships] = await Promise.all([
-    listAdminActivity(locale, {
-      actorUserId: userId,
-      eventId: filters.eventId,
-    }),
+    listAdminActivity(
+      locale,
+      {
+        actorUserId: userId,
+        eventId: filters.eventId,
+      },
+      viewer,
+    ),
     loadUserMemberships(user, locale),
   ]);
 
@@ -270,8 +303,8 @@ export async function getAdminUserActivity(
   return {
     user: {
       id: user.id,
-      name: user.display_name,
-      email: user.email,
+      name: bindPersonName(user.display_name, user.id, viewer),
+      email: bindPersonEmail(user.email, user.id, viewer),
       roleLabel: mapped?.role ?? user.system_role,
     },
     memberships,

@@ -31,7 +31,14 @@ interface AuthContextValue {
   inspectedEventId: string | null;
   inspectedEventName: string | null;
   isInspectingEvent: boolean;
+  canViewOverview: boolean;
+  canViewEvents: boolean;
+  canViewUsers: boolean;
   canViewActivity: boolean;
+  /** Platform canInspection — open event workspace with full platform rights. */
+  canInspection: boolean;
+  /** Platform events module is can_edit — create / edit / start / close. */
+  canManageEvents: boolean;
   /** True while restoring the server session or navigating after an auth change. */
   isLoading: boolean;
   authUnavailable: boolean;
@@ -50,7 +57,12 @@ const EMPTY: AuthSnapshot = {
   impersonatedUser: null,
   inspectedEventId: null,
   inspectedEventName: null,
+  canViewOverview: false,
+  canViewEvents: false,
+  canViewUsers: false,
   canViewActivity: false,
+  canInspection: false,
+  canManageEvents: false,
 };
 
 /** Safety net so a redirect that never reaches the target cannot strand the UI */
@@ -162,7 +174,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ? next.realUser
               ? next.inspectedEventId
                 ? "/event"
-                : getHomePathForRole(next.realUser.role)
+                : getHomePathForRole(next.realUser.role, {
+                    canViewOverview: next.canViewOverview,
+                    canViewEvents: next.canViewEvents,
+                    canViewUsers: next.canViewUsers,
+                    canViewActivity: next.canViewActivity,
+                  })
               : "/login"
             : nextPath;
         if (path) softGo(path);
@@ -204,7 +221,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await changeSession(endEventInspection, "/admin/events");
   }, [changeSession]);
 
+  const canViewOverview = snapshot.canViewOverview === true;
+  const canViewEvents = snapshot.canViewEvents === true;
+  const canViewUsers = snapshot.canViewUsers === true;
   const canViewActivity = snapshot.canViewActivity === true;
+  const canInspection = snapshot.canInspection === true;
+  const canManageEvents = snapshot.canManageEvents === true;
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -214,7 +236,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       inspectedEventId,
       inspectedEventName,
       isInspectingEvent,
+      canViewOverview,
+      canViewEvents,
+      canViewUsers,
       canViewActivity,
+      canInspection,
+      canManageEvents,
       isLoading: sessionStatus === "loading" || isHolding,
       authUnavailable: sessionStatus === "unavailable",
       login,
@@ -230,7 +257,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       inspectedEventId,
       inspectedEventName,
       isInspectingEvent,
+      canViewOverview,
+      canViewEvents,
+      canViewUsers,
       canViewActivity,
+      canInspection,
+      canManageEvents,
       sessionStatus,
       isHolding,
       login,

@@ -3,6 +3,7 @@ import { authJson } from "@/core/auth/route-response";
 import { hasPlatformPermission } from "@/core/mock/access";
 import { routing, type Locale } from "@/i18n/routing";
 import { listAdminActivity } from "@/services/admin/activity";
+import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import type { AdminActivityFilters } from "@/types/admin/activity";
 import type { NextRequest } from "next/server";
 
@@ -42,7 +43,8 @@ export async function GET(request: NextRequest) {
       actorUserId: params.get("actorUserId") || null,
     };
 
-    const data = await listAdminActivity(locale, filters);
+    const viewer = await getPlatformPiiViewer(session);
+    const data = await listAdminActivity(locale, filters, viewer);
     return authJson(data);
   } catch {
     return authJson({ error: "Failed to load activity" }, 502);

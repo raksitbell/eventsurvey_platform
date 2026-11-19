@@ -5,7 +5,11 @@ import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { api } from "@/core/api";
-import { canEnterAdminArea, canEnterEventArea } from "@/core/auth";
+import {
+  canEnterAdminArea,
+  canEnterEventArea,
+  getAdminHomePath,
+} from "@/core/auth";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
@@ -15,7 +19,6 @@ import {
   ClockIcon,
   Squares2X2Icon,
   UserGroupIcon,
-  UsersIcon,
 } from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -31,8 +34,16 @@ export default function AppSidebar() {
   const t = useTranslations("sidebar");
   const pathname = usePathname();
   const locale = useLocale();
-  const { user, realUser, isImpersonating, inspectedEventId, canViewActivity } =
-    useAuth();
+  const {
+    user,
+    realUser,
+    isImpersonating,
+    inspectedEventId,
+    canViewOverview,
+    canViewEvents,
+    canViewUsers,
+    canViewActivity,
+  } = useAuth();
   const {
     isDesktop,
     isExpanded,
@@ -104,17 +115,33 @@ export default function AppSidebar() {
   }, [dashboardAccessKey, locale]);
 
   const adminNav: NavItem[] = [
-    { key: "overview", icon: <Squares2X2Icon className="size-5" />, path: "/admin" },
-    {
-      key: "events",
-      icon: <Squares2X2Icon className="size-5" />,
-      path: "/admin/events",
-    },
-    {
-      key: "owners",
-      icon: <UsersIcon className="size-5" />,
-      path: "/admin/users",
-    },
+    ...(canViewOverview
+      ? [
+          {
+            key: "overview",
+            icon: <Squares2X2Icon className="size-5" />,
+            path: "/admin",
+          } satisfies NavItem,
+        ]
+      : []),
+    ...(canViewEvents
+      ? [
+          {
+            key: "events",
+            icon: <Squares2X2Icon className="size-5" />,
+            path: "/admin/events",
+          } satisfies NavItem,
+        ]
+      : []),
+    ...(canViewUsers
+      ? [
+          {
+            key: "owners",
+            icon: <UserGroupIcon className="size-5" />,
+            path: "/admin/users",
+          } satisfies NavItem,
+        ]
+      : []),
     ...(canViewActivity
       ? [
           {
@@ -180,7 +207,16 @@ export default function AppSidebar() {
           ? eventNav
           : [];
 
-  const homePath = allowAdmin ? "/admin" : allowEvent ? "/event" : "/login";
+  const homePath = allowAdmin
+    ? getAdminHomePath({
+        canViewOverview,
+        canViewEvents,
+        canViewUsers,
+        canViewActivity,
+      })
+    : allowEvent
+      ? "/event"
+      : "/login";
 
   const isActive = (path?: string) => {
     if (!path) return false;
@@ -230,7 +266,9 @@ export default function AppSidebar() {
       </Link>
 
       <nav aria-label={t("groups.workspace")}>
-        <h2 className={expanded ? styles.section : "sr-only"}>WORKSPACE</h2>
+        <h2 className={expanded ? styles.section : "sr-only"}>
+          {t("groups.workspace")}
+        </h2>
         <ul className="space-y-1">
           {navItems.map((item) => {
             const { path } = item;
