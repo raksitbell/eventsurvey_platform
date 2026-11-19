@@ -98,7 +98,11 @@ export default function AppSidebar() {
   }, [dashboardAccessKey, locale]);
 
   const adminNav: NavItem[] = [
-    { key: "overview", icon: <Squares2X2Icon className="size-5" />, path: "/admin" },
+    {
+      key: "overview",
+      icon: <Squares2X2Icon className="size-5" />,
+      path: "/admin",
+    },
     {
       key: "events",
       icon: <Squares2X2Icon className="size-5" />,
@@ -106,7 +110,7 @@ export default function AppSidebar() {
     },
     {
       key: "owners",
-      icon: <UsersIcon className="size-5" />,
+      icon: <UserGroupIcon className="size-5" />,
       path: "/admin/users",
     },
     ...(canViewActivity

@@ -34,6 +34,16 @@ import type {
 import type { User, UserRole } from "@/types/user";
 import { randomUUID } from "node:crypto";
 
+interface RoleRow {
+  id: string;
+  name?: string;
+}
+
+interface RolePermRow {
+  role_id: string;
+  permission: string;
+}
+
 const PORTAL_ROLES: UserRole[] = ["super_admin", "event_owner", "sub_user"];
 
 /** Bind users + events + event_translations + event_access for the admin users table */
@@ -140,6 +150,7 @@ export async function getBoundAdminUsers(
       eventId: eventId && liveEvents.has(eventId) ? eventId : null,
       eventName,
       customRoleName,
+      lastActiveAt: mock?.updated_at ?? mock?.joined_at ?? safe.updatedAt,
       ...(user.role === "super_admin"
         ? {
             canViewActivity:
@@ -157,8 +168,16 @@ export async function getBoundAdminUsers(
     byRole[user.role] = (byRole[user.role] ?? 0) + 1;
   }
 
+  const eventList = events
+    .filter((e) => !e.deleted_at)
+    .map((e) => ({
+      id: e.id,
+      title: resolveEventTitle(translations, e.id, locale) || "",
+    }));
+
   return {
     users: bound,
+    events: eventList,
     meta: {
       total: bound.length,
       byRole,
@@ -233,4 +252,68 @@ export async function updatePlatformAccessFlags(
     canViewActivity: nextMatrix.canViewActivity,
     canInspection: nextMatrix.canInspection,
   };
+}
+
+export async function updateUserRoleOrEvent(
+  targetUserId: string,
+  updates: { eventId?: string | null; role?: UserRole },
+  actorUserId: string,
+): Promise<{ success: boolean }> {
+  const account = await getActivePortalAccount(targetUserId);
+  if (!account) {
+    throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
+  }
+
+  const patchBody: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (updates.eventId !== undefined) {
+    patchBody.event_id = updates.eventId;
+  }
+
+  if (updates.role !== undefined) {
+    if (updates.role === "super_admin") {
+      patchBody.system_role = "platform_admin";
+      patchBody.platform_role_id = "3af7420f-5588-52b9-9ac0-7ea75fd7bdcf";
+      patchBody.role_id = null;
+      patchBody.event_id = null;
+    } else {
+      patchBody.system_role = "event_user";
+      patchBody.platform_role_id = null;
+      const roles = await mockApi.get<RoleRow[]>("/roles");
+      const rolePermissions =
+        await mockApi.get<RolePermRow[]>("/role_permissions");
+      const ownerRoleIds = new Set(
+        rolePermissions
+          .filter((rp) => rp.permission === "manage_sub_user")
+          .map((rp) => rp.role_id),
+      );
+      if (updates.role === "event_owner") {
+        const found = roles.find((r) => ownerRoleIds.has(r.id));
+        if (found) patchBody.role_id = found.id;
+      } else {
+        const found = roles.find((r) => !ownerRoleIds.has(r.id));
+        if (found) patchBody.role_id = found.id;
+      }
+    }
+  }
+
+  await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, patchBody);
+
+  await writeAuditLog({
+    actorUserId,
+    eventId: typeof patchBody.event_id === "string" ? patchBody.event_id : null,
+    action: "update",
+    resourceType: "user",
+    resourceId: targetUserId,
+    module: "user_management",
+    descriptionTh: "อัปเดตข้อมูลผู้ใช้งานและสิทธิ์",
+    descriptionEn: "Updated user role or assigned event",
+    metadata: {
+      after: patchBody,
+    },
+  });
+
+  return { success: true };
 }
