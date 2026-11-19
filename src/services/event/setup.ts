@@ -12,6 +12,7 @@ import type { SetupRecord } from "@/core/event/setup-state";
 import { encodeSetupRecord, readSetupRecord, readSetupState } from "@/core/event/setup-storage";
 import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
 import { boundWhitelistAccess, normalizeWhitelistId, parseWhitelistEntries, whitelistUniqueField } from "@/core/event/whitelist";
+import { activeSubmission } from "@/core/forms/lifecycle";
 import { routing, type Locale } from "@/i18n/routing";
 import { getForm, listForms } from "@/services/event/forms";
 import { assertEventSetupMedia } from "@/services/event/setup-media";
@@ -20,7 +21,7 @@ import type { EventBranding } from "@/types/event/branding";
 import type { FormType } from "@/types/event/form";
 import type { EventDraft, EventSetupMediaKind, EventSetupState } from "@/types/event/setup";
 import type { WhitelistEntry, WhitelistUniqueField } from "@/types/event/whitelist";
-import type { MockEvent, MockForm, MockWhitelistEntry } from "@/types/mock";
+import type { MockEvent, MockForm, MockFormSubmission, MockWhitelistEntry } from "@/types/mock";
 
 type SetupContext = Awaited<ReturnType<typeof getSetupContext>>;
 type BrandingChange = { locale: string; value: EventBranding; pendingMedia?: EventSetupMediaKind[] };
@@ -178,39 +179,54 @@ async function registrationForWhitelist(eventId: string) {
   if (form.eventId !== eventId || form.type !== "registration") return null;
   const field = whitelistUniqueField(form);
   if (!field) return null;
-  return { formId: form.id, field, existing: await legacyWhitelistEntries(eventId, field) };
+  const stored = await loadStoredWhitelist(eventId, form.id, field);
+  return { formId: form.id, field, ...stored };
 }
 
-async function legacyWhitelistEntries(eventId: string, field: WhitelistUniqueField) {
-  const legacy = await mockApi.get<MockWhitelistEntry[]>(
+async function loadStoredWhitelist(eventId: string, formId: string, field: WhitelistUniqueField) {
+  const rows = await mockApi.get<MockWhitelistEntry[]>(
     `/whitelist_entries?event_id=${encodeURIComponent(eventId)}`,
   ).catch((error: unknown) => {
     if (error instanceof MockApiError && error.status === 404) return [];
     throw error;
   });
+  const scoped = rows.filter((entry) => entry.event_id === eventId && !entry.deleted_at && entry.access_code);
+  const submissions = scoped.some((entry) => entry.participant_submission_id)
+    ? await mockApi.getFresh<MockFormSubmission[]>(`/form_submissions?form_id=${encodeURIComponent(formId)}&status=submitted`)
+    : [];
+  const completed = new Set(submissions.filter((row) =>
+    row.event_id === eventId && row.form_id === formId &&
+    row.participant_kind === "registration" && activeSubmission(row),
+  ).map((row) => row.id));
+  const inactiveJoins = new Set<string>();
   const existing: WhitelistEntry[] = [];
-  for (const entry of legacy) {
-    if (entry.event_id !== eventId || entry.deleted_at || !entry.access_code) continue;
+  for (const entry of scoped) {
     const uniqueId = normalizeWhitelistId(entry.access_code, field.type);
     if (!uniqueId) continue;
-    const restored = {
+    const restored: WhitelistEntry = {
       id: entry.id,
       uniqueId,
       name: entry.username,
       status: entry.status,
     };
-    if (entry.status === "joined" || parseWhitelistEntries([restored], field)) existing.push(restored);
+    if (entry.participant_submission_id) {
+      restored.status = completed.has(entry.participant_submission_id) ? "joined" : "available";
+      if (restored.status === "available") inactiveJoins.add(entry.id);
+    }
+    if (restored.status === "joined" || parseWhitelistEntries([restored], field)) existing.push(restored);
   }
-  return existing;
+  return { existing, inactiveJoins };
 }
 
 function whitelistForField(setup: SetupRecord, form: Awaited<ReturnType<typeof registrationForWhitelist>>) {
   if (!form) return [];
   const saved = setup.whitelist;
   const sameField = saved?.formId === form.formId && saved.fieldId === form.field.id && saved.kind === form.field.type;
-  const eligible = sameField ? saved.entries : form.existing;
+  const savedEntries = (saved?.entries ?? []).map((entry) => form.inactiveJoins.has(entry.id)
+    ? { ...entry, status: "available" as const } : entry);
+  const eligible = sameField ? savedEntries : form.existing;
   const merged = new Map(eligible.map((entry) => [entry.uniqueId, entry]));
-  for (const used of [...form.existing, ...(saved?.entries ?? [])]) {
+  for (const used of [...form.existing, ...savedEntries]) {
     if (used.status === "joined") merged.set(used.uniqueId, used);
   }
   return [...merged.values()];
@@ -223,7 +239,8 @@ async function whitelistForPublication(eventId: string, setup: SetupRecord, regi
   if (saved && (saved.formId !== registration.id || saved.fieldId !== field.id || saved.kind !== field.type)) {
     return null;
   }
-  const form = { formId: registration.id, field, existing: await legacyWhitelistEntries(eventId, field) };
+  const stored = await loadStoredWhitelist(eventId, registration.id, field);
+  const form = { formId: registration.id, field, ...stored };
   const list = { formId: registration.id, fieldId: field.id, kind: field.type, entries: whitelistForField(setup, form) };
   const access = boundWhitelistAccess(list, registration);
   return access ? { ...list, entries: access.entries } : null;

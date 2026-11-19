@@ -1,6 +1,10 @@
 import { ServiceError } from "@/core/api/service-error";
 import type { FormStatus } from "@/types/event/form";
-import type { MockEvent, MockForm } from "@/types/mock";
+import type { MockEvent, MockForm, MockFormSubmission } from "@/types/mock";
+
+export function activeSubmission(row: MockFormSubmission) {
+  return row.status === "submitted" && !row.cancelled_at && !row.deleted_at;
+}
 
 /** Manual status API: draft ↔ scheduled only. open/closed come from cron. */
 const MANUAL_TRANSITIONS: Record<FormStatus, readonly FormStatus[]> = {

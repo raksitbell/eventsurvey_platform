@@ -166,7 +166,7 @@ test("uses shared Mock data for QR links and restricts distribution to the assig
   });
 });
 
-test("shows a scheduled event, hides a draft and blocks unintegrated eligibility checks", async (t) => {
+test("shows a scheduled event, hides a draft and protects private events without a bound whitelist", async (t) => {
   t.after(() =>
     Object.assign(event, {
       status: "open",
@@ -241,6 +241,21 @@ test("honors server capacity and keeps a direct post-event survey available", as
   for (const status of ["pending_approval", "approved", "rejected", "paused", "archived"]) {
     assert.equal(nextCronFormStatus({ ...forms[1], status }, event, surveyClose), null);
   }
+});
+
+test("legacy registration receipts cover the survey's effective post-event or unbounded window", async (t) => {
+  const survey = forms[1];
+  const original = { ...survey };
+  t.after(() => Object.assign(survey, original));
+  const { resolvePublicForm } = load("@/services/event/public-event");
+  const { readSetupRecord } = load("@/core/event/setup-storage");
+  const registeredOnly = { ...event, survey_access: "registered_only" };
+  const read = () => resolvePublicForm(registeredOnly, "registration", readSetupRecord(registeredOnly));
+  assert.equal((await read()).receiptClosesAt, "2099-01-09T00:00:00.000Z");
+  survey.closes_at = null;
+  assert.equal((await read()).receiptClosesAt, null);
+  survey.opens_at = null;
+  assert.equal((await read()).receiptClosesAt, "2099-01-08T00:00:00.000Z");
 });
 
 test("does not distribute a missing or draft form, including by direct URL", async (t) => {
@@ -416,6 +431,7 @@ test("public forms resolve published branding by locale for both form kinds and 
   const setup = {
     publication: {
       draft: { hasRegistration: true, hasSurvey: true },
+      forms: { registration: null, survey: null },
       branding: fallback,
     },
     publishedBranding: { en: english },
@@ -431,7 +447,7 @@ test("public forms resolve published branding by locale for both form kinds and 
   const { getPublicFormPageBySlug } = read("src/services/event/public-event.ts");
   for (const kind of ["registration", "survey"]) {
     assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en"), {
-      result: { status: "scheduled" }, branding: english, bannerUrl: null,
+      result: { status: "scheduled" }, branding: english, bannerUrl: null, hasSurvey: false,
     });
     assert.equal((await getPublicFormPageBySlug(event.slug, kind, "th")).branding, fallback);
   }
@@ -503,7 +519,8 @@ test("private participant forms disclose questions only after a matching publish
   snapshots.registration.closesAt = "2000-01-01T00:00:00Z";
   assert.deepEqual(await enter("person@example.com"), { status: "closed" });
   setup.publication.draft.surveyAccess = "registered_only";
-  assert.deepEqual(await open(event.slug, "survey", "person@example.com"), { status: "restricted" });
+  assert.deepEqual(await open(event.slug, "survey", "person@example.com"), { status: "registrationRequired" });
+  assert.ok((await home(event.slug, "en")).formLinks.survey);
   const previousOrigin = process.env.APP_URL;
   process.env.APP_URL = origin;
   t.after(() => {

@@ -23,15 +23,38 @@ import {
 import { Link } from "@/i18n/navigation";
 import { completeFormLocale } from "@/core/forms/content";
 import type { ParticipantFormKind } from "@/types/event/participant";
-import type { PublicForm } from "@/types/event/public-event";
+import type { PublicForm, PublicFormSubmissionResult } from "@/types/event/public-event";
 import { useLocale, useTranslations } from "next-intl";
 import {
+  useCallback,
+  useEffect,
   useId,
   useRef,
   useState,
   type CSSProperties,
   type FormEvent,
 } from "react";
+
+const retryKeyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function readSubmissionRequestId(storageKey: string) {
+  try {
+    const previous = globalThis.sessionStorage.getItem(storageKey);
+    return previous && retryKeyPattern.test(previous) ? previous : null;
+  } catch {
+    return null;
+  }
+}
+
+function newSubmissionRequestId(storageKey: string) {
+  const id = globalThis.crypto.randomUUID();
+  try { globalThis.sessionStorage.setItem(storageKey, id); } catch { /* Storage is unavailable. */ }
+  return id;
+}
+
+function forgetSubmissionRequestId(storageKey: string) {
+  try { globalThis.sessionStorage.removeItem(storageKey); } catch { /* Storage is unavailable. */ }
+}
 
 type PublicParticipantFormProps = {
   kind: ParticipantFormKind;
@@ -40,12 +63,24 @@ type PublicParticipantFormProps = {
   bannerUrl: string | null;
   contentLocale?: string | null;
 } & (
-  | { readOnly: true; fillViewport?: boolean; eventHref?: never; checkAvailability?: never; checkEligibility?: never }
+  | {
+      readOnly: true;
+      fillViewport?: boolean;
+      eventHref?: never;
+      registrationHref?: never;
+      surveyHref?: never;
+      submitResponse?: never;
+      recoverSubmission?: never;
+      checkEligibility?: never;
+    }
   | {
       readOnly?: false;
       fillViewport?: never;
       eventHref: string;
-      checkAvailability: (data?: FormData) => Promise<PublicForm["status"]>;
+      registrationHref?: string;
+      surveyHref?: string;
+      submitResponse: (data: FormData) => Promise<PublicFormSubmissionResult>;
+      recoverSubmission?: (requestId: string) => Promise<boolean>;
       checkEligibility: (data: FormData) => Promise<PublicForm>;
     }
 );
@@ -53,13 +88,16 @@ type PublicParticipantFormProps = {
 export default function PublicParticipantForm({
   kind,
   eventHref,
+  registrationHref,
+  surveyHref,
   result,
   branding,
   bannerUrl,
   contentLocale,
   readOnly = false,
   fillViewport = false,
-  checkAvailability,
+  submitResponse,
+  recoverSubmission,
   checkEligibility,
 }: PublicParticipantFormProps) {
   const t = useTranslations("publicParticipantForm");
@@ -73,41 +111,83 @@ export default function PublicParticipantForm({
         ? "en"
         : "th";
   const instanceId = useId();
-  const [liveStatus, setStatus] = useState<PublicForm["status"] | "submitted">(
-    result.status,
-  );
-  const [granted, setGranted] = useState<{
-    result: Extract<PublicForm, { status: "open" }>;
-    identifier: string;
-    fieldId?: string;
-  } | null>(null);
+  const [response, setResponse] = useState<PublicForm | { status: "submitted"; earlierAnswers: boolean } | null>(null);
+  const [granted, setGranted] = useState<{ identifier: string; fieldId?: string } | null>(null);
   const [accessChanged, setAccessChanged] = useState(false);
   const [answers, setAnswers] = useState<Record<string, PublicFormAnswer>>({});
-  const [errors, setErrors] = useState<Record<string, PublicFormAnswerIssue>>(
-    {},
-  );
-  const [checking, setChecking] = useState(false);
-  const [checkFailed, setCheckFailed] = useState(false);
+  const [errors, setErrors] = useState<Record<string, PublicFormAnswerIssue>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<"submitError" | "invalidAnswers" | "duplicate" | "requestChanged" | null>(null);
   const requestInFlight = useRef(false);
-  const status = readOnly ? result.status : liveStatus;
-  const form = result.status === "open" ? result.form : granted?.result.form ?? null;
+  const requestId = useRef<string | null>(null);
+  const recovery = useRef<{ id: string; result: Promise<boolean> } | null>(null);
+  const storageKey = `eventsurvey:form-request:${eventHref}:${kind}`;
+  const current = readOnly ? result : response ?? result;
+  const status = current.status;
+  const form = current.status === "open" ? current.form : null;
   const verifiedId = granted?.fieldId;
   const legacyLocale = !form || form.head[preferredLocale].title.trim()
     ? preferredLocale : preferredLocale === "th" ? "en" : "th";
   const locale = form ? completeFormLocale(form, preferredLocale) ?? legacyLocale : preferredLocale;
   const heading = form?.head[locale].title.trim() || participant(kind);
 
+  const confirmSubmission = useCallback((earlierAnswers: boolean) => {
+    forgetSubmissionRequestId(storageKey);
+    requestId.current = null;
+    setAnswers({});
+    setGranted(null);
+    setResponse({ status: "submitted", earlierAnswers });
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (readOnly || !recoverSubmission) return;
+    const id = readSubmissionRequestId(storageKey);
+    if (!id) return;
+    requestId.current = id;
+    let active = true;
+    if (recovery.current?.id !== id) recovery.current = { id, result: recoverSubmission(id) };
+    void recovery.current.result.then((saved) => {
+      if (!active || !saved || requestInFlight.current || requestId.current !== id) return;
+      confirmSubmission(false);
+    }).catch(() => { /* A future retry can recover the same request. */ });
+    return () => { active = false; };
+  }, [confirmSubmission, readOnly, recoverSubmission, storageKey]);
+
+  // An attendee can complete registration in another tab or return after the form opens.
+  useEffect(() => {
+    if (readOnly || !checkEligibility ||
+      (status !== "registrationRequired" && status !== "scheduled" && status !== "full")) return;
+    let active = true;
+    const refresh = () => {
+      if (globalThis.document.visibilityState !== "visible") return;
+      const data = new FormData();
+      if (granted) data.set("identifier", granted.identifier);
+      void checkEligibility(data).then((next) => {
+        if (active) setResponse((previous) => previous?.status === "submitted" ? previous : next);
+      }).catch(() => { /* Keep the current state on a transient read failure. */ });
+    };
+    globalThis.document.addEventListener("visibilitychange", refresh);
+    return () => {
+      active = false;
+      globalThis.document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [checkEligibility, granted, readOnly, status]);
+
   function receiveEligibility(next: PublicForm, value: string) {
-    if (next.status === "open" && result.status === "eligibility") {
-      const identifier = normalizeWhitelistId(value, result.fieldType);
+    if (next.status === "open" && current.status === "eligibility") {
+      const identifier = normalizeWhitelistId(value, current.fieldType);
       const unique = kind === "registration" && next.form.questions.find(({ question }) => question.is_unique);
       const fieldId = unique ? publicQuestionId(unique.question) : undefined;
-      setGranted({ result: next, identifier, fieldId });
+      setGranted({ identifier, fieldId });
       setAccessChanged(false);
-      setAnswers(fieldId ? { [fieldId]: identifier } : {});
-      setCheckFailed(false);
+      setAnswers((previous) => {
+        const retained = granted?.identifier === identifier ? previous : {};
+        return fieldId ? { ...retained, [fieldId]: identifier } : retained;
+      });
+      setErrors({});
+      setSubmitError(null);
     }
-    setStatus(next.status);
+    setResponse(next);
   }
 
   function clearAnswerError(id: string) {
@@ -151,10 +231,22 @@ export default function PublicParticipantForm({
     }
   }
 
+  function showInvalidAnswers(issues: Record<string, PublicFormAnswerIssue>) {
+    setErrors(issues);
+    const first = Object.keys(issues)[0];
+    if (!first) return;
+    globalThis.requestAnimationFrame(() => {
+      const card = globalThis.document.getElementById(`preview-q-${first}`);
+      card?.scrollIntoView({ block: "center" });
+      card?.querySelector<HTMLElement>("input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)")
+        ?.focus({ preventScroll: true });
+    });
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form || !checkAvailability || requestInFlight.current) return;
-    setCheckFailed(false);
+    if (readOnly || !form || !submitResponse || requestInFlight.current) return;
+    setSubmitError(null);
 
     const nextErrors: Record<string, PublicFormAnswerIssue> = {};
     for (const { question } of form.questions) {
@@ -162,39 +254,62 @@ export default function PublicParticipantForm({
       const issue = publicAnswerIssue(question, answers[id], locale);
       if (issue) nextErrors[id] = issue;
     }
-    setErrors(nextErrors);
-
-    const firstError = Object.keys(nextErrors)[0];
-    if (firstError) {
-      globalThis.document
-        .getElementById(`preview-q-${firstError}`)
-        ?.scrollIntoView({ block: "center" });
+    if (Object.keys(nextErrors).length) {
+      showInvalidAnswers(nextErrors);
       return;
     }
 
     requestInFlight.current = true;
-    setChecking(true);
+    setSubmitting(true);
+    setErrors({});
     try {
-      // Answers remain in this tab. The Server Action checks availability only.
-      const proof = new FormData();
-      if (granted) proof.set("identifier", granted.identifier);
-      const availability = await checkAvailability(proof);
-      if (availability !== "open") setGranted(null);
-      if (availability === "eligibility") setAccessChanged(true);
-      setAnswers({});
-      setStatus(availability === "open" ? "submitted" : availability);
+      // The tab keeps only an opaque retry key. Answers and invitation identifiers stay in memory.
+      requestId.current ??= readSubmissionRequestId(storageKey) ?? newSubmissionRequestId(storageKey);
+      const data = new FormData();
+      data.set("requestId", requestId.current);
+      data.set("answers", JSON.stringify(answers));
+      data.set("locale", locale);
+      if (granted) data.set("identifier", granted.identifier);
+      const next = await submitResponse(data);
+      switch (next.status) {
+        case "invalid":
+          showInvalidAnswers(next.errors);
+          setSubmitError("invalidAnswers");
+          return;
+        case "duplicate":
+          setSubmitError("duplicate");
+          return;
+        case "requestChanged":
+          if (recoverSubmission && await recoverSubmission(requestId.current)) {
+            confirmSubmission(true);
+            globalThis.window.scrollTo({ top: 0 });
+            return;
+          }
+          forgetSubmissionRequestId(storageKey);
+          requestId.current = null;
+          setSubmitError("requestChanged");
+          return;
+        case "submitted":
+          confirmSubmission(false);
+          globalThis.window.scrollTo({ top: 0 });
+          return;
+        case "eligibility":
+          setAccessChanged(true);
+          break;
+      }
+      setResponse(next);
       globalThis.window.scrollTo({ top: 0 });
     } catch {
-      setCheckFailed(true);
+      setSubmitError("submitError");
     } finally {
       requestInFlight.current = false;
-      setChecking(false);
+      setSubmitting(false);
     }
   }
 
   const fields =
     status === "open" && form ? (
-      <fieldset disabled={readOnly || checking} className="flex flex-col gap-4">
+      <fieldset disabled={readOnly || submitting} className="flex flex-col gap-4">
         <PreviewHeaderCard
           title={heading}
           description={form.head[locale].description}
@@ -223,23 +338,23 @@ export default function PublicParticipantForm({
           );
           return id === verifiedId ? <fieldset key={id} disabled>{card}</fieldset> : card;
         })}
-        {checkFailed && <p role="alert">{t("recheckError")}</p>}
+        {submitError && <p role="alert" className="rounded-lg bg-white p-3 text-error-700 dark:bg-gray-900 dark:text-error-300">{t(submitError)}</p>}
         <div className="flex flex-wrap gap-3">
           <Button
             type={readOnly ? "button" : "submit"}
-            disabled={readOnly || checking}
+            disabled={readOnly || submitting}
             className={`bg-(--participant-accent)! text-(--participant-on-accent)! hover:brightness-95 ${readOnly ? "opacity-100!" : ""}`}
           >
-            {t(checking ? "submitting" : "submitDemo")}
+            {t(submitting ? "submitting" : "submit")}
           </Button>
           <Button
             variant="outline"
             className={readOnly ? "opacity-100!" : undefined}
-            disabled={readOnly || checking}
+            disabled={readOnly || submitting}
             onClick={() => {
               setAnswers(verifiedId && granted ? { [verifiedId]: granted.identifier } : {});
               setErrors({});
-              setCheckFailed(false);
+              setSubmitError(null);
             }}
           >
             {preview("clearForm")}
@@ -305,9 +420,9 @@ export default function PublicParticipantForm({
                 {fields}
               </form>
             )
-          ) : status === "eligibility" && result.status === "eligibility" && checkEligibility ? (
+          ) : current.status === "eligibility" && checkEligibility ? (
             <ParticipantEligibilityGate
-              gate={result}
+              gate={current}
               locale={preferredLocale}
               accessChanged={accessChanged}
               verify={checkEligibility}
@@ -319,7 +434,7 @@ export default function PublicParticipantForm({
               <p role="status" className="text-gray-700 dark:text-gray-300">
                 {t(
                   status === "submitted"
-                    ? "demoSubmitted"
+                    ? kind === "registration" ? "registrationSubmitted" : "surveySubmitted"
                     : status === "eligibility"
                       ? "restricted"
                       : status === "open"
@@ -327,6 +442,13 @@ export default function PublicParticipantForm({
                         : status,
                 )}
               </p>
+              {current.status === "submitted" && current.earlierAnswers && <p>{t("earlierAnswersSaved")}</p>}
+              {status === "registrationRequired" && registrationHref && (
+                <Link href={registrationHref} className={backClass}>{t("goToRegistration")}</Link>
+              )}
+              {status === "submitted" && kind === "registration" && surveyHref && (
+                <Link href={surveyHref} prefetch={false} className={backClass}>{t("goToSurvey")}</Link>
+              )}
             </section>
           )}
         </div>

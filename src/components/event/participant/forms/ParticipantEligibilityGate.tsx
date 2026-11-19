@@ -20,6 +20,7 @@ export default function ParticipantEligibilityGate({ gate, locale, accessChanged
   const inputId = useId();
   const submitting = useRef(false);
   const [pending, setPending] = useState(false);
+  const [identifier, setIdentifier] = useState("");
   const [error, setError] = useState<"eligibilityMismatch" | "recheckError" | null>(accessChanged ? "eligibilityMismatch" : null);
   const label = gate.label[locale] || gate.label[locale === "en" ? "th" : "en"] || t("identifier");
 
@@ -56,6 +57,8 @@ export default function ParticipantEligibilityGate({ gate, locale, accessChanged
         <Input
           id={inputId}
           name="identifier"
+          value={identifier}
+          onChange={(event) => setIdentifier(event.target.value)}
           type={gate.fieldType === "email" ? "email" : "text"}
           inputMode={gate.fieldType === "number" ? "decimal" : undefined}
           autoComplete={gate.fieldType === "email" ? "email" : "off"}

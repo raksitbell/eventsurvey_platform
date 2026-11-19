@@ -34,7 +34,7 @@ export type MockFieldType =
   | "rating";
 export type MockRatingDisplay = "icon" | "linear_scale";
 export type MockRatingIcon = "star" | "heart" | "like";
-export type MockSubmissionStatus = "submitted" | "cancelled";
+export type MockSubmissionStatus = "pending" | "submitted" | "cancelled" | "soft_deleted";
 export type MockWhitelistEntryStatus = "available" | "joined";
 export type MockPermissionCode =
   | "manage_dashboard"
@@ -244,8 +244,15 @@ export interface MockWhitelistEntry {
   username: string;
   status: MockWhitelistEntryStatus;
   joined_at: string | null;
+  participant_submission_id?: string;
   created_at: string;
   deleted_at: string | null;
+}
+
+export interface MockParticipantPendingWrite {
+  answers: (Omit<MockSubmissionAnswer, "id" | "submission_id" | "created_at"> & { optionIds: string[] })[];
+  confirmationCode?: string;
+  whitelist?: { id: string; uniqueId: string; name: string; fieldType: "email" | "number" | "short_text" };
 }
 
 export interface MockFormSubmission {
@@ -253,11 +260,24 @@ export interface MockFormSubmission {
   form_id: string;
   status: MockSubmissionStatus;
   submitted_at: string;
+  submitted_language?: string;
   cancelled_by_user_id: string | null;
   cancelled_at: string | null;
+  deleted_at?: string | null;
+  // Additional fields for recoverable participant writes. Older submissions omit them.
+  event_id?: string;
+  participant_kind?: MockFormType;
+  participant_sequence?: number;
+  participant_request?: string;
+  participant_fingerprint?: string;
+  participant_unique?: string;
+  registration_submission_id?: string;
+  receipt_expires_at?: string | null;
+  pending_write?: MockParticipantPendingWrite | null;
 }
 
 export interface MockRegistration {
+  id?: string;
   submission_id: string;
   whitelist_entry_id: string | null;
   confirmation_code: string;
@@ -276,6 +296,7 @@ export interface MockSubmissionAnswer {
 }
 
 export interface MockAnswerOptionSelection {
+  id?: string;
   answer_id: string;
   option_id: string;
 }

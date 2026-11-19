@@ -12,7 +12,7 @@ import {
 } from "@/core/event/public-event-paths";
 import { eventShareOrigin, eventShareUrl } from "@/core/event/share-links";
 import { eventQrDataUrl } from "@/core/event/share-qr";
-import { resolveFormWindows } from "@/core/forms/lifecycle";
+import { activeSubmission, resolveFormWindows } from "@/core/forms/lifecycle";
 import {
   readPublishedForm,
   publishedFormDefinition,
@@ -27,6 +27,7 @@ import type {
   EventShareResponse,
   PublicEvent,
   PublicForm,
+  RegistrationProof,
 } from "@/types/event/public-event";
 import type {
   MockEvent,
@@ -35,6 +36,7 @@ import type {
   MockEventTranslation,
   MockForm,
   MockFormSubmission,
+  MockRegistration,
   MockWhitelistEntry,
   MockUser,
 } from "@/types/mock";
@@ -52,7 +54,7 @@ function isPublishedEvent(event: MockEvent) {
   return event.status === "open" || event.status === "closed";
 }
 
-async function findPublicEvent(slug: string, read = mockApi.get): Promise<MockEvent | null> {
+export async function findPublicEvent(slug: string, read = mockApi.get): Promise<MockEvent | null> {
   if (!isPublicEventSlug(slug)) return null;
 
   const events = await read<MockEvent[]>(
@@ -77,11 +79,8 @@ function isEnabled(
     : publication?.draft.hasSurvey ?? event.has_survey;
 }
 
-/** Registration-gated surveys require a verified registration, beyond whitelist membership. */
-function formAccess(event: MockEvent, kind: ParticipantFormKind, setup: SetupRecord) {
+function formAccess(event: MockEvent, setup: SetupRecord) {
   const draft = setup.publication?.draft;
-  if (kind === "survey" && (draft ? draft.surveyAccess : event.survey_access) === "registered_only")
-    return "restricted" as const;
   if (!(draft?.isPrivate ?? event.is_private)) return "public" as const;
   if (setup.publication?.forms.registration?.eventId !== event.id) return "restricted" as const;
   return publishedWhitelistAccess(setup) ?? "restricted" as const;
@@ -147,7 +146,7 @@ async function loadShareableWindows(
     (!isPublishedEvent(event) && !shareScheduled) ||
     !formKinds.some(
       (kind) =>
-        isEnabled(event, kind, publication) && formAccess(event, kind, setup) !== "restricted",
+        isEnabled(event, kind, publication) && formAccess(event, setup) !== "restricted",
     )
   ) {
     return empty;
@@ -156,7 +155,7 @@ async function loadShareableWindows(
   const rows = await loadPublishedForms(event.id);
   const [registration, survey] = await Promise.all(
     formKinds.map(async (kind) => {
-      if (formAccess(event, kind, setup) === "restricted") return null;
+      if (formAccess(event, setup) === "restricted") return null;
       const result = await findShareableForm(event, kind, rows, publication);
       if (!result) return null;
       const { opensAt, closesAt } = resolveFormWindows(result.row, event);
@@ -334,23 +333,25 @@ export async function getPublicFormBySlug(
   slug: string,
   kind: ParticipantFormKind,
   identifier?: unknown,
+  proof?: RegistrationProof | null,
 ): Promise<PublicForm | null> {
-  const read = identifier === undefined ? mockApi.get : mockApi.getFresh;
+  const read = identifier === undefined && !proof ? mockApi.get : mockApi.getFresh;
   const event = await findPublicEvent(slug, read);
   if (!event) return null;
-  return resolvePublicForm(event, kind, readSetupRecord(event), identifier, read);
+  return publicResult(await resolvePublicForm(event, kind, readSetupRecord(event), identifier, proof, read));
 }
 
 export async function getPublicFormPageBySlug(
   slug: string,
   kind: ParticipantFormKind,
   locale: Locale,
+  proof?: RegistrationProof | null,
 ) {
   const event = await findPublicEvent(slug);
   if (!event) return null;
   const setup = readSetupRecord(event);
   const { publication, publishedBranding } = setup;
-  const result = await resolvePublicForm(event, kind, setup);
+  const result = publicResult(await resolvePublicForm(event, kind, setup, undefined, proof));
   if (!result) return null;
 
   const branding = publication
@@ -363,39 +364,95 @@ export async function getPublicFormPageBySlug(
     );
     bannerUrl = safeBannerUrl(banners.find((banner) => banner.event_id === event.id)?.banner_url);
   }
-  return { result, branding, bannerUrl };
+  const hasSurvey = kind === "registration" && isEnabled(event, "survey", publication) && formAccess(event, setup) !== "restricted" &&
+    (publication ? !!publication.forms.survey && hasShareableContent(publication.forms.survey) :
+      !!await findShareableForm(event, "survey", await loadPublishedForms(event.id), null));
+  return { result, branding, bannerUrl, hasSurvey };
 }
 
-async function hasJoinedRegistration(eventId: string, fieldType: "email" | "short_text" | "number", identifier: string) {
+async function hasJoinedRegistration(eventId: string, formId: string, fieldType: "email" | "short_text" | "number", identifier: string) {
   const joined = await mockApi.getFresh<MockWhitelistEntry[]>(
     `/whitelist_entries?event_id=${encodeURIComponent(eventId)}&status=joined`,
   ).catch((error: unknown) => {
     if (error instanceof MockApiError && error.status === 404) return [];
     throw error;
   });
-  return joined.some((entry) => entry.event_id === eventId && !entry.deleted_at && entry.status === "joined" &&
+  const matches = joined.filter((entry) => entry.event_id === eventId && !entry.deleted_at && entry.status === "joined" &&
     entry.access_code && normalizeWhitelistId(entry.access_code, fieldType) === identifier);
+  for (const entry of matches) {
+    if (!entry.participant_submission_id) return true;
+    const rows = await mockApi.getFresh<MockFormSubmission[]>(`/form_submissions?id=${encodeURIComponent(entry.participant_submission_id)}`);
+    if (rows.some((row) => row.id === entry.participant_submission_id && row.event_id === eventId && row.form_id === formId &&
+        row.participant_kind === "registration" && activeSubmission(row))) return true;
+  }
+  return false;
 }
 
-async function resolvePublicForm(
-  event: MockEvent,
-  kind: ParticipantFormKind,
-  setup: SetupRecord,
-  identifier?: unknown,
-  read = mockApi.get,
-): Promise<PublicForm | null> {
-  const { publication } = setup;
-  if (!isEnabled(event, kind, publication)) return null;
+type OpenSubmissionForm = Extract<PublicForm, { status: "open" }> & {
+  formId: string;
+  capacity: number | null;
+  receiptClosesAt?: string | null;
+  registrationId?: string;
+  whitelist?: { id: string; uniqueId: string; name: string; fieldId: string; fieldType: "email" | "number" | "short_text" };
+};
+type SubmissionAccess = Exclude<PublicForm, { status: "open" }> | OpenSubmissionForm;
+
+function publicResult(access: SubmissionAccess | null): PublicForm | null {
+  return access?.status === "open" ? { status: "open", form: access.form } : access;
+}
+
+export async function currentPublicFormId(event: MockEvent, setup: SetupRecord, kind: ParticipantFormKind, read: typeof mockApi.get) {
+  if (!isEnabled(event, kind, setup.publication)) return null;
+  const rows = (await loadPublishedForms(event.id, read)).filter((row) => row.type === kind);
+  const frozen = setup.publication?.forms[kind];
+  if (setup.publication) return frozen?.eventId === event.id && rows.some((row) => row.id === frozen.id) ? frozen.id : null;
+  return rows.length === 1 ? rows[0].id : null;
+}
+
+export async function verifiedRegistration(
+  event: MockEvent, setup: SetupRecord, proof: RegistrationProof | null | undefined,
+) {
+  if (!proof || proof.eventId !== event.id) return false;
+  const access = formAccess(event, setup);
+  if (access === "restricted") return false;
+  const read = mockApi.getFresh;
+  const registrationFormId = await currentPublicFormId(event, setup, "registration", read);
+  if (!registrationFormId || proof.registrationFormId !== registrationFormId) return false;
+  const id = encodeURIComponent(proof.submissionId);
+  const rows = await read<MockFormSubmission[]>(`/form_submissions?id=${id}`);
+  if (!rows.some((row) => row.id === proof.submissionId && row.form_id === registrationFormId && activeSubmission(row))) return false;
+  const registrations = await read<MockRegistration[]>(`/registrations?submission_id=${id}`);
+  return registrations.some((row) => row.submission_id === proof.submissionId &&
+    (access === "public" || access.entries.some((entry) => entry.id === row.whitelist_entry_id)));
+}
+
+function registrationReceiptClosesAt(event: MockEvent, setup: SetupRecord, rows: MockForm[]) {
+  const surveys = rows.filter((row) => row.type === "survey");
+  const frozen = setup.publication?.forms.survey;
+  let survey: MockForm | null = null;
+  if (isEnabled(event, "survey", setup.publication)) {
+    if (setup.publication) {
+      const stored = surveys.find((row) => row.id === frozen?.id);
+      if (stored && frozen) survey = readPublishedForm(stored, frozen, event);
+    } else if (surveys.length === 1) {
+      survey = surveys[0];
+    }
+  }
+  const { closesAt } = resolveFormWindows(survey ?? { opens_at: null, closes_at: null }, event);
+  return closesAt == null ? null : new Date(closesAt).toISOString();
+}
+
+export async function resolvePublicForm(
+  event: MockEvent, kind: ParticipantFormKind, setup: SetupRecord,
+  identifier?: unknown, proof?: RegistrationProof | null, read = mockApi.get,
+): Promise<SubmissionAccess | null> {
+  if (!isEnabled(event, kind, setup.publication)) return null;
   if (event.status === "scheduled") return { status: "scheduled" };
-  const access = formAccess(event, kind, setup);
+  const access = formAccess(event, setup);
   if (access === "restricted") return { status: "restricted" };
 
-  const result = await findShareableForm(
-    event,
-    kind,
-    await loadPublishedForms(event.id, read),
-    publication,
-  );
+  const rows = await loadPublishedForms(event.id, read);
+  const result = await findShareableForm(event, kind, rows, setup.publication);
   if (!result) return { status: "unavailable" };
 
   const { row, form, status } = result;
@@ -421,37 +478,38 @@ async function resolvePublicForm(
   if (row.status === "paused" || status === "paused")
     return { status: "unavailable" };
 
-  const settings = await read<MockEventFormSettings[]>(
+  const { publication } = setup;
+  const requiresRegistration = kind === "survey" &&
+    (publication ? publication.draft.surveyAccess : event.survey_access) === "registered_only";
+  let registrationId: string | undefined;
+  if (requiresRegistration) {
+    if (!await verifiedRegistration(event, setup, proof)) {
+      return { status: "registrationRequired" };
+    }
+    registrationId = proof!.submissionId;
+  }
+  const settings = publication || requiresRegistration ? [] : await read<MockEventFormSettings[]>(
     `/event_form_settings?event_id=${encodeURIComponent(event.id)}`,
   );
-  const capacity = publication ? (kind === "registration" ? publication.draft.registrationCapacity : publication.draft.surveyCapacity) : settings.find(
-    (entry) =>
-      entry.event_id === event.id &&
-      entry.form_type === kind &&
-      !entry.is_unlimited,
-  )?.capacity;
+  const capacity = requiresRegistration ? null : publication
+    ? (kind === "registration" ? publication.draft.registrationCapacity : publication.draft.surveyCapacity) ?? null
+    : settings.find((entry) => entry.event_id === event.id && entry.form_type === kind && !entry.is_unlimited)?.capacity ?? null;
   if (capacity != null) {
-    const submissions = await read<MockFormSubmission[]>(
-      `/form_submissions?form_id=${encodeURIComponent(row.id)}`,
-    );
-    if (
-      submissions.filter(
-        (submission) =>
-          submission.form_id === row.id && submission.status === "submitted",
-      ).length >= capacity
-    ) {
+    const submissions = await read<MockFormSubmission[]>(`/form_submissions?form_id=${encodeURIComponent(row.id)}`);
+    if (submissions.filter((submission) => submission.form_id === row.id && activeSubmission(submission)).length >= capacity) {
       return { status: "full" };
     }
   }
 
-  if (access !== "public") {
+  let whitelist: OpenSubmissionForm["whitelist"];
+  if (access !== "public" && !requiresRegistration) {
     const { field, entries } = access;
     const value = typeof identifier === "string" && identifier.length <= 500
       ? normalizeWhitelistId(identifier, field.type) : "";
-    const permitted = value && entries.some((entry) =>
+    const permitted = value && entries.find((entry) =>
       entry.uniqueId === value && (kind !== "registration" || entry.status === "available")
     );
-    if (!permitted || (kind === "registration" && await hasJoinedRegistration(event.id, field.type, value))) {
+    if (!permitted || (kind === "registration" && await hasJoinedRegistration(event.id, row.id, field.type, value))) {
       const question = publication?.forms.registration?.questions.find((item) => item.question.id === field.id)?.question;
       return {
         status: "eligibility",
@@ -459,6 +517,11 @@ async function resolvePublicForm(
         label: { th: question?.label.th[0]?.label ?? "", en: question?.label.en[0]?.label ?? "" },
       };
     }
+    if (kind === "registration") {
+      whitelist = { id: permitted.id, uniqueId: permitted.uniqueId, name: permitted.name, fieldId: field.id, fieldType: field.type };
+    }
   }
-  return { status: "open", form: { head: form.head, type: form.type, questions: form.questions } };
+  return { status: "open", form: { head: form.head, type: form.type, questions: form.questions },
+    formId: row.id, capacity, registrationId, whitelist,
+    receiptClosesAt: kind === "registration" ? registrationReceiptClosesAt(event, setup, rows) : undefined };
 }

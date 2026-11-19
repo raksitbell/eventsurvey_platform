@@ -4,7 +4,7 @@ const { randomBytes } = require("node:crypto");
 const test = require("node:test");
 const { loadSource } = require("./support/load-source.cjs");
 
-function fixture(t, { registration = null, whitelist = [], forms = [] } = {}) {
+function fixture(t, { registration = null, whitelist = [], forms = [], submissions = [] } = {}) {
   const previous = process.env.EVENT_SETUP_DATA_SECRET;
   process.env.EVENT_SETUP_DATA_SECRET = randomBytes(32).toString("hex");
   t.after(() => {
@@ -28,6 +28,10 @@ function fixture(t, { registration = null, whitelist = [], forms = [] } = {}) {
           if (url === "/forms?event_id=event-a") return registration ? [registration] : [];
           if (url === "/whitelist_entries?event_id=event-a") return whitelist;
           throw Error(`Unexpected fixture request: ${url}`);
+        },
+        getFresh: async (url) => {
+          assert.equal(url, `/form_submissions?form_id=${registration.id}&status=submitted`);
+          return submissions;
         },
         post: async (url, body) => {
           if (url === "/audit_logs") return body;
@@ -313,6 +317,35 @@ test("Whitelist reads require registration management and an editable private ev
   });
   assert.deepEqual(result.entries, []);
   assert.equal(result.uniqueField, null);
+});
+
+test("Whitelist usage follows the committed participant registration and preserves unlinked legacy joins", async (t) => {
+  const registration = {
+    id: "registration-a", event_id: "event-a", eventId: "event-a", type: "registration",
+    questions: [{ question: { id: "email-field", type: "email", is_unique: true } }],
+  };
+  const submission = { id: "response", event_id: "event-a", form_id: registration.id,
+    participant_kind: "registration", status: "pending", cancelled_at: null };
+  const whitelist = ["legacy", "guest"].map((id) => ({ id, event_id: "event-a", status: "joined",
+    access_code: `${id}@example.test`, username: id }));
+  whitelist[1].participant_submission_id = submission.id;
+  const { service, draft } = fixture(t, { registration, whitelist, submissions: [submission] });
+  const context = await service.getSetupContext("owner");
+  const saved = await service.saveSetupDraft(context, {
+    revision: 0, draft: { ...draft, isPrivate: true, hasRegistration: true },
+  });
+  async function statuses() {
+    const list = await service.getSetupWhitelist(await service.getSetupContext("owner"));
+    return Object.fromEntries(list.entries.map((entry) => [entry.id, entry.status]));
+  }
+
+  assert.deepEqual(await statuses(), { legacy: "joined", guest: "available" });
+  submission.status = "submitted";
+  assert.deepEqual(await statuses(), { legacy: "joined", guest: "joined" });
+  // An organizer's previously saved list can still contain the old joined status after cancellation.
+  await service.updateSetupWhitelist(context, { revision: saved.revision, entries: [] });
+  submission.cancelled_at = new Date().toISOString();
+  assert.deepEqual(await statuses(), { legacy: "joined", guest: "available" });
 });
 
 test("Saving the current field preserves previously used Whitelist entries without exposing them in the draft", async (t) => {
