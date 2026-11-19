@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import {
@@ -12,6 +12,8 @@ import {
 } from "@heroicons/react/24/outline";
 import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspacePageHeader";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
+import { useConfirm } from "@/hooks/useConfirm";
+import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
 import { canToggleUniqueField, supportsUniqueField } from "@/core/forms/unique-field";
@@ -159,6 +161,7 @@ export default function FormBuilder({
   const terrors = useTranslations("form.errors");
   const tSetup = useTranslations("eventSetup");
   const router = useRouter();
+  const { confirmSaveChanges } = useConfirm();
   const { user } = useAuth();
   const returnHref = backHref ?? (insideSetup ? "/event/details" : "/event/form");
 
@@ -195,6 +198,10 @@ export default function FormBuilder({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
+  const [loadedEditableForm, setLoadedEditableForm] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const saving = useRef(false);
+  const deciding = useRef(false);
   const serverQuestionIdsRef = useRef<Set<string>>(new Set());
   const serverChoiceIdsRef = useRef<Set<string>>(new Set());
 
@@ -222,6 +229,9 @@ export default function FormBuilder({
     };
   });
 
+  const currentSnapshot = useMemo(() => JSON.stringify([form, hasEnglish]), [form, hasEnglish]);
+  const dirty = type === "survey" && !isLoading && loadedEditableForm && canEdit && currentSnapshot !== savedSnapshot;
+
   const [isPreview, setIsPreview] = useState<boolean>(false);
   const [activeSectionId, setActiveSectionId] = useState<string>(
     () => form.questions[0]?.question.id ?? "header",
@@ -246,7 +256,7 @@ export default function FormBuilder({
   } | null>(null);
 
   const applyServerRecord = useCallback(
-    (record: FormRecord, preserveHasEnglish = false) => {
+    (record: FormRecord, editorEnglish?: boolean) => {
       const qIds = new Set<string>();
       const cIds = new Set<string>();
       const hasEnglishTranslation = (en?: string, th?: string) =>
@@ -352,7 +362,7 @@ export default function FormBuilder({
       setFormId(record.id);
       setFormStatus(record.status);
       setCanEdit(record.canEdit);
-      if (!preserveHasEnglish) {
+      if (editorEnglish === undefined) {
         setHasEnglish(detectedEnglishDiff);
         setMobileTab(completeFormLocale(record, "th") ?? "th");
       }
@@ -363,7 +373,7 @@ export default function FormBuilder({
         (record.head.en.title.trim() ? "" : defaultTitle);
       const enTitle = record.head.en.title.trim();
 
-      setForm({
+      const editorForm: Form = {
         id: record.id,
         type: record.type,
         head: {
@@ -379,7 +389,9 @@ export default function FormBuilder({
         opens_at: record.opensAt ?? record.opens_at ?? null,
         closes_at: record.closesAt ?? record.closes_at ?? null,
         questions: normalizedQuestions,
-      });
+      };
+      setForm(editorForm);
+      setSavedSnapshot(JSON.stringify([editorForm, editorEnglish ?? detectedEnglishDiff]));
 
       setActiveSectionId(normalizedQuestions[0]?.question.id ?? "header");
     },
@@ -392,6 +404,7 @@ export default function FormBuilder({
 
     async function loadInitial() {
       setIsLoading(true);
+      setLoadedEditableForm(false);
       try {
         const ws = await api.get<EventWorkspace>("/event/workspace");
         if (cancelled) return;
@@ -428,6 +441,7 @@ export default function FormBuilder({
         if (existing) {
           applyServerRecord(existing);
         }
+        setLoadedEditableForm(true);
       } catch (err) {
         if (!cancelled) {
           showToast({
@@ -573,55 +587,70 @@ export default function FormBuilder({
     };
   };
 
-  const handleSave = async () => {
-    if (!eventId) return;
+  const handleSave = async (leaving = false): Promise<boolean> => {
+    if (!eventId || !canEdit || !loadedEditableForm || saving.current) return false;
+    saving.current = true;
     setIsSaving(true);
-
     try {
+      const create = () => api.post<FormRecord>("/event/forms", {
+        ...buildPayloadForApi(form, false),
+        eventId,
+      });
       let saved: FormRecord;
       if (!formId) {
-        const payload = buildPayloadForApi(form, false);
-        saved = await api.post<FormRecord>("/event/forms", {
-          ...payload,
-          eventId,
-        });
+        saved = await create();
       } else {
         try {
-          const payload = buildPayloadForApi(form, true);
-          saved = await api.put<FormRecord>(`/event/forms/${formId}`, payload);
-        } catch (putErr) {
-          if (
-            putErr instanceof ApiError &&
-            (putErr.status === 404 ||
-              putErr.code === "FORM_NOT_FOUND" ||
-              putErr.code === "QUESTION_NOT_OWNED_BY_FORM" ||
-              putErr.code === "OPTION_NOT_OWNED_BY_QUESTION")
-          ) {
-            const createPayload = buildPayloadForApi(form, false);
-            saved = await api.post<FormRecord>("/event/forms", {
-              ...createPayload,
-              eventId,
-            });
-          } else {
-            showToast({
-              title: resolveErrorMessage(putErr, tbuilder("saveError")),
-              variant: "error",
-            });
-            return;
-          }
+          saved = await api.put<FormRecord>(`/event/forms/${formId}`, buildPayloadForApi(form, true));
+        } catch (err) {
+          // Explicit draft Save supports recovery from stale server IDs. Returning
+          // from the editor needs a successful update of the original form.
+          const staleId = err instanceof ApiError && (
+            err.status === 404 || err.code === "FORM_NOT_FOUND" ||
+            err.code === "QUESTION_NOT_OWNED_BY_FORM" || err.code === "OPTION_NOT_OWNED_BY_QUESTION"
+          );
+          if (leaving || !staleId) throw err;
+          saved = await create();
         }
       }
-
-      applyServerRecord(saved, true);
+      applyServerRecord(saved, hasEnglish);
       showToast({ title: tbuilder("saveSuccess"), variant: "success" });
+      return true;
     } catch (err) {
       showToast({
         title: resolveErrorMessage(err, tbuilder("saveError")),
         variant: "error",
       });
+      return false;
     } finally {
+      saving.current = false;
       setIsSaving(false);
     }
+  };
+
+  const confirmLeave = async () => {
+    if (saving.current || deciding.current) return false;
+    if (!dirty) return true;
+    deciding.current = true;
+    try {
+      const choice = await confirmSaveChanges({
+        title: tbuilder("leaveTitle"),
+        message: tbuilder("leaveMessage"),
+        confirmLabel: tbuilder("saveAndLeave"),
+        discardLabel: tbuilder("discardAndLeave"),
+        cancelLabel: tbuilder("keepEditing"),
+        appearance: "event",
+      });
+      if (choice === "save") return await handleSave(true);
+      return choice === "discard";
+    } finally {
+      deciding.current = false;
+    }
+  };
+  useWhitelistNavigationGuard(dirty || (type === "survey" && isSaving), confirmLeave);
+
+  const back = async () => {
+    if (await confirmLeave()) router.push(returnHref);
   };
 
   /**
@@ -1410,7 +1439,7 @@ export default function FormBuilder({
         backLabel={backLabel}
         onExitPreview={() => {
           if (previewOnly) {
-            router.push(returnHref);
+            void back();
             return;
           }
           setIsPreview(false);
@@ -1425,7 +1454,7 @@ export default function FormBuilder({
       description={tbuilder("workspaceDescription")}
       back={{
         label: backLabel ?? (insideSetup ? tSetup("backSetup") : t("preview.backToForms")),
-        onClick: () => router.push(returnHref),
+        onClick: () => void back(),
         disabled: isSaving,
       }}
     />
@@ -1447,7 +1476,7 @@ export default function FormBuilder({
     : "max-w-4xl";
 
   const editor = (
-    <div className={surfaceClassName}>
+    <div className={surfaceClassName} inert={isSaving} aria-busy={isSaving}>
       {/* Header Area */}
       <div
         className={`mx-auto mb-6 flex ${containerWidthClass} flex-wrap items-center justify-between gap-3 md:mb-8`}
@@ -1474,7 +1503,7 @@ export default function FormBuilder({
           {canEdit && (
             <button
               type="button"
-              disabled={isSaving || isLoading || !eventId}
+              disabled={isSaving || isLoading || !loadedEditableForm || !eventId}
               onClick={() => void handleSave()}
               className="flex items-center gap-2 rounded-lg bg-(--participant-accent) px-4 py-2 text-sm font-medium text-(--form-on-accent) shadow-theme-xs transition-colors hover:brightness-95 disabled:opacity-50"
             >

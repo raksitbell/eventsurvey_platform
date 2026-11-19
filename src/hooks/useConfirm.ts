@@ -1,6 +1,6 @@
 "use client";
 
-import { showConfirm, type ConfirmOptions } from "@/utils/confirm";
+import { showConfirm, showSaveChanges, type ConfirmOptions } from "@/utils/confirm";
 import { useCallback } from "react";
 import { useTranslations } from "next-intl";
 
@@ -19,5 +19,5 @@ export function useConfirm() {
     [t],
   );
 
-  return { confirm };
+  return { confirm, confirmSaveChanges: showSaveChanges };
 }

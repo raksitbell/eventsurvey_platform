@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useEventNavigationGuard } from "@/components/event/workspace/EventNavigationGuard";
 
 interface HistoryTraversal extends Event {
@@ -22,11 +22,14 @@ export default function useWhitelistNavigationGuard(
   confirmLeave: () => Promise<boolean>,
 ) {
   const guardRef = useEventNavigationGuard();
+  const requestLeave = useEffectEvent(confirmLeave);
 
   useEffect(() => {
     if (!dirty) return;
-    if (guardRef) guardRef.current = confirmLeave;
+    const guard = () => requestLeave();
+    if (guardRef) guardRef.current = guard;
 
+    let active = true;
     const beforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
     globalThis.addEventListener("beforeunload", beforeUnload);
 
@@ -34,7 +37,6 @@ export default function useWhitelistNavigationGuard(
       globalThis as typeof globalThis & { navigation?: BrowserNavigation }
     ).navigation;
     const confirmed = Symbol();
-    let active = true;
     const beforeHistoryTraversal = (event: Event) => {
       const { navigationType, destination, hashChange, info } =
         event as HistoryTraversal;
@@ -51,21 +53,34 @@ export default function useWhitelistNavigationGuard(
         return;
 
       event.preventDefault();
-      void confirmLeave().then((approved) => {
-        if (!approved || !active) return;
+      const sourceUrl = globalThis.location.href;
+      void guard().then(async (approved) => {
+        // Saving can clear the guard before the approved traversal resumes.
+        if (!approved || globalThis.location.href !== sourceUrl) return;
+        // A browser may reload the document when replaying a confirmed entry.
+        const target = new URL(destination.url);
+        if (target.origin !== new URL(sourceUrl).origin) return;
+        globalThis.removeEventListener("beforeunload", beforeUnload);
         const { committed, finished } = navigation.traverseTo(destination.key, {
           info: confirmed,
         });
-        return Promise.allSettled([committed, finished]);
+        const [commit] = await Promise.allSettled([committed, finished]);
+        if (globalThis.location.href !== sourceUrl) return;
+        if (commit.status === "rejected") {
+          // WebKit can abort replay of a previously canceled history entry.
+          globalThis.location.replace(target.href);
+        } else if (active) {
+          globalThis.addEventListener("beforeunload", beforeUnload);
+        }
       });
     };
     navigation?.addEventListener("navigate", beforeHistoryTraversal);
 
     return () => {
       active = false;
-      if (guardRef?.current === confirmLeave) guardRef.current = null;
+      if (guardRef?.current === guard) guardRef.current = null;
       navigation?.removeEventListener("navigate", beforeHistoryTraversal);
       globalThis.removeEventListener("beforeunload", beforeUnload);
     };
-  }, [confirmLeave, dirty, guardRef]);
+  }, [dirty, guardRef]);
 }

@@ -883,6 +883,11 @@
     },
     "builder": {
       "formTitlePlaceholder": "ชื่อแบบฟอร์ม",
+      "leaveTitle": "บันทึกฟอร์มก่อนออกไหม",
+      "leaveMessage": "ฟอร์มนี้มีข้อมูลที่ยังไม่ได้บันทึก",
+      "saveAndLeave": "บันทึกแล้วออก",
+      "discardAndLeave": "ออกโดยไม่บันทึก",
+      "keepEditing": "แก้ไขต่อ",
       "workspaceDescription": "แก้ไขชื่อ คำอธิบาย และคำถามในฟอร์ม",
       "description": "คำอธิบาย",
       "save": "บันทึกแบบร่าง",

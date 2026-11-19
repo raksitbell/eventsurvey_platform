@@ -26,7 +26,7 @@ const variantConfirmClass = {
   danger: "es-swal-confirm-danger",
 } as const;
 
-export async function showConfirm({
+async function openConfirm({
   title,
   message,
   appearance = "default",
@@ -36,7 +36,7 @@ export async function showConfirm({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   variant = "primary",
-}: ConfirmOptions): Promise<boolean> {
+}: ConfirmOptions, discardLabel?: string) {
   const escape = (value: string) =>
     value
       .replace(/&/g, "&amp;")
@@ -49,7 +49,7 @@ export async function showConfirm({
     ? `${subtitle ? `<p class="es-event-confirm-subtitle">${escape(subtitle)}</p>` : ""}<p>${escape(message)}</p>${note ? `<p class="es-event-confirm-note ${variant === "danger" ? "es-event-confirm-error" : ""}">${escape(note)}</p>` : ""}`
     : escape(message);
 
-  const result = await Swal.fire({
+  return Swal.fire({
     title,
     html: escaped,
     icon: eventStyle
@@ -59,6 +59,8 @@ export async function showConfirm({
         : "question",
     iconColor: variantIconColor[variant],
     showCancelButton: showCancel,
+    showDenyButton: Boolean(discardLabel),
+    denyButtonText: discardLabel,
     reverseButtons: true,
     focusCancel: true,
     confirmButtonText: confirmLabel,
@@ -71,12 +73,21 @@ export async function showConfirm({
       popup: eventStyle ? "es-swal-popup es-swal-event" : "es-swal-popup",
       title: "es-swal-title",
       htmlContainer: "es-swal-text",
-      actions: "es-swal-actions",
+      actions: discardLabel ? "es-swal-actions es-swal-save-actions" : "es-swal-actions",
+      denyButton: "es-swal-btn es-swal-cancel",
       confirmButton: `es-swal-btn ${variantConfirmClass[variant]}`,
       cancelButton: "es-swal-btn es-swal-cancel",
       icon: "es-swal-icon",
     },
   });
+}
 
-  return result.isConfirmed;
+export async function showConfirm(options: ConfirmOptions): Promise<boolean> {
+  return (await openConfirm(options)).isConfirmed;
+}
+
+export async function showSaveChanges(options: ConfirmOptions & { discardLabel: string }) {
+  const result = await openConfirm(options, options.discardLabel);
+  if (result.isConfirmed) return "save";
+  return result.isDenied ? "discard" : "cancel";
 }

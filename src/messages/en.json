@@ -883,6 +883,11 @@
     },
     "builder": {
       "formTitlePlaceholder": "Form title",
+      "leaveTitle": "Save this form before leaving?",
+      "leaveMessage": "This form has unsaved changes.",
+      "saveAndLeave": "Save and leave",
+      "discardAndLeave": "Leave without saving",
+      "keepEditing": "Keep editing",
       "workspaceDescription": "Edit the form title, description, and questions.",
       "description": "description",
       "save": "Save draft",
