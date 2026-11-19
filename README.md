@@ -11,24 +11,125 @@
   <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
 </p>
 
-## OVERVIEW
+## ภาพรวม
 
-หน้าเว็บ (frontend) ของ **Event + Survey Management Platform** ตามเอกสาร SRS v1.0.0
+EventSurvey เป็นหน้าเว็บของ **Event + Survey Management Platform** ตาม SRS v1.0.0 ผู้จัดสร้างอีเวนต์แบบเปิดหรือแบบส่วนตัว เปิดรับลงทะเบียน ส่งแบบสอบถามให้ผู้เข้าร่วม ดูสรุปผล และออกรายงานได้ในระบบเดียว ผู้จัดยังเพิ่มทีมงานและกำหนดสิทธิ์ของแต่ละคนได้
 
-คนจัดงานสร้างงานอีเวนต์ เปิดให้คนลงทะเบียน ส่งแบบสอบถามให้ผู้เข้าร่วมตอบ แล้วดูสรุปผลและออกรายงาน — ทำได้จากระบบเดียว รองรับงานแบบเปิดและแบบส่วนตัว พร้อมระบบสิทธิ์ที่ให้คนจัดงานตั้งทีมงานและกำหนดได้ว่าใครทำอะไรได้
+ระบบรองรับผู้ใช้ 4 กลุ่ม ได้แก่ ผู้ดูแลระบบ คนจัดงาน ทีมงานของคนจัดงาน และผู้เข้าร่วมงาน
 
-ผู้ใช้ 4 กลุ่ม: ผู้ดูแลระบบ · คนจัดงาน · ทีมงานของคนจัดงาน · ผู้เข้าร่วมงาน
+## Setup Instructions
 
-> [!NOTE]
-> กฎการเขียนโค้ดของโปรเจกต์นี้อยู่ใน **[`AGENTS.md`](AGENTS.md)** — โครงสร้างโฟลเดอร์, การทำหลายภาษา, การใช้ธีมและสี, การแตกไฟล์ component และข้อห้ามที่มาจากปัญหาที่เคยเจอจริง
+ต้องมี **Node.js 20.9 ขึ้นไป**
 
-## DATA MODEL
+### Local Development
 
-- [Schema DBML](schema.dbml) — Logical Data Model ของระบบ
-- [Schema Guide (GitHub Wiki)](https://github.com/raksitbell/eventsurvey_platform/wiki/Schema-DBML) — หน้าที่ของแต่ละตารางและความสัมพันธ์ของข้อมูล
-- [Public Database Diagram](https://dbdiagram.io/d/eventsurvey_platform-system-diagram-6ad97841f65bbc60f6fafa5d) — ดู Diagram แบบ Interactive
+1. ติดตั้ง dependencies แล้วคัดลอกไฟล์ต้นแบบสำหรับการตั้งค่าครั้งแรก หากมี `.env.local` อยู่แล้ว ให้เติมเฉพาะค่าที่ขาดในไฟล์เดิม
 
-## TECHNOLOGY
+   ```bash
+   npm install
+   [ -e .env.local ] || cp .env.example .env.local
+   ```
+
+2. ใช้ `openssl rand -hex 32` สร้างค่า `AUTH_SESSION_SECRET` แล้วใส่ผลลัพธ์ลงใน `.env.local` ค่าอื่นเริ่มจาก [ไฟล์ตัวอย่าง](.env.example) และปรับได้ตาม [ตาราง ENV](#environment-variables) ไฟล์ `.env.local` อยู่ใน `.gitignore`
+
+3. เริ่ม Next.js แล้วเปิด <http://localhost:3000/login> ด้วย[บัญชีทดลอง](#บัญชีทดลอง)
+
+   ```bash
+   npm run dev
+   ```
+
+#### ทดสอบการสร้างหรือแก้ไขอีเวนต์
+
+ใช้ [Event Mock API](https://github.com/Thanawatx01/event_mock_api) ที่เขียนข้อมูลลงไฟล์ได้ Mock API บน Vercel เก็บข้อมูลที่เขียนไว้ในหน่วยความจำของแต่ละ instance คำขอถัดไปจึงอาจมองไม่เห็นข้อมูลที่เพิ่งบันทึก
+
+รันคำสั่งต่อไปนี้ใน repo ของ Mock API
+
+```bash
+npm ci
+npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
+```
+
+ตั้ง `MOCK_API_BASE_URL=http://127.0.0.1:3001` ใน `.env.local` ของ EventSurvey ก่อนเริ่ม Next.js
+
+### Hosting
+
+1. ตั้งค่าจาก [ตาราง ENV](#environment-variables) ในระบบจัดการ Environment Variables ของโฮสต์ สำหรับ Vercel ให้เลือก **Preview** หรือ **Production** ตามการใช้งาน [คู่มือ Environment Variables ของ Vercel](https://vercel.com/docs/environment-variables)
+2. เก็บ `AUTH_SESSION_SECRET` และ `MAIL_PASSWORD` (เมื่อเปิดใช้ SMTP) ในช่อง secrets ของโฮสต์ ใช้ค่า session secret ที่สุ่มแยกกันในแต่ละ environment ตั้ง `APP_URL` เป็น HTTPS origin ที่ผู้รับอีเมลและผู้สแกน QR เปิดได้
+3. ตั้ง `MOCK_API_BASE_URL` ให้โฮสต์เข้าถึงได้ และใช้ Mock API ที่บันทึกข้อมูลได้หากต้องสร้างหรือแก้ไขอีเวนต์
+4. Deploy ด้วยค่าที่ตั้งไว้ การเปลี่ยน ENV บน Vercel มีผลกับ deployment ใหม่
+
+ลิงก์ที่เปิดข้ามเครื่องใช้อีเวนต์และฟอร์มจาก Mock API ส่วนค่าที่ผู้จัดบันทึกไว้ใน LocalStorage จะแสดงใน Preview ของเบราว์เซอร์นั้น
+
+### Environment Variables
+
+| ตัวแปร | การใช้งาน |
+|---|---|
+| `AUTH_SESSION_SECRET` | **Secret ที่จำเป็น** สำหรับ session และลิงก์ตั้งรหัสผ่าน สร้างด้วย `openssl rand -hex 32` แยกตาม environment |
+| `MOCK_API_BASE_URL` | URL ของ Mock API ที่เซิร์ฟเวอร์ใช้ ค่าเริ่มต้นสำหรับข้อมูลจำลองคือ `https://eventmockapi.vercel.app` |
+| `NEXT_PUBLIC_API_BASE_URL` | URL สำรองเมื่อไม่มี `MOCK_API_BASE_URL` ใช้เฉพาะค่าที่เปิดเผยได้ |
+| `APP_URL` | Origin ของ EventSurvey สำหรับลิงก์ตั้งรหัสผ่าน ลิงก์อีเวนต์ และ QR ค่า local คือ `http://localhost:3000` ค่า hosting คือ HTTPS origin จริง |
+
+คุกกี้ session มีอายุ 8 ชั่วโมงและถูกล้างเมื่อออกจากระบบ เมื่อเปลี่ยน `AUTH_SESSION_SECRET` ผู้ใช้ต้องเข้าสู่ระบบใหม่ และต้องออกลิงก์ตั้งรหัสผ่านใหม่สำหรับคำเชิญที่ยังไม่ได้ใช้
+
+#### ส่งอีเมลตั้งรหัสผ่านด้วย Gmail (ทางเลือก)
+
+| ตัวแปร | ค่า |
+|---|---|
+| `MAIL_HOST` | `smtp.gmail.com` |
+| `MAIL_PORT` | `465` โดย Nodemailer ใช้ TLS สำหรับพอร์ตนี้ |
+| `MAIL_USERNAME` | บัญชี Gmail ที่ใช้ส่ง |
+| `MAIL_PASSWORD` | **Secret** สำหรับ Gmail App Password |
+| `MAIL_FROM_ADDRESS` | ที่อยู่อีเมลผู้ส่ง |
+| `MAIL_FROM_NAME` | ชื่อผู้ส่ง เช่น `EventSurvey` |
+
+ตั้ง `APP_URL` ให้ผู้รับเปิดลิงก์ตั้งรหัสผ่านได้ เก็บค่า secret ไว้ใน `.env.local` หรือระบบ secrets ของโฮสต์ตามสภาพแวดล้อมที่ใช้
+
+## บัญชีทดลอง
+
+Mock API และบัญชีในตารางใช้ข้อมูลจำลองสำหรับ development รหัสผ่านของทุกบัญชีคือ `password123`
+
+| อีเมล | บทบาท | เข้าไปเจอหน้า |
+|---|---|---|
+| `admin@example.com` | ผู้ดูแลระบบ (`platform_admin`) | `/admin` |
+| `thanawat@example.com` | คนจัดงาน (`event_admin`) | `/event` |
+| `kittisak@example.com` | ทีมงานของคนจัดงาน (`event_sub_user`) | `/event` |
+
+## คำสั่งที่ใช้บ่อย
+
+| คำสั่ง | ใช้ทำอะไร |
+|---|---|
+| `npm run dev` | รันบนเครื่องตัวเอง แก้โค้ดแล้วเห็นผลทันที |
+| `npm run dev:webpack` | เหมือนด้านบน แต่ใช้ตัว build แบบเดิม เผื่อ Turbopack มีปัญหา |
+| `npm run build` | สร้างไฟล์สำหรับขึ้นเซิร์ฟเวอร์จริง |
+| `npm run start` | รันเวอร์ชันที่ build แล้ว |
+| `npm run lint` | ตรวจโค้ดว่าผิดกฎที่ตั้งไว้ไหม |
+| `npm test` | รันชุดทดสอบสิทธิ์และการปกปิด PII ด้วยข้อมูลจำลอง |
+
+## Event Dashboard และรายงาน
+
+Dashboard เปิดให้ผู้ใช้ที่มีสิทธิ์ `manage_dashboard` เมื่ออีเวนต์อยู่ในสถานะ `scheduled`, `open` หรือ `closed` ตาม lifecycle ของ Mock API สิทธิ์ของแต่ละฟอร์มกำหนดว่าผู้ใช้จะเห็นคำตอบชุดใด และ BFF ปกปิดค่า PII ก่อนส่งข้อมูลให้หน้าเว็บและไฟล์ส่งออก
+
+| หน้า | การทำงาน |
+|---|---|
+| `/event/dashboard` | แสดงวิดเจ็ตที่เผยแพร่ โดยคำนวณจากคำตอบ API ของกิจกรรมปัจจุบัน |
+| `/event/dashboard/builder` | เพิ่ม/ย้าย/ปรับความกว้าง/ตั้งค่าวิดเจ็ต บันทึกฉบับร่างในอุปกรณ์ หรือเผยแพร่ผ่าน API |
+| `/event/responses` | ค้นหาคำตอบแบบสำรวจ ดูรายละเอียด และส่งออก CSV |
+| `/event/exports` | CSV คำตอบและสรุปจากแบบฟอร์มสถานะ `scheduled`, `open` หรือ `closed` พร้อมรายงานสำหรับพิมพ์หรือบันทึก PDF |
+| `/event/trash` | แสดงถังขยะ กู้คืนแบบฟอร์มภายใน 30 วันตามสิทธิ์ (ไม่กู้คืนคำตอบ) |
+
+ทุกหน้ารองรับไทย/อังกฤษและ dark mode ใช้ BFF `/api/event/data`, `/api/event/dashboard` และ `/api/event/trash` ฉบับร่างเก็บการตั้งค่าวิดเจ็ตใน localStorage แยกตามผู้ใช้และอีเวนต์ การเผยแพร่บันทึกใน `dashboard_layouts` และ `dashboard_widgets` ของ Mock API
+
+Mock API เก็บ `grid_span` และ `date_range_days` สำหรับขนาดวิดเจ็ตและช่วงวันที่ ข้อมูลเดิมยังอ่านได้จาก `grid_w`, `display_size` และ `date_type` การเผยแพร่เขียนวิดเจ็ตชุดใหม่พร้อม `publication_revision` ให้ครบก่อนสลับ `published_widget_ids` ใน layout จึงยังอ่านชุดเดิมได้หากการเขียนชุดใหม่สะดุด
+
+เส้นทางในเว็บใต้ `/event/analytics` เปิดหน้าที่สอดคล้องกันของ Dashboard ส่วน Legacy API `/api/event/analytics` ต้องใช้ข้อมูล `dashboard_data` และ `audit_logs` จึงคืน `503` เมื่อ Mock API ไม่มีทรัพยากรเหล่านี้ หน้า Trash ใช้ข้อมูลฟอร์มที่ถูก soft-delete จึงแสดงฟอร์มที่กู้คืนได้แม้ Mock API ไม่มี `trash_items`
+
+ชุดทดสอบใช้ fixture ในหน่วยความจำเพื่อตรวจ service, permissions, การคำนวณ และ CSV โดยไม่เขียนข้อมูลไปยัง API ภายนอก
+
+```bash
+node --test tests/*.cjs
+```
+
+## เทคโนโลยี
 
 <p align="center">
   <picture>
@@ -49,76 +150,12 @@
 | Confirmation | **SweetAlert2** | ใช้ผ่าน `useConfirm()` |
 | Development | mock API ภายนอก | <https://eventmockapi.vercel.app> |
 
-ต้องมี **Node.js 20.9 ขึ้นไป**
+## Data Model
 
-## SETUP INSTRUCTION
+- [Schema DBML](schema.dbml) — Logical Data Model ของระบบ
+- [Schema Guide (GitHub Wiki)](https://github.com/raksitbell/eventsurvey_platform/wiki/Schema-DBML) — หน้าที่ของแต่ละตารางและความสัมพันธ์ของข้อมูล
+- [Public Database Diagram](https://dbdiagram.io/d/eventsurvey_platform-system-diagram-6ad97841f65bbc60f6fafa5d) — ดู Diagram แบบ Interactive
 
-```bash
-npm install
-```
+## แนวทางพัฒนา
 
-สร้างไฟล์ `.env.local` สำหรับ Mock API, session และโดเมนลิงก์อีเวนต์
-
-```bash
-MOCK_API_BASE_URL=https://eventmockapi.vercel.app
-NEXT_PUBLIC_API_BASE_URL=https://eventmockapi.vercel.app
-AUTH_SESSION_SECRET=<ค่าที่สร้างจาก openssl rand -hex 32>
-APP_URL=http://localhost:3000
-```
-
-ใช้ secret สุ่มแยกตาม environment และตั้งค่าใน Vercel ก่อน deploy คุกกี้มีอายุ 8 ชั่วโมงและถูกล้างเมื่อออกจากระบบ การเปลี่ยน secret จะทำให้ session และลิงก์ตั้งรหัสผ่านที่ออกด้วยค่าเดิมหมดอายุ ผู้ใช้ demo ต้องเข้าสู่ระบบใหม่และต้องออกลิงก์ใหม่สำหรับคำเชิญเก่าที่ยังไม่ได้ใช้
-
-Mock API และบัญชีทดลองใช้สำหรับ development ด้วยข้อมูลจำลอง
-
-ตั้ง `APP_URL` เป็น HTTPS origin ของเว็บ Demo จริงเมื่อต้องการสแกนจากมือถือ ใช้อีเวนต์และฟอร์มที่มีอยู่ใน Mock API เพื่อเปิดลิงก์ข้ามเครื่อง การตั้งค่าที่บันทึกใน LocalStorage ของผู้จัดจะแสดงใน Preview ของเบราว์เซอร์นั้น
-
-```bash
-npm run dev
-```
-
-เปิด <http://localhost:3000/login> แล้วล็อกอินด้วยบัญชีทดลอง — รหัสผ่านทุกบัญชีคือ `password123`
-
-| อีเมล | บทบาท | เข้าไปเจอหน้า |
-|---|---|---|
-| `admin@example.com` | ผู้ดูแลระบบ (`platform_admin`) | `/admin` |
-| `thanawat@example.com` | คนจัดงาน (`event_admin`) | `/event` |
-| `kittisak@example.com` | ทีมงานของคนจัดงาน (`event_sub_user`) | `/event` |
-
-| คำสั่ง | ใช้ทำอะไร |
-|---|---|
-| `npm run dev` | รันบนเครื่องตัวเอง แก้โค้ดแล้วเห็นผลทันที |
-| `npm run dev:webpack` | เหมือนด้านบน แต่ใช้ตัว build แบบเดิม เผื่อ Turbopack มีปัญหา |
-| `npm run build` | สร้างไฟล์สำหรับขึ้นเซิร์ฟเวอร์จริง |
-| `npm run start` | รันเวอร์ชันที่ build แล้ว |
-| `npm run lint` | ตรวจโค้ดว่าผิดกฎที่ตั้งไว้ไหม |
-| `npm test` | รันชุดทดสอบสิทธิ์และการปกปิด PII ด้วยข้อมูลจำลอง |
-
----
-
-> [!IMPORTANT]
-> ก่อนเขียนโค้ดบรรทัดแรก อ่าน [`AGENTS.md`](AGENTS.md) ให้จบ
-> ข้อห้ามในนั้นส่วนใหญ่มาจากกรณีที่เคยทำแล้วเว็บค้างหรือพังจริงในโปรเจกต์นี้ ไม่ใช่กฎที่ตั้งขึ้นลอย ๆ
-
-## Event Dashboard และรายงาน
-
-Dashboard เปิดให้ผู้ใช้ที่มีสิทธิ์ `manage_dashboard` เมื่ออีเวนต์อยู่ในสถานะ `scheduled`, `open` หรือ `closed` ตาม lifecycle ของ Mock API สิทธิ์ของแต่ละฟอร์มกำหนดว่าผู้ใช้จะเห็นคำตอบชุดใด และ BFF ปกปิดค่า PII ก่อนส่งข้อมูลให้หน้าเว็บและไฟล์ส่งออก
-
-| หน้า | การทำงาน |
-|---|---|
-| `/event/dashboard` | แสดงวิดเจ็ตที่เผยแพร่ โดยคำนวณจากคำตอบ API ของกิจกรรมปัจจุบัน |
-| `/event/dashboard/builder` | เพิ่ม/ย้าย/ปรับความกว้าง/ตั้งค่าวิดเจ็ต บันทึกฉบับร่างในอุปกรณ์ หรือเผยแพร่ผ่าน API |
-| `/event/responses` | ค้นหาคำตอบแบบสำรวจ ดูรายละเอียด และส่งออก CSV |
-| `/event/exports` | CSV คำตอบและสรุปจากแบบฟอร์มสถานะ `scheduled`, `open` หรือ `closed` พร้อมรายงานสำหรับพิมพ์หรือบันทึก PDF |
-| `/event/trash` | แสดงถังขยะ กู้คืนแบบฟอร์มภายใน 30 วันตามสิทธิ์ (ไม่กู้คืนคำตอบ) |
-
-ทุกหน้ารองรับไทย/อังกฤษและ dark mode ใช้ BFF `/api/event/data`, `/api/event/dashboard` และ `/api/event/trash` ฉบับร่างเก็บการตั้งค่าวิดเจ็ตใน localStorage แยกตามผู้ใช้และอีเวนต์ การเผยแพร่บันทึกใน `dashboard_layouts` และ `dashboard_widgets` ของ Mock API
-
-Mock API เก็บ `grid_span` และ `date_range_days` สำหรับขนาดวิดเจ็ตและช่วงวันที่ ข้อมูลเดิมยังอ่านได้จาก `grid_w`, `display_size` และ `date_type` การเผยแพร่เขียนวิดเจ็ตชุดใหม่พร้อม `publication_revision` ให้ครบก่อนสลับ `published_widget_ids` ใน layout จึงยังอ่านชุดเดิมได้หากการเขียนชุดใหม่สะดุด
-
-เส้นทางในเว็บใต้ `/event/analytics` เปิดหน้าที่สอดคล้องกันของ Dashboard ส่วน Legacy API `/api/event/analytics` ต้องใช้ข้อมูล `dashboard_data` และ `audit_logs` จึงคืน `503` เมื่อ Mock API ไม่มีทรัพยากรเหล่านี้ หน้า Trash ใช้ข้อมูลฟอร์มที่ถูก soft-delete จึงแสดงฟอร์มที่กู้คืนได้แม้ Mock API ไม่มี `trash_items`
-
-ทดสอบ service, permissions, การคำนวณ และ CSV ด้วย fixture ในหน่วยความจำ (ไม่เขียนข้อมูลไปยัง API ภายนอก):
-
-```bash
-node --test tests/*.cjs
-```
+อ่าน [`AGENTS.md`](AGENTS.md) ก่อนเริ่มแก้โค้ด คู่มือครอบคลุมโครงสร้างโฟลเดอร์ การทำหลายภาษา การใช้ธีมและสี การแยก component และข้อกำหนดที่มาจากปัญหาที่เคยเกิดกับเว็บและโปรเจกต์

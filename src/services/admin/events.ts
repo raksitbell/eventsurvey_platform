@@ -1,4 +1,4 @@
-import { mockApi } from "@/core/api/mock-client";
+import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { maskEmail, maskName, mayViewPii, type PiiViewer } from "@/core/auth/pii";
 import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
@@ -341,61 +341,19 @@ async function assertEmailAvailable(email: string): Promise<void> {
   }
 }
 
-async function createEventAdminRole(
-  eventId: string,
-  actorUserId: string,
-): Promise<MockRole> {
-  const now = nowIso();
-  const role = await mockApi.post<MockRole>("/roles", {
-    id: randomUUID(),
-    event_id: eventId,
-    name: "Event Admin",
-    description: "Full access for event admin",
-    created_at: now,
-    created_by: actorUserId,
-    updated_at: now,
-    updated_by: actorUserId,
-    deleted_at: null,
-  });
-
-  await Promise.all(
-    EVENT_ADMIN_PERMISSIONS.map((permission) =>
-      mockApi.post("/role_permissions", {
-        id: randomUUID(),
-        role_id: role.id,
-        permission,
-      }),
-    ),
-  );
-
-  return role;
-}
-
-export async function createAdminEvent(
-  input: CreateAdminEventInput,
-  platformAdminUserId: string,
-  locale: Locale = routing.defaultLocale,
-  viewer?: PiiViewer,
-): Promise<CreateAdminEventResult> {
-  await assertSlugAvailable(input.slug);
-
-  const now = nowIso();
-  const eventId = randomUUID();
-
-  let adminUser: MockUser;
-  let inviteSent = false;
-  let impersonateUserId: string | null = null;
-
+async function resolveEventAdmin(input: CreateAdminEventInput) {
   if (input.mode === "existing") {
-    if (!input.existingUserId) {
+    const userId = input.existingUserId;
+    if (!userId) {
       throw new ServiceError("VALIDATION_ERROR", 400, "existingUserId required");
     }
-    let existing: MockUser;
-    try {
-      existing = await mockApi.get<MockUser>(`/users/${input.existingUserId}`);
-    } catch {
-      throw new ServiceError("USER_NOT_FOUND", 404);
-    }
+    const existing = await mockApi
+      .get<MockUser>(`/users/${encodeURIComponent(userId)}`)
+      .catch((error: unknown) => {
+        if (error instanceof MockApiError && error.status === 404)
+          throw new ServiceError("USER_NOT_FOUND", 404);
+        throw error;
+      });
     if (
       !existing ||
       existing.system_role !== "event_user" ||
@@ -405,106 +363,176 @@ export async function createAdminEvent(
     ) {
       throw new ServiceError("USER_NOT_ASSIGNABLE", 409);
     }
-    adminUser = existing;
-    impersonateUserId = existing.id;
-  } else {
-    const email = input.adminEmail?.trim().toLowerCase();
-    const name = input.adminName?.trim();
-    if (!email || !name) {
-      throw new ServiceError("VALIDATION_ERROR", 400, "adminName and adminEmail required");
-    }
-    await assertEmailAvailable(email);
-    const tempPassword = randomBytes(18).toString("base64url");
-    adminUser = await mockApi.post<MockUser>("/users", {
-      id: randomUUID(),
-      email,
-      password: tempPassword,
-      display_name: name,
-      system_role: "event_user",
-      platform_role_id: null,
-      event_id: null,
-      role_id: null,
-      role_assigned_by_user_id: null,
-      role_assigned_at: null,
-      status: "invited",
-      invited_by_user_id: platformAdminUserId,
-      joined_at: null,
-      created_at: now,
-      updated_at: now,
-      removed_at: null,
-    });
+    return { mode: "existing" as const, userId: existing.id };
   }
 
+  const email = input.adminEmail?.trim().toLowerCase();
+  const name = input.adminName?.trim();
+  if (!email || !name) {
+    throw new ServiceError("VALIDATION_ERROR", 400, "adminName and adminEmail required");
+  }
+  await assertEmailAvailable(email);
+  return { mode: "new" as const, userId: randomUUID(), email, name };
+}
+
+async function removeFailedEventRecords(paths: string[]) {
+  for (const path of paths.reverse()) {
+    try {
+      await mockApi.delete(path);
+    } catch (error) {
+      if (!(error instanceof MockApiError && error.status === 404)) {
+        // Keep parents if a child may still reference them.
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+export async function createAdminEvent(
+  input: CreateAdminEventInput,
+  platformAdminUserId: string,
+  locale: Locale = routing.defaultLocale,
+  viewer?: PiiViewer,
+): Promise<CreateAdminEventResult> {
+  await assertSlugAvailable(input.slug);
+  const admin = await resolveEventAdmin(input);
+
+  const now = nowIso();
+  const eventId = randomUUID();
+  const roleId = randomUUID();
   const titleTh = input.titleTh.trim();
   const titleEn = input.titleEn.trim();
   const defaultLocale: Locale =
     titleTh && !titleEn ? "th" : !titleTh && titleEn ? "en" : locale;
 
-  const event = await mockApi.post<MockEvent>("/events", {
-    id: eventId,
-    slug: input.slug,
-    status: "draft",
-    default_locale: defaultLocale,
-    start_at: null,
-    end_at: null,
-    is_private: false,
-    has_registration: false,
-    has_survey: false,
-    survey_access: null,
-    opens_at: null,
-    closes_at: null,
-    created_at: now,
-    created_by: platformAdminUserId,
-    updated_at: now,
-    updated_by: platformAdminUserId,
-  });
+  const createdPaths: string[] = [];
+  let operation = "";
+  let rollbackAllowed = true;
 
+  function createRow<T extends { id: string }>(collection: string, row: T) {
+    operation = `POST ${collection}`;
+    // Include the attempted ID when a failed response leaves the write uncertain.
+    createdPaths.push(`${collection}/${encodeURIComponent(row.id)}`);
+    return mockApi.post<T>(collection, row);
+  }
+
+  let event: MockEvent;
+  let adminUser: MockUser;
   const translationRows: MockEventTranslation[] = [];
-  let displayOrder = 1;
-  if (titleTh) {
-    const row: MockEventTranslation = {
-      id: randomUUID(),
-      event_id: eventId,
-      locale_code: "th",
-      display_order: displayOrder++,
-      title: titleTh,
-      description: null,
-      location_name: null,
-      address_text: null,
-      created_at: now,
-      updated_at: now,
-    };
-    await mockApi.post<MockEventTranslation>("/event_translations", row);
-    translationRows.push(row);
-  }
-  if (titleEn) {
-    const row: MockEventTranslation = {
-      id: randomUUID(),
-      event_id: eventId,
-      locale_code: "en",
-      display_order: displayOrder++,
-      title: titleEn,
-      description: null,
-      location_name: null,
-      address_text: null,
-      created_at: now,
-      updated_at: now,
-    };
-    await mockApi.post<MockEventTranslation>("/event_translations", row);
-    translationRows.push(row);
-  }
-
-  const role = await createEventAdminRole(eventId, platformAdminUserId);
-
-  adminUser = await mockApi.patch<MockUser>(`/users/${adminUser.id}`, {
+  const assignment = {
     event_id: eventId,
-    role_id: role.id,
+    role_id: roleId,
     role_assigned_by_user_id: platformAdminUserId,
     role_assigned_at: now,
     updated_at: now,
-  });
+  };
+  try {
+    event = await createRow<MockEvent>("/events", {
+      id: eventId,
+      slug: input.slug,
+      status: "draft",
+      default_locale: defaultLocale,
+      start_at: null,
+      end_at: null,
+      is_private: false,
+      has_registration: false,
+      has_survey: false,
+      survey_access: null,
+      opens_at: null,
+      closes_at: null,
+      created_at: now,
+      created_by: platformAdminUserId,
+      updated_at: now,
+      updated_by: platformAdminUserId,
+    });
 
-  if (input.mode === "new") {
+    const titles = { th: titleTh, en: titleEn };
+    for (const localeCode of ["th", "en"] as const) {
+      const title = titles[localeCode];
+      if (!title) continue;
+      const row = await createRow<MockEventTranslation>("/event_translations", {
+        id: randomUUID(),
+        event_id: eventId,
+        locale_code: localeCode,
+        display_order: translationRows.length + 1,
+        title,
+        description: null,
+        location_name: null,
+        address_text: null,
+        created_at: now,
+        updated_at: now,
+      });
+      translationRows.push(row);
+    }
+
+    await createRow<MockRole>("/roles", {
+      id: roleId,
+      event_id: eventId,
+      name: "Event Admin",
+      description: "Full access for event admin",
+      created_at: now,
+      created_by: platformAdminUserId,
+      updated_at: now,
+      updated_by: platformAdminUserId,
+      deleted_at: null,
+    });
+    for (const permission of EVENT_ADMIN_PERMISSIONS) {
+      await createRow("/role_permissions", {
+        id: randomUUID(),
+        role_id: roleId,
+        permission,
+      });
+    }
+
+    if (admin.mode === "new") {
+      // Save the invited account and its assignment in a single write.
+      adminUser = await createRow<MockUser>("/users", {
+        id: admin.userId,
+        email: admin.email,
+        password: randomBytes(18).toString("base64url"),
+        display_name: admin.name,
+        system_role: "event_user",
+        platform_role_id: null,
+        status: "invited",
+        invited_by_user_id: platformAdminUserId,
+        joined_at: null,
+        created_at: now,
+        removed_at: null,
+        ...assignment,
+      });
+    } else {
+      operation = "PATCH /users";
+      const path = `/users/${encodeURIComponent(admin.userId)}`;
+      adminUser = await mockApi
+        .patch<MockUser>(path, assignment)
+        .catch(async (error: unknown) => {
+          const current = await mockApi.get<MockUser>(path).catch(() => null);
+          if (current?.event_id === eventId && current.role_id === roleId) {
+            return current;
+          }
+          // Retain the records if the account may still reference this event.
+          rollbackAllowed = current
+            ? current.event_id !== eventId
+            : error instanceof MockApiError &&
+              error.status >= 400 &&
+              error.status < 500;
+          throw error;
+        });
+    }
+  } catch (error) {
+    const rolledBack =
+      rollbackAllowed && (await removeFailedEventRecords(createdPaths));
+    console.error("Admin event write failed", {
+      operation,
+      upstreamStatus: error instanceof MockApiError ? error.status : undefined,
+      rolledBack,
+    });
+    throw error;
+  }
+
+  let inviteSent = false;
+  if (admin.mode === "new") {
     try {
       await sendSetupPasswordInvite({
         to: adminUser.email,
@@ -516,17 +544,13 @@ export async function createAdminEvent(
       });
       inviteSent = true;
     } catch {
-      // Event + invited user are already persisted — do not fail the create
-      // (retry would hit EMAIL_EXISTS / SLUG_EXISTS while the draft remains).
-      inviteSent = false;
+      // The draft and the invited account are already saved.
     }
   }
 
-  const item = toListItem(event, translationRows, [adminUser], locale, viewer);
-
   return {
-    event: item,
-    impersonateUserId,
+    event: toListItem(event, translationRows, [adminUser], locale, viewer),
+    impersonateUserId: admin.mode === "existing" ? adminUser.id : null,
     inviteSent,
   };
 }

@@ -493,6 +493,7 @@
         "emailExists": "This email is already in use",
         "impersonationFailed": "The draft was saved, but the Event Workspace could not be opened.",
         "mailFailed": "Account created but email failed to send",
+        "mockReadOnly": "The mock API cannot save changes. Point MOCK_API_BASE_URL to a writable mock API.",
         "generic": "Failed to create event"
       }
     },

@@ -2,6 +2,7 @@ import {
   isAuthSession,
   requireAdminSession,
 } from "@/core/auth/api-guard";
+import { MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { authJson } from "@/core/auth/route-response";
 import {
@@ -82,6 +83,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: error.code, message: error.message },
         { status: error.status },
+      );
+    }
+    if (error instanceof MockApiError) {
+      const readOnly =
+        error.status >= 500 && /EROFS|read-only file system/i.test(error.message);
+      return authJson(
+        { error: readOnly ? "MOCK_READ_ONLY" : "MOCK_API_ERROR" },
+        readOnly ? 503 : 502,
       );
     }
     return authJson({ error: "Failed to create event" }, 502);

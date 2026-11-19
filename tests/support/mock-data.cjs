@@ -24,7 +24,7 @@ function user(id, attributes) {
   };
 }
 
-function setupMockData(t) {
+function setupMockData(t, { eventWrites = false } = {}) {
   const admin = user("LimitedAdmin", {
     system_role: "platform_admin",
     platform_role_id: "limited-role",
@@ -40,7 +40,10 @@ function setupMockData(t) {
     invited_by_user_id: owner.id,
   });
   const otherOwner = user("OtherOwner", { event_id: "event-b", role_id: "owner-role" });
-  const assignable = user("Assignable", { display_name: null });
+  const assignable = user("Assignable", {
+    id: "65f045de-1f66-4bb4-af3c-651de7f113a2",
+    display_name: null,
+  });
   const invited = user("InvitedUser", { status: "invited" });
   const collections = {
     users: [admin, reviewer, owner, assistant, otherOwner, assignable, invited],
@@ -75,8 +78,10 @@ function setupMockData(t) {
       unexpected.push(`${method} ${url}`);
       throw new Error("Unexpected upstream request");
     }
-    const failure = failures.get(url.pathname);
-    if (failure) return new Response(failure, { status: 500 });
+    const body = options?.body ? JSON.parse(options.body) : undefined;
+    const failure = failures.get(method + " " + url.pathname) ?? failures.get(url.pathname);
+    const message = typeof failure === "function" ? failure(body) : failure;
+    if (message) return new Response(message, { status: 500 });
 
     const rows = collections[collection];
     if (id) {
@@ -84,7 +89,11 @@ function setupMockData(t) {
       if (!row) return new Response(null, { status: 404 });
       if (method === "GET") return Response.json(row);
       if (method === "PATCH" && collection === "users") {
-        Object.assign(row, JSON.parse(options.body));
+        Object.assign(row, body);
+        return Response.json(row);
+      }
+      if (eventWrites && method === "DELETE") {
+        rows.splice(rows.indexOf(row), 1);
         return Response.json(row);
       }
     }
@@ -93,6 +102,10 @@ function setupMockData(t) {
       return Response.json(rows.filter((row) =>
         filters.every(([field, value]) => String(row[field]) === value)));
     }
+    if (eventWrites && method === "POST" && !id) {
+      rows.push(body);
+      return Response.json(body, { status: 201 });
+    }
     unexpected.push(`${method} ${url}`);
     throw new Error("Unexpected upstream method");
   });
@@ -100,7 +113,7 @@ function setupMockData(t) {
   return {
     admin, reviewer, owner, assistant, otherOwner, assignable, invited,
     platformPermissions: collections.platform_role_permissions,
-    calls, failures,
+    calls, failures, collections,
   };
 }
 

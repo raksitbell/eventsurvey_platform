@@ -6,7 +6,7 @@ import SelectField from "@/components/form/SelectField";
 import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
-import { api } from "@/core/api";
+import { api, ApiError } from "@/core/api";
 import { slugifyFromTitles } from "@/core/validation/admin-events";
 import { Link, useRouter } from "@/i18n/navigation";
 import type {
@@ -146,13 +146,15 @@ export default function CreateEventForm() {
       await showSuccess(t("successTitle"), t("successCreated"), tc("ok"));
       router.push("/admin/events");
     } catch (err) {
-      const code = err instanceof Error ? err.message : "generic";
+      const code = err instanceof ApiError ? err.code : undefined;
       const message =
         code === "SLUG_EXISTS"
           ? t("errors.slugExists")
           : code === "EMAIL_EXISTS"
             ? t("errors.emailExists")
-            : t("errors.generic");
+            : code === "MOCK_READ_ONLY"
+              ? t("errors.mockReadOnly")
+              : t("errors.generic");
       await showError(t("errorTitle"), message, tc("ok"));
     } finally {
       setIsSubmitting(false);
