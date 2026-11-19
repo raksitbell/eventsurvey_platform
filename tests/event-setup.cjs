@@ -1343,6 +1343,18 @@ test("Raksit summaries adapt existing BFF statuses without mutating definitions"
   assert.equal(setupFormStatus("closed"), "closed");
   assert.equal(rows[0].status, "draft");
 });
+test("Publication reports each form's validation at its own checklist row", () => {
+  const { reviewPublication } = load("src/core/event/publication.ts");
+  const registration = { ...formSummary("registration"), questions: [], status: "scheduled" };
+  const survey = formSummary("survey");
+  const draft = { ...publishDraft, surveyAccess: "public" };
+  const review = reviewPublication(draft, { registration, survey }, [registration, survey]);
+  assert.deepEqual(review.formProblems, { registration: ["formContent"], survey: ["formStatus"] });
+  assert.deepEqual(review.issues.sort(), ["formContent", "formStatus"]);
+  const registeredOnly = reviewPublication({ ...draft, surveyAccess: "registered_only" }, { registration, survey }, [registration, survey]);
+  assert.ok(registeredOnly.issues.includes("registeredEligibility"));
+  assert.ok(!registeredOnly.issues.includes("whitelist"));
+});
 test("SRS permits no forms and blocks enabled forms with incomplete metadata or schedules", () => {
   assert.deepEqual(
     publicationIssues(
@@ -2116,6 +2128,7 @@ function setupStep(kind, options = {}) {
   const noop = { default: () => null };
   const mocks = {
     "./publish/PublishChecklist": noop,
+    "./publish/PublishBrandingSummary": noop,
     "../workspace/EventWorkspacePageHeader": noop,
     "@/core/api": {
       ApiError: Error,
@@ -2445,6 +2458,45 @@ test("Publish preview opens the dialog only after saving succeeds", async () => 
     assert.equal(display.props.branding.layout, layout);
     assert.equal(display.props.contentLocale, "th");
   }
+});
+
+test("Publish checklist distinguishes absent values from existing invalid values", () => {
+  const Checklist = compileSetupComponent(
+    "src/components/event/setup/publish/PublishChecklist.tsx",
+    {
+      "@/core/event/banner-layout": load("src/core/event/banner-layout.ts"),
+      "@/core/event/content": load("src/core/event/content.ts"),
+      "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
+      "./publish-view.css": {},
+      "next-intl": { useLocale: () => "th", useTranslations: () => (key) => key },
+    },
+  );
+  const draft = {
+    ...publishDraft,
+    eventName: "",
+    startsAt: "2027-01-01T10:00:00.000Z",
+    endsAt: "2027-01-01T09:00:00.000Z",
+    hasRegistration: true,
+  };
+  const forms = { registration: null, survey: null };
+  const recheck = load("src/core/event/publication.ts").reviewPublication;
+  const { issues, formProblems } = recheck(draft, forms);
+  const checklist = Checklist({
+    draft,
+    branding: defaultEventBranding,
+    issues,
+    forms,
+    formProblems,
+    canEdit: true,
+    canManageRegistration: true,
+  });
+  const rows = checklist.props.children.flat().filter((node) => node.type === "button");
+  const status = Object.fromEntries(rows.map((node) => [node.key, node.props["data-status"]]));
+  assert.equal(status.eventName, "missing");
+  assert.equal(status.location, "complete");
+  assert.equal(status.start, "complete");
+  assert.equal(status.end, "needs-edit");
+  assert.equal(status.registration, "missing");
 });
 
 test("Event information configuration preserves field bindings, limits, labels, null values and read-only state", () => {

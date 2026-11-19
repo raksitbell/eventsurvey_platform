@@ -2,9 +2,14 @@
 import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import PublishChecklist from "./publish/PublishChecklist";
-import { surveyClosingTime } from "@/core/event/schedule";
+import PublishBrandingSummary from "./publish/PublishBrandingSummary";
+import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
+import { isPastScheduleMinute, surveyClosingTime } from "@/core/event/schedule";
 import { api, ApiError } from "@/core/api";
-import { eventSetupStateKey, notifyEventSetupSaved } from "@/core/event/local-events";
+import {
+  eventSetupStateKey,
+  notifyEventSetupSaved,
+} from "@/core/event/local-events";
 import useSetupApiState from "@/hooks/useSetupApiState";
 import type { EventSetupState } from "@/types/event/setup";
 import { showToast } from "@/utils/alert";
@@ -12,14 +17,10 @@ import EventSetupActions from "@/components/event/setup/EventSetupActions";
 
 import PublishParticipantPreview from "@/components/event/setup/publish/PublishParticipantPreview";
 import Button from "@/components/ui/button/Button";
-import { contentLanguageName } from "@/core/event/content";
 import { selectSetupForms } from "@/core/event/form-summary";
 import { createSavedNavigation } from "@/core/event/draft";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
-import {
-  publicationIssues,
-  type PublishIssue,
-} from "@/core/event/publication";
+import { reviewPublication, type PublishIssue } from "@/core/event/publication";
 import { useConfirm } from "@/hooks/useConfirm";
 import useEventDraft from "@/hooks/useEventDraft";
 import useEventBranding from "@/hooks/useEventBranding";
@@ -38,9 +39,11 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     save: saveDraft,
     readOnly,
   } = useEventDraft(workspace, userId, locale, setupApi);
-  const { branding, save: saveBranding, pendingMediaMessage } = useEventBranding(
-    workspace, userId, locale, setupApi,
-  );
+  const {
+    branding,
+    save: saveBranding,
+    pendingMediaMessage,
+  } = useEventBranding(workspace, userId, locale, setupApi);
   const receipt = workspace.setup?.publication ?? null;
   const formState = useEventFormSummaries(
     workspace.eventId,
@@ -61,7 +64,50 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           }
         : null,
   };
-  const issues = publicationIssues(draft, forms);
+  const { issues, formProblems } = reviewPublication(
+    draft,
+    forms,
+    receipt ? undefined : formState.forms,
+  );
+  const [validation, setValidation] = useState<{
+    revision: number;
+    issues?: PublishIssue[];
+    pastStart?: boolean;
+    pastEnd?: boolean;
+    pendingMedia?: boolean;
+  } | null>(null);
+  const currentValidation =
+    validation?.revision === (workspace.setup?.revision ?? 0)
+      ? validation
+      : null;
+  const reviewIssues = receipt
+    ? []
+    : [
+        ...issues,
+        ...(currentValidation?.issues ?? []).filter(
+          (item) =>
+            !issues.some((issue) =>
+              typeof issue === "string" || typeof item === "string"
+                ? issue === item
+                : issue.key === item.key &&
+                  issue.localeCode === item.localeCode,
+            ),
+        ),
+      ];
+  const mediaWarning =
+    !receipt &&
+    (pendingMediaMessage ||
+      currentValidation?.pendingMedia ||
+      Object.entries(workspace.setup?.pendingMedia ?? {}).some(
+        ([code, entries]) => code !== locale && entries.length > 0,
+      ))
+      ? s(pendingMediaMessage ?? "mediaAnotherBrowser")
+      : undefined;
+  const blocked =
+    reviewIssues.length > 0 ||
+    !!mediaWarning ||
+    !!currentValidation?.pastStart ||
+    !!currentValidation?.pastEnd;
   const published = !!receipt;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +116,9 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     setError(ok ? null : s("saveError"));
     return ok;
   };
-  const saveBeforeNavigation = () => !busy && save();
+  const pending = busy || setupApi.pending;
+  const canEdit = !pending && !readOnly && !published;
+  const saveBeforeNavigation = () => !pending && save();
   const navigate = createSavedNavigation(saveBeforeNavigation, router.push);
   const publish = async () => {
     if (readOnly || published || busy || workspace.userRole !== "event_owner")
@@ -83,24 +131,12 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         return;
       }
 
-      if (issues.length) {
-        await confirm({
-          appearance: "event",
-          title: t("errorTitle"),
-          subtitle: t("errorSubtitle"),
-          message: t("errorBody"),
-          note: issues
-            .map((issue) => {
-              if (typeof issue === "string") return t(`issues.${issue}`);
-              return t(`issues.${issue.key}`, {
-                language: contentLanguageName(issue.localeCode, locale),
-              });
-            })
-            .join("\n"),
-          variant: "danger",
-          showCancel: false,
-          confirmLabel: t("fix"),
-        });
+      if (blocked) {
+        globalThis.document
+          ?.querySelector<HTMLElement>(
+            ".publish-checklist :is([data-status='missing'], [data-status='needs-edit']):enabled",
+          )
+          ?.focus();
         return;
       }
       const revision = setupApi.getRevision();
@@ -117,7 +153,9 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       )
         return;
       await api.post<EventSetupState>("/event/setup/publish", {
-        eventId: workspace.eventId, revision, locale,
+        eventId: workspace.eventId,
+        revision,
+        locale,
       });
       notifyEventSetupSaved(eventSetupStateKey(workspace.eventId));
       await confirm({
@@ -132,15 +170,33 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       router.push("/event/qr");
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "SETUP_MEDIA_PENDING") {
-        setError(s(pendingMediaMessage ?? "mediaAnotherBrowser"));
-      } else if (cause instanceof ApiError && cause.code === "SETUP_PUBLISH_IN_PAST") {
-        setError(dates("pastDate"));
-      } else if (cause instanceof ApiError && cause.code === "SETUP_PUBLISH_INVALID") {
-        const issues = (cause.body as { issues?: PublishIssue[] } | undefined)?.issues ?? [];
-        setError(issues.map((issue) => typeof issue === "string"
-          ? t(`issues.${issue}`)
-          : t(`issues.${issue.key}`, { language: contentLanguageName(issue.localeCode, locale) })
-        ).join(" ") || t("publishError"));
+        setValidation({ revision: setupApi.getRevision(), pendingMedia: true });
+      } else if (
+        cause instanceof ApiError &&
+        cause.code === "SETUP_PUBLISH_IN_PAST"
+      ) {
+        const now = Date.now();
+        setValidation({
+          revision: setupApi.getRevision(),
+          pastStart: isPastScheduleMinute(draft.startsAt, now),
+          pastEnd: Date.parse(draft.endsAt ?? "") <= now,
+        });
+      } else if (
+        cause instanceof ApiError &&
+        cause.code === "SETUP_PUBLISH_INVALID"
+      ) {
+        const issues =
+          (cause.body as { issues?: PublishIssue[] } | undefined)?.issues ?? [];
+        // The forms API can change while this page is open. Refresh its per-form results.
+        setValidation({
+          revision: setupApi.getRevision(),
+          issues: issues.filter(
+            (issue) => issue !== "formStatus" && issue !== "formContent",
+          ),
+        });
+        formState.retry();
+        notifyEventSetupSaved(eventSetupStateKey(workspace.eventId));
+        if (!issues.length) setError(t("publishError"));
       } else if (cause instanceof ApiError && cause.status === 409) {
         setError(s("draftConflict"));
       } else {
@@ -156,28 +212,46 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         event.preventDefault();
         void publish();
       }}
-      className="publish-view"
+      className="es-setup-form publish-view"
     >
-      <header className="publish-heading">
-        <h1 className="text-title-sm font-bold">{s("preview")}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {s("previewHint")}
-        </p>
-      </header>
+      <EventWorkspacePageHeader
+        title={s("preview")}
+        description={s("previewHint")}
+        back={{ onClick: () => void navigate("/event"), disabled: pending }}
+      />
       <div className="publish-grid">
-        <PublishParticipantPreview
-          draft={draft}
-          branding={branding}
-          bannerUrl={workspace.bannerUrl}
-          onOpen={saveBeforeNavigation}
-        />
+        <div className="publish-preview-column">
+          <PublishParticipantPreview
+            draft={draft}
+            branding={branding}
+            bannerUrl={workspace.bannerUrl}
+            disabled={pending}
+            onOpen={saveBeforeNavigation}
+          />
+          <PublishBrandingSummary
+            branding={branding}
+            canEdit={canEdit}
+            onEdit={() => navigate("/event/details#event-branding-settings")}
+          />
+        </div>
         <PublishChecklist
           draft={draft}
           branding={branding}
-          issues={issues}
-          loading={formState.loading}
-          canEdit={!busy && !readOnly && !published}
-          onEdit={() => navigate("/event/details")}
+          issues={reviewIssues}
+          forms={forms}
+          mediaWarning={mediaWarning}
+          startWarning={
+            currentValidation?.pastStart ? dates("pastDate") : undefined
+          }
+          endWarning={
+            currentValidation?.pastEnd ? dates("pastDate") : undefined
+          }
+          formProblems={formProblems}
+          checking={formState.loading || formState.error}
+          canManageRegistration={!!workspace.canManageWhitelist}
+          canManageSurvey={!!workspace.canManageSurveyForm}
+          canEdit={canEdit}
+          onEdit={navigate}
         />
       </div>
       <EventSetupActions
@@ -190,7 +264,9 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           label: s("save"),
           disabled: busy || readOnly || setupApi.pending,
           onClick: () => {
-            void save().then((saved) => { if (saved) showToast({ title: s("saved") }); });
+            void save().then((saved) => {
+              if (saved) showToast({ title: s("saved") });
+            });
           },
         }}
         primary={{
@@ -199,6 +275,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           disabled:
             busy ||
             setupApi.pending ||
+            blocked ||
             formState.loading ||
             formState.error ||
             published ||
@@ -206,7 +283,11 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
             workspace.userRole !== "event_owner",
         }}
         error={
-          setupApi.conflict ? s("draftConflict") : formState.error ? t("formsLoadError") : error ?? undefined
+          setupApi.conflict
+            ? s("draftConflict")
+            : formState.error
+              ? t("formsLoadError")
+              : (error ?? undefined)
         }
       >
         {formState.error && (

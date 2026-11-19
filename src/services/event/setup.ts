@@ -5,7 +5,7 @@ import { writeAuditLog } from "@/core/audit/write";
 import { defaultEventBranding } from "@/core/event/branding";
 import { projectEventContent } from "@/core/event/content";
 import { selectSetupForms } from "@/core/event/form-summary";
-import { publicationIssues, publicationSchema } from "@/core/event/publication";
+import { reviewPublication, publicationSchema } from "@/core/event/publication";
 import { isPastScheduleMinute, surveyClosingTime } from "@/core/event/schedule";
 import { writeSerially } from "@/core/event/serial-write";
 import type { SetupRecord } from "@/core/event/setup-state";
@@ -346,13 +346,7 @@ export async function publishSetup(
       survey: draft.hasSurvey && survey
         ? { ...survey, opensAt: draft.startsAt, closesAt: surveyClosingTime(draft) } : null,
     };
-    const issues = publicationIssues(draft, definitions);
-    for (const type of types) {
-      const matches = forms.filter((form) => form.type === type);
-      if (matches.length !== 1 || !["scheduled", "open", "published"].includes(matches[0].status))
-        issues.push("formStatus");
-    }
-    if (draft.hasSurvey && draft.surveyAccess === "registered_only") issues.push("whitelist");
+    const { issues } = reviewPublication(draft, definitions, forms);
     if (issues.length) throw new ServiceError("SETUP_PUBLISH_INVALID", 422, undefined, issues);
     await Promise.all(Object.values(setup.branding).map((branding) => checkBranding(event.id, branding)));
     const now = Date.now();

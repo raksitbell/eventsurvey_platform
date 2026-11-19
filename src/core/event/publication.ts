@@ -193,18 +193,24 @@ type SharedPublishIssue =
   | "formStatus"
   | "surveySchedule"
   | "uniqueField"
+  | "registeredEligibility"
   | "whitelist"
   | "capacity";
 export type PublishIssue =
   | SharedPublishIssue
   | { key: "contentTitle" | "contentVenue"; localeCode: string };
-/** Validate read-only BFF form definitions; form editing belongs to the Form team's branch. */
-export function publicationIssues(
+type FormProblem = "formContent" | "formStatus";
+type FormProblems = Record<FormType, FormProblem[]>;
+
+/** Supply the current form list to include lifecycle and participant eligibility checks at publish time. */
+export function reviewPublication(
   draft: EventDraft,
   forms: MinimalForms,
-): PublishIssue[] {
+  formList?: readonly { type: string; status: string }[],
+) {
   const issues = new Set<SharedPublishIssue>();
   const languageIssues: PublishIssue[] = [];
+  const formProblems: FormProblems = { registration: [], survey: [] };
   if (draft.content) {
     for (const row of draft.content.translations) {
       if (!row.title.trim())
@@ -234,33 +240,21 @@ export function publicationIssues(
     if (!(type === "registration" ? draft.hasRegistration : draft.hasSurvey))
       continue;
     const definition = forms[type];
-    if (
-      !definition ||
-      definition.type !== type ||
-      !form.safeParse(definition).success ||
-      !definition.questions.length
-    ) {
-      issues.add("formContent");
-      continue;
-    }
-    for (const locale of ["th", "en"] as const) {
-      if (!definition.head[locale].title.trim()) issues.add("formContent");
-      for (const { question: q } of definition.questions) {
-        const item = q.label[locale][0];
-        if (!item?.label.trim()) issues.add("formContent");
-        if (
-          ["multiple_choice", "checkbox", "dropdown"].includes(q.type) &&
-          (!item?.choices[locale].length ||
-            item.choices[locale].some((c) => !c.label.trim()))
-        )
-          issues.add("formContent");
-        if (
-          (q.min_length > q.max_length && q.max_length > 0) ||
-          q.min_number > q.max_number
-        )
-          issues.add("formContent");
+    if (formList) {
+      const matches = formList.filter((item) => item.type === type);
+      if (
+        matches.length !== 1 ||
+        !["scheduled", "open", "published"].includes(matches[0].status)
+      ) {
+        formProblems[type].push("formStatus");
+        issues.add("formStatus");
       }
     }
+    if (!definition || !hasCompleteContent(type, definition)) {
+      formProblems[type].push("formContent");
+      issues.add("formContent");
+    }
+    if (!definition) continue;
     if (
       type === "survey" &&
       (!definition.opensAt ||
@@ -295,5 +289,50 @@ export function publicationIssues(
   ])
     if (capacity != null && (!Number.isInteger(capacity) || capacity <= 0))
       issues.add("capacity");
-  return [...languageIssues, ...issues];
+  if (
+    formList &&
+    !draft.isPrivate &&
+    draft.hasSurvey &&
+    draft.surveyAccess === "registered_only"
+  ) {
+    issues.add("registeredEligibility");
+  }
+  return { issues: [...languageIssues, ...issues], formProblems };
+}
+
+export function publicationIssues(
+  draft: EventDraft,
+  forms: MinimalForms,
+): PublishIssue[] {
+  return reviewPublication(draft, forms).issues;
+}
+
+function hasCompleteContent(type: FormType, definition: MinimalForm): boolean {
+  if (
+    definition.type !== type ||
+    !form.safeParse(definition).success ||
+    !definition.questions.length
+  ) {
+    return false;
+  }
+  for (const locale of ["th", "en"] as const) {
+    if (!definition.head[locale].title.trim()) return false;
+    for (const { question } of definition.questions) {
+      const label = question.label[locale][0];
+      if (!label?.label.trim()) return false;
+      if (
+        ["multiple_choice", "checkbox", "dropdown"].includes(question.type) &&
+        (!label.choices[locale]?.length ||
+          label.choices[locale].some((choice) => !choice.label.trim()))
+      )
+        return false;
+      if (
+        (question.max_length > 0 &&
+          question.min_length > question.max_length) ||
+        question.min_number > question.max_number
+      )
+        return false;
+    }
+  }
+  return true;
 }
