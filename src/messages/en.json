@@ -914,6 +914,8 @@
     "inviteButton": "Add Sub-User",
     "inviting": "Inviting...",
     "inviteError": "Failed to invite member. Please try again.",
+    "inviteMailFailed": "Invitation created. The password setup email could not be sent.",
+    "invalidInviteEmail": "Enter a valid email address.",
     "inviteSubUserTitle": "Add Sub-User",
     "inviteSubUserDesc": "Add event co-organizers and assign module access permissions.",
     "fullNameLabel": "Full Name",
@@ -1403,6 +1405,8 @@
     "eventEnds": "Event ends {date}",
     "closingDate": "Closing date",
     "time": "Time",
+    "eventHour": "{label}, hour",
+    "eventMinute": "{label}, minute",
     "closingRule": "The closing time must be on or after the event end time.",
     "applyTime": "Use this time"
   },

@@ -164,6 +164,7 @@ test("Bangkok conversion round-trips midnight, leap days and invalid dates", () 
   for (const value of [
     "2026-11-09T00:00",
     "2024-02-29T23:59",
+    "2027-03-14T02:30",
     "2026-11-09T09:30",
   ])
     assert.equal(toBangkokInput(fromBangkokInput(value)), value);
@@ -2172,13 +2173,15 @@ test("Private access leaves the Registration switch editable and shows the relev
   );
 });
 
-test("the published workspace exposes Team navigation to owners only and highlights its route", () => {
+test("workspace navigation preserves form management, guards dirty Whitelist links and highlights the active page", async () => {
   const link = () => null;
   const render = (
     userRole,
     localPublishedAt,
     pathname,
     canAccessDashboard = false,
+    confirmLeave = null,
+    push = () => {},
   ) => {
     const Sidebar = compileSetupComponent(
       "src/components/event/workspace/EventWorkspaceSidebar.tsx",
@@ -2196,7 +2199,14 @@ test("the published workspace exposes Team navigation to owners only and highlig
             workspace: { userRole, localPublishedAt, canAccessDashboard },
           }),
         },
-        "@/i18n/navigation": { Link: link, usePathname: () => pathname },
+        "@/i18n/navigation": {
+          Link: link,
+          usePathname: () => pathname,
+          useRouter: () => ({ push }),
+        },
+        "./EventNavigationGuard": {
+          useEventNavigationGuard: () => ({ current: confirmLeave }),
+        },
         "./EventWorkspaceChrome.module.css": { default: {} },
       },
     );
@@ -2208,6 +2218,8 @@ test("the published workspace exposes Team navigation to owners only and highlig
     node.type === link && node.props["aria-label"] === "overview";
   const dashboard = (node) =>
     node.type === link && node.props.href === "/event/dashboard";
+  const formManagement = (node) =>
+    node.type === link && node.props.href === "/form";
   for (const pathname of ["/event", "/event/qr", "/event/team"]) {
     const owner = render("event_owner", "2027-01-01T00:00:00.000Z", pathname);
     assert.equal(
@@ -2218,7 +2230,9 @@ test("the published workspace exposes Team navigation to owners only and highlig
       findSetupElement(owner, overview).props["aria-current"],
       pathname === "/event" ? "page" : undefined,
     );
+    assert.equal(findSetupElement(owner, formManagement).props["aria-label"], "Form");
   }
+  assert.ok(findSetupElement(render("sub_user", null, "/event"), formManagement));
   assert.equal(
     findSetupElement(
       render("sub_user", "2027-01-01T00:00:00.000Z", "/event"),
@@ -2243,7 +2257,30 @@ test("the published workspace exposes Team navigation to owners only and highlig
     const owner = render("event_owner", null, pathname, true);
     assert.equal(findSetupElement(owner, dashboard).props["aria-current"], "page");
     assert.equal(findSetupElement(owner, overview).props["aria-current"], undefined);
+    assert.ok(findSetupElement(owner, formManagement));
   }
+
+  let prompts = 0;
+  let cancelled = 0;
+  const locations = [];
+  const navigation = { preventDefault: () => { cancelled++; } };
+  const sidebarForWhitelist = (approved) => render(
+    "event_owner", null, "/event/whitelist", false,
+    approved === null ? null : async () => { prompts++; return approved; },
+    (href) => locations.push(href),
+  );
+  findSetupElement(sidebarForWhitelist(null), overview).props.onNavigate(navigation);
+  assert.equal(cancelled, 0);
+
+  findSetupElement(sidebarForWhitelist(false), overview).props.onNavigate(navigation);
+  await Promise.resolve();
+  assert.deepEqual(locations, []);
+
+  findSetupElement(sidebarForWhitelist(true), formManagement).props.onNavigate(navigation);
+  await Promise.resolve();
+  assert.equal(prompts, 2);
+  assert.equal(cancelled, 2);
+  assert.deepEqual(locations, ["/form"]);
 });
 
 function multilingualDraft() {

@@ -76,15 +76,15 @@ export default function ParticipantEventContent({
       )}
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-2 bg-transparent @4xl/participant:flex-row @4xl/participant:gap-10 @4xl/participant:bg-transparent dark:bg-transparent dark:@4xl/participant:bg-transparent">
         <div
-          className="aspect-3/4 w-full shrink-0 overflow-hidden bg-(--participant-primary) @4xl/participant:w-(--container-participant-banner)"
-          style={cropPosition ? { aspectRatio: width / height } : undefined}
+          className="w-full shrink-0 overflow-hidden bg-(--participant-primary) @4xl/participant:w-(--container-participant-banner)"
+          style={{ aspectRatio: width / height }}
         >
           {banner && (
             <Image
               src={banner}
               alt={t("banner")}
-              width={450}
-              height={600}
+              width={width}
+              height={height}
               unoptimized
               className="size-full object-cover"
               style={{ objectPosition: cropPosition }}

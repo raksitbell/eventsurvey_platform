@@ -24,6 +24,7 @@ const formats = [
 ] as const;
 export default function ExportsView() {
   const { data, identityKey, errorStatus, reload } = useEventReporting();
+  const tErrors = useTranslations("errors");
 
   return (
     <ReportShell
@@ -32,9 +33,14 @@ export default function ExportsView() {
       errorStatus={errorStatus}
       retry={reload}
     >
-      {data && (
-        <ExportPanel key={`${identityKey}:${data.eventId}`} data={data} />
-      )}
+      {data &&
+        (data.canExport ? (
+          <ExportPanel key={`${identityKey}:${data.eventId}`} data={data} />
+        ) : (
+          <p className={panelClass} role="alert">
+            {tErrors("403.title")}
+          </p>
+        ))}
     </ReportShell>
   );
 }

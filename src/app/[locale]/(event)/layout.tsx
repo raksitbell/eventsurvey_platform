@@ -6,6 +6,9 @@ import { useSidebar } from "@/context/SidebarContext";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
+import EventNavigationGuardProvider, {
+  useEventNavigationGuard,
+} from "@/components/event/workspace/EventNavigationGuard";
 import EventWorkspaceSidebar from "@/components/event/workspace/EventWorkspaceSidebar";
 import EventWorkspaceHeader from "@/components/event/workspace/EventWorkspaceHeader";
 import { usePathname } from "@/i18n/navigation";
@@ -19,6 +22,7 @@ import "@/components/event/setup/event-admin-design.css";
 
 function EventShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const navigationGuard = useEventNavigationGuard();
   const isSetup = [
     "/event",
     "/event/details",
@@ -53,7 +57,9 @@ function EventShell({ children }: { children: React.ReactNode }) {
           data-screen={isSetup ? pathname : undefined}
           className={`flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin} ${isSetup ? "event-admin-main" : ""}`}
         >
-          <ImpersonationBanner />
+          <ImpersonationBanner
+            beforeLeave={() => navigationGuard?.current?.() ?? true}
+          />
           {usesWorkspaceChrome ? <EventWorkspaceHeader /> : <AppHeader />}
           <div
             className={
@@ -77,7 +83,9 @@ export default function EventLayout({
 }) {
   return (
     <AuthGuard area="event">
-      <EventShell>{children}</EventShell>
+      <EventNavigationGuardProvider>
+        <EventShell>{children}</EventShell>
+      </EventNavigationGuardProvider>
     </AuthGuard>
   );
 }

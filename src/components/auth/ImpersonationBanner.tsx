@@ -7,7 +7,11 @@ import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
 import { useTranslations } from "next-intl";
 
-export default function ImpersonationBanner() {
+export default function ImpersonationBanner({
+  beforeLeave,
+}: {
+  beforeLeave?: () => boolean | Promise<boolean>;
+}) {
   const t = useTranslations("impersonation");
   const tc = useTranslations("confirm");
   const tCommon = useTranslations("common");
@@ -23,7 +27,7 @@ export default function ImpersonationBanner() {
       confirmLabel: t("stop"),
       variant: "warning",
     });
-    if (!confirmed) return;
+    if (!confirmed || (beforeLeave && !(await beforeLeave()))) return;
     try {
       await stopImpersonating();
     } catch {

@@ -206,7 +206,7 @@ export default function SubUsersTable({
                     </td>
 
                     <td className="px-5 py-4 text-end">
-                      {canManage && (
+                      {canManage && !isAdmin && (
                         <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
@@ -216,7 +216,7 @@ export default function SubUsersTable({
                           >
                             <KeyIcon className="size-4" />
                           </button>
-                          {!isAdmin && !isSelf && (
+                          {!isSelf && (
                             <button
                               type="button"
                               onClick={() => handleRemove(user)}

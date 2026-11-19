@@ -46,7 +46,9 @@ export function deserializePermissionMatrix(
 
   if (jsonText) {
     try {
-      const parsed = JSON.parse(jsonText) as Partial<EventPermissionMatrix>;
+      const parsed = JSON.parse(jsonText) as Partial<
+        Record<keyof EventPermissionMatrix, unknown>
+      >;
       if (
         parsed &&
         typeof parsed === "object" &&
@@ -54,13 +56,15 @@ export function deserializePermissionMatrix(
         "dashboard" in parsed
       ) {
         return {
-          event: parsed.event ?? "view_only",
-          registrationForm: parsed.registrationForm ?? "view_only",
-          surveyForm: parsed.surveyForm ?? "view_only",
-          dashboard: parsed.dashboard ?? "view_only",
-          canViewSubmissions: Boolean(parsed.canViewSubmissions),
-          canManageSubmissions: Boolean(parsed.canManageSubmissions),
-          canExport: Boolean(parsed.canExport),
+          event: readAccessLevel(parsed.event),
+          registrationForm: readAccessLevel(parsed.registrationForm),
+          surveyForm: readAccessLevel(parsed.surveyForm),
+          dashboard: readAccessLevel(parsed.dashboard),
+          canViewSubmissions: parsed.canViewSubmissions === true,
+          canManageSubmissions:
+            parsed.canViewSubmissions === true &&
+            parsed.canManageSubmissions === true,
+          canExport: parsed.canExport === true,
         };
       }
     } catch {
@@ -84,6 +88,11 @@ export function deserializePermissionMatrix(
     canManageSubmissions: fallbackCodes.includes("manage_dashboard"),
     canExport: fallbackCodes.includes("manage_dashboard"),
   };
+}
+
+function readAccessLevel(value: unknown): ModuleAccessLevel {
+  if (value === "can_edit" || value === "restricted") return value;
+  return "view_only";
 }
 
 /**

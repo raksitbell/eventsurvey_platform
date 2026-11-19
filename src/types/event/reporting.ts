@@ -58,6 +58,8 @@ export interface ReportingData {
   eventStartsAt?: string | null;
   eventEndsAt?: string | null;
   canManage: boolean;
+  canViewSubmissions: boolean;
+  canExport: boolean;
   forms: ReportForm[];
   responses: ResponseRow[];
   trash: TrashRow[];

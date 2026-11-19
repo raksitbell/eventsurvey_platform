@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { UserGroupIcon } from "@heroicons/react/24/outline";
+import { DocumentTextIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import { useSidebar } from "@/context/SidebarContext";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
 import useEventWorkspace from "@/hooks/useEventWorkspace";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
 
 export default function EventWorkspaceSidebar() {
@@ -17,9 +18,23 @@ export default function EventWorkspaceSidebar() {
     currentWorkspace?.eventStatus === "open" ||
     currentWorkspace?.eventStatus === "closed";
   const t = useTranslations("eventSetup");
+  const sidebar = useTranslations("sidebar.items");
   const pathname = usePathname();
+  const router = useRouter();
+  const navigationGuard = useEventNavigationGuard();
   const { isExpanded, isHovered, isMobileOpen, setIsHovered } = useSidebar();
   const expanded = isExpanded || isHovered || isMobileOpen;
+
+  function guardLink(event: { preventDefault: () => void }, href: string) {
+    const confirmLeave = navigationGuard?.current;
+    if (!confirmLeave || href === pathname) return;
+
+    event.preventDefault();
+    void confirmLeave().then((approved) => {
+      if (approved) router.push(href);
+    });
+  }
+
   const items = [
     {
       label: t("overview"),
@@ -32,6 +47,11 @@ export default function EventWorkspaceSidebar() {
         />
       ),
       href: "/event",
+    },
+    {
+      label: sidebar("Form"),
+      icon: <DocumentTextIcon className="size-5" aria-hidden="true" />,
+      href: "/form",
     },
     {
       label: t("activity"),
@@ -97,7 +117,12 @@ export default function EventWorkspaceSidebar() {
       onMouseLeave={() => setIsHovered(false)}
       className={`${styles.sidebar} ${isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full xl:visible xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
     >
-      <Link href="/event" className={styles.brand} aria-label="EventSurvey">
+      <Link
+        href="/event"
+        onNavigate={(event) => guardLink(event, "/event")}
+        className={styles.brand}
+        aria-label="EventSurvey"
+      >
         <span className={styles.mark}>
           <Image
             alt=""
@@ -129,6 +154,7 @@ export default function EventWorkspaceSidebar() {
                   <Link
                     className={styles.item}
                     href={href}
+                    onNavigate={(event) => guardLink(event, href)}
                     aria-label={label}
                     aria-current={href === activeHref ? "page" : undefined}
                   >

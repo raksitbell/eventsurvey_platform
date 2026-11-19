@@ -13,6 +13,7 @@ import { download, responseCsv } from "@/core/event/export";
 import type { ReportingData } from "@/types/event/reporting";
 export default function ResponsesView() {
   const { data, identityKey, errorStatus, reload } = useEventReporting();
+  const tErrors = useTranslations("errors");
   const searchParams = useSearchParams();
   const initialFormId =
     searchParams.get("scope") === "all"
@@ -26,13 +27,18 @@ export default function ResponsesView() {
       errorStatus={errorStatus}
       retry={reload}
     >
-      {data && (
-        <ResponseTable
-          key={`${identityKey}:${data.eventId}:${initialFormId}`}
-          data={data}
-          initialFormId={initialFormId}
-        />
-      )}
+      {data &&
+        (data.canViewSubmissions ? (
+          <ResponseTable
+            key={`${identityKey}:${data.eventId}:${initialFormId}`}
+            data={data}
+            initialFormId={initialFormId}
+          />
+        ) : (
+          <p className={panelClass} role="alert">
+            {tErrors("403.title")}
+          </p>
+        ))}
     </ReportShell>
   );
 }
@@ -102,7 +108,7 @@ function ResponseTable({
           <Button
             variant="outline"
             size="sm"
-            disabled={!rows.length}
+            disabled={!data.canExport || !rows.length}
             onClick={() =>
               download(
                 responseCsv(rows, [t("id"), t("respondent"), t("submitted")]),
