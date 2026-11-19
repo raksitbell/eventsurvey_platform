@@ -3,6 +3,7 @@ import type { UserRole } from "@/types/user";
 import type { EventSetupState } from "@/types/event/setup";
 import type { EventContent } from "@/types/event/content";
 import type { EventFormAppearance } from "@/types/event/branding";
+import type { FormType } from "@/types/event/form";
 
 export interface EventWorkspace {
   eventId: string;
@@ -21,6 +22,7 @@ export interface EventWorkspace {
   canAccessDashboard: boolean;
   /** At least one form module is view_only or can_edit (restricted hides Form nav). */
   canAccessForms: boolean;
+  viewableFormTypes: FormType[];
   /** Event-scoped User Activity timeline (view only). */
   canViewActivity: boolean;
   description: string | null;

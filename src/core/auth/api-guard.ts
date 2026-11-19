@@ -191,6 +191,9 @@ export async function resolveEventFormAccess(
       loaded.user.id,
       loaded.user.event_id,
     );
+    if (!access.row) {
+      return { ok: false, response: authJson({ error: "FORBIDDEN" }, 403) };
+    }
     return {
       ok: true,
       access: {

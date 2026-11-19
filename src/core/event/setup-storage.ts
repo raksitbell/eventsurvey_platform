@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { ServiceError } from "@/core/api/service-error";
 import { setupRecordSchema, type SetupRecord } from "@/core/event/setup-state";
 import type { EventSetupState } from "@/types/event/setup";
+import type { FormType } from "@/types/event/form";
 import type { MockEvent } from "@/types/mock";
 
 const prefix = "v1";
@@ -50,10 +51,18 @@ export function readSetupRecord(event: Pick<MockEvent, "id" | "setup"> | { setup
   }
 }
 
-export function readSetupState(event: Parameters<typeof readSetupRecord>[0]): EventSetupState {
+export function readSetupState(event: Parameters<typeof readSetupRecord>[0], visible: readonly FormType[] = []): EventSetupState {
   const { revision, draft, branding, pendingMedia, publication, publishedBranding, recoveredPublication } = readSetupRecord(event);
+  function formSummary(type: FormType) {
+    const form = publication?.forms[type];
+    return form && visible.includes(type) ? { id: form.id, closesAt: form.closesAt } : null;
+  }
   return {
-    revision, draft, branding, pendingMedia, publication,
+    revision, draft, branding, pendingMedia,
+    publication: publication && {
+      ...publication,
+      forms: { registration: formSummary("registration"), survey: formSummary("survey") },
+    },
     ...(publication && publishedBranding ? { publishedBranding } : {}),
     recoveredPublicationAt: recoveredPublication?.publishedAt,
   };

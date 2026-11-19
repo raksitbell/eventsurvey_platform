@@ -1,4 +1,6 @@
 import type { EventWorkspace } from "@/types/event/workspace";
+import type { LocalPublication, PublicationForm } from "@/core/event/publication";
+import type { FormType } from "@/types/event/form";
 
 export type EventDraft = Pick<
   EventWorkspace,
@@ -36,6 +38,8 @@ export interface EventSetupState {
   branding: Record<string, import("@/types/event/branding").EventBranding>;
   publishedBranding?: EventSetupState["branding"];
   pendingMedia: Record<string, EventSetupMediaKind[]>;
-  publication: import("@/core/event/publication").LocalPublication | null;
+  publication: (Omit<LocalPublication, "forms"> & {
+    forms: Record<FormType, Pick<PublicationForm, "id" | "closesAt"> | null>;
+  }) | null;
   recoveredPublicationAt?: string;
 }

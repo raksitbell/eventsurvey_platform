@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     const requestedEvent = request.nextUrl.searchParams.get("eventId");
     if (requestedEvent && requestedEvent !== context.event.id)
       return authJson({ error: "SETUP_EVENT_CHANGED" }, 409);
-    const setup = readSetupState(context.event);
+    const setup = readSetupState(context.event, context.workspace.viewableFormTypes);
     if (!context.workspace.canEditEvent && !setup.publication)
       return authJson({ error: "FORBIDDEN" }, 403);
     return authJson(setup);

@@ -4,11 +4,10 @@ import {
   requireEventSession,
   resolveEventFormAccess,
 } from "@/core/auth/api-guard";
-import { satisfiesAccessLevel } from "@/core/auth/event-permissions";
+import { viewableFormTypes } from "@/core/auth/event-permissions";
 import { ServiceError } from "@/core/api/service-error";
 import { createFormBodySchema, formatZodError } from "@/core/validation/forms";
 import { createForm, listForms } from "@/services/event/forms";
-import type { FormType } from "@/types/event/form";
 import { NextRequest, NextResponse } from "next/server";
 
 /** GET /api/event/forms?eventId= — list live forms for an event */
@@ -34,17 +33,7 @@ export async function GET(request: NextRequest) {
   );
   if (!resolved.ok) return resolved.response;
 
-  const canViewRegistration = satisfiesAccessLevel(
-    resolved.access.registrationForm,
-    "view_only",
-  );
-  const canViewSurvey = satisfiesAccessLevel(
-    resolved.access.surveyForm,
-    "view_only",
-  );
-  const allowedTypes: FormType[] = [];
-  if (canViewRegistration) allowedTypes.push("registration");
-  if (canViewSurvey) allowedTypes.push("survey");
+  const allowedTypes = viewableFormTypes(resolved.access);
   if (!allowedTypes.length) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }

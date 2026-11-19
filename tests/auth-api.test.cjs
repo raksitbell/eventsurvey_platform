@@ -215,6 +215,8 @@ test("Event form lists load only the definitions permitted by the caller's form 
   }
   assert.ok(calls.some(({ url }) => url.searchParams.get("form_id") === "survey-id"));
   assert.ok(!calls.some(({ url }) => url.searchParams.get("form_id") === "registration-id"));
+  access.deleted_at = stamp;
+  await assertDenied(await getForms(request(list, { cookie })), 403);
 });
 
 test("Setup Whitelist rejects other-event IDs and requires Registration permission", async (t) => {
@@ -230,6 +232,53 @@ test("Setup Whitelist rejects other-event IDs and requires Registration permissi
   })), 409);
   await assertDenied(await GET(request(endpoint + "?eventId=event-a", { cookie: team })), 403);
   assert.ok(!calls.some(({ method, url }) => method === "PATCH" || url.pathname === "/events/event-b"));
+});
+
+test("Workspace and Setup expose only matching form references from an immutable publication", async (t) => {
+  const { owner, assistant, collections } = setupMockData(t);
+  const access = collections.event_access.find((row) => row.user_id === assistant.id);
+  access.matrix.registrationForm = "restricted";
+  const event = collections.events[0];
+  const draft = {
+    eventName: "Guest event", locationName: "Hall", description: null,
+    startsAt: null, endsAt: null, isPrivate: true, hasRegistration: true, hasSurvey: true, surveyAccess: "public",
+  };
+  const publishedAt = "2026-01-01T06:00:00.000Z";
+  const forms = {};
+  for (const type of ["registration", "survey"]) {
+    forms[type] = {
+      id: type + "-id", type, eventId: event.id, status: "open", opensAt: null, closesAt: null,
+      createdAt: publishedAt, updatedAt: publishedAt, questions: [],
+      head: { en: { title: "Saved " + type + " questions", description: "" } },
+    };
+    collections.forms.push({
+      id: forms[type].id, event_id: event.id, type, status: "open", opens_at: null, closes_at: null,
+      created_at: publishedAt, updated_at: publishedAt, deleted_at: null,
+    });
+  }
+  const { encodeSetupRecord } = load("src/core/event/setup-storage.ts");
+  const { defaultEventBranding } = load("src/core/event/branding.ts");
+  event.setup = encodeSetupRecord(event.id, {
+    revision: 1, draft, branding: {}, pendingMedia: {}, whitelist: null,
+    publication: { publishedAt, draft, branding: defaultEventBranding, forms },
+  });
+  const { GET: getDraft } = load("src/app/api/event/setup/draft/route.ts");
+  for (const [account, seesRegistration] of [[owner, true], [assistant, false]]) {
+    const { cookie } = await signIn(account);
+    const workspace = await (await getWorkspace(request("/api/event/workspace", { cookie }))).json();
+    const setup = await (await getDraft(request("/api/event/setup/draft?eventId=event-a", { cookie }))).json();
+    for (const payload of [workspace.setup, setup]) {
+      assert.equal(payload.publication.publishedAt, publishedAt);
+      assert.deepEqual(payload.publication.forms, {
+        registration: seesRegistration ? { id: "registration-id", closesAt: null } : null,
+        survey: { id: "survey-id", closesAt: null },
+      });
+      assert.doesNotMatch(JSON.stringify(payload), /Saved (registration|survey) questions/);
+    }
+    const permitted = await (await getForms(request("/api/event/forms?eventId=event-a", { cookie }))).json();
+    assert.deepEqual(permitted.forms.map((form) => form.head.en.title),
+      seesRegistration ? ["Saved registration questions", "Saved survey questions"] : ["Saved survey questions"]);
+  }
 });
 
 test("workspace follows the authenticated account and suspended accounts lose access", async (t) => {

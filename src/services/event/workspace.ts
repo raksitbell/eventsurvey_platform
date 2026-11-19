@@ -1,7 +1,7 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import {
   DEFAULT_ADMIN_MATRIX,
-  satisfiesAccessLevel,
+  viewableFormTypes,
 } from "@/core/auth/event-permissions";
 import {
   eventContentSchema,
@@ -136,11 +136,9 @@ async function loadWorkspacePayload(
     (row) => row.event_id === eventId && row.form_type === "survey",
   );
   const canEditEvent = event.status === "draft" && matrix.event === "can_edit";
-  const setup = readSetupState(event);
-  const canAccessForms =
-    options.hasAccessRow !== false &&
-    (satisfiesAccessLevel(matrix.registrationForm, "view_only") ||
-      satisfiesAccessLevel(matrix.surveyForm, "view_only"));
+  const visibleTypes = options.hasAccessRow === false ? [] : viewableFormTypes(matrix);
+  const setup = readSetupState(event, visibleTypes);
+  const canAccessForms = visibleTypes.length > 0;
   const showSetup = canEditEvent || !!setup.publication;
   const { primary, secondary, accent, backgroundMode, gradientEnd, gradientAngle, banner } =
     savedFormBranding(setup, locale, content.defaultLocale);
@@ -195,6 +193,7 @@ async function loadWorkspacePayload(
       (options.hasAccessRow !== false) &&
       canAccessEventDashboard(event.status, matrix.dashboard, "view_only"),
     canAccessForms,
+    viewableFormTypes: visibleTypes,
     canViewActivity:
       (options.hasAccessRow !== false) && matrix.canViewActivity === true,
   };

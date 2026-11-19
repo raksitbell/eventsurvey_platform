@@ -345,7 +345,7 @@ export async function publishSetup(
   return writeSerially(context.event.id, async () => {
     const event = await loadSetupEvent(context.event.id);
     const setup = readSetupRecord(event);
-    if (setup.publication && setup.revision === input.revision + 1) return readSetupState(event);
+    if (setup.publication && setup.revision === input.revision + 1) return readSetupState(event, context.workspace.viewableFormTypes);
     assertCanManageEvent(context);
     editable(event, setup);
     assertRevision(setup, input.revision);
@@ -413,6 +413,6 @@ export async function publishSetup(
       updated_at: publishedAt,
       updated_by: context.userId,
     });
-    return readSetupState(saved);
+    return readSetupState(saved, context.workspace.viewableFormTypes);
   });
 }

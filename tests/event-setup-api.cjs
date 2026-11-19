@@ -17,6 +17,7 @@ function fixture(t, { registration = null, whitelist = [], forms = [] } = {}) {
     eventId: event.id,
     canEditEvent: true,
     canManageWhitelist: true,
+    viewableFormTypes: ["registration", "survey"],
     userRole: "event_owner",
   };
   const load = loadSource({
@@ -221,7 +222,7 @@ test("Publishing a public event freezes only its enabled forms and their schedul
   }));
   for (const [hasRegistration, hasSurvey] of [[false, false], [true, false], [false, true], [true, true]]) {
     await t.test(`registration=${hasRegistration}, survey=${hasSurvey}`, async (t) => {
-      const { service, draft, event, writes } = fixture(t, { forms });
+      const { service, store, draft, event, writes } = fixture(t, { forms });
       const context = await service.getSetupContext("owner");
       const surveyClose = new Date(Date.parse(draft.endsAt) + 60_000).toISOString();
       const saved = await service.saveSetupDraft(context, {
@@ -232,12 +233,14 @@ test("Publishing a public event freezes only its enabled forms and their schedul
         },
       });
       const published = await service.publishSetup(context, { revision: saved.revision, locale: "en" });
-      const snapshot = published.publication.forms;
+      const snapshot = store.readSetupRecord(event()).publication.forms;
       for (const [type, enabled, close] of [["registration", hasRegistration, draft.endsAt], ["survey", hasSurvey, surveyClose]]) {
         if (!enabled) {
           assert.equal(snapshot[type], null);
+          assert.equal(published.publication.forms[type], null);
           continue;
         }
+        assert.deepEqual(published.publication.forms[type], { id: snapshot[type].id, closesAt: close });
         assert.equal(snapshot[type].status, "scheduled");
         assert.equal(snapshot[type].opensAt, draft.startsAt);
         assert.equal(snapshot[type].closesAt, close);
@@ -263,7 +266,7 @@ test("Setup publication accepts a complete TH or EN form and rejects options spl
       opensAt: null, closesAt: null, createdAt: "", updatedAt: "",
       head: { [locale]: { title: "Form", description: "" } }, questions: [{ question }],
     };
-    const { service, draft, writes } = fixture(t, { forms: [registration] });
+    const { service, store, draft, event, writes } = fixture(t, { forms: [registration] });
     const context = await service.getSetupContext("owner");
     const { revision } = await service.saveSetupDraft(context, {
       revision: 0, draft: { ...draft, hasRegistration: true },
@@ -277,8 +280,8 @@ test("Setup publication accepts a complete TH or EN form and rejects options spl
     assert.equal(writes(), 1);
     delete question.label[other];
     question.label[locale][0].choices = { [locale]: choices };
-    const result = await service.publishSetup(context, { revision, locale: other });
-    const form = result.publication.forms.registration;
+    await service.publishSetup(context, { revision, locale: other });
+    const form = store.readSetupRecord(event()).publication.forms.registration;
     assert.equal(form.head[locale].title, "Form");
     assert.equal(form.head[other].title, "");
     assert.deepEqual(form.questions[0].question.label[locale][0].choices[locale], choices);

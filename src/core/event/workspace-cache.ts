@@ -22,6 +22,11 @@ export function readWorkspaceCache(
     const raw = globalThis.sessionStorage?.getItem(storageKey(userId, locale));
     if (raw == null) return undefined;
     const parsed = JSON.parse(raw) as EventWorkspace | null;
+    // Older session caches included complete form definitions in the publication.
+    if (parsed && !Array.isArray(parsed.viewableFormTypes)) {
+      globalThis.sessionStorage.removeItem(storageKey(userId, locale));
+      return undefined;
+    }
     memory.set(key, parsed);
     return parsed;
   } catch {
