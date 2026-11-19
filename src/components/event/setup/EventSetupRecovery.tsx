@@ -113,8 +113,10 @@ export default function EventSetupRecovery(props: EventSetupPageProps) {
       const verified = await api.get<EventSetupState>(
         `/event/setup/draft?eventId=${encodeURIComponent(workspace.eventId)}`,
       );
-      if (reply.revision !== verified.revision || JSON.stringify(reply) !== JSON.stringify(verified))
-        throw new Error("Recovery could not be verified");
+      if (reply.revision !== verified.revision || JSON.stringify(reply) !== JSON.stringify(verified)) {
+        setError("recoveryError");
+        return;
+      }
       for (const [key, original] of candidates.keys) {
         if (original && browserValue(key) === original) {
           try {

@@ -29,7 +29,10 @@ const locks = setupLocks.eventSurveySetupLocks ??= new Map();
 
 async function writeSerially<T>(eventId: string, operation: () => Promise<T>): Promise<T> {
   const previous = locks.get(eventId);
-  const next = (previous ?? Promise.resolve()).then(operation);
+  const next = (async () => {
+    await (previous ?? Promise.resolve());
+    return await operation();
+  })();
   const settled = next.then(() => {}, () => {});
   locks.set(eventId, settled);
   try {

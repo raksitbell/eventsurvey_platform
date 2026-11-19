@@ -26,12 +26,18 @@ export function readSetupRecord(event: Pick<MockEvent, "id" | "setup"> | { setup
   if (event.setup == null) {
     return { revision: 0, draft: null, branding: {}, pendingMedia: {}, publication: null, whitelist: null };
   }
+  if (typeof event.setup !== "string" || !("id" in event)) {
+    throw new ServiceError("SETUP_STORAGE_UNAVAILABLE", 503);
+  }
+  const [version, nonce, tag, bytes, extra] = event.setup.split(".");
+  if (version !== prefix || !nonce || !tag || !bytes || extra != null) {
+    throw new ServiceError("SETUP_STORAGE_UNAVAILABLE", 503);
+  }
+  const authTag = Buffer.from(tag, "base64url");
+  if (authTag.length !== 16) {
+    throw new ServiceError("SETUP_STORAGE_UNAVAILABLE", 503);
+  }
   try {
-    if (typeof event.setup !== "string" || !("id" in event)) throw new Error("Invalid setup");
-    const [version, nonce, tag, bytes, extra] = event.setup.split(".");
-    if (version !== prefix || !nonce || !tag || !bytes || extra != null) throw new Error("Invalid setup");
-    const authTag = Buffer.from(tag, "base64url");
-    if (authTag.length !== 16) throw new Error("Invalid setup");
     const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(nonce, "base64url"), {
       authTagLength: 16,
     });
