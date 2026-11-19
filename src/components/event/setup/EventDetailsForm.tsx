@@ -1,6 +1,5 @@
 "use client";
 import EventAccessSettings from "./details/EventAccessSettings";
-import EventFormSchedule from "./details/EventFormSchedule";
 import EventInformationFields from "./details/EventInformationFields";
 import SetupMediaPanel from "./branding/SetupMediaPanel";
 import EventSetupBoundary, {
@@ -123,11 +122,6 @@ function DetailsForm(props: EventSetupPageProps) {
             onOpenBuilder={(kind) => {
               void navigate(formBuilderEntryHref(`/event/setup/${kind}`, "details", contentLocale));
             }}
-          />
-          <EventFormSchedule
-            draft={draft}
-            readOnly={readOnly || pending}
-            onChange={change}
           />
         </div>
       </div>

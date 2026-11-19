@@ -13,7 +13,7 @@
   --es-platform-sidebar-action-active: #8365a0;
   --es-green-50: #e6f6ee;
   --es-green-700: #077c44;
-  --es-background-page: #f3f1f1;
+  --es-background-page: var(--color-event-page);
   --es-background-surface: #fff;
   --es-background-surface-subtle: #f7f3fa;
   --es-action-primary: #8365a0;
@@ -29,11 +29,6 @@
   --es-banner-fill: #f8f5fa;
   --es-banner-line: #e6dfec;
   --es-banner-text: #4f3e64;
-  --es-gradient-start: #bca7ef;
-  --es-gradient-end: #b0dcfa;
-  --es-gradient-lilac: #ebd0f3;
-  --es-gradient-pink: #f8deec;
-  --es-gradient-sky: #d4e7fc;
   --overview-font-inter: var(--es-font-inter), var(--es-font-thai), sans-serif;
   --workspace-font-ui-inter: var(--overview-font-inter);
   --workspace-font-outfit: Outfit, var(--es-font-thai), sans-serif;
@@ -41,6 +36,7 @@
   color: var(--es-text-primary);
 }
 .dark .event-admin-shell {
+  --es-background-page: var(--color-gray-950);
   --es-green-50: var(--color-success-950);
   --es-green-700: var(--color-success-300);
   --es-background-surface: var(--color-gray-900);
@@ -55,18 +51,9 @@
   --es-banner-fill: var(--color-gray-800);
   --es-banner-line: var(--color-gray-700);
   --es-banner-text: var(--color-brand-300);
-  --es-gradient-start: var(--color-gray-950);
-  --es-gradient-end: var(--color-gray-900);
-  --es-gradient-lilac: var(--color-gray-950);
-  --es-gradient-pink: var(--color-gray-900);
-  --es-gradient-sky: var(--color-gray-900);
 }
 .event-admin-main {
-  background: linear-gradient(
-    to right,
-    var(--es-gradient-start),
-    var(--es-gradient-end)
-  );
+  background: var(--es-background-page);
 }
 .event-admin-main:is([data-screen="/event/publish"], [data-screen="/event/qr"]),
 .event-admin-main:has([data-published-overview]) {

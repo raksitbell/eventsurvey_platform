@@ -2172,7 +2172,6 @@ function detailsActions(save, query = new URLSearchParams(), saveBranding = () =
     "src/components/event/setup/EventDetailsForm.tsx",
     {
       "./details/EventAccessSettings": noop,
-      "./details/EventFormSchedule": noop,
       "./details/EventInformationFields": noop,
       "./branding/SetupMediaPanel": noop,
       "@/components/event/setup/EventSetupPendingMedia": noop,
@@ -2981,12 +2980,20 @@ test("the survey closing picker can restore a linked event end after a custom da
   };
   function picker() {
     const schedule = Schedule({
-      draft, readOnly: false, onChange: (updates) => { draft = { ...draft, ...updates }; },
+      kind: "survey", draft, readOnly: false, onChange: (updates) => { draft = { ...draft, ...updates }; },
     });
     return Picker(findSetupElement(schedule, (node) => node.type === Picker).props).props;
   }
   const custom = picker();
   assert.equal(custom.value, draft.surveyCustomClose);
+  assert.equal(Schedule({ kind: "survey", draft, readOnly: false }).props.id, "survey-schedule");
+  assert.equal(
+    findSetupElement(Schedule({ kind: "survey", draft, readOnly: true }), (node) => node.type === Picker).props.readOnly,
+    true,
+  );
+  const registration = Schedule({ kind: "registration", draft, readOnly: false });
+  assert.equal(findSetupElement(registration, (node) => node.type === Picker), null);
+  assert.ok(findSetupElement(registration, (node) => node.type === "dd" && node.props.children === "withEvent"));
   custom.popover.preset.onSelect();
   assert.equal(draft.surveyCloseMode, "event");
   assert.equal(picker().popover.displayValue, "withEvent");
@@ -3086,6 +3093,7 @@ test("Registration and Survey capacity accept only positive whole digits, with b
       (node) => node.props.inputMode === "numeric",
     );
     assert.equal(input.props.value, "200");
+    assert.equal(input.props.placeholder, "unlimited");
     for (const value of ["1e2", "2.5", "-3", "0", "9007199254740992"]) {
       input.props.onChange({ currentTarget: { value } });
     }
@@ -3098,11 +3106,13 @@ test("Registration and Survey capacity accept only positive whole digits, with b
 
 test("Private access leaves the Registration switch editable and shows the relevant Whitelist action", () => {
   const noop = { default: () => null };
+  const Schedule = () => null;
   const changes = [];
   const Access = compileSetupComponent(
     "src/components/event/setup/details/EventAccessSettings.tsx",
     {
       "./EventCapacitySettings": noop,
+      "./EventFormSchedule": { default: Schedule },
       "@/components/form/switch/Switch": noop,
       "@/components/ui/button/Button": noop,
       "@/hooks/useConfirm": {
@@ -3135,6 +3145,7 @@ test("Private access leaves the Registration switch editable and shows the relev
   );
 
   const noRegistration = render(true, false);
+  assert.equal(findSetupElement(noRegistration, (node) => node.type === Schedule && node.props.kind === "registration"), null);
   assert.ok(
     findSetupElement(
       noRegistration,
@@ -3150,6 +3161,10 @@ test("Private access leaves the Registration switch editable and shows the relev
   );
 
   const enabled = render(true, true);
+  for (const kind of ["registration", "survey"]) {
+    const card = findSetupElement(enabled, (node) => node.props["aria-labelledby"] === kind + "-label");
+    assert.ok(findSetupElement(card, (node) => node.type === Schedule && node.props.kind === kind));
+  }
   const registrationToggle = findSetupElement(
     enabled,
     (node) => node.props.id === "registration-on",

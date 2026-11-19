@@ -45,7 +45,7 @@ export default function EventCapacitySettings({
           inputMode="numeric"
           pattern="[0-9]*"
           className="es-capacity-input"
-          placeholder={v("registrationLimitPlaceholder")}
+          placeholder={t("unlimited")}
           value={capacity?.toString() ?? ""}
           readOnly={readOnly}
           aria-invalid={showError}

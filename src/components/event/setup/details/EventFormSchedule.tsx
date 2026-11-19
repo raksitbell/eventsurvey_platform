@@ -5,18 +5,21 @@ import type { EventDraft } from "@/types/event/setup";
 import { useTranslations } from "next-intl";
 
 interface Props {
+  kind: "registration" | "survey";
   draft: EventDraft;
   readOnly: boolean;
   onChange: (changes: Partial<EventDraft>) => void;
 }
 
 export default function EventFormSchedule({
+  kind,
   draft,
   readOnly,
   onChange,
 }: Props) {
   const t = useTranslations("eventSetup");
   const v = useTranslations("eventSetupDesign");
+  const survey = kind === "survey";
   const selected = draft.surveyCloseMode ?? "event";
   const closesAt = selected === "custom" ? draft.surveyCustomClose ?? null : surveyClosingTime(draft);
   const end = {
@@ -28,51 +31,38 @@ export default function EventFormSchedule({
       v("custom"),
   }[selected];
   return (
-    <section id="survey-schedule" tabIndex={-1} className="es-window">
-      <h2 className="es-icon-label es-date-label">{t("schedule")}</h2>
-      <div className="es-window-reg">
-        <span className="es-window-icon" aria-hidden="true" />
-        <div>
-          <strong>{v("registration")}</strong>
-          <small>{v("registrationHint")}</small>
-        </div>
-        <span className="es-window-badge">{v("eventBound")}</span>
-      </div>
-      <fieldset
-        disabled={readOnly || !draft.hasSurvey}
-        className="es-survey-window"
-      >
-        <legend className="sr-only">{t("surveyWindow")}</legend>
-        <header>
-          <div>
-            <strong>{v("survey")}</strong>
-            <small>{v("surveyHint")}</small>
-          </div>
-          <span className="es-window-badge">{v(selected === "event" ? "eventBound" : "postSurvey")}</span>
-        </header>
-        <div className="es-survey-times">
-          <div>
-            <span>{v("opens")}</span>
-            <strong>{v("onStart")}</strong>
-          </div>
-          <SurveyClosePicker
-            initial={closesAt}
-            endsAt={draft.endsAt}
-            displayValue={end}
-            readOnly={readOnly || !draft.hasSurvey}
-            onSelectCustom={(surveyCustomClose) => onChange({ surveyCloseMode: "custom", surveyCustomClose })}
-            onUseEventEnd={() => onChange({ surveyCloseMode: "event" })}
-          />
-        </div>
-        {draft.hasSurvey &&
-          draft.surveyCloseMode === "custom" &&
-          draft.endsAt &&
-          (!closesAt || Date.parse(closesAt) < Date.parse(draft.endsAt)) && (
-            <p role="alert" className="text-error-600 dark:text-error-400">
-              {t("closeError")}
-            </p>
-          )}
-      </fieldset>
-    </section>
+    <div
+      className="es-form-times"
+      id={survey ? "survey-schedule" : undefined}
+      tabIndex={survey ? -1 : undefined}
+      role="group"
+      aria-label={t("schedule")}
+    >
+      <dl>
+        <dt>{v("opens")}</dt>
+        <dd>{v("onStart")}</dd>
+      </dl>
+      {survey ? (
+        <SurveyClosePicker
+          initial={closesAt}
+          endsAt={draft.endsAt}
+          displayValue={end}
+          readOnly={readOnly}
+          onSelectCustom={(surveyCustomClose) => onChange({ surveyCloseMode: "custom", surveyCustomClose })}
+          onUseEventEnd={() => onChange({ surveyCloseMode: "event" })}
+        />
+      ) : (
+        <dl>
+          <dt>{v("closes")}</dt>
+          <dd>{v("withEvent")}</dd>
+        </dl>
+      )}
+      {survey && selected === "custom" && draft.endsAt &&
+        (!closesAt || Date.parse(closesAt) < Date.parse(draft.endsAt)) && (
+          <p role="alert" className="col-span-full text-theme-sm text-error-600 dark:text-error-400">
+            {t("closeError")}
+          </p>
+        )}
+    </div>
   );
 }

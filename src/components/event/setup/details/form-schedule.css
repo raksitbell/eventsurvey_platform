@@ -1,140 +1,51 @@
-.es-window {
-  gap: 13px;
-  padding: 17px;
-  background: var(--es-background-surface);
+.es-form-times {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 8px 12px;
+  color: var(--es-text-primary);
 }
-.es-window h2 {
-  min-height: 28px;
+.es-form-times > dl,
+.es-form-times > div {
+  min-inline-size: 0;
 }
-.es-window-reg,
-.es-survey-window {
-  padding: 12px;
-  background: var(--es-background-surface-subtle);
-  border-radius: 12px;
-}
-.es-window-reg,
-.es-survey-window header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 46px;
-}
-.es-window-reg {
-  min-height: 70px;
-}
-.es-window strong {
+.es-form-times dt,
+.es-form-times > div > label {
   display: block;
-  font-weight: 600;
-  font-size: 14px;
-}
-.es-window small {
-  display: block;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--es-text-secondary);
-}
-.es-window-icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  flex: none;
-  border-radius: 10px;
-  --es-icon: url("/images/event-workspace/icon-outline-calendar.svg");
-  background: var(--es-brand-secondary);
-}
-.es-window-badge {
-  margin-inline-start: auto;
-  display: grid;
-  place-items: center;
-  min-width: 102px;
-  min-height: 29px;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: var(--es-brand-secondary);
-  color: #4f3e64;
-}
-.es-survey-window {
-  display: grid;
-  gap: 12px;
-}
-.es-survey-times {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.es-survey-times > div > span,
-.es-survey-times > div > label {
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
-  color: var(--es-text-secondary);
-}
-.es-survey-times > div > label {
   margin-block-end: 4px;
+  color: var(--es-text-secondary);
+  font-size: var(--text-portal-caption, 0.8125rem);
+  line-height: 1.4;
+  font-weight: 500;
 }
-.es-survey-times strong {
-  font-size: 14px;
-  margin-top: 4px;
-  padding: 8px 12px;
-  border: 1px solid var(--es-field-border);
-  border-radius: 8px;
-  background: var(--es-background-surface);
-}
-.es-survey-window {
-  padding: 13px 14px;
-  border: 1px solid var(--es-border-default);
-}
-.es-survey-window header::before {
-  content: "";
-  width: 20px;
-  height: 20px;
-  flex: none;
-  background: url("/images/event-workspace/icon-outline-calendar.svg")
-    center/contain no-repeat;
-}
-.es-survey-window header .es-window-badge {
-  min-width: 128px;
-  color: var(--es-action-primary);
-}
-.es-survey-times .event-datetime-popover-trigger {
+.es-form-times dd,
+.es-form-times .event-datetime-popover-trigger {
   display: flex;
-  inline-size: 100%;
-  min-block-size: 40px;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  min-block-size: 44px;
   padding: 6px 12px;
   border: 1px solid var(--es-field-border);
   border-radius: 9px;
+  font-size: var(--text-portal-label, 0.875rem);
+  line-height: 1.4;
+}
+.es-form-times .event-datetime-popover-trigger {
+  inline-size: 100%;
+  justify-content: space-between;
   background: var(--es-background-surface);
   color: var(--es-text-primary);
-  font-size: 13px;
-  font-weight: 600;
   text-align: start;
+}
+.es-form-times .event-datetime-popover-trigger:enabled {
   cursor: pointer;
 }
-.es-survey-times .event-datetime-popover-trigger:disabled {
-  cursor: default;
-}
-.es-survey-times .event-datetime-popover-trigger:focus-visible,
+.es-form-times:focus-visible,
+.es-form-times .event-datetime-popover-trigger:focus-visible,
 .es-survey-close-actions button:focus-visible {
   outline: 2px solid var(--es-action-primary);
   outline-offset: 2px;
 }
-@media (max-width: 639px) {
-  .es-window-badge,
-  .es-survey-window header .es-window-badge {
-    min-width: 0;
-  }
-  .es-survey-times {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.es-survey-times .flatpickr-calendar.event-datetime-popover {
+.es-form-times .flatpickr-calendar.event-datetime-popover {
   position: fixed;
   width: min(348px, calc(100vw - 16px)) !important;
   margin: 0;
@@ -146,7 +57,7 @@
   background: var(--es-background-surface) !important;
   box-shadow: var(--shadow-theme-lg) !important;
 }
-.es-survey-times .flatpickr-calendar.event-datetime-popover
+.es-form-times .flatpickr-calendar.event-datetime-popover
   :is(.flatpickr-rContainer, .flatpickr-days, .dayContainer) {
   width: 100%;
   max-width: none;
@@ -157,7 +68,7 @@
 .event-datetime-popover .flatpickr-day {
   block-size: 35px;
 }
-.es-survey-times .flatpickr-calendar.event-datetime-popover .flatpickr-day.selected {
+.es-form-times .flatpickr-calendar.event-datetime-popover .flatpickr-day.selected {
   border-color: transparent !important;
   background-color: transparent !important;
 }

@@ -6,8 +6,7 @@
   display: grid;
   gap: 20px;
 }
-.es-info,
-.es-window {
+.es-info {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -15,8 +14,6 @@
   border: 1px solid var(--es-border-default);
   border-radius: 14px;
   color: var(--es-text-primary);
-}
-.es-info {
   background: var(--es-background-surface-subtle);
   gap: 14px;
 }
@@ -85,8 +82,7 @@
   font-size: 15px;
   font-weight: 600;
 }
-.es-icon-label::before,
-.es-window-icon::before {
+.es-icon-label::before {
   content: "";
   inline-size: 20px;
   block-size: 20px;
@@ -99,8 +95,7 @@
 .es-date-label {
   --es-icon: url("/images/event-workspace/icon-outline-calendar.svg");
 }
-.es-registration-label,
-.es-window-icon {
+.es-registration-label {
   --es-icon: url("/images/event-workspace/icon-outline-clipboard.svg");
 }
 .es-survey-label {
@@ -197,12 +192,16 @@
   font-weight: 600;
 }
 .es-feature {
+  display: grid;
+  min-inline-size: 0;
+  gap: 12px;
   padding: 16px;
+  border: 1px solid var(--es-border-default);
   background: var(--es-background-surface-subtle);
   border-radius: 14px;
 }
 .es-feature > div:first-child {
-  min-height: 46px;
+  min-height: 44px;
 }
 .es-feature label:has(> input[role="switch"]) > span:nth-child(2) {
   height: 27px;
@@ -262,8 +261,7 @@
 .es-setup-action-buttons > button:last-child {
   --es-icon: url("/images/event-setup/cta-icon-check-circle.svg");
 }
-.dark .es-icon-label::before,
-.dark .es-window-icon::before {
+.dark .es-icon-label::before {
   filter: invert(1);
 }
 @container setup-actions (max-width: 32rem) {
@@ -303,15 +301,6 @@
   }
 }
 
-.es-feature {
-  border: 1px solid rgb(255 255 255 / 45%);
-}
-.dark .es-feature {
-  border-color: var(--es-border-default);
-}
-.es-feature > div:first-child {
-  min-height: 44px;
-}
 .es-feature .es-builder-link,
 .es-feature .es-whitelist-link,
 .es-survey-requirement {
@@ -350,7 +339,6 @@
 .es-survey-requirement {
   justify-content: flex-start;
   gap: 12px;
-  min-height: 48px;
 }
 .es-survey-requirement input {
   width: 22px;
@@ -359,12 +347,12 @@
 }
 .es-capacity {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 .es-capacity label {
   color: var(--es-text-primary);
-  font-size: var(--text-portal-label, 0.9375rem);
+  font-size: var(--text-portal-label, 0.875rem);
   font-weight: 600;
 }
 .es-capacity-field {
@@ -413,17 +401,6 @@
 }
 .dark .es-capacity-error {
   color: var(--color-error-400);
-}
-
-.event-admin-main[data-screen="/event/details"] {
-  background: linear-gradient(
-    90deg,
-    var(--es-gradient-start),
-    var(--es-gradient-lilac) 33%,
-    var(--es-gradient-pink) 56%,
-    var(--es-gradient-sky) 77%,
-    var(--es-gradient-end)
-  );
 }
 
 .es-info-schedule button svg {
