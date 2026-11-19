@@ -209,12 +209,14 @@ export async function getPublicEventBySlug(
     };
   }
 
+  const floorZone = content?.floor_zone?.trim() || null;
+
   return {
     draft: {
       eventName: content?.title || event.slug,
       description: content?.description ?? null,
       locationName: content?.location_name ?? null,
-      locationDetail: content?.address_text ?? undefined,
+      locationDetail: floorZone ?? undefined,
       startsAt: event.start_at,
       endsAt: event.end_at,
       isPrivate: event.is_private,
