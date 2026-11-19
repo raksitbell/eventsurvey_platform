@@ -49,9 +49,10 @@
     },
     "appSubtitle": "ลงทะเบียนและแบบสอบถามกิจกรรม",
     "items": {
-      "overview": "ภาพรวมระบบ",
-      "owners": "จัดการผู้ใช้",
-      "activity": "กิจกรรมผู้ใช้",
+      "overview": "System Overview",
+      "events": "Event Management",
+      "owners": "User Management",
+      "activity": "User Activity",
       "eventHome": "ภาพรวม",
       "eventWorkspace": "Event Workspace",
       "dashboard": "แดชบอร์ด",
@@ -177,8 +178,18 @@
     }
   },
   "adminUsers": {
-    "title": "เจ้าของอีเวนต์",
-    "description": "สวมสิทธิ์บัญชี event_owner หรือ sub_user เพื่อเข้าพื้นที่ /event ตามสิทธิ์ของบัญชีนั้น",
+    "title": "จัดการผู้ใช้งาน",
+    "description": "จัดการบัญชีผู้ใช้ การเข้าถึง และการกำหนดอีเวนต์ในระบบ",
+    "workspaceUsers": "ผู้ใช้งานในพื้นที่ทำงาน",
+    "workspaceUsersSubtitle": "กำหนดอีเวนต์ได้เพียง 1 รายการต่อผู้ใช้",
+    "searchPlaceholder": "ค้นหาชื่อหรืออีเมล",
+    "filterButton": "ตัวกรอง",
+    "showingCount": "แสดง {start}-{end} จาก {total} ผู้ใช้งาน",
+    "noAssignedEvent": "— ไม่ได้กำหนดอีเวนต์",
+    "assignEventSuccess": "กำหนดอีเวนต์เรียบร้อยแล้ว",
+    "assignEventError": "ไม่สามารถกำหนดอีเวนต์ได้",
+    "changeRoleSuccess": "เปลี่ยนบทบาทเรียบร้อยแล้ว",
+    "changeRoleError": "ไม่สามารถเปลี่ยนบทบาทได้",
     "loading": "กำลังโหลดผู้ใช้...",
     "empty": "ไม่พบผู้ใช้",
     "loadError": "โหลดผู้ใช้จาก API ไม่สำเร็จ",
@@ -188,19 +199,28 @@
     "confirmImpersonate": "ต้องการสวมสิทธิ์เป็น {name} ({role}) เพื่อเข้าพื้นที่ /event หรือไม่?",
     "filters": {
       "all": "ทั้งหมด",
-      "super_admin": "ผู้ดูแลระบบ",
+      "super_admin": "เจ้าของแพลตฟอร์ม",
       "event_owner": "เจ้าของอีเวนต์",
-      "sub_user": "ผู้ใช้ย่อย"
+      "sub_user": "ผู้แก้ไขอีเวนต์"
     },
     "columns": {
+      "user": "ผู้ใช้งาน",
+      "role": "บทบาท",
+      "assignedEvent": "อีเวนต์ที่กำหนด",
+      "lastActive": "เข้าใช้งานล่าสุด",
+      "actions": "การจัดการ",
       "name": "ชื่อ",
       "email": "อีเมล",
-      "role": "บทบาท",
       "owner": "เจ้าของต้นสังกัด",
       "events": "อีเวนต์",
       "customRoles": "บทบาทในอีเวนต์",
-      "status": "สถานะ",
-      "actions": "การกระทำ"
+      "status": "สถานะ"
+    },
+    "actions": {
+      "impersonate": "สวมสิทธิ์",
+      "inspect": "เปิดพื้นที่อีเวนต์",
+      "activity": "ดูกิจกรรม",
+      "platformAccess": "แก้ไขสิทธิ์แพลตฟอร์ม"
     },
     "viewProfile": "โปรไฟล์",
     "editPlatformAccess": "สิทธิ์",

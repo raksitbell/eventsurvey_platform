@@ -177,8 +177,18 @@
     }
   },
   "adminUsers": {
-    "title": "Owners",
-    "description": "Impersonate event_owner or sub_user accounts to enter the /event area with their permissions.",
+    "title": "User Management",
+    "description": "Manage user accounts, access, and event assignments in the system",
+    "workspaceUsers": "Users in workspace",
+    "workspaceUsersSubtitle": "Assign at most 1 event per user",
+    "searchPlaceholder": "Search name or email",
+    "filterButton": "Filter",
+    "showingCount": "Showing {start}-{end} of {total} users",
+    "noAssignedEvent": "— No event assigned",
+    "assignEventSuccess": "Assigned event updated",
+    "assignEventError": "Failed to update assigned event",
+    "changeRoleSuccess": "User role updated",
+    "changeRoleError": "Failed to update user role",
     "loading": "Loading users...",
     "empty": "No users found.",
     "loadError": "Failed to load users from the API.",
@@ -188,19 +198,28 @@
     "confirmImpersonate": "Impersonate {name} ({role}) and enter the /event area?",
     "filters": {
       "all": "All",
-      "super_admin": "Super Admin",
+      "super_admin": "Platform Admin",
       "event_owner": "Event Owner",
-      "sub_user": "Sub User"
+      "sub_user": "Event Editor"
     },
     "columns": {
+      "user": "User",
+      "role": "Role",
+      "assignedEvent": "Assigned Event",
+      "lastActive": "Last Active",
+      "actions": "Actions",
       "name": "Name",
       "email": "Email",
-      "role": "Role",
       "owner": "Parent owner",
       "events": "Event",
       "customRoles": "Event role",
-      "status": "Status",
-      "actions": "Actions"
+      "status": "Status"
+    },
+    "actions": {
+      "impersonate": "Impersonate",
+      "inspect": "Open Workspace",
+      "activity": "View Activity",
+      "platformAccess": "Edit Platform Access"
     },
     "viewProfile": "Profile",
     "editPlatformAccess": "Permissions",

@@ -17,6 +17,7 @@ export interface AdminUserListItem {
   eventName: string | null;
   /** Custom role within that event (sub_user only) */
   customRoleName: string | null;
+  lastActiveAt?: string | null;
   /** Platform-only flags from `platform_access` (super_admin). */
   canViewActivity?: boolean;
   canInspection?: boolean;
@@ -31,6 +32,7 @@ export type PlatformAccessFlags = {
 
 export interface AdminUsersResponse {
   users: AdminUserListItem[];
+  events?: Array<{ id: string; title: string }>;
   meta: {
     total: number;
     byRole: Record<string, number>;
