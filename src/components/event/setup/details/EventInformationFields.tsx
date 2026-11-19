@@ -16,6 +16,7 @@ import { useTranslations } from "next-intl";
 interface Props {
   statusLabel: string;
   draft: EventDraft;
+  titleTemplates?: Record<string, string>;
   savedSchedule?: Pick<EventDraft, "startsAt" | "endsAt">;
   uiLocale: string;
   selectedLocale: string | null;
@@ -26,6 +27,7 @@ interface Props {
 }
 export default function EventInformationFields({
   draft,
+  titleTemplates,
   savedSchedule,
   statusLabel,
   uiLocale,
@@ -79,7 +81,7 @@ export default function EventInformationFields({
         ...content,
         translations: [
           ...content.translations,
-          emptyEventTranslation(localeCode),
+          { ...emptyEventTranslation(localeCode), title: titleTemplates?.[localeCode] ?? "" },
         ],
       },
     });

@@ -16,6 +16,8 @@ export interface EventWorkspace {
   localPublishedAt?: string;
   eventName: string;
   content?: EventContent;
+  /** Titles entered in Platform Admin that can seed an optional setup language. */
+  contentTitleTemplates?: Record<string, string>;
   eventStatus: MockEventStatus;
   userRole: UserRole;
   customRoleName: string | null;

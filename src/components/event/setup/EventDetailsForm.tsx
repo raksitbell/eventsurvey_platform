@@ -115,6 +115,7 @@ function DetailsForm(props: EventSetupPageProps) {
           <EventInformationFields
             statusLabel={statusLabel}
             draft={draft}
+            titleTemplates={workspace.contentTitleTemplates}
             savedSchedule={workspace.setup?.draft ?? workspace}
             uiLocale={locale}
             selectedLocale={contentLocale}

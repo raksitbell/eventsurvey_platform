@@ -279,6 +279,8 @@ test("workspace binding returns localized safe DTOs and only active assistants",
     },
   ];
   let status = "draft";
+  let titleRows;
+  let defaultLocale = "TH";
   mockApi.get = async (query) => {
     const url = new URL(query, "https://fixture.invalid");
     if (url.pathname.startsWith("/users/"))
@@ -335,7 +337,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
         id: "event-a",
         setup,
         slug: "event",
-        default_locale: "TH",
+        default_locale: defaultLocale,
         status,
         start_at: "2026-11-09T02:00:00Z",
         end_at: "2026-11-09T10:00:00Z",
@@ -345,7 +347,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
         survey_access: "registered_only",
       };
     if (url.pathname === "/event_translations")
-      return [
+      return titleRows ?? [
         {
           event_id: "event-a",
           locale_code: "th",
@@ -414,6 +416,29 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   assert.ok(!JSON.stringify(assistant).includes("private draft organizer"));
   assert.deepEqual(assistant.subUsers, []);
   assert.equal(await getEventWorkspace("unassigned", "th"), null);
+
+  titleRows = [
+    { event_id: "event-a", locale_code: "th", title: "ไทยเอ็กซ์โป 2026" },
+    { event_id: "event-a", locale_code: "en", title: "Thai Expo 2026" },
+  ];
+  for (const eventDefault of ["th", "en"]) {
+    defaultLocale = eventDefault;
+    const other = eventDefault === "th" ? "en" : "th";
+    const initial = await getEventWorkspace("owner", other);
+    const templateTitle = titleRows.find((row) => row.locale_code === other).title;
+    assert.deepEqual(initial.content.translations.map((row) => row.localeCode), [eventDefault]);
+    assert.deepEqual(initial.contentTitleTemplates, { [other]: templateTitle });
+    assert.equal(initial.eventName, templateTitle);
+    const { applyEventSetup } = load("src/core/event/workspace.ts");
+    const saved = { ...initial.content, translations: [
+      ...initial.content.translations, { ...initial.content.translations[0], localeCode: other, title: "Edited" },
+    ] };
+    assert.deepEqual(applyEventSetup({
+      ...initial, setup: { ...initial.setup, draft: { ...seed, content: saved } },
+    }, other).content, saved);
+  }
+  defaultLocale = "TH";
+  titleRows = undefined;
   status = "open";
   const open = await getEventWorkspace("owner", "en");
   assert.equal(open.canAccessDashboard, true);
@@ -3015,6 +3040,18 @@ test("Event information configuration preserves field bindings, limits, labels, 
     content: { defaultLocale: "th", translations: [translated.content.translations[0]] },
   }]);
   assert.deepEqual(selections, ["th"]);
+  const initial = Fields({
+    draft: { ...translated, ...changes[0] }, titleTemplates: { en: "Thai Expo 2026" },
+    uiLocale: "en", selectedLocale: null, readOnly: false,
+    onSelectLocale: (locale) => selections.push(locale), onChange: (value) => changes.push(value),
+  });
+  const menu = findSetupElement(initial, (node) => typeof node.props?.onAdd === "function");
+  assert.deepEqual(menu.props.content.translations.map((row) => row.localeCode), ["th"]);
+  menu.props.onAdd("EN");
+  assert.equal(changes.at(-1).content.translations[1].title, "Thai Expo 2026");
+  assert.equal(selections.at(-1), "en");
+  menu.props.onAdd("fr");
+  assert.deepEqual(changes.at(-1).content.translations[1], emptyEventTranslation("fr"));
 });
 
 test("Post Survey closes at the selected offset from the event end in Bangkok", () => {

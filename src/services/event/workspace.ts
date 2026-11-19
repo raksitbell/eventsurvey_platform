@@ -138,6 +138,12 @@ async function loadWorkspacePayload(
   const canEditEvent = event.status === "draft" && matrix.event === "can_edit";
   const visibleTypes = options.hasAccessRow === false ? [] : viewableFormTypes(matrix);
   const setup = readSetupState(event, visibleTypes);
+  // Platform creation accepts localized titles. A title alone does not enable a
+  // second language in a new setup. Existing translated event details stay active.
+  const titleTemplates = event.status === "draft" && !setup.publication
+    ? content.translations.filter((row) => row.localeCode !== content.defaultLocale &&
+        !row.description?.trim() && !row.locationName?.trim() && !row.floorZone?.trim())
+    : [];
   const canAccessForms = visibleTypes.length > 0;
   const showSetup = canEditEvent || !!setup.publication;
   const { primary, secondary, accent, backgroundMode, gradientEnd, gradientAngle, banner } =
@@ -173,7 +179,12 @@ async function loadWorkspacePayload(
     canManageSurveyForm: matrix.surveyForm === "can_edit",
     canManageWhitelist,
     canEditEvent,
-    content,
+    content: titleTemplates.length
+      ? { ...content, translations: content.translations.filter((row) => !titleTemplates.includes(row)) }
+      : content,
+    contentTitleTemplates: canEditEvent && titleTemplates.length
+      ? Object.fromEntries(titleTemplates.map((row) => [row.localeCode, row.title]))
+      : undefined,
     description: translation.description,
     locationName: translation.locationName,
     locationDetail: translation.floorZone ?? undefined,
