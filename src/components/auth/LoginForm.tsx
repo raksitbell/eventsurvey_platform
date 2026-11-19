@@ -1,10 +1,12 @@
 "use client";
 
+import AuthBrandPanel from "@/components/auth/AuthBrandPanel";
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/AuthContext";
+import { Link } from "@/i18n/navigation";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import { FormEvent, useState } from "react";
@@ -42,20 +44,7 @@ export default function LoginForm() {
 
   return (
     <>
-      <div className="relative hidden min-h-dvh w-full overflow-hidden bg-[var(--color-event-sidebar)] lg:flex lg:w-1/2 lg:items-center lg:justify-center">
-        <div className="relative z-10 mx-auto flex w-full flex-col items-center px-6 text-center xl:px-10">
-          <img
-            src="/images/auth/login-hero.svg"
-            alt=""
-            width={656}
-            height={400}
-            className="h-auto w-[92%] max-w-none xl:w-[96%]"
-          />
-          <p className="mt-10 max-w-2xl text-lg leading-8 text-white/90 xl:text-xl">
-            {t("brandHeadline")}
-          </p>
-        </div>
-      </div>
+      <AuthBrandPanel headline={t("brandHeadline")} />
 
       <div className="flex min-h-dvh w-full flex-col bg-white px-6 py-10 lg:w-1/2 lg:px-16 xl:px-24 dark:bg-gray-900">
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
@@ -115,12 +104,12 @@ export default function LoginForm() {
                   {t("keepLoggedIn")}
                 </span>
               </div>
-              <button
-                type="button"
+              <Link
+                href="/forgot-password"
                 className="text-theme-sm font-medium text-brand-500 hover:text-brand-600"
               >
                 {t("forgotPassword")}
-              </button>
+              </Link>
             </div>
 
             {error ? (

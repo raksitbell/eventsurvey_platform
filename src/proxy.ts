@@ -37,7 +37,10 @@ function authRedirect(
 
   const session = readAuthSession(request);
 
-  if (isArea(pathname, "/login")) {
+  if (
+    isArea(pathname, "/login") ||
+    isArea(pathname, "/forgot-password")
+  ) {
     if (!session) return null;
     const home = getHomePathForRole(session.role);
     if (isArea(pathname, home)) return null;
