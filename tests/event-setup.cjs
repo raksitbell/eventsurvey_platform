@@ -2075,6 +2075,7 @@ function setupStep(kind, options = {}) {
     "branding/BrandingAppearance",
     "branding/BrandingPreview",
     "forms/SetupFormCard",
+    "forms/SetupFormsLoadingSkeleton",
     "publish/PublishFormSummary",
     "publish/PublishParticipantPreview",
   ])

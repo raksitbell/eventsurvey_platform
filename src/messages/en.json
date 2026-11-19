@@ -1027,7 +1027,11 @@
       "pdfHint": "A printable event summary. Choose Save as PDF in the print dialog.",
       "print": "Print / Save PDF",
       "last": "Last export in this session",
-      "noApproved": "No responses from approved forms are available for export."
+      "noApproved": "No responses from approved forms are available for export.",
+      "generated": "Export file ready: {name}",
+      "downloaded": "Download started: {name}",
+      "printReady": "Print dialog opened. Choose Save as PDF if needed.",
+      "failed": "Could not create the export. Please try again."
     },
     "analyticsExport": {
       "responseId": "Response ID",
@@ -1352,6 +1356,7 @@
   },
   "eventForms": {
     "title": "Form setup",
+    "loading": "Loading forms…",
     "registration": "Registration Form",
     "survey": "Survey Form",
     "enabled": "Enabled",
@@ -1619,6 +1624,7 @@
     "invalidAnswer": "Enter a valid answer."
   },
   "eventPublishedView": {
+    "loading": "Loading QR codes…",
     "eventLink": "Event page link",
     "linksUnavailable": "Sharing links are unavailable for this event.",
     "linksLoadError": "Could not load sharing links.",

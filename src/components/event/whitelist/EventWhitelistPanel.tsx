@@ -4,6 +4,7 @@ import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBou
 import WhitelistTable from "@/components/event/whitelist/WhitelistTable";
 import WhitelistEntryRow from "@/components/event/whitelist/WhitelistEntryRow";
 import type { WhitelistEntryDraft } from "@/components/event/whitelist/WhitelistEntryRow";
+import WhitelistLoadingSkeleton from "@/components/event/whitelist/WhitelistLoadingSkeleton";
 import type { WhitelistRowIssue } from "@/types/event/whitelist";
 import WhitelistImportDialog from "@/components/event/whitelist/WhitelistImportDialog";
 import { Modal } from "@/components/ui/modal";
@@ -197,6 +198,29 @@ function WhitelistPageContent({
       )}
     </>
   );
+
+  if (loading) {
+    const skeleton = <WhitelistLoadingSkeleton label={t("loading")} />;
+    if (onClose) {
+      return (
+        <Modal
+          isOpen
+          onClose={() => void back()}
+          labelledBy="setup-whitelist-title"
+          className="es-list-modal"
+          showCloseButton={false}
+          backdropClassName="bg-black/50"
+        >
+          <h1 id="setup-whitelist-title" className="sr-only">
+            {view("title")}
+          </h1>
+          {skeleton}
+        </Modal>
+      );
+    }
+    return skeleton;
+  }
+
   const content = (
     <div className="es-list-page" data-inline-edit={entry ? true : undefined}>
       <div className="es-list-content">
@@ -262,7 +286,6 @@ function WhitelistPageContent({
           <p role="status">{t("recoverNoMatch")}</p>
         ))}
       {recovering && <p role="status">{t("recoverStaged")}</p>}
-      {loading && <p role="status">{t("loading")}</p>}
       {(error || missingUniqueField) && (
         <div>
           <p

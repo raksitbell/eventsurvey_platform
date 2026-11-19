@@ -2,6 +2,7 @@
 import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import SetupFormCard from "@/components/event/setup/forms/SetupFormCard";
+import SetupFormsLoadingSkeleton from "@/components/event/setup/forms/SetupFormsLoadingSkeleton";
 import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
@@ -43,43 +44,44 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
         {t("title")}
       </h1>
       <EventSetupSteps current={3} onNavigate={() => !setup.pending && save()} />
-      <div
-        aria-busy={loading}
-        className="grid items-stretch gap-2 rounded-xl bg-white p-4 lg:grid-cols-[1fr_auto_1fr] lg:p-6 dark:bg-gray-900"
-      >
-        <SetupFormCard
-          type="registration"
-          enabled={draft.hasRegistration}
-          onOpen={
-            !readOnly && !setup.pending && workspace.canManageWhitelist
-              ? () => void navigate("/event/setup/registration")
-              : undefined
-          }
-          status={registration?.status}
-          count={registration?.questions.length ?? 0}
-        />
-        <div className="flex w-full items-center justify-center lg:w-20">
-          {draft.hasRegistration &&
-            draft.hasSurvey &&
-            draft.surveyAccess === "registered_only" && (
-              <ArrowRightIcon
-                aria-label={t("dependency")}
-                className="size-8 rotate-90 text-event-action lg:rotate-0 rtl:lg:rotate-180 dark:text-brand-400"
-              />
-            )}
+      {loading ? (
+        <SetupFormsLoadingSkeleton label={t("loading")} />
+      ) : (
+        <div className="grid items-stretch gap-2 rounded-xl bg-white p-4 lg:grid-cols-[1fr_auto_1fr] lg:p-6 dark:bg-gray-900">
+          <SetupFormCard
+            type="registration"
+            enabled={draft.hasRegistration}
+            onOpen={
+              !readOnly && !setup.pending && workspace.canManageWhitelist
+                ? () => void navigate("/event/setup/registration")
+                : undefined
+            }
+            status={registration?.status}
+            count={registration?.questions.length ?? 0}
+          />
+          <div className="flex w-full items-center justify-center lg:w-20">
+            {draft.hasRegistration &&
+              draft.hasSurvey &&
+              draft.surveyAccess === "registered_only" && (
+                <ArrowRightIcon
+                  aria-label={t("dependency")}
+                  className="size-8 rotate-90 text-event-action lg:rotate-0 rtl:lg:rotate-180 dark:text-brand-400"
+                />
+              )}
+          </div>
+          <SetupFormCard
+            type="survey"
+            enabled={draft.hasSurvey}
+            onOpen={
+              !readOnly && !setup.pending && workspace.canManageSurveyForm
+                ? () => void navigate("/event/setup/survey")
+                : undefined
+            }
+            status={survey?.status}
+            count={survey?.questions.length ?? 0}
+          />
         </div>
-        <SetupFormCard
-          type="survey"
-          enabled={draft.hasSurvey}
-          onOpen={
-            !readOnly && !setup.pending && workspace.canManageSurveyForm
-              ? () => void navigate("/event/setup/survey")
-              : undefined
-          }
-          status={survey?.status}
-          count={survey?.questions.length ?? 0}
-        />
-      </div>
+      )}
       {error && (
         <div
           role="alert"
