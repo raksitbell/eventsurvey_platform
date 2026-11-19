@@ -9,9 +9,9 @@ import styles from "./EventWorkspacePageHeader.module.css";
 
 interface EventWorkspacePageHeaderProps {
   title: string;
-  description: string;
+  description?: string;
   eyebrow?: string;
-  back?: false | { label?: string; onClick: () => void; disabled?: boolean };
+  back?: false | { label: string; href: string } | { label?: string; onClick: () => void; disabled?: boolean };
   action?: ReactNode;
 }
 
@@ -35,8 +35,8 @@ export default function EventWorkspacePageHeader({
       {back && back.label ? back.label : t("backToOverview")}
     </>
   );
-  const backAction = back === undefined ? (
-    <Link href="/event" className={styles.back}>{backContent}</Link>
+  const backAction = back === undefined || (back && "href" in back) ? (
+    <Link href={back?.href ?? "/event"} className={styles.back}>{backContent}</Link>
   ) : back && (
     <button
       type="button"
@@ -53,7 +53,7 @@ export default function EventWorkspacePageHeader({
       <div className={styles.intro}>
         <p className={styles.eyebrow}>{eyebrow ?? t("eyebrow")}</p>
         <h1>{title}</h1>
-        <p className={styles.description}>{description}</p>
+        {description && <p className={styles.description}>{description}</p>}
       </div>
       {action ? <div className={styles.actions}>{backAction}{action}</div> : backAction}
     </header>

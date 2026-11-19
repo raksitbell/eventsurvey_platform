@@ -125,19 +125,7 @@ export default function EventTeamPage() {
   };
 
   return (
-    <div className="space-y-6 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950">
-      <header>
-        <p className="text-theme-xs font-bold tracking-wide text-event-action dark:text-brand-400">
-          {t("workspaceEyebrow")}
-        </p>
-        <h1 className="mt-1 text-title-sm font-semibold text-gray-900 dark:text-white/90">
-          {t("pageTitle")}
-        </h1>
-        <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-          {t("teamMembersDesc")}
-        </p>
-      </header>
-
+    <div className="min-w-0 space-y-6">
       {inviteMailFailed && (
         <p
           role="alert"

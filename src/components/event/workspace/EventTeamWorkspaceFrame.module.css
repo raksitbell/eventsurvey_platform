@@ -3,14 +3,3 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
-
-/* The shared team page supplies the roster and dialogs. Its own heading is
-   replaced here by the Event Workspace header and return link. */
-.content > div {
-  padding: 0;
-  background: transparent;
-}
-
-.content > div > header {
-  display: none;
-}

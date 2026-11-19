@@ -26,7 +26,7 @@ function EventShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { workspace, loading, userId, locale } = useEventWorkspace();
   const navigationGuard = useEventNavigationGuard();
-  const isSetup = [
+  const isWorkspacePage = [
     "/event",
     "/event/details",
     "/event/branding",
@@ -38,14 +38,12 @@ function EventShell({ children }: { children: ReactNode }) {
     "/event/whitelist",
     "/event/setup/registration",
     "/event/setup/survey",
-  ].includes(pathname);
+  ].includes(pathname) || isEventReportingPath(pathname);
   const isFormPage =
     pathname === "/event/form" || pathname.startsWith("/event/form/");
   const isFormBuilder = /^\/event\/(form|setup)\/(registration|survey)$/.test(pathname);
-  const usesSetupChrome = isSetup || isFormPage;
-  const featureLayout = isEventReportingPath(pathname) ? "dashboard" : undefined;
-  const usesWorkspaceChrome = usesSetupChrome || !!featureLayout;
-  const setupTheme = usesSetupChrome
+  const usesWorkspaceChrome = isWorkspacePage || isFormPage;
+  const setupTheme = usesWorkspaceChrome
     ? `${eventInter.variable} ${eventThai.variable} event-admin-shell`
     : "";
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
@@ -59,30 +57,30 @@ function EventShell({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className={`min-h-screen xl:flex dark:bg-gray-950 ${setupTheme} ${isSetup ? "" : "bg-gray-50"}`}
+      className={`min-h-screen xl:flex dark:bg-gray-950 ${setupTheme} ${isWorkspacePage ? "" : "bg-gray-50"}`}
     >
       {usesWorkspaceChrome ? (
-        <EventWorkspaceSidebar featureLayout={featureLayout} workspace={workspace} loading={loading} />
+        <EventWorkspaceSidebar workspace={workspace} loading={loading} />
       ) : (
         <AppSidebar />
       )}
       <div
-        data-screen={isSetup ? pathname : undefined}
-        className={`event-workspace-main flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin} ${isSetup ? "event-admin-main" : ""}`}
+        data-screen={isWorkspacePage ? pathname : undefined}
+        className={`event-workspace-main flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin} ${isWorkspacePage ? "event-admin-main" : ""}`}
       >
         <Backdrop />
         <ImpersonationBanner
           beforeLeave={() => navigationGuard?.current?.() ?? true}
         />
         {usesWorkspaceChrome ? (
-          <EventWorkspaceHeader featureLayout={!!featureLayout} />
+          <EventWorkspaceHeader />
         ) : (
           <AppHeader />
         )}
         <div
           style={workspace && isFormBuilder ? formCanvasStyle(workspace, locale, userId) : undefined}
           className={
-            isSetup
+            isWorkspacePage
               ? "event-admin-body"
               : "mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6"
           }

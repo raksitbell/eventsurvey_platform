@@ -17,7 +17,7 @@ export default async function EventTeamWorkspaceFrame({
         title={team("pageTitle")}
         description={view("description")}
       />
-      <div className={styles.content}>{children}</div>
+      {children}
     </div>
   );
 }

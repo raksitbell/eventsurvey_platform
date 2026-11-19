@@ -2,6 +2,8 @@
 
 import ErrorPage from "@/components/common/ErrorPage";
 import EventActivityPanel from "@/components/event/activity/EventActivityPanel";
+import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspacePageHeader";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import useEventWorkspace from "@/hooks/useEventWorkspace";
 import { useTranslations } from "next-intl";
 
@@ -10,9 +12,7 @@ export default function EventActivityPage() {
   const te = useTranslations("errors.403");
   const { workspace, loading, error } = useEventWorkspace();
 
-  if (loading && !workspace) return null;
-
-  if (error || !workspace) {
+  if (!loading && (error || !workspace)) {
     return (
       <ErrorPage
         code="500"
@@ -23,7 +23,7 @@ export default function EventActivityPage() {
     );
   }
 
-  if (!workspace.canViewActivity) {
+  if (!loading && !workspace?.canViewActivity) {
     return (
       <ErrorPage
         code="403"
@@ -36,15 +36,17 @@ export default function EventActivityPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white/90">
-          {t("title")}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {t("description")}
-        </p>
-      </div>
-      <EventActivityPanel />
+      <EventWorkspacePageHeader title={t("title")} description={t("description")} />
+      {loading ? (
+        <div role="status" aria-label={t("loading")} aria-busy="true" className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Skeleton className="h-20 rounded-2xl" />
+            <Skeleton className="h-20 rounded-2xl" />
+          </div>
+          <Skeleton className="h-24 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      ) : <EventActivityPanel />}
     </div>
   );
 }

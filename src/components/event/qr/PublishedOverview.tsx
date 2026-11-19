@@ -7,9 +7,7 @@ import { surveyClosingTime } from "@/core/event/schedule";
 import type { EventBranding } from "@/types/event/branding";
 import type { EventWorkspace } from "@/types/event/workspace";
 import type { EventDraft } from "@/types/event/setup";
-import PublishedEventSummary, {
-  PublicationHeading,
-} from "./PublishedEventSummary";
+import PublishedEventSummary from "./PublishedEventSummary";
 import useEventDisplayDate from "@/hooks/useEventDisplayDate";
 
 export default function PublishedOverview({
@@ -52,13 +50,6 @@ export default function PublishedOverview({
       data-published-overview
       className="published-event published-event--overview"
     >
-      <PublicationHeading
-        title={t("overview")}
-        subtitle={t("readOnly")}
-        closed={
-          workspace.eventStatus === "closed" && !workspace.localPublishedAt
-        }
-      />
       <PublishedEventSummary
         draft={data}
         branding={branding}

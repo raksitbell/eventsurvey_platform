@@ -53,7 +53,7 @@
   gap: 8px;
   min-block-size: 42px;
 }
-.workspace-details__heading h1 {
+.workspace-details__heading h2 {
   font-size: var(--text-portal-heading);
   line-height: var(--text-portal-heading--line-height);
   font-weight: 600;

@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { sidebarToggleId, useSidebar } from "@/context/SidebarContext";
 import { useConfirm } from "@/hooks/useConfirm";
 import useHeaderLocale from "@/hooks/useHeaderLocale";
-import { Bars3Icon, GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { GlobeAltIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import type { Locale } from "@/i18n/routing";
 import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
@@ -17,9 +17,7 @@ import EventLanguageDropdown from "./EventLanguageDropdown";
 import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
 
-export default function EventWorkspaceHeader({
-  featureLayout = false,
-}: { featureLayout?: boolean } = {}) {
+export default function EventWorkspaceHeader() {
   const h = useTranslations("header");
   const a = useTranslations("userDropdown");
   const tc = useTranslations("confirm");
@@ -78,10 +76,9 @@ export default function EventWorkspaceHeader({
       value={locale}
       onChange={(language) => void changeLanguage(language)}
       onOpen={() => setOpen(false)}
-      className={featureLayout ? styles.featureLanguage : styles.language}
+      className={styles.language}
     >
       <GlobeAltIcon className="size-[18px] shrink-0" aria-hidden="true" />
-      {featureLayout && a("language")}
       <span>{locale.toUpperCase()}</span>
     </EventLanguageDropdown>
   );
@@ -89,7 +86,6 @@ export default function EventWorkspaceHeader({
   return (
     <header
       className={styles.header}
-      data-feature-layout={featureLayout || undefined}
       data-mobile-sidebar-open={isMobileOpen}
     >
       <button
@@ -103,8 +99,6 @@ export default function EventWorkspaceHeader({
       >
         {isMobileOpen ? (
           <XMarkIcon className="size-5" aria-hidden="true" />
-        ) : featureLayout ? (
-          <Bars3Icon className="size-5 rtl:-scale-x-100" aria-hidden="true" />
         ) : (
           <Image
             src="/images/event-workspace/icon-outline-menu.svg"
@@ -115,7 +109,7 @@ export default function EventWorkspaceHeader({
         )}
       </button>
       <div className={styles.headerActions}>
-        {!featureLayout && languageControl}
+        {languageControl}
         {user && (
           <div
             className="relative"
@@ -145,12 +139,8 @@ export default function EventWorkspaceHeader({
                   .toUpperCase()}
               </span>
               <span className={styles.identity}>
-                <span>
-                  {featureLayout ? user.name.trim().split(/\s+/)[0] : user.name}
-                </span>
-                {!featureLayout && (
-                  <small>{translateRole(common, user.role)}</small>
-                )}
+                <span>{user.name}</span>
+                <small>{translateRole(common, user.role)}</small>
               </span>
               <Image
                 src="/images/event-workspace/icon-chevron-down.svg"
@@ -174,7 +164,6 @@ export default function EventWorkspaceHeader({
                   {user.email}
                 </span>
               </div>
-              {featureLayout && languageControl}
               {isInspectingEvent && (
                 <DropdownItem
                   tag="button"

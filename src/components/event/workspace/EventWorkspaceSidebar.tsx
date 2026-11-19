@@ -4,30 +4,24 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import {
-  ChartPieIcon,
   ClipboardDocumentCheckIcon,
   DocumentTextIcon,
-  Squares2X2Icon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
-import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
 import { canEditWhitelist } from "@/core/event/whitelist";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import { translateRole } from "@/utils/i18n-labels";
 import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
 
 export default function EventWorkspaceSidebar({
-  featureLayout, workspace, loading,
+  workspace, loading,
 }: {
-  featureLayout?: "dashboard";
   workspace: EventWorkspace | null;
   loading: boolean;
 }) {
-  const { user } = useAuth();
   // Prefer cached/loaded workspace; only treat as empty on the first cold load.
   const currentWorkspace = workspace;
   const menuReady = !loading || currentWorkspace !== null;
@@ -39,8 +33,6 @@ export default function EventWorkspaceSidebar({
   const t = useTranslations("eventSetup");
   const whitelist = useTranslations("eventWhitelistDesign");
   const sidebar = useTranslations("sidebar.items");
-  const groups = useTranslations("sidebar.groups");
-  const common = useTranslations("common");
   const pathname = usePathname();
   const router = useRouter();
   const navigationGuard = useEventNavigationGuard();
@@ -87,9 +79,7 @@ export default function EventWorkspaceSidebar({
     : [
         {
           label: t("overview"),
-          icon: featureLayout ? (
-            <Squares2X2Icon className="size-5" aria-hidden="true" />
-          ) : (
+          icon: (
             <Image
               src="/images/event-workspace/frame.svg"
               width={20}
@@ -103,9 +93,7 @@ export default function EventWorkspaceSidebar({
           ? [
               {
                 label: sidebar("Form"),
-                icon: featureLayout ? (
-                  <Squares2X2Icon className="size-5" aria-hidden="true" />
-                ) : (
+                icon: (
                   <DocumentTextIcon className="size-5" aria-hidden="true" />
                 ),
                 href: "/event/form",
@@ -141,9 +129,7 @@ export default function EventWorkspaceSidebar({
           ? [
               {
                 label: t("dashboard"),
-                icon: featureLayout ? (
-                  <ChartPieIcon className="size-5" aria-hidden="true" />
-                ) : (
+                icon: (
                   <Image
                     src="/images/event-workspace/dashboard-nav.svg"
                     width={20}
@@ -209,7 +195,6 @@ export default function EventWorkspaceSidebar({
     <aside
       id="event-workspace-sidebar"
       data-expanded={expanded}
-      data-feature-layout={featureLayout}
       onMouseEnter={() => {
         if (isDesktop && !isExpanded) setIsHovered(true);
       }}
@@ -223,27 +208,23 @@ export default function EventWorkspaceSidebar({
         aria-label="EventSurvey"
       >
         <span className={styles.mark}>
-          {featureLayout ? (
-            "E"
-          ) : (
-            <Image
-              alt=""
-              width={27}
-              height={25}
-              src="/images/event-workspace/ticket-speech-symbol.svg"
-            />
-          )}
+          <Image
+            alt=""
+            width={27}
+            height={25}
+            src="/images/event-workspace/ticket-speech-symbol.svg"
+          />
         </span>
         {expanded && (
           <span className={styles.wordmark}>
-            <strong>{featureLayout ? "EVENTSURVEY" : "EventSurvey"}</strong>
-            {!featureLayout && <small>{t("appSubtitle")}</small>}
+            <strong>EventSurvey</strong>
+            <small>{t("appSubtitle")}</small>
           </span>
         )}
       </Link>
       <nav aria-label={t("overview")} aria-busy={!menuReady}>
         <h2 className={expanded ? styles.section : "sr-only"}>
-          {featureLayout ? groups("workspace") : "WORKSPACE"}
+          WORKSPACE
         </h2>
         <ul className="space-y-1">
           {!menuReady
@@ -294,27 +275,6 @@ export default function EventWorkspaceSidebar({
               })}
         </ul>
       </nav>
-      {featureLayout && user && (
-        <div className={styles.featureProfile}>
-          <span className={styles.featureProfileAvatar} aria-hidden="true">
-            {user.name
-              .trim()
-              .split(/\s+/)
-              .slice(0, 2)
-              .map((part) => part[0])
-              .join("")
-              .toUpperCase()}
-          </span>
-          {expanded && (
-            <div className="min-w-0">
-              <p className="truncate text-theme-sm font-medium">
-                {translateRole(common, user.role)}
-              </p>
-              <p className="truncate text-theme-xs text-gray-400">{user.email}</p>
-            </div>
-          )}
-        </div>
-      )}
     </aside>
   );
 }

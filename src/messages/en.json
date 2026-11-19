@@ -1019,6 +1019,7 @@
     }
   },
   "eventReports": {
+    "backToDashboard": "Back to dashboard",
     "navigation": "Event tools",
     "loading": "Loading…",
     "loadError": "Unable to load event data. Please try again.",
@@ -1631,6 +1632,7 @@
     "incomplete": "Incomplete",
     "previewHint": "Preview the banner layout, event type and forms selected in Event Setup.",
     "publish": "Review and publish",
+    "qrDescription": "Share the event link and download QR codes for participant forms.",
     "qrTitle": "QR Code Management",
     "published": "Published",
     "closed": "Closed",

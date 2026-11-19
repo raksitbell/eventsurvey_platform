@@ -2064,6 +2064,53 @@ function findSetupElement(node, predicate) {
   }
   return null;
 }
+test("Overview keeps its hero through loading, empty, draft, and published states", () => {
+  let session = { userId: "owner", workspace: null, loading: true };
+  const Page = compileSetupComponent("src/components/event/workspace/EventWorkspacePanel.tsx", {
+    "./EventWorkspacePageHeader": { default: "workspace-hero" },
+    "@/components/event/qr/PublishedEventSummary": { PublicationStatus: "publication-status" },
+    "@/components/event/qr/PublishedOverview": { default: "published-overview" },
+    "@/components/event/workspace/EventWorkspaceCard": { default: "event-card" },
+    "@/components/ui/button/Button": { default: "button" },
+    "@/components/ui/skeleton/Skeleton": { default: "skeleton" },
+    "@/hooks/useEventWorkspace": { default: () => session },
+    "@/hooks/useEventBranding": { default: () => ({ branding: {} }) },
+    "next-intl": { useTranslations: () => (key) => key },
+  });
+  const hero = () => findSetupElement(Page(), (node) => node.type === "workspace-hero").props;
+  assert.equal(hero().back, false);
+  for (const state of [{ loading: true }, { loading: false }, { workspace: { eventStatus: "draft" } }]) {
+    session = { ...session, ...state };
+    assert.equal(hero().description, "description");
+    assert.ok(!hero().action);
+  }
+  session.workspace = { setup: { publication: {} }, eventStatus: "closed" };
+  assert.equal(hero().description, "readOnly");
+  assert.equal(hero().action.type, "publication-status");
+  assert.equal(hero().action.props.closed, true);
+});
+test("User Activity shows the workspace hero while it checks permissions and opens the activity panel only when granted", () => {
+  let session = { loading: true, workspace: { canViewActivity: true } };
+  const Page = compileSetupComponent("src/app/[locale]/(event)/event/activity/page.tsx", {
+    "@/components/common/ErrorPage": { default: "error-page" },
+    "@/components/event/activity/EventActivityPanel": { default: "activity-panel" },
+    "@/components/event/workspace/EventWorkspacePageHeader": { default: "workspace-hero" },
+    "@/components/ui/skeleton/Skeleton": { default: "skeleton" },
+    "@/hooks/useEventWorkspace": { default: () => session },
+    "next-intl": { useTranslations: () => (key) => key },
+  });
+  const find = (type) => findSetupElement(Page(), (el) => el.type === type);
+  assert.equal(find("workspace-hero").props.title, "title");
+  assert.equal(find("activity-panel"), null);
+  session = { loading: false, workspace: { canViewActivity: false } };
+  assert.equal(find("error-page").props.code, "403");
+  assert.equal(find("activity-panel"), null);
+  session = { loading: false, error: true, workspace: null };
+  assert.equal(find("error-page").props.code, "500");
+  session = { loading: false, workspace: { canViewActivity: true } };
+  assert.ok(find("workspace-hero"));
+  assert.ok(find("activity-panel"));
+});
 test("Branding preview tabs show the selected participant surface and implement keyboard navigation", () => {
   const PublicForm = () => null;
   const PreviewSkeleton = compileSetupComponent(
@@ -3412,6 +3459,11 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     "/event/dashboard/builder",
     "/event/responses",
     "/event/exports",
+    "/event/trash",
+    "/event/analytics",
+    "/event/analytics/builder",
+    "/event/analytics/reports",
+    "/event/analytics/responses",
   ]) {
     const owner = render("event_owner", null, pathname, true);
     assert.equal(findSetupElement(owner, dashboard).props["aria-current"], "page");

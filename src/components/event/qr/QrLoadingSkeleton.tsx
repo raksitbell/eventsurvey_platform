@@ -1,6 +1,8 @@
 "use client";
 
 import Skeleton from "@/components/ui/skeleton/Skeleton";
+import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspacePageHeader";
+import { useTranslations } from "next-intl";
 import "./published-event.css";
 
 function FormShareCardSkeleton() {
@@ -64,18 +66,20 @@ export function QrShareLinksSkeleton({ label }: { label: string }) {
 }
 
 export default function QrLoadingSkeleton({ label }: { label: string }) {
+  const t = useTranslations("eventSetup");
   return (
     <article
-      className="published-event published-event--qr"
+      className="published-event"
       role="status"
       aria-busy="true"
       aria-live="polite"
     >
       <span className="sr-only">{label}</span>
-      <header className="published-event__heading" aria-hidden="true">
-        <Skeleton className="h-8 w-56 max-w-full" />
-        <Skeleton className="h-8 w-28 rounded-full" />
-      </header>
+      <EventWorkspacePageHeader
+        title={t("qrTitle")}
+        description={t("qrDescription")}
+        action={<Skeleton className="h-8 w-28 rounded-full" />}
+      />
 
       <div className="published-event__summary" aria-hidden="true">
         <Skeleton className="h-24 w-20 rounded-[10px]" />
