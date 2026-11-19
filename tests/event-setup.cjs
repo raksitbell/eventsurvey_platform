@@ -1940,7 +1940,7 @@ function setupActionButtons(form) {
     feedback: element.props.error,
   };
 }
-function detailsActions(save, query = new URLSearchParams()) {
+function detailsActions(save, query = new URLSearchParams(), saveBranding = () => true) {
   const navigation = [];
   const noop = { default: () => null };
   const messages = JSON.parse(
@@ -1957,12 +1957,10 @@ function detailsActions(save, query = new URLSearchParams()) {
       "./EventSetupBoundary": noop,
       "./EventSetupActions": { default: setupActions },
       "../workspace/EventWorkspacePageHeader": noop,
-      "@/components/event/whitelist/EventWhitelistPanel": noop,
-      "@/hooks/useModal": { useModal: () => ({ isOpen: false }) },
       "@/hooks/useSetupApiState": { default: () => ({ pending: false }) },
       "@/hooks/useWhitelistNavigationGuard": noop,
       "@/hooks/useEventBranding": {
-        default: () => ({ branding: defaultEventBranding, save: () => true }),
+        default: () => ({ branding: defaultEventBranding, save: saveBranding }),
       },
       "@/utils/alert": { showToast() {} },
       "@/core/event/draft": load("src/core/event/draft.ts"),
@@ -2019,6 +2017,39 @@ test("Form Editor returns to an allowlisted entry and keeps valid content langua
   findSetupElement(details.form, (node) => node.props.onOpenBuilder).props.onOpenBuilder("survey");
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(details.navigation, ["/event/setup/survey?from=details&lang=en"]);
+});
+
+test("Details opens the standalone Whitelist only after both saves succeed", async () => {
+  for (const [detailsSaved, brandingSaved] of [[true, true], [false, true], [true, false]]) {
+    const saves = [];
+    const ui = detailsActions(
+      async () => { saves.push("details"); return detailsSaved; },
+      new URLSearchParams("lang=en"),
+      async () => { saves.push("branding"); return brandingSaved; },
+    );
+    findSetupElement(ui.form, (node) => node.props.onOpenWhitelist).props.onOpenWhitelist();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(ui.navigation, detailsSaved && brandingSaved ? ["/event/whitelist?from=details&lang=en"] : []);
+    assert.deepEqual(saves, detailsSaved ? ["details", "branding"] : ["details"]);
+  }
+});
+
+test("Whitelist and Registration Builder preserve their bounded return destinations", () => {
+  const { formBuilderEntryHref, formBuilderReturn, whitelistReturn } = load("src/core/event/form-builder-navigation.ts");
+  for (const [origin, href] of [["workspace", "/event"], ["details", "/event/details?lang=en"], ["publish", "/event/publish?lang=en"]]) {
+    const query = origin === "workspace" ? {} : { from: origin, lang: "EN" };
+    const back = whitelistReturn(query);
+    assert.deepEqual(back, { origin, href });
+    for (const builder of ["/event/setup/registration", "/event/form/registration"]) {
+      const entry = new URL(formBuilderEntryHref(builder, "whitelist", query.lang, origin), "https://event.test");
+      const returned = formBuilderReturn(Object.fromEntries(entry.searchParams), builder.includes("/setup/"));
+      const target = new URL(returned.href, "https://event.test");
+      assert.equal(target.pathname, "/event/whitelist");
+      assert.deepEqual(whitelistReturn(Object.fromEntries(target.searchParams)), back);
+    }
+  }
+  assert.deepEqual(whitelistReturn({ from: ["details", "publish"], lang: "bad" }), { origin: "workspace", href: "/event" });
+  assert.deepEqual(whitelistReturn({ from: "//external.test" }), { origin: "workspace", href: "/event" });
 });
 
 test("Details Back and Next await the draft save before navigation; native submit follows Next", async (t) => {
@@ -2885,6 +2916,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     push = () => {},
     canAccessForms = true,
     closeMobileSidebar,
+    whitelistSettings = {},
   ) => {
     const Sidebar = compileSetupComponent(
       "src/components/event/workspace/EventWorkspaceSidebar.tsx",
@@ -2903,6 +2935,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
         "@/core/event/public-event-paths": load(
           "src/core/event/public-event-paths.ts",
         ),
+        "@/core/event/whitelist": load("src/core/event/whitelist.ts"),
         "@/i18n/navigation": {
           Link: link,
           usePathname: () => pathname,
@@ -2914,7 +2947,10 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
         "./EventWorkspaceChrome.module.css": { default: {} },
       },
     );
-    return Sidebar({ loading: false, workspace: { userRole, localPublishedAt, canAccessDashboard, canAccessForms } });
+    return Sidebar({
+      loading: false,
+      workspace: { userRole, localPublishedAt, canAccessDashboard, canAccessForms, ...whitelistSettings },
+    });
   };
   const team = (node) =>
     node.type === link && node.props.href === "/event/team";
@@ -2927,6 +2963,22 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     node.type === link && node.props.href === "/event/dashboard";
   const formManagement = (node) =>
     node.type === link && node.props.href === "/event/form";
+  const whitelist = (node) =>
+    node.type === link && node.props.href === "/event/whitelist";
+  const registrationManager = {
+    eventStatus: "draft", canManageWhitelist: true, whitelistEnabledForSetup: true, canEditEvent: false,
+  };
+  const renderWhitelistSidebar = (overrides) => render(
+    "sub_user", null, "/event/whitelist", false, null, undefined, true, undefined,
+    { ...registrationManager, ...overrides },
+  );
+  assert.equal(findSetupElement(renderWhitelistSidebar(), whitelist).props["aria-current"], "page");
+  assert.equal(findSetupElement(renderWhitelistSidebar(), overview).props["aria-current"], undefined);
+  for (const overrides of [
+    { canManageWhitelist: false }, { whitelistEnabledForSetup: false }, { eventStatus: "closed" },
+  ]) {
+    assert.equal(findSetupElement(renderWhitelistSidebar(overrides), whitelist), null);
+  }
   for (const pathname of ["/event", "/event/qr", "/event/team"]) {
     const owner = render("event_owner", "2027-01-01T00:00:00.000Z", pathname);
     assert.equal(

@@ -9,13 +9,11 @@ import EventSetupBoundary, {
 import EventSetupActions from "./EventSetupActions";
 import EventSetupPendingMedia from "@/components/event/setup/EventSetupPendingMedia";
 import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
-import { WhitelistPage } from "@/components/event/whitelist/EventWhitelistPanel";
 import { afterSaved, createSavedNavigation } from "@/core/event/draft";
-import { formBuilderContentLocale, formBuilderEntryHref } from "@/core/event/form-builder-navigation";
+import { formBuilderContentLocale, formBuilderEntryHref, whitelistEntryHref } from "@/core/event/form-builder-navigation";
 import { eventWorkspaceDisplayStatus } from "@/core/event/workspace";
 import useEventDraft from "@/hooks/useEventDraft";
 import useEventBranding from "@/hooks/useEventBranding";
-import { useModal } from "@/hooks/useModal";
 import useSetupApiState from "@/hooks/useSetupApiState";
 import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
@@ -49,8 +47,7 @@ function DetailsForm(props: EventSetupPageProps) {
     : statusName === "draft"
       ? overview("draft")
       : home(`eventStatus.${statusName}`);
-  const router = useRouter(),
-    list = useModal();
+  const router = useRouter();
   const setup = useSetupApiState(workspace);
   const { draft, status, readOnly, change, save, dirty } = useEventDraft(
     workspace,
@@ -62,7 +59,7 @@ function DetailsForm(props: EventSetupPageProps) {
   const persist = async () => (await save()) && (await media.save());
   const navigate = createSavedNavigation(persist, router.push);
   const pending = setup.pending || media.saving;
-  useWhitelistNavigationGuard(!list.isOpen && (dirty || media.dirty), persist);
+  useWhitelistNavigationGuard(dirty || media.dirty, persist);
   const scheduleErrors: Record<string, string> = {
     SETUP_DATE_IN_PAST: dates("pastDate"),
     SETUP_DATE_ORDER: dates("invalidOrder"),
@@ -81,95 +78,84 @@ function DetailsForm(props: EventSetupPageProps) {
           ? t("saveError")
           : media.pendingMediaMessage ? t(media.pendingMediaMessage) : undefined);
   return (
-    <>
-      <form
-        ref={focusChecklistTarget}
-        className="es-setup-form event-details-page gap-4"
-        inert={list.isOpen}
-        aria-busy={pending}
-        onSubmit={(e) => {
-          e.preventDefault();
-          void navigate("/event/publish");
-        }}
-      >
-        <EventWorkspacePageHeader
-          title={d("title")}
-          description={d("description")}
-          back={false}
-        />
-        <div className="event-details-sheet">
-          <SetupMediaPanel
-            workspace={workspace}
-            contentLocale={contentLocale}
-            draft={draft}
-            branding={media.branding}
-            bannerUrl={workspace.bannerUrl}
-            readOnly={readOnly || pending}
-            onChange={media.change}
-          />
-          <div className="event-setup-controls">
-            <EventInformationFields
-              statusLabel={statusLabel}
-              draft={draft}
-              uiLocale={locale}
-              selectedLocale={contentLocale}
-              onSelectLocale={setLanguage}
-              readOnly={readOnly || pending}
-              onChange={change}
-            />
-            <EventAccessSettings
-              workspace={workspace}
-              draft={draft}
-              readOnly={readOnly || pending}
-              onChange={change}
-              onOpenWhitelist={() => {
-                void afterSaved(persist, list.openModal);
-              }}
-              onOpenBuilder={(kind) => {
-                void navigate(formBuilderEntryHref(`/event/setup/${kind}`, "details", contentLocale));
-              }}
-            />
-            <EventFormSchedule
-              draft={draft}
-              readOnly={readOnly || pending}
-              onChange={change}
-            />
-          </div>
-        </div>
-        <EventSetupActions
-          back={{
-            label: t("backWorkspace"),
-            onClick: () => void navigate("/event"),
-            disabled: pending,
-          }}
-          primary={{ label: t("preview"), disabled: pending }}
-          saveDraft={{
-            label: t("save"),
-            disabled: readOnly || pending,
-            onClick: () => {
-              void afterSaved(persist, () => showToast({ title: t("saved") }));
-            },
-          }}
-          error={feedback}
-        >
-          {!readOnly && !!media.pendingMedia?.length && (
-            <EventSetupPendingMedia
-              kinds={media.pendingMedia}
-              disabled={pending}
-              onDiscard={media.discardPendingMedia}
-            />
-          )}
-        </EventSetupActions>
-      </form>
-      {list.isOpen && (
-        <WhitelistPage
-          {...props}
-          workspace={{ ...workspace, ...draft }}
+    <form
+      ref={focusChecklistTarget}
+      className="es-setup-form event-details-page gap-4"
+      aria-busy={pending}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void navigate("/event/publish");
+      }}
+    >
+      <EventWorkspacePageHeader
+        title={d("title")}
+        description={d("description")}
+        back={false}
+      />
+      <div className="event-details-sheet">
+        <SetupMediaPanel
+          workspace={workspace}
           contentLocale={contentLocale}
-          onClose={list.closeModal}
+          draft={draft}
+          branding={media.branding}
+          bannerUrl={workspace.bannerUrl}
+          readOnly={readOnly || pending}
+          onChange={media.change}
         />
-      )}
-    </>
+        <div className="event-setup-controls">
+          <EventInformationFields
+            statusLabel={statusLabel}
+            draft={draft}
+            uiLocale={locale}
+            selectedLocale={contentLocale}
+            onSelectLocale={setLanguage}
+            readOnly={readOnly || pending}
+            onChange={change}
+          />
+          <EventAccessSettings
+            workspace={workspace}
+            draft={draft}
+            readOnly={readOnly || pending}
+            onChange={change}
+            onOpenWhitelist={() => {
+              void navigate(whitelistEntryHref("details", contentLocale));
+            }}
+            onOpenBuilder={(kind) => {
+              void navigate(formBuilderEntryHref(`/event/setup/${kind}`, "details", contentLocale));
+            }}
+          />
+          <EventFormSchedule
+            draft={draft}
+            readOnly={readOnly || pending}
+            onChange={change}
+          />
+        </div>
+      </div>
+      <EventSetupActions
+        back={{
+          label: t("backWorkspace"),
+          onClick: () => void navigate("/event"),
+          disabled: pending,
+        }}
+        primary={{ label: t("preview"), disabled: pending }}
+        saveDraft={{
+          label: t("save"),
+          disabled: readOnly || pending,
+          onClick: () => {
+            void afterSaved(persist, () => showToast({ title: t("saved") }));
+          },
+        }}
+        error={feedback}
+      >
+        {!readOnly && !!media.pendingMedia?.length && (
+          <EventSetupPendingMedia
+            kinds={media.pendingMedia}
+            disabled={pending}
+            onDiscard={media.discardPendingMedia}
+          />
+        )}
+      </EventSetupActions>
+    </form>
   );
 }
 export default function EventDetailsForm() {

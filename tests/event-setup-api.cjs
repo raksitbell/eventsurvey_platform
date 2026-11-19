@@ -217,6 +217,32 @@ test("Publishing enabled draft forms freezes their Event Setup schedule in the e
   assert.equal(writes(), 2);
 });
 
+test("Whitelist reads require registration management and an editable private event with registration", async (t) => {
+  const { service, draft } = fixture(t);
+  const context = await service.getSetupContext("owner");
+  for (const [is_private, has_registration] of [[false, true], [true, false]]) {
+    await assert.rejects(
+      service.getSetupWhitelist({ ...context, event: { ...context.event, is_private, has_registration } }),
+      { message: "SETUP_WHITELIST_UNAVAILABLE" },
+    );
+  }
+  await service.saveSetupDraft(context, {
+    revision: 0, draft: { ...draft, isPrivate: true, hasRegistration: true },
+  });
+  const privateContext = await service.getSetupContext("owner");
+  await assert.rejects(service.getSetupWhitelist({
+    ...privateContext, workspace: { ...privateContext.workspace, canManageWhitelist: false },
+  }), { message: "FORBIDDEN" });
+  await assert.rejects(service.getSetupWhitelist({
+    ...privateContext, event: { ...privateContext.event, status: "closed" },
+  }), { message: "SETUP_READ_ONLY" });
+  const result = await service.getSetupWhitelist({
+    ...privateContext, workspace: { ...privateContext.workspace, canEditEvent: false },
+  });
+  assert.deepEqual(result.entries, []);
+  assert.equal(result.uniqueField, null);
+});
+
 test("Saving the current field preserves previously used Whitelist entries without exposing them in the draft", async (t) => {
   const { service, draft, event } = fixture(t, {
     registration: {

@@ -17,7 +17,7 @@ function Builder({
 }: EventSetupPageProps & { type: FormType }) {
   const t = useTranslations("form.editorBack");
   const query = useSearchParams();
-  const back = formBuilderReturn({ from: query.getAll("from"), lang: query.getAll("lang") }, true);
+  const back = formBuilderReturn({ from: query.getAll("from"), lang: query.getAll("lang"), via: query.getAll("via") }, true);
   const enabled =
     type === "registration" ? workspace.hasRegistration : workspace.hasSurvey;
   const permitted =

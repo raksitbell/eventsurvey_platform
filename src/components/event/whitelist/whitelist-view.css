@@ -1,26 +1,13 @@
-.es-list-modal[role="dialog"] {
-  max-width: 1132px;
-  max-height: calc(100dvh - 32px);
-  overflow: hidden;
-  border-radius: 18px;
-  padding: 0;
-  background: var(--es-background-surface);
-  box-shadow: 0 18px 40px rgb(0 0 0 / 18%);
-}
 .es-list-page {
   display: flex;
   flex-direction: column;
   width: 100%;
   min-width: 0;
-  height: min(640px, calc(100dvh - 32px));
+  min-height: min(40rem, calc(100dvh - var(--workspace-header-height, 4.5rem)));
   border-radius: 18px;
   background: var(--es-background-surface);
   color: var(--es-text-primary);
   font-family: var(--overview-font-inter), sans-serif;
-}
-.es-list-locked-modal[role="dialog"] {
-  max-width: 32rem;
-  overflow: auto;
 }
 .es-list-prerequisite {
   display: grid;
@@ -120,13 +107,6 @@
 }
 .es-list-private {
   --icon: url("/images/event-setup/lock.svg");
-}
-.es-list-close {
-  width: 36px;
-  height: 32px;
-  border-radius: 8px;
-  background: transparent url("/images/event-setup/icon-outline-x.svg")
-    center/20px no-repeat;
 }
 .es-list-totals {
   display: grid;
@@ -281,9 +261,6 @@
   }
   .es-list-private {
     margin: 0;
-  }
-  .es-list-close {
-    margin-inline-start: auto;
   }
   .es-list-totals {
     gap: 6px;

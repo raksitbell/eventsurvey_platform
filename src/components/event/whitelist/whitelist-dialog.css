@@ -271,19 +271,6 @@
   color: var(--color-gray-400);
 }
 
-/* SweetAlert provides the single scrim over the list during a confirmation. */
-body.swal2-shown .fixed:has(> .es-list-modal) > [aria-hidden="true"] {
-  background: transparent;
-}
-
-.es-list-modal:has([data-inline-edit])[role="dialog"] {
-  max-width: 960px;
-  border: 1px solid var(--es-border-default);
-  border-radius: 16px;
-}
-.es-list-page[data-inline-edit] {
-  height: min(658px, calc(100dvh - 34px));
-}
 [data-inline-edit] .es-list-content {
   padding: 0;
 }
@@ -291,9 +278,6 @@ body.swal2-shown .fixed:has(> .es-list-modal) > [aria-hidden="true"] {
   min-height: 105px;
   padding: 24px 31px;
   border-bottom: 1px solid var(--es-border-default);
-}
-[data-inline-edit] .es-list-close {
-  margin-inline-start: auto;
 }
 [data-inline-edit]
   :is(

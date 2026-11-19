@@ -8,10 +8,11 @@ import WhitelistLoadingSkeleton from "@/components/event/whitelist/WhitelistLoad
 import WhitelistPrerequisite from "@/components/event/whitelist/WhitelistPrerequisite";
 import type { WhitelistRowIssue } from "@/types/event/whitelist";
 import WhitelistImportDialog from "@/components/event/whitelist/WhitelistImportDialog";
-import { Modal } from "@/components/ui/modal";
+import ErrorPage from "@/components/common/ErrorPage";
 import Button from "@/components/ui/button/Button";
-import { formBuilderEntryHref } from "@/core/event/form-builder-navigation";
+import { formBuilderEntryHref, whitelistReturn } from "@/core/event/form-builder-navigation";
 import {
+  canEditWhitelist,
   whitelistRegistrationBuilderHref,
   replaceWhitelist,
   normalizeWhitelistId,
@@ -23,28 +24,34 @@ import { useConfirm } from "@/hooks/useConfirm";
 import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useId, useRef, useState } from "react";
-type WhitelistPageProps = EventSetupPageProps & { onClose?: () => void; contentLocale?: string | null };
 
-export function WhitelistPage(props: WhitelistPageProps) {
-  const { userId, workspace, locale } = props;
-  return (
-    <WhitelistPageContent
-      key={JSON.stringify([userId, workspace.eventId, locale])}
-      {...props}
-    />
-  );
+function WhitelistPage(props: EventSetupPageProps) {
+  const t = useTranslations("errors.403");
+  if (!canEditWhitelist(props.workspace)) {
+    return (
+      <ErrorPage
+        code="403"
+        title={t("title")}
+        message={t("message")}
+        backLabel={t("backHome")}
+        homeHref="/event"
+      />
+    );
+  }
+  return <WhitelistPageContent key={props.workspace.eventId} {...props} />;
 }
 
-function WhitelistPageContent({
-  workspace,
-  userId,
-  locale,
-  onClose,
-  contentLocale,
-}: WhitelistPageProps) {
-  const t = useTranslations("eventWhitelist"),
-    router = useRouter();
+function WhitelistPageContent({ workspace, userId, locale }: EventSetupPageProps) {
+  const t = useTranslations("eventWhitelist");
+  const editor = useTranslations("form.editorBack");
+  const home = useTranslations("eventHome");
+  const router = useRouter();
+  const query = useSearchParams();
+  const contentLocale = query.getAll("lang");
+  const destination = whitelistReturn({ from: query.getAll("from"), lang: contentLocale });
+  const backLabel = destination.origin === "workspace" ? home("backToOverview") : editor(destination.origin);
   const view = useTranslations("eventWhitelistDesign");
   const {
     entries,
@@ -76,7 +83,7 @@ function WhitelistPageContent({
     change([
       ...entries,
       {
-        id: crypto.randomUUID(),
+        id: globalThis.crypto.randomUUID(),
         uniqueId: normalizeWhitelistId(entry.uniqueId, uniqueField.type),
         name: entry.name.trim(),
         status: "available",
@@ -107,8 +114,7 @@ function WhitelistPageContent({
   const back = async () => {
     if (pendingDialog.current || (hasChanges && !(await confirmDiscard())))
       return;
-    if (onClose) onClose();
-    else router.push("/event/details");
+    router.push(destination.href);
   };
   const remove = async (id: string) => {
     const target = entries.find((item) => item.id === id);
@@ -144,10 +150,6 @@ function WhitelistPageContent({
     setBusy(true);
     try {
       if (await save()) {
-        if (onClose) {
-          onClose();
-          return;
-        }
         await confirm({
           appearance: "event",
           title: t("savedTitle"),
@@ -187,52 +189,17 @@ function WhitelistPageContent({
       pendingDialog.current = false;
     }
   };
-  const dialogs = (
-    <>
-      {upload.isOpen && !readOnly && uniqueField && (
-        <WhitelistImportDialog
-          entries={entries}
-          uniqueField={uniqueField}
-          onClose={upload.closeModal}
-          onUse={(incoming) => {
-            change(replaceWhitelist(entries, incoming));
-            upload.closeModal();
-          }}
-        />
-      )}
-    </>
-  );
-
-  if (loading) {
-    const skeleton = <WhitelistLoadingSkeleton label={t("loading")} />;
-    if (onClose) {
-      return (
-        <Modal
-          isOpen
-          onClose={() => void back()}
-          labelledBy="setup-whitelist-title"
-          className="es-list-modal"
-          showCloseButton={false}
-          backdropClassName="bg-black/50"
-        >
-          <h1 id="setup-whitelist-title" className="sr-only">
-            {view("title")}
-          </h1>
-          {skeleton}
-        </Modal>
-      );
-    }
-    return skeleton;
-  }
+  if (loading) return <WhitelistLoadingSkeleton label={t("loading")} />;
 
   const builderPath = whitelistRegistrationBuilderHref(workspace);
-  const content = missingUniqueField ? (
+  if (missingUniqueField) return (
     <WhitelistPrerequisite
-      inDialog={!!onClose}
+      backLabel={backLabel}
       onBack={() => void back()}
-      builderHref={builderPath && formBuilderEntryHref(builderPath, onClose ? "details" : "whitelist", contentLocale)}
+      builderHref={builderPath && formBuilderEntryHref(builderPath, "whitelist", contentLocale, destination.origin)}
     />
-  ) : (
+  );
+  return (
     <div className="es-list-page" data-inline-edit={entry ? true : undefined}>
       <div className="es-list-content">
         <header className="es-list-heading">
@@ -247,14 +214,6 @@ function WhitelistPageContent({
             </p>
           </div>
           <span className="es-list-private">{view("private")}</span>
-          {onClose && (
-            <button
-              type="button"
-              className="es-list-close"
-              aria-label={t("close")}
-              onClick={() => void back()}
-            />
-          )}
         </header>
         <WhitelistTable
           entries={entries}
@@ -343,7 +302,7 @@ function WhitelistPageContent({
       ) : (
         <footer className="es-list-footer">
           <Button disabled={busy} variant="outline" onClick={() => void back()}>
-            {t(onClose ? "cancel" : "back")}
+            {backLabel}
           </Button>
           <Button
             disabled={readOnly || busy}
@@ -354,25 +313,21 @@ function WhitelistPageContent({
           </Button>
         </footer>
       )}
-      {dialogs}
+      {upload.isOpen && !readOnly && uniqueField && (
+        <WhitelistImportDialog
+          entries={entries}
+          uniqueField={uniqueField}
+          onClose={upload.closeModal}
+          onUse={(incoming) => {
+            change(replaceWhitelist(entries, incoming));
+            upload.closeModal();
+          }}
+        />
+      )}
     </div>
   );
-  if (onClose && !upload.isOpen)
-    return (
-      <Modal
-        isOpen
-        onClose={() => void back()}
-        labelledBy="setup-whitelist-title"
-        className={missingUniqueField ? "es-list-modal es-list-locked-modal" : "es-list-modal"}
-        showCloseButton={false}
-        backdropClassName="bg-black/50"
-      >
-        {content}
-      </Modal>
-    );
-  if (onClose && upload.isOpen) return dialogs;
-  return content;
 }
+
 export default function EventWhitelistPanel() {
   return <EventSetupBoundary component={WhitelistPage} />;
 }

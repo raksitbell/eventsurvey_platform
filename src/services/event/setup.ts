@@ -215,9 +215,17 @@ function whitelistForField(setup: SetupRecord, form: Awaited<ReturnType<typeof r
   return [...merged.values()];
 }
 
+function assertWhitelistEnabled(event: MockEvent, setup: SetupRecord) {
+  if (!((setup.draft?.isPrivate ?? event.is_private) && (setup.draft?.hasRegistration ?? event.has_registration))) {
+    throw new ServiceError("SETUP_WHITELIST_UNAVAILABLE", 409);
+  }
+}
+
 export async function getSetupWhitelist(context: SetupContext) {
   if (!context.workspace.canManageWhitelist) throw new ServiceError("FORBIDDEN", 403);
   const setup = readSetupRecord(context.event);
+  editable(context.event, setup);
+  assertWhitelistEnabled(context.event, setup);
   const form = await registrationForWhitelist(context.event.id);
   return {
     revision: setup.revision,
@@ -231,11 +239,9 @@ async function prepareWhitelist(
   setup: SetupRecord,
   entries: WhitelistEntry[],
 ) {
+  assertWhitelistEnabled(event, setup);
   const form = await registrationForWhitelist(event.id);
   if (!form) throw new ServiceError("SETUP_UNIQUE_FIELD_REQUIRED", 422);
-  if (!((setup.draft?.isPrivate ?? event.is_private) && (setup.draft?.hasRegistration ?? event.has_registration))) {
-    throw new ServiceError("SETUP_WHITELIST_UNAVAILABLE", 409);
-  }
   const existing = whitelistForField(setup, form);
   const used = existing.filter((entry) => entry.status === "joined");
   const retainedIds = new Set(used.map((item) => item.id));

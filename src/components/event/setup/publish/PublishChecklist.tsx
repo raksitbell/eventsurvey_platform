@@ -1,7 +1,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { bannerLayouts } from "@/core/event/banner-layout";
 import { contentLanguageName } from "@/core/event/content";
-import { formBuilderEntryHref } from "@/core/event/form-builder-navigation";
+import { formBuilderEntryHref, whitelistEntryHref } from "@/core/event/form-builder-navigation";
 import { toBangkokInput } from "@/core/i18n/bangkok-datetime";
 import type { PublishIssue, reviewPublication } from "@/core/event/publication";
 import type { EventDraft } from "@/types/event/setup";
@@ -182,7 +182,7 @@ export default function PublishChecklist({
       label: details("manageWhitelist"),
       warnings: warnings("whitelist"),
       href: draft.hasRegistration
-        ? "/event/whitelist"
+        ? whitelistEntryHref("publish", contentLocale)
         : "/event/details#registration-on",
       permitted: !draft.hasRegistration || canManageRegistration,
     });

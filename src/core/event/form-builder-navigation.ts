@@ -7,14 +7,17 @@ const destinations = {
   publish: "/event/publish",
   whitelist: "/event/whitelist",
   management: "/event/form",
+  workspace: "/event",
 } as const;
 
-type Origin = keyof typeof destinations;
+type Origin = Exclude<keyof typeof destinations, "workspace">;
+type WhitelistOrigin = "details" | "publish" | "workspace";
 type QueryValue = string | readonly string[] | null | undefined;
 
 export interface FormBuilderEntryQuery {
   from?: QueryValue;
   lang?: QueryValue;
+  via?: QueryValue;
 }
 
 function singleValue(value: QueryValue) {
@@ -26,34 +29,47 @@ export function formBuilderContentLocale(value: QueryValue) {
   return normalizeContentLocale(singleValue(value));
 }
 
+function whitelistOrigin(value: QueryValue): WhitelistOrigin {
+  const origin = singleValue(value);
+  return origin === "details" || origin === "publish" ? origin : "workspace";
+}
+
+function destinationHref(path: string, locale?: QueryValue, query = new URLSearchParams()) {
+  const language = formBuilderContentLocale(locale);
+  if (language) query.set("lang", language);
+  return query.size ? `${path}?${query}` : path;
+}
+
+export function whitelistEntryHref(origin: WhitelistOrigin, locale?: QueryValue) {
+  if (origin === "workspace") return destinations.whitelist;
+  return destinationHref(destinations.whitelist, locale, new URLSearchParams({ from: origin }));
+}
+
+export function whitelistReturn(query: FormBuilderEntryQuery) {
+  const origin = whitelistOrigin(query.from);
+  return { origin, href: destinationHref(destinations[origin], origin === "workspace" ? null : query.lang) };
+}
+
 export function formBuilderEntryHref(
   path: `/event/${"setup" | "form"}/${FormType}`,
   origin: Exclude<Origin, "management">,
   locale?: QueryValue,
+  via?: WhitelistOrigin,
 ) {
   const query = new URLSearchParams({ from: origin });
-  const language = formBuilderContentLocale(locale);
-  if ((origin === "details" || origin === "publish") && language) {
-    query.set("lang", language);
-  }
-  return `${path}?${query}`;
+  if (origin === "whitelist" && via && via !== "workspace") query.set("via", via);
+  return destinationHref(path, origin === "forms" ? null : locale, query);
 }
 
 export function formBuilderReturn(query: FormBuilderEntryQuery, insideSetup: boolean) {
   const requested = singleValue(query.from);
-  let origin: Origin = insideSetup ? "details" : "management";
-  if (
-    requested === "whitelist" ||
-    (insideSetup && (requested === "forms" || requested === "publish"))
-  ) {
-    origin = requested;
+  if (requested === "whitelist") {
+    return { origin: requested, href: whitelistEntryHref(whitelistOrigin(query.via), query.lang) } as const;
   }
-  const language = formBuilderContentLocale(query.lang);
-  const path = destinations[origin];
+  let origin: Origin = insideSetup ? "details" : "management";
+  if (insideSetup && (requested === "forms" || requested === "publish")) origin = requested;
   return {
     origin,
-    href: (origin === "details" || origin === "publish") && language
-      ? `${path}?lang=${language}`
-      : path,
+    href: destinationHref(destinations[origin], origin === "details" || origin === "publish" ? query.lang : null),
   };
 }
