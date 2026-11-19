@@ -1785,7 +1785,8 @@
     "joined": "Used"
   },
   "eventBrandVisual": {
-    "adminPreview": "Admin interface",
+    "displayNav": "Event display",
+    "formNav": "Public form",
     "publicFormPreview": "Participant public form",
     "cropTitle": "Crop banner {ratio}",
     "replaceBanner": "Choose a new image",

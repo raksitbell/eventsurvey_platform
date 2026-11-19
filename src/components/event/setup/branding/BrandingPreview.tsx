@@ -10,7 +10,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 import type { ParticipantEventData } from "@/types/event/participant";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { useTranslations } from "next-intl";
-import BrandingInterfacePreviews from "./BrandingInterfacePreviews";
+import BrandingPreviewGallery from "./BrandingPreviewGallery";
 
 interface BrandingPreviewProps extends ParticipantEventData {
   workspace: EventWorkspace;
@@ -47,13 +47,12 @@ export default function BrandingPreview({
           )}
         </div>
       </div>
-      <div
-        tabIndex={0}
-        role="region"
-        aria-label={t("preview")}
-        className="custom-scrollbar max-h-[70dvh] space-y-4 overflow-y-auto rounded-xl"
+      <BrandingPreviewGallery
+        {...data}
+        workspace={workspace}
+        contentLocale={contentLocale}
+        viewportClassName="max-h-[65dvh]"
       >
-        <h3 className="text-sm font-semibold">{setup("displayPreview")}</h3>
         <div className="relative overflow-hidden rounded-xl bg-participant-page p-3 dark:bg-gray-950">
           <div
             inert
@@ -76,12 +75,7 @@ export default function BrandingPreview({
             className="absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-event-action"
           />
         </div>
-        <BrandingInterfacePreviews
-          {...data}
-          workspace={workspace}
-          contentLocale={contentLocale}
-        />
-      </div>
+      </BrandingPreviewGallery>
     </section>
   );
 }

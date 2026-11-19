@@ -1,36 +1,46 @@
 "use client";
 
+import BrandingPreviewGallery, { initialPreviewSelection } from "@/components/event/setup/branding/BrandingPreviewGallery";
+import type useEventFormSummaries from "@/hooks/useEventFormSummaries";
+import type { EventWorkspace } from "@/types/event/workspace";
 import ParticipantPreviewLanguage from "@/components/event/participant/ParticipantPreviewLanguage";
 import ParticipantDisplayPreview from "@/components/event/participant/ParticipantDisplayPreview";
 import { afterSaved } from "@/core/event/draft";
 import { useModal } from "@/hooks/useModal";
-import useParticipantPreviewLanguage from "@/hooks/useParticipantPreviewLanguage";
+import type useParticipantPreviewLanguage from "@/hooks/useParticipantPreviewLanguage";
 import type { ParticipantEventData } from "@/types/event/participant";
 import { EyeIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 
 interface PublishParticipantPreviewProps extends ParticipantEventData {
+  workspace: EventWorkspace;
+  formState?: ReturnType<typeof useEventFormSummaries>;
+  language: ReturnType<typeof useParticipantPreviewLanguage>;
   onOpen: () => boolean | Promise<boolean>;
   disabled?: boolean;
 }
 
 export default function PublishParticipantPreview({
+  workspace,
+  formState,
+  language,
   onOpen,
   disabled,
   ...data
 }: PublishParticipantPreviewProps) {
   const t = useTranslations("eventSetup");
   const preview = useTranslations("eventPreview");
+  const brandingText = useTranslations("eventBranding");
   const publish = useTranslations("eventPublish");
   const { isOpen, openModal, closeModal } = useModal();
   const [opening, setOpening] = useState(false);
+  const selectionState = useState(initialPreviewSelection);
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialogTitle = useId();
-  const { content, translation, contentLocale, selectLanguage } =
-    useParticipantPreviewLanguage(data.draft);
+  const { content, translation, contentLocale, selectLanguage } = language;
   const languageControl = content.translations.length > 1 && (
     <ParticipantPreviewLanguage
       content={content}
@@ -64,22 +74,29 @@ export default function PublishParticipantPreview({
     }
   }
 
+  const gallery = (
+    <BrandingPreviewGallery
+      {...data}
+      workspace={workspace}
+      formState={formState}
+      selectionState={selectionState}
+      contentLocale={contentLocale}
+      className="min-h-0 w-full"
+      viewportClassName="publish-preview-gallery__viewport"
+    >
+      <div className={data.branding.layout === "landscape" ? "mx-auto max-w-5xl" : "mx-auto max-w-md"}>
+        <ParticipantDisplayPreview {...data} contentLocale={contentLocale} />
+      </div>
+    </BrandingPreviewGallery>
+  );
+
   return (
     <section className="publish-card publish-preview">
       <div className="flex w-full flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">{t("displayPreview")}</h2>
+        <h2 className="font-semibold">{brandingText("preview")}</h2>
         {languageControl}
       </div>
-      <div
-        inert
-        aria-hidden="true"
-        className="w-full max-w-md overflow-hidden rounded-preview-control"
-      >
-        <ParticipantDisplayPreview
-          {...data}
-          contentLocale={contentLocale}
-        />
-      </div>
+      {!isOpen && gallery}
       <button
         type="button"
         ref={trigger}
@@ -120,17 +137,7 @@ export default function PublishParticipantPreview({
               <div className="flex basis-full">{languageControl}</div>
             )}
           </header>
-          <div
-            role="region"
-            aria-label={preview("viewport")}
-            tabIndex={0}
-            className="publish-preview-dialog__viewport"
-          >
-            <ParticipantDisplayPreview
-              {...data}
-              contentLocale={contentLocale}
-            />
-          </div>
+          {gallery}
         </dialog>
       )}
     </section>

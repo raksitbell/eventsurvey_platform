@@ -478,10 +478,6 @@
   outline: 2px solid var(--action);
   outline-offset: 2px;
 }
-.previewLabel {
-  padding: 0.75rem 1rem;
-  font-weight: 600;
-}
 .previewCanvas {
   margin-inline: auto;
 }

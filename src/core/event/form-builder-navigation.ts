@@ -40,6 +40,10 @@ function destinationHref(path: string, locale?: QueryValue, query = new URLSearc
   return query.size ? `${path}?${query}` : path;
 }
 
+export function eventSetupStepHref(step: "details" | "publish", locale?: QueryValue) {
+  return destinationHref(destinations[step], locale);
+}
+
 export function whitelistEntryHref(origin: WhitelistOrigin, locale?: QueryValue) {
   if (origin === "workspace") return destinations.whitelist;
   return destinationHref(destinations.whitelist, locale, new URLSearchParams({ from: origin }));

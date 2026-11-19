@@ -2,7 +2,6 @@
 import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import PublishChecklist from "./publish/PublishChecklist";
-import PublishBrandingSummary from "./publish/PublishBrandingSummary";
 import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
 import { isPastScheduleMinute, surveyClosingTime } from "@/core/event/schedule";
 import { api, ApiError } from "@/core/api";
@@ -19,7 +18,9 @@ import PublishParticipantPreview from "@/components/event/setup/publish/PublishP
 import Button from "@/components/ui/button/Button";
 import { selectSetupForms } from "@/core/event/form-summary";
 import { createSavedNavigation } from "@/core/event/draft";
+import { eventSetupStepHref } from "@/core/event/form-builder-navigation";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
+import useParticipantPreviewLanguage from "@/hooks/useParticipantPreviewLanguage";
 import { reviewPublication, type PublishIssue } from "@/core/event/publication";
 import { useConfirm } from "@/hooks/useConfirm";
 import useEventDraft from "@/hooks/useEventDraft";
@@ -45,6 +46,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     pendingMediaMessage,
   } = useEventBranding(workspace, userId, locale, setupApi);
   const receipt = workspace.setup?.publication ?? null;
+  const previewLanguage = useParticipantPreviewLanguage(draft);
   const formState = useEventFormSummaries(
     workspace.eventId,
     !receipt && (draft.hasRegistration || draft.hasSurvey),
@@ -120,6 +122,11 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
   const canEdit = !pending && !readOnly && !published;
   const saveBeforeNavigation = () => !pending && save();
   const navigate = createSavedNavigation(saveBeforeNavigation, router.push);
+  const backToSetup = {
+    label: s("backSetup"),
+    disabled: pending,
+    onClick: () => void navigate(eventSetupStepHref("details", previewLanguage.contentLocale)),
+  };
   const publish = async () => {
     if (readOnly || published || busy || workspace.userRole !== "event_owner")
       return;
@@ -217,23 +224,19 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       <EventWorkspacePageHeader
         title={s("preview")}
         description={s("previewHint")}
-        back={{ onClick: () => void navigate("/event"), disabled: pending }}
+        back={backToSetup}
       />
       <div className="publish-grid">
-        <div className="publish-preview-column">
-          <PublishParticipantPreview
-            draft={draft}
-            branding={branding}
-            bannerUrl={workspace.bannerUrl}
-            disabled={pending}
-            onOpen={saveBeforeNavigation}
-          />
-          <PublishBrandingSummary
-            branding={branding}
-            canEdit={canEdit}
-            onEdit={() => navigate("/event/details#event-branding-settings")}
-          />
-        </div>
+        <PublishParticipantPreview
+          workspace={workspace}
+          formState={!receipt && workspace.canAccessForms ? formState : undefined}
+          draft={draft}
+          branding={branding}
+          language={previewLanguage}
+          bannerUrl={workspace.bannerUrl}
+          disabled={pending}
+          onOpen={saveBeforeNavigation}
+        />
         <PublishChecklist
           draft={draft}
           branding={branding}
@@ -255,11 +258,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         />
       </div>
       <EventSetupActions
-        back={{
-          label: s("backSetup"),
-          disabled: busy || setupApi.pending,
-          onClick: () => navigate("/event/details"),
-        }}
+        back={backToSetup}
         saveDraft={{
           label: s("save"),
           disabled: busy || readOnly || setupApi.pending,

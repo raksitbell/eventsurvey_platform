@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import ParticipantDisplayPreview from "@/components/event/participant/ParticipantDisplayPreview";
 import type { EventWorkspace } from "@/types/event/workspace";
-import BrandingInterfacePreviews from "./BrandingInterfacePreviews";
+import BrandingPreviewGallery from "./BrandingPreviewGallery";
 import { useModal } from "@/hooks/useModal";
 import { bannerLayouts } from "@/core/event/banner-layout";
 import { eventBrandingEditSchema } from "@/core/event/branding";
@@ -206,20 +206,22 @@ export default function SetupBrandingDialog({
             )}
           </section>
         </div>
-        <section className={styles.livePreview}>
+        <section className={styles.livePreview} aria-labelledby={previewTitle}>
           <div className={styles.previewToolbar}>
             <h3 id={previewTitle}>{b("preview")}</h3>
             <p className={styles.previewRatio}>
               {t("bannerRatio")} {bannerLayouts[layout].ratio}
             </p>
           </div>
-          <div
-            className={styles.previewViewport}
-            tabIndex={0}
-            role="region"
-            aria-labelledby={previewTitle}
+          <BrandingPreviewGallery
+            className="flex-1"
+            viewportClassName={styles.previewViewport}
+            workspace={workspace}
+            contentLocale={contentLocale}
+            draft={draft}
+            branding={value}
+            bannerUrl={bannerUrl}
           >
-            <h4 className={styles.previewLabel}>{t("displayPreview")}</h4>
             <div className={styles.previewCanvas} data-layout={layout}>
               <ParticipantDisplayPreview
                 contentLocale={contentLocale}
@@ -228,14 +230,7 @@ export default function SetupBrandingDialog({
                 bannerUrl={bannerUrl}
               />
             </div>
-            <BrandingInterfacePreviews
-              workspace={workspace}
-              contentLocale={contentLocale}
-              draft={draft}
-              branding={value}
-              bannerUrl={bannerUrl}
-            />
-          </div>
+          </BrandingPreviewGallery>
         </section>
       </div>
       {error && (

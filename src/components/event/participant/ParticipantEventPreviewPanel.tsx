@@ -1,5 +1,6 @@
 "use client";
 
+import BrandingPreviewGallery from "@/components/event/setup/branding/BrandingPreviewGallery";
 import ParticipantDisplayPreview from "@/components/event/participant/ParticipantDisplayPreview";
 import ParticipantPreviewLanguage from "@/components/event/participant/ParticipantPreviewLanguage";
 import ParticipantPreviewState from "@/components/event/participant/ParticipantPreviewState";
@@ -36,14 +37,24 @@ function LoadedParticipantPreview({
 }: LoadedParticipantPreviewProps) {
   const { branding } = useEventBranding(workspace, userId, locale);
   return (
-    <div className={`mx-auto w-full p-3 sm:p-6 ${branding.layout === "landscape" ? "max-w-5xl" : "max-w-lg"}`}>
-      <ParticipantDisplayPreview
-        draft={workspace}
-        branding={branding}
-        bannerUrl={workspace.bannerUrl}
-        contentLocale={contentLocale}
-      />
-    </div>
+    <BrandingPreviewGallery
+      workspace={workspace}
+      draft={workspace}
+      branding={branding}
+      bannerUrl={workspace.bannerUrl}
+      contentLocale={contentLocale}
+      className="mx-auto min-h-0 w-full max-w-5xl flex-1"
+      viewportClassName="min-h-0 flex-1 overflow-y-auto p-3 sm:p-6"
+    >
+      <div className={branding.layout === "landscape" ? "mx-auto max-w-5xl" : "mx-auto max-w-lg"}>
+        <ParticipantDisplayPreview
+          draft={workspace}
+          branding={branding}
+          bannerUrl={workspace.bannerUrl}
+          contentLocale={contentLocale}
+        />
+      </div>
+    </BrandingPreviewGallery>
   );
 }
 export default function ParticipantEventPreviewPanel({

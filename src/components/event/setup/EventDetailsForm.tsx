@@ -10,7 +10,7 @@ import EventSetupActions from "./EventSetupActions";
 import EventSetupPendingMedia from "@/components/event/setup/EventSetupPendingMedia";
 import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
 import { afterSaved, createSavedNavigation } from "@/core/event/draft";
-import { formBuilderContentLocale, formBuilderEntryHref, whitelistEntryHref } from "@/core/event/form-builder-navigation";
+import { eventSetupStepHref, formBuilderContentLocale, formBuilderEntryHref, whitelistEntryHref } from "@/core/event/form-builder-navigation";
 import { eventWorkspaceDisplayStatus } from "@/core/event/workspace";
 import useEventDraft from "@/hooks/useEventDraft";
 import useEventBranding from "@/hooks/useEventBranding";
@@ -84,7 +84,7 @@ function DetailsForm(props: EventSetupPageProps) {
       aria-busy={pending}
       onSubmit={(e) => {
         e.preventDefault();
-        void navigate("/event/publish");
+        void navigate(eventSetupStepHref("publish", contentLocale));
       }}
     >
       <EventWorkspacePageHeader

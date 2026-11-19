@@ -1889,16 +1889,19 @@ function findSetupElement(node, predicate) {
   }
   return null;
 }
-test("Branding previews use the platform workspace card and the selected read-only participant form", () => {
-  const WorkspaceCard = () => null;
+test("Branding preview tabs show the selected participant surface and implement keyboard navigation", () => {
   const PublicForm = () => null;
+  const PreviewSkeleton = compileSetupComponent(
+    "src/components/event/participant/forms/ParticipantFormPreviewSkeleton.tsx",
+    { "@/components/ui/skeleton/Skeleton": { default: () => null } },
+  );
   const forms = ["registration", "survey"].map((type) => ({ id: type, type }));
-  let selected = null;
+  let selection;
   const Preview = compileSetupComponent(
-    "src/components/event/setup/branding/BrandingInterfacePreviews.tsx",
+    "src/components/event/setup/branding/BrandingPreviewGallery.tsx",
     {
-      "@/components/event/workspace/EventWorkspaceCard": { default: WorkspaceCard },
       "@/components/event/participant/forms/PublicParticipantForm": { default: PublicForm },
+      "@/components/event/participant/forms/ParticipantFormPreviewSkeleton": { default: PreviewSkeleton },
       "@/components/ui/button/Button": { default: setupButton },
       "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
       "@/hooks/useEventFormSummaries": {
@@ -1908,7 +1911,10 @@ test("Branding previews use the platform workspace card and the selected read-on
         },
       },
       "next-intl": { useTranslations: () => (key) => key },
-      react: { useState: () => [selected, (value) => { selected = value; }] },
+      react: {
+        useId: () => "test-gallery",
+        useState: (initial) => [selection ?? initial, (next) => { selection = next; }],
+      },
     },
   );
   const props = {
@@ -1916,21 +1922,75 @@ test("Branding previews use the platform workspace card and the selected read-on
     draft: seed,
     branding: { ...defaultEventBranding, primary: "#123456" },
     bannerUrl: null,
+    children: "participant display",
   };
-  const rendered = Preview(props);
-  const card = findSetupElement(rendered, (node) => node.type === WorkspaceCard);
-  assert.equal(card.props.workspace.eventId, seed.eventId);
-  assert.equal(card.props.branding, undefined);
-  findSetupElement(rendered, (node) => node.type === "button" && node.props.children === "survey").props.onClick();
+  const render = (overrides = {}) => Preview({ ...props, ...overrides });
+  function tab(view, id) {
+    return findSetupElement(view, (n) => n.props?.id === "test-gallery-tab-" + id);
+  }
+  function panel(view, id) {
+    return findSetupElement(view, (n) => n.props?.id === "test-gallery-panel-" + id);
+  }
 
-  const getPublicForm = (tree) => findSetupElement(tree, (node) => node.type === PublicForm).props;
-  const survey = getPublicForm(Preview(props));
-  assert.equal(survey.readOnly, true);
-  assert.equal(survey.branding, props.branding);
-  assert.deepEqual(survey.result, { status: "open", form: forms[1] });
+  const initial = render();
+  const list = findSetupElement(initial, (n) => n.props?.role === "tablist");
+  assert.equal(list.props.children.length, 2);
+  for (const id of ["display", "form"]) {
+    const control = tab(initial, id);
+    const section = panel(initial, id);
+    assert.equal(control.props.role, "tab");
+    assert.equal(control.props["aria-controls"], section.props.id);
+    assert.equal(control.props["aria-selected"], id === "display");
+    assert.equal(control.props.tabIndex, id === "display" ? 0 : -1);
+    assert.equal(section.props.role, "tabpanel");
+    assert.equal(section.props["aria-labelledby"], control.props.id);
+    assert.equal(section.props.hidden, id !== "display");
+    assert.ok(findSetupElement(control, (n) => n.props?.["aria-hidden"] === "true"));
+  }
+  assert.equal(panel(initial, "display").props.children, props.children);
+  assert.equal(findSetupElement(initial, (n) => n.type === PublicForm), null);
 
-  const disabled = Preview({ ...props, draft: { ...seed, hasSurvey: false, hasRegistration: false } });
+  function pressKey(from, key, to) {
+    let focused = null;
+    let prevented = false;
+    tab(render(), from).props.onKeyDown({
+      key,
+      preventDefault: () => { prevented = true; },
+      currentTarget: { ownerDocument: {
+        getElementById: (id) => ({ focus: () => { focused = id; } }),
+      } },
+    });
+    assert.equal(prevented, true);
+    assert.equal(focused, tab(render(), to).props.id);
+    assert.equal(tab(render(), to).props.tabIndex, 0);
+  }
+  pressKey("display", "ArrowRight", "form");
+  pressKey("form", "ArrowLeft", "display");
+  pressKey("display", "End", "form");
+  pressKey("form", "Home", "display");
+  tab(render(), "form").props.onClick();
+  const pendingForm = render({ formState: { loading: true, forms: [] } });
+  const placeholder = findSetupElement(panel(pendingForm, "form"), (node) => node.type === PreviewSkeleton);
+  const status = PreviewSkeleton(placeholder.props);
+  assert.equal(status.props.role, "status");
+  assert.equal(status.props["aria-busy"], "true");
+  assert.equal(status.props["aria-label"], "loading");
+  assert.equal(findSetupElement(pendingForm, (node) => node.type === PublicForm), null);
+  const formView = render();
+  assert.equal(findSetupElement(formView, (node) => node.type === PreviewSkeleton), null);
+  assert.equal(panel(formView, "display").props.hidden, true);
+  assert.equal(panel(formView, "display").props.children, false);
+  assert.equal(panel(formView, "form").props.hidden, false);
+  findSetupElement(formView, (n) => n.type === "button" && n.props.children === "survey").props.onClick();
+  const getPublicForm = (tree) => findSetupElement(tree, (n) => n.type === PublicForm).props;
+  assert.equal(getPublicForm(render()).readOnly, true);
+  assert.equal(getPublicForm(render()).branding, props.branding);
+  assert.deepEqual(getPublicForm(render()).result, { status: "open", form: forms[1] });
+  const disabled = render({ draft: { ...seed, hasSurvey: false, hasRegistration: false } });
   assert.deepEqual(getPublicForm(disabled).result, { status: "unavailable" });
+  const failed = render({ formState: { error: true, forms: [] } });
+  assert.ok(findSetupElement(failed, (node) => node.props?.role === "alert"));
+  assert.equal(findSetupElement(failed, (node) => node.type === PublicForm || node.type === PreviewSkeleton), null);
 });
 
 function setupActionButtons(form) {
@@ -2201,7 +2261,6 @@ function setupStep(kind, options = {}) {
   const noop = { default: () => null };
   const mocks = {
     "./publish/PublishChecklist": noop,
-    "./publish/PublishBrandingSummary": noop,
     "../workspace/EventWorkspacePageHeader": noop,
     "@/core/api": {
       ApiError: Error,
@@ -2258,7 +2317,10 @@ function setupStep(kind, options = {}) {
         retry() {},
       }),
     },
-    "@/hooks/useSetupApiState": { default: () => ({ pending: false, getRevision: () => 3 }) },
+    "@/hooks/useParticipantPreviewLanguage": {
+      default: () => ({ contentLocale: options.previewLocale ?? null }),
+    },
+    "@/hooks/useSetupApiState": { default: () => ({ pending: !!options.pending, getRevision: () => 3 }) },
     "@/hooks/useWhitelistNavigationGuard": noop,
     "@/hooks/useConfirm": {
       useConfirm: () => ({
@@ -2429,6 +2491,30 @@ test("Publish Back and Preview save the draft, while submit sends a separate con
   assert.equal(ui.workspace.eventStatus, "draft");
   assert.deepEqual(ui.navigation, ["/event/details", "/event/qr"]);
 });
+test("Details and both Publish Back actions keep the selected content language and respect the save guard", async (t) => {
+  storage(t);
+  const details = detailsActions(async () => true, new URLSearchParams("lang=ja"));
+  details.form.props.onSubmit({ preventDefault() {} });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(details.navigation, ["/event/publish?lang=ja"]);
+
+  for (const options of [{}, { pending: true }, { draft: { startsAt: "invalid" } }]) {
+    const ui = setupStep("publish", { ...options, previewLocale: "ja" });
+    const header = findSetupElement(ui.form, (node) => node.props?.description && node.props?.back);
+    assert.ok(ui.back.props.children.includes(header.props.back.label));
+    assert.equal(header.props.back.disabled, !!options.pending);
+    for (const click of [header.props.back.onClick, ui.back.props.onClick]) {
+      click();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (options.pending || options.draft) {
+      assert.deepEqual(ui.navigation, []);
+    } else {
+      assert.deepEqual(ui.navigation, ["/event/details?lang=ja", "/event/details?lang=ja"]);
+      assert.deepEqual(ui.saves, ["draft", "branding", "draft", "branding"]);
+    }
+  }
+});
 test("Publish does not create a receipt or report success after cancellation, storage/validation failures or denied access", async (t) => {
   storage(t);
   const key = publicationKey("owner", seed.eventId, "th");
@@ -2469,10 +2555,13 @@ test("Publish preview opens the dialog only after saving succeeds", async () => 
   let opens = 0;
   let isOpen = false;
   const Display = () => null;
+  const Gallery = () => null;
   const content = getEventContent(seed, "th");
+  const language = { content, translation: content.translations[0], contentLocale: "th", selectLanguage() {} };
   const Preview = compileSetupComponent(
     "src/components/event/setup/publish/PublishParticipantPreview.tsx",
     {
+      "@/components/event/setup/branding/BrandingPreviewGallery": { default: Gallery },
       "@/components/event/participant/ParticipantDisplayPreview": {
         default: Display,
       },
@@ -2480,12 +2569,6 @@ test("Publish preview opens the dialog only after saving succeeds", async () => 
       "@/core/event/draft": load("src/core/event/draft.ts"),
       "@/hooks/useModal": {
         useModal: () => ({ isOpen, openModal: () => opens++ }),
-      },
-      "@/hooks/useParticipantPreviewLanguage": {
-        default: () => ({
-          content, translation: content.translations[0], contentLocale: "th",
-          selectLanguage() {},
-        }),
       },
       "@heroicons/react/24/outline": { EyeIcon: () => null, XMarkIcon: () => null },
       "next-intl": { useTranslations: () => (key) => key },
@@ -2500,14 +2583,19 @@ test("Publish preview opens the dialog only after saving succeeds", async () => 
   for (const saved of [false, true]) {
     let saves = 0;
     const screen = Preview({
+      workspace: seed,
       draft: seed,
+      language,
       branding: { ...defaultEventBranding, layout: "landscape" },
       onOpen: () => {
         saves++;
         return Promise.resolve(saved);
       },
     });
-    const display = findSetupElement(screen, (node) => node.type === Display);
+    const gallery = findSetupElement(screen, (node) => node.type === Gallery);
+    assert.equal(gallery.props.workspace, seed);
+    assert.equal(gallery.props.contentLocale, "th");
+    const display = findSetupElement(gallery, (node) => node.type === Display);
     assert.equal(display.props.branding.layout, "landscape");
     assert.equal(display.props.contentLocale, "th");
     const trigger = findSetupElement(screen, (node) =>
@@ -2522,12 +2610,17 @@ test("Publish preview opens the dialog only after saving succeeds", async () => 
   isOpen = true;
   for (const layout of ["portrait", "square", "landscape"]) {
     const screen = Preview({
+      workspace: seed,
       draft: seed,
+      language,
       branding: { ...defaultEventBranding, layout },
       onOpen: () => true,
     });
     const dialog = findSetupElement(screen, (node) => node.type === "dialog");
-    const display = findSetupElement(dialog, (node) => node.type === Display);
+    const gallery = findSetupElement(dialog, (node) => node.type === Gallery);
+    assert.equal(gallery.props.workspace, seed);
+    assert.equal(gallery.props.contentLocale, "th");
+    const display = findSetupElement(gallery, (node) => node.type === Display);
     assert.equal(dialog.props["data-banner-layout"], layout);
     assert.equal(display.props.branding.layout, layout);
     assert.equal(display.props.contentLocale, "th");
