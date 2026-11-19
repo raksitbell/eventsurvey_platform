@@ -359,6 +359,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   assert.equal(workspace.registrationCapacity, 200);
   assert.equal(workspace.canEditEvent, true);
   assert.equal(workspace.canAccessDashboard, false);
+  assert.equal(workspace.canAccessForms, true);
   assert.deepEqual(workspace.subUsers, [
     { id: "assistant", name: "Assistant" },
   ]);
@@ -367,6 +368,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   const assistant = await getEventWorkspace("assistant", "en");
   assert.equal(assistant.eventName, "Event");
   assert.equal(assistant.canEditEvent, false);
+  assert.equal(assistant.canAccessForms, true);
   assert.deepEqual(assistant.subUsers, []);
   assert.equal(await getEventWorkspace("unassigned", "th"), null);
   status = "open";
@@ -2534,6 +2536,7 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     canAccessDashboard = false,
     confirmLeave = null,
     push = () => {},
+    canAccessForms = true,
   ) => {
     const Sidebar = compileSetupComponent(
       "src/components/event/workspace/EventWorkspaceSidebar.tsx",
@@ -2548,7 +2551,12 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
         ),
         "@/hooks/useEventWorkspace": {
           default: () => ({
-            workspace: { userRole, localPublishedAt, canAccessDashboard },
+            workspace: {
+              userRole,
+              localPublishedAt,
+              canAccessDashboard,
+              canAccessForms,
+            },
           }),
         },
         "@/i18n/navigation": {
@@ -2585,6 +2593,13 @@ test("workspace navigation preserves form management, guards dirty Whitelist lin
     assert.equal(findSetupElement(owner, formManagement).props["aria-label"], "Form");
   }
   assert.ok(findSetupElement(render("sub_user", null, "/event"), formManagement));
+  assert.equal(
+    findSetupElement(
+      render("sub_user", null, "/event", false, null, () => {}, false),
+      formManagement,
+    ),
+    null,
+  );
   assert.equal(
     findSetupElement(
       render("sub_user", "2027-01-01T00:00:00.000Z", "/event"),

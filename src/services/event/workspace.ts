@@ -1,5 +1,8 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
-import { DEFAULT_ADMIN_MATRIX } from "@/core/auth/event-permissions";
+import {
+  DEFAULT_ADMIN_MATRIX,
+  satisfiesAccessLevel,
+} from "@/core/auth/event-permissions";
 import {
   eventContentSchema,
   getEventContent,
@@ -80,7 +83,7 @@ async function loadWorkspacePayload(
     customRoleName: string | null;
     matrix: typeof DEFAULT_ADMIN_MATRIX;
     includeTeam: boolean;
-    /** When false, dashboard stays closed even if the matrix would allow it. */
+    /** When false, dashboard/forms stay closed even if the matrix would allow them. */
     hasAccessRow?: boolean;
   },
 ): Promise<EventWorkspace | null> {
@@ -172,6 +175,10 @@ async function loadWorkspacePayload(
     canAccessDashboard:
       (options.hasAccessRow !== false) &&
       canAccessEventDashboard(event.status, matrix.dashboard, "view_only"),
+    canAccessForms:
+      (options.hasAccessRow !== false) &&
+      (satisfiesAccessLevel(matrix.registrationForm, "view_only") ||
+        satisfiesAccessLevel(matrix.surveyForm, "view_only")),
   };
 }
 

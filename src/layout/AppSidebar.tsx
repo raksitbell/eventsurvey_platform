@@ -60,9 +60,10 @@ export default function AppSidebar() {
           pathname,
         ])
       : null;
-  const [dashboardAccess, setDashboardAccess] = useState<{
+  const [moduleAccess, setModuleAccess] = useState<{
     key: string;
-    allowed: boolean;
+    dashboard: boolean;
+    forms: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -71,15 +72,20 @@ export default function AppSidebar() {
     api.get<EventWorkspace | null>(`/event/workspace?locale=${locale}`).then(
       (workspace) => {
         if (current) {
-          setDashboardAccess({
+          setModuleAccess({
             key: dashboardAccessKey,
-            allowed: workspace?.canAccessDashboard === true,
+            dashboard: workspace?.canAccessDashboard === true,
+            forms: workspace?.canAccessForms === true,
           });
         }
       },
       () => {
         if (current)
-          setDashboardAccess({ key: dashboardAccessKey, allowed: false });
+          setModuleAccess({
+            key: dashboardAccessKey,
+            dashboard: false,
+            forms: false,
+          });
       },
     );
     return () => {
@@ -112,12 +118,15 @@ export default function AppSidebar() {
       icon: <Squares2X2Icon className="size-5" />,
       path: "/event",
     },
-    {
+  ];
+
+  if (moduleAccess?.key === dashboardAccessKey && moduleAccess.forms) {
+    eventNav.push({
       key: "Form",
       icon: <Squares2X2Icon className="size-5" />,
       path: "/event/form",
-    },
-  ];
+    });
+  }
 
   if (user?.role === "event_owner") {
     eventNav.push({
@@ -127,7 +136,7 @@ export default function AppSidebar() {
     });
   }
 
-  if (dashboardAccess?.key === dashboardAccessKey && dashboardAccess?.allowed) {
+  if (moduleAccess?.key === dashboardAccessKey && moduleAccess.dashboard) {
     eventNav.push({
       key: "dashboard",
       icon: <ChartPieIcon className="size-5" />,

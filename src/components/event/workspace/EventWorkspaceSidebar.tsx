@@ -59,11 +59,17 @@ export default function EventWorkspaceSidebar() {
           ),
           href: "/event",
         },
-        {
-          label: sidebar("Form"),
-          icon: <DocumentTextIcon className="size-5" aria-hidden="true" />,
-          href: "/event/form",
-        },
+        ...(currentWorkspace?.canAccessForms
+          ? [
+              {
+                label: sidebar("Form"),
+                icon: (
+                  <DocumentTextIcon className="size-5" aria-hidden="true" />
+                ),
+                href: "/event/form",
+              },
+            ]
+          : []),
         {
           label: t("activity"),
           icon: (
