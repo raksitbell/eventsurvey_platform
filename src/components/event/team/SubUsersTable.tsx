@@ -210,6 +210,11 @@ export default function SubUsersTable({
                             {t("badgeExport")}
                           </span>
                         )}
+                        {user.permissions.canViewActivity && (
+                          <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+                            {t("badgeActivity")}
+                          </span>
+                        )}
                       </div>
                     </td>
 

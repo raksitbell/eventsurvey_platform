@@ -201,6 +201,246 @@
       "customRoles": "Event role",
       "status": "Status",
       "actions": "Actions"
+    },
+    "viewProfile": "Profile",
+    "editPlatformAccess": "Permissions",
+    "platformAccessTitle": "Platform permissions",
+    "platformAccessSaving": "Saving…",
+    "platformAccessSaved": "Platform permissions saved",
+    "platformAccessSaveError": "Could not save platform permissions",
+    "platformFlags": {
+      "canViewActivity": "View User Activity",
+      "canViewActivityDesc": "Allow opening the User Activity dashboard and timelines",
+      "canInspection": "Inspect events",
+      "canInspectionDesc": "Allow opening event workspaces with full platform access"
+    }
+  },
+  "adminActivity": {
+    "title": "User Activity",
+    "description": "Audit trail of create, update, and delete actions across platform and event APIs.",
+    "loadError": "Failed to load activity.",
+    "profileLoadError": "Failed to load this user’s activity.",
+    "loading": "Loading…",
+    "empty": "No activity yet.",
+    "platformOnly": "Platform",
+    "profileTitle": "User profile",
+    "profileSubtitle": "Activity timeline",
+    "timelineTitle": "Activity history",
+    "membershipsTitle": "Events",
+    "membershipsEmpty": "This user is not assigned to any event.",
+    "permissionsUnknown": "Permissions are unavailable for this event.",
+    "viewRelatedUser": "View related user",
+    "filterByEventHint": "Filter the table by this event",
+    "openModuleHint": "Open this module",
+    "inspectModuleConfirm": "Inspect “{event}” and open {module}?",
+    "inspectModuleConfirmLabel": "Inspect & open",
+    "openModuleTitle": "Open module",
+    "openModuleConfirm": "Go to {module}?",
+    "openModuleConfirmLabel": "Open",
+    "permissionModules": {
+      "event": "Event",
+      "registrationForm": "Registration Form",
+      "surveyForm": "Survey Form",
+      "dashboard": "Dashboard"
+    },
+    "permissionToggles": {
+      "canViewSubmissions": "View submissions",
+      "canManageSubmissions": "Manage submissions",
+      "canExport": "Export",
+      "canViewActivity": "View User Activity"
+    },
+    "modules": {
+      "event_setup": "Event Setup",
+      "user_management": "User Management",
+      "event_management": "Event Management",
+      "registration_builder": "Registration Builder",
+      "survey_builder": "Survey Builder",
+      "dashboard": "Dashboard"
+    },
+    "stats": {
+      "total": "Total activities",
+      "users": "Users",
+      "events": "Events involved",
+      "platform": "Platform actions"
+    },
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Search user, event, module, or detail",
+      "event": "Event",
+      "allEvents": "All events",
+      "accountType": "Account type",
+      "allAccounts": "All",
+      "platform": "Platform",
+      "eventAccount": "Event",
+      "dateRange": "Date range",
+      "dateRangePlaceholder": "Select date range"
+    },
+    "columns": {
+      "time": "Time",
+      "user": "User",
+      "event": "Event",
+      "action": "Action",
+      "detail": "Detail",
+      "module": "Module"
+    },
+    "actions": {
+      "create": "Create",
+      "update": "Edit",
+      "delete": "Delete",
+      "other": "Other"
+    },
+    "roles": {
+      "super_admin": "Platform Admin",
+      "event_owner": "Event Admin",
+      "sub_user": "Sub User",
+      "participant": "Participant"
+    },
+    "meta": {
+      "email": "Email: {value}",
+      "roleName": "Role: {value}",
+      "slug": "Slug: {value}",
+      "field": "Field: {value}",
+      "count": "{count} items",
+      "pair": "{field}: {value}",
+      "change": "{field}: {from} → {to}",
+      "empty": "—",
+      "bool": {
+        "on": "On",
+        "off": "Off"
+      },
+      "levels": {
+        "can_edit": "Can edit",
+        "view_only": "View only",
+        "restricted": "No access"
+      },
+      "fields": {
+        "email": "Email",
+        "roleName": "Role",
+        "slug": "Slug",
+        "count": "Count",
+        "field": "Field",
+        "event": "Event",
+        "registrationForm": "Registration Form",
+        "surveyForm": "Survey Form",
+        "dashboard": "Dashboard",
+        "canViewSubmissions": "View submissions",
+        "canManageSubmissions": "Manage submissions",
+        "canExport": "Export",
+        "canViewActivity": "View User Activity",
+        "canInspection": "Event inspection",
+        "status": "Status",
+        "before": "Before",
+        "after": "After"
+      }
+    }
+  },
+  "eventActivity": {
+    "title": "User Activity",
+    "description": "Audit trail of create, update, and delete actions for this event.",
+    "loadError": "Failed to load activity.",
+    "profileLoadError": "Failed to load this user’s activity.",
+    "loading": "Loading…",
+    "empty": "No activity yet.",
+    "platformOnly": "Platform",
+    "profileTitle": "User profile",
+    "profileSubtitle": "Activity timeline",
+    "timelineTitle": "Activity history",
+    "membershipsTitle": "Events",
+    "membershipsEmpty": "This user is not assigned to any event.",
+    "permissionsUnknown": "Permissions are unavailable for this event.",
+    "viewRelatedUser": "View related user",
+    "openModuleHint": "Open this module",
+    "openModuleTitle": "Open module",
+    "openModuleConfirm": "Go to {module}?",
+    "openModuleConfirmLabel": "Open",
+    "permissionModules": {
+      "event": "Event",
+      "registrationForm": "Registration Form",
+      "surveyForm": "Survey Form",
+      "dashboard": "Dashboard"
+    },
+    "permissionToggles": {
+      "canViewSubmissions": "View submissions",
+      "canManageSubmissions": "Manage submissions",
+      "canExport": "Export",
+      "canViewActivity": "View User Activity"
+    },
+    "modules": {
+      "event_setup": "Event Setup",
+      "user_management": "User Management",
+      "event_management": "Event Management",
+      "registration_builder": "Registration Builder",
+      "survey_builder": "Survey Builder",
+      "dashboard": "Dashboard"
+    },
+    "stats": {
+      "total": "Total activities",
+      "users": "Users"
+    },
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Search user, module, or detail",
+      "event": "Event",
+      "allEvents": "All events",
+      "dateRange": "Date range",
+      "dateRangePlaceholder": "Select date range"
+    },
+    "columns": {
+      "time": "Time",
+      "user": "User",
+      "action": "Action",
+      "detail": "Detail",
+      "module": "Module"
+    },
+    "actions": {
+      "create": "Create",
+      "update": "Edit",
+      "delete": "Delete",
+      "other": "Other"
+    },
+    "roles": {
+      "super_admin": "Platform Admin",
+      "event_owner": "Event Admin",
+      "sub_user": "Sub User",
+      "participant": "Participant"
+    },
+    "meta": {
+      "email": "Email: {value}",
+      "roleName": "Role: {value}",
+      "slug": "Slug: {value}",
+      "field": "Field: {value}",
+      "count": "{count} items",
+      "pair": "{field}: {value}",
+      "change": "{field}: {from} → {to}",
+      "empty": "—",
+      "bool": {
+        "on": "On",
+        "off": "Off"
+      },
+      "levels": {
+        "can_edit": "Can edit",
+        "view_only": "View only",
+        "restricted": "No access"
+      },
+      "fields": {
+        "email": "Email",
+        "roleName": "Role",
+        "slug": "Slug",
+        "count": "Count",
+        "field": "Field",
+        "event": "Event",
+        "registrationForm": "Registration Form",
+        "surveyForm": "Survey Form",
+        "dashboard": "Dashboard",
+        "canViewSubmissions": "View submissions",
+        "canManageSubmissions": "Manage submissions",
+        "canExport": "Export",
+        "canViewActivity": "View User Activity",
+        "canInspection": "Event inspection",
+        "status": "Status",
+        "before": "Before",
+        "after": "After"
+      }
     }
   },
   "eventHome": {
@@ -960,6 +1200,7 @@
     "badgeDashboard": "Dashboard: {level}",
     "badgeSubmissions": "Submissions",
     "badgeExport": "Export",
+    "badgeActivity": "Activity",
     "eventAdminRole": "Event Admin",
     "workspaceEyebrow": "Event workspace",
     "toggles": {
@@ -968,7 +1209,9 @@
       "manageSubmissions": "Manage Submission",
       "manageSubmissionsDesc": "Manage / delete responses (Requires View)",
       "exportData": "Export",
-      "exportDataDesc": "Export data / reports"
+      "exportDataDesc": "Export data / reports",
+      "viewActivity": "View User Activity",
+      "viewActivityDesc": "View this event’s activity timeline (view only)"
     },
     "rules": {
       "rule1": "Manage Submission → Automatically enables View Submission",

@@ -115,6 +115,7 @@ function fixture(t) {
     field_option_translations: [],
     form_submissions: [],
     dashboard_layouts: [],
+    audit_logs: [],
   };
 
   class MockApiError extends Error {
@@ -152,6 +153,13 @@ function fixture(t) {
       mockApi: {
         async get(resourcePath) {
           return structuredClone(lookup(resourcePath));
+        },
+        async post(resourcePath, body) {
+          const url = new URL(resourcePath, "https://fixture.example.test");
+          const collection = url.pathname.split("/").filter(Boolean)[0];
+          if (collection !== "audit_logs") throw new MockApiError(404);
+          collections.audit_logs.push(body);
+          return structuredClone(body);
         },
         async put(resourcePath, body) {
           Object.assign(lookup(resourcePath), body);

@@ -121,7 +121,7 @@ function setupMockData(t, { eventWrites = false } = {}) {
           overview: "can_edit",
           events: "can_edit",
           users: "can_edit",
-          activity: "can_edit",
+          canViewActivity: true,
           canInspection: true,
           canViewUnmaskedPii: false,
         },
@@ -136,7 +136,7 @@ function setupMockData(t, { eventWrites = false } = {}) {
           overview: "view_only",
           events: "view_only",
           users: "view_only",
-          activity: "restricted",
+          canViewActivity: false,
           canInspection: false,
           canViewUnmaskedPii: true,
         },
@@ -146,6 +146,8 @@ function setupMockData(t, { eventWrites = false } = {}) {
       },
     ],
     forms: [],
+    // Fire-and-forget audit writes must not fail primary flows in fixtures.
+    audit_logs: [],
   };
   const calls = [];
   const failures = new Map();
@@ -185,7 +187,8 @@ function setupMockData(t, { eventWrites = false } = {}) {
       return Response.json(rows.filter((row) =>
         filters.every(([field, value]) => String(row[field]) === value)));
     }
-    if (eventWrites && method === "POST" && !id) {
+    // Allow audit POSTs even when the fixture is otherwise read-only.
+    if ((eventWrites || collection === "audit_logs") && method === "POST" && !id) {
       rows.push(body);
       return Response.json(body, { status: 201 });
     }

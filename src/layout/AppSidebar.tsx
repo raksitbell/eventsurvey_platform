@@ -31,7 +31,8 @@ export default function AppSidebar() {
   const t = useTranslations("sidebar");
   const pathname = usePathname();
   const locale = useLocale();
-  const { user, realUser, isImpersonating, inspectedEventId } = useAuth();
+  const { user, realUser, isImpersonating, inspectedEventId, canViewActivity } =
+    useAuth();
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
 
   const isAdminArea = pathname.startsWith("/admin");
@@ -64,6 +65,7 @@ export default function AppSidebar() {
     key: string;
     dashboard: boolean;
     forms: boolean;
+    activity: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function AppSidebar() {
             key: dashboardAccessKey,
             dashboard: workspace?.canAccessDashboard === true,
             forms: workspace?.canAccessForms === true,
+            activity: workspace?.canViewActivity === true,
           });
         }
       },
@@ -85,6 +88,7 @@ export default function AppSidebar() {
             key: dashboardAccessKey,
             dashboard: false,
             forms: false,
+            activity: false,
           });
       },
     );
@@ -105,11 +109,15 @@ export default function AppSidebar() {
       icon: <UsersIcon className="size-5" />,
       path: "/admin/users",
     },
-    {
-      key: "activity",
-      icon: <ClockIcon className="size-5" />,
-      disabled: true,
-    },
+    ...(canViewActivity
+      ? [
+          {
+            key: "activity",
+            icon: <ClockIcon className="size-5" />,
+            path: "/admin/activity",
+          } satisfies NavItem,
+        ]
+      : []),
   ];
 
   const eventNav: NavItem[] = [
@@ -141,6 +149,14 @@ export default function AppSidebar() {
       key: "dashboard",
       icon: <ChartPieIcon className="size-5" />,
       path: "/event/dashboard",
+    });
+  }
+
+  if (moduleAccess?.key === dashboardAccessKey && moduleAccess.activity) {
+    eventNav.push({
+      key: "activity",
+      icon: <ClockIcon className="size-5" />,
+      path: "/event/activity",
     });
   }
 

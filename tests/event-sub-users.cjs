@@ -83,6 +83,10 @@ function fixture(rows) {
       if (!user) throw new MockApiError("User not found", 404);
       return user;
     },
+    async post(query, row) {
+      if (query === "/audit_logs") return row;
+      assert.fail(`Unexpected write ${query}`);
+    },
     async patch(query, patch) {
       writes.push({ query, patch });
       const user = users.get(query.slice("/users/".length));
@@ -228,6 +232,7 @@ function editingFixture(failure = null) {
     async post(query, row) {
       writes.push(["POST", query]);
       if (query === failure) throw new Error("Permission store unavailable");
+      if (query === "/audit_logs") return row;
       if (query === "/event_access") {
         eventAccess.set(row.id, row);
         return row;
@@ -319,6 +324,7 @@ test("saving all view_only keeps matrix on event_access", async () => {
         },
         async post(query, row) {
           writes.push(["POST", query]);
+          if (query === "/audit_logs") return row;
           eventAccess.set(row.id, row);
           return row;
         },
@@ -490,7 +496,7 @@ test("team and QR routes await signed access; inspection manages, legacy imperso
                     overview: "can_edit",
                     events: "can_edit",
                     users: "can_edit",
-                    activity: "can_edit",
+                    canViewActivity: true,
                     canInspection: true,
                     canViewUnmaskedPii: true,
                   },
@@ -725,6 +731,9 @@ function invitationFixture(t, { failMail = false, failAccess = false, failUserWr
           assert.fail(`Unexpected read ${query}`);
         },
         async post(query, row) {
+          if (query === "/audit_logs") {
+            return row;
+          }
           if (query === "/event_access") {
             if (failAccess) throw new Error("Permission write failed");
             eventAccess.set(row.id, row);

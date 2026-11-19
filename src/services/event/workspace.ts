@@ -179,6 +179,8 @@ async function loadWorkspacePayload(
       (options.hasAccessRow !== false) &&
       (satisfiesAccessLevel(matrix.registrationForm, "view_only") ||
         satisfiesAccessLevel(matrix.surveyForm, "view_only")),
+    canViewActivity:
+      (options.hasAccessRow !== false) && matrix.canViewActivity === true,
   };
 }
 

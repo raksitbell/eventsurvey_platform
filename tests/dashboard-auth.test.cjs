@@ -77,7 +77,7 @@ function fixture({ allowImpersonation = true } = {}) {
                   overview: "can_edit",
                   events: "can_edit",
                   users: "can_edit",
-                  activity: "can_edit",
+                  canViewActivity: true,
                   canInspection: true,
                   canViewUnmaskedPii: false,
                 },

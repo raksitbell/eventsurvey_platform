@@ -70,18 +70,22 @@ export default function EventWorkspaceSidebar() {
               },
             ]
           : []),
-        {
-          label: t("activity"),
-          icon: (
-            <Image
-              src="/images/event-workspace/heroicon.svg"
-              width={20}
-              height={20}
-              alt=""
-            />
-          ),
-          href: null,
-        },
+        ...(currentWorkspace?.canViewActivity
+          ? [
+              {
+                label: t("activity"),
+                icon: (
+                  <Image
+                    src="/images/event-workspace/heroicon.svg"
+                    width={20}
+                    height={20}
+                    alt=""
+                  />
+                ),
+                href: "/event/activity",
+              },
+            ]
+          : []),
         ...(currentWorkspace?.canAccessDashboard
           ? [
               {
@@ -125,6 +129,9 @@ export default function EventWorkspaceSidebar() {
     // Form home + builder nested routes share the Form nav item.
     if (pathname === "/event/form" || pathname.startsWith("/event/form/")) {
       return "/event/form";
+    }
+    if (pathname === "/event/activity" || pathname.startsWith("/event/activity/")) {
+      return "/event/activity";
     }
     const match = items
       .filter((item): item is NavItem & { href: string } => Boolean(item.href))

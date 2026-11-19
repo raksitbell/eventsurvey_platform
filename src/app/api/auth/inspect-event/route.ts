@@ -63,11 +63,16 @@ export async function POST(request: NextRequest) {
     const eventTitle = await resolveEventTitle(eventId);
     if (!eventTitle) return authJson({ error: "INVALID_TARGET" }, 404);
 
+    const canViewActivity = await hasPlatformPermission(
+      realAccount.platformRoleId,
+      "view_platform_activity",
+    );
     const response = authJson({
       realUser: projectUserPii(realAccount.user, true),
       impersonatedUser: null,
       inspectedEventId: eventId,
       inspectedEventName: eventTitle,
+      canViewActivity,
     });
     setAuthSessionCookie(
       response,
@@ -99,11 +104,16 @@ export async function DELETE(request: NextRequest) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
 
+  const canViewActivity = await hasPlatformPermission(
+    realAccount.platformRoleId,
+    "view_platform_activity",
+  );
   const response = authJson({
     realUser: projectUserPii(realAccount.user, true),
     impersonatedUser: null,
     inspectedEventId: null,
     inspectedEventName: null,
+    canViewActivity,
   });
   if (session.inspectedEventId || session.impersonating) {
     setAuthSessionCookie(

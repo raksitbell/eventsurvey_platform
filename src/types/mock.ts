@@ -47,6 +47,7 @@ export type MockPlatformPermissionCode =
   | "manage_platform_users"
   | "manage_all_events"
   | "view_platform_overview"
+  | "view_platform_activity"
   | "inspect_event"
   | "view_unmasked_pii";
 
@@ -80,7 +81,8 @@ export interface MockPlatformAccess {
     overview: "restricted" | "view_only" | "can_edit";
     events: "restricted" | "view_only" | "can_edit";
     users: "restricted" | "view_only" | "can_edit";
-    activity: "restricted" | "view_only" | "can_edit";
+    /** View-only User Activity (no edit level). */
+    canViewActivity: boolean;
     canInspection: boolean;
     canViewUnmaskedPii: boolean;
   };
@@ -104,6 +106,7 @@ export interface MockEventAccess {
     canViewSubmissions: boolean;
     canManageSubmissions?: boolean;
     canExport: boolean;
+    canViewActivity?: boolean;
   };
   created_at: string;
   updated_at: string;
@@ -307,4 +310,23 @@ export interface MockDashboardWidget {
   grid_h: number | null;
   display_order: number;
   updated_at: string;
+}
+
+/** Platform + event mutation audit trail (`/audit_logs`) */
+export interface MockAuditLog {
+  id: string;
+  event_id: string | null;
+  actor_user_id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  /** Stable i18n key, e.g. event_setup | user_management */
+  module?: string | null;
+  description_th?: string | null;
+  description_en?: string | null;
+  /** @deprecated Prefer description_th / description_en */
+  description?: string | null;
+  metadata?: Record<string, unknown> | null;
+  includes_unmasked_pii: boolean;
+  occurred_at: string;
 }
