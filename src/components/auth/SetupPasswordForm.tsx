@@ -1,5 +1,6 @@
 "use client";
 
+import AuthBrandPanel from "@/components/auth/AuthBrandPanel";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
@@ -21,13 +22,7 @@ type Preview = {
   displayName: string;
 };
 
-function RequirementRow({
-  met,
-  label,
-}: {
-  met: boolean;
-  label: string;
-}) {
+function RequirementRow({ met, label }: { met: boolean; label: string }) {
   return (
     <li
       className={`flex items-center gap-2 text-theme-xs ${
@@ -115,6 +110,11 @@ export default function SetupPasswordForm({ userId }: { userId: string }) {
 
   return (
     <>
+      <AuthBrandPanel
+        headline={t("brandHeadline")}
+        subtext={t("brandSubtext")}
+      />
+
       <div className="flex min-h-dvh w-full flex-col bg-white px-6 py-10 lg:w-1/2 lg:px-16 xl:px-24 dark:bg-gray-900">
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
           {isLoading ? (
@@ -137,7 +137,7 @@ export default function SetupPasswordForm({ userId }: { userId: string }) {
             </div>
           ) : loadError || !preview ? (
             <div className="space-y-5">
-              <div>
+              <div className="mb-8">
                 <h1 className="mb-3 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl dark:text-white">
                   {t("unavailableTitle")}
                 </h1>
@@ -153,8 +153,8 @@ export default function SetupPasswordForm({ userId }: { userId: string }) {
               </Link>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="mb-8">
                 <p className="mb-2 text-theme-xs font-semibold tracking-wide text-brand-500 uppercase">
                   {t("eyebrow")}
                 </p>
@@ -178,74 +178,72 @@ export default function SetupPasswordForm({ userId }: { userId: string }) {
                 </p>
               </div>
 
-              <div className="space-y-5">
-                <div>
-                  <Label>{t("password")}</Label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={t("passwordPlaceholder")}
-                      autoComplete="new-password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="inset-e-4 absolute top-1/2 z-30 -translate-y-1/2 cursor-pointer"
-                      aria-label={
-                        showPassword ? t("hidePassword") : t("showPassword")
-                      }
-                    >
-                      {showPassword ? (
-                        <EyeIcon className="size-5 text-gray-500 dark:text-gray-400" />
-                      ) : (
-                        <EyeSlashIcon className="size-5 text-gray-500 dark:text-gray-400" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <Label>{t("confirmPassword")}</Label>
-                  <div className="relative">
-                    <Input
-                      type={showConfirm ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder={t("confirmPlaceholder")}
-                      autoComplete="new-password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirm((v) => !v)}
-                      className="inset-e-4 absolute top-1/2 z-30 -translate-y-1/2 cursor-pointer"
-                      aria-label={
-                        showConfirm ? t("hidePassword") : t("showPassword")
-                      }
-                    >
-                      {showConfirm ? (
-                        <EyeIcon className="size-5 text-gray-500 dark:text-gray-400" />
-                      ) : (
-                        <EyeSlashIcon className="size-5 text-gray-500 dark:text-gray-400" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <ul className="space-y-1.5 rounded-xl border border-gray-100 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/40">
-                  <RequirementRow
-                    met={hasMinLength}
-                    label={t("rules.minLength")}
+              <div>
+                <Label>{t("password")}</Label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t("passwordPlaceholder")}
+                    autoComplete="new-password"
+                    required
                   />
-                  <RequirementRow
-                    met={passwordsMatch}
-                    label={t("rules.match")}
-                  />
-                </ul>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="inset-e-4 absolute top-1/2 z-30 -translate-y-1/2 cursor-pointer"
+                    aria-label={
+                      showPassword ? t("hidePassword") : t("showPassword")
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeIcon className="size-5 text-gray-500 dark:text-gray-400" />
+                    ) : (
+                      <EyeSlashIcon className="size-5 text-gray-500 dark:text-gray-400" />
+                    )}
+                  </button>
+                </div>
               </div>
+
+              <div>
+                <Label>{t("confirmPassword")}</Label>
+                <div className="relative">
+                  <Input
+                    type={showConfirm ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder={t("confirmPlaceholder")}
+                    autoComplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="inset-e-4 absolute top-1/2 z-30 -translate-y-1/2 cursor-pointer"
+                    aria-label={
+                      showConfirm ? t("hidePassword") : t("showPassword")
+                    }
+                  >
+                    {showConfirm ? (
+                      <EyeIcon className="size-5 text-gray-500 dark:text-gray-400" />
+                    ) : (
+                      <EyeSlashIcon className="size-5 text-gray-500 dark:text-gray-400" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <ul className="space-y-1.5 rounded-xl border border-gray-100 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/40">
+                <RequirementRow
+                  met={hasMinLength}
+                  label={t("rules.minLength")}
+                />
+                <RequirementRow
+                  met={passwordsMatch}
+                  label={t("rules.match")}
+                />
+              </ul>
 
               {error ? (
                 <p className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
@@ -255,14 +253,14 @@ export default function SetupPasswordForm({ userId }: { userId: string }) {
 
               <Button
                 type="submit"
-                className="w-full !rounded-xl !py-3.5"
+                className="w-full !rounded-xl !bg-[var(--color-event-sidebar)] !py-3.5 hover:!opacity-90"
                 size="md"
                 disabled={!canSubmit}
               >
                 {isSubmitting ? t("saving") : t("submit")}
               </Button>
 
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="mt-3 text-center text-sm text-gray-500 dark:text-gray-400">
                 {t("alreadySet")}{" "}
                 <Link
                   href="/login"
@@ -273,31 +271,6 @@ export default function SetupPasswordForm({ userId }: { userId: string }) {
               </p>
             </form>
           )}
-        </div>
-      </div>
-
-      <div className="relative hidden min-h-dvh w-full overflow-hidden bg-gray-950 lg:flex lg:w-1/2 lg:items-center lg:justify-center">
-        <div className="absolute -start-24 -top-24 size-80 rounded-full bg-brand-600/20 blur-3xl" />
-        <div className="absolute -end-16 -bottom-20 size-96 rounded-full bg-brand-500/15 blur-3xl" />
-        <div className="absolute end-10 top-10 grid grid-cols-4 gap-2 opacity-40">
-          {Array.from({ length: 16 }).map((_, index) => (
-            <span
-              key={index}
-              className="size-1.5 rounded-full bg-blue-light-400/70"
-            />
-          ))}
-        </div>
-
-        <div className="relative z-10 mx-auto max-w-md px-10 text-center">
-          <div className="mx-auto mb-8 flex size-16 items-center justify-center rounded-2xl bg-brand-500 text-2xl font-bold text-white shadow-theme-lg">
-            E
-          </div>
-          <h2 className="mb-4 text-3xl font-bold leading-tight text-white">
-            {t("brandHeadline")}
-          </h2>
-          <p className="text-base leading-7 text-gray-400">
-            {t("brandSubtext")}
-          </p>
         </div>
       </div>
     </>

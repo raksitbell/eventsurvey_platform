@@ -616,6 +616,50 @@
       "saveFailed": "Failed to save password"
     }
   },
+  "forgotPassword": {
+    "title": "Forgot password",
+    "description": "Enter the email for your EventSurvey account. If it matches an active portal account, we will send a reset link.",
+    "email": "Email",
+    "emailPlaceholder": "admin@email.com",
+    "submit": "Send reset link",
+    "sending": "Sending...",
+    "sentTitle": "Check your email",
+    "sentDescription": "If an account exists for that email, a password reset link has been sent. The link does not expire until you change your password.",
+    "backToLogin": "Back to sign in",
+    "brandHeadline": "Reset access to your EventSurvey workspace.",
+    "errors": {
+      "generic": "Unable to send the reset link. Please try again."
+    }
+  },
+  "resetPassword": {
+    "eyebrow": "Password reset",
+    "title": "Set a new password",
+    "description": "Choose a new password for your EventSurvey account. You can sign in with this email afterward.",
+    "accountLabel": "Account",
+    "password": "New password",
+    "confirmPassword": "Confirm password",
+    "passwordPlaceholder": "At least 8 characters",
+    "confirmPlaceholder": "Re-enter your password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "submit": "Save new password",
+    "saving": "Saving...",
+    "backToLogin": "Back to sign in",
+    "requestAgain": "Request a new link",
+    "unavailableTitle": "Reset link unavailable",
+    "brandHeadline": "One password. Full event control.",
+    "brandSubtext": "After you save, sign in to manage your events and team.",
+    "rules": {
+      "minLength": "At least 8 characters",
+      "match": "Both passwords match"
+    },
+    "errors": {
+      "unavailable": "This link is unavailable or no longer valid",
+      "tooShort": "Password must be at least 8 characters",
+      "mismatch": "Passwords do not match",
+      "saveFailed": "Failed to save password"
+    }
+  },
   "adminEvents": {
     "title": "Event Management",
     "description": "Create and manage all platform events, including Event Admin assignment.",
