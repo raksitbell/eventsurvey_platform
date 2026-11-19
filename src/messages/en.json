@@ -1338,7 +1338,27 @@
     "error": "Could not save. Browser storage may be full; try smaller images.",
     "invalid": "Invalid colors or image data. Please check and try again.",
     "colorPicker": {
-      "title": "Color Picker · {name}"
+      "bannerPalette": "Colors from banner · {name}",
+      "title": "Color Picker · {name}",
+      "accent": "Accent color",
+      "hint": "Drag to select a color, adjust Hue or enter HEX.",
+      "hue": "Hue · Choose a color range",
+      "selected": "HEX · Selected color",
+      "palette": "Color Palette · Presets",
+      "done": "Done",
+      "spectrum": "Color shade grid",
+      "selectColor": "Select color {color}",
+      "hues": {
+        "pink": "Hue · Pink",
+        "orange": "Hue · Orange",
+        "teal": "Hue · Teal",
+        "blue": "Hue · Blue",
+        "purple": "Hue · Purple"
+      },
+      "saturation": "Saturation",
+      "brightness": "Brightness",
+      "hex": "HEX color",
+      "native": "Open browser color picker"
     },
     "fileCount": "Choose one image at a time.",
     "fileOutputSize": "The image could not be uploaded. It exceeds the 1 MB limit for browser storage. Try saving again or choose a smaller image.",

@@ -1199,15 +1199,22 @@ test("Participant chrome uses the content surface for transparent foregrounds", 
   assert.equal(transparent["--participant-on-header"], "#FFFFFF");
   assert.equal(transparent["--participant-on-secondary"], "#FFFFFF");
 });
-test("Color Picker translations have matching nested keys", () => {
-  const th = JSON.parse(
-    fs.readFileSync(path.join(root, "src/messages/th.json")),
-  ).eventBranding.colorPicker;
-  const en = JSON.parse(
-    fs.readFileSync(path.join(root, "src/messages/en.json")),
-  ).eventBranding.colorPicker;
-  assert.deepEqual(Object.keys(th).sort(), Object.keys(en).sort());
-  for (const label of [th.title, en.title]) assert.match(label, /\{name\}/);
+test("cached branding dialogs can resolve their picker labels after a dictionary update", async () => {
+  const { createTranslator } = await import("next-intl");
+  for (const locale of ["th", "en"]) {
+    const messages = JSON.parse(fs.readFileSync(path.join(root, `src/messages/${locale}.json`)));
+    const t = createTranslator({
+      messages, locale, namespace: "eventBranding.colorPicker",
+      onError(error) { throw error; },
+    });
+    for (const key of [
+      "accent", "hint", "hue", "selected", "palette", "done", "spectrum",
+      "saturation", "brightness", "hex", "native",
+    ]) assert.ok(t(key).trim());
+    assert.ok(t("title", { name: "Primary" }).includes("Primary"));
+    assert.ok(t("bannerPalette", { name: "Primary" }).includes("Primary"));
+    assert.ok(t("selectColor", { color: "#224466" }).includes("#224466"));
+  }
 });
 
 const {

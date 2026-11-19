@@ -3,16 +3,14 @@
 import { bannerPalette } from "@/core/event/branding-colors";
 import { useEffect, useState } from "react";
 
-export default function BannerPalette({
-  id,
-  src,
-}: {
-  id: string;
-  src: string;
-}) {
-  const [colors, setColors] = useState<string[]>([]);
+export default function useBannerPalette(src: string | null) {
+  const [sample, setSample] = useState<{
+    src: string;
+    colors: string[];
+  } | null>(null);
 
   useEffect(() => {
+    if (!src) return;
     const image = new globalThis.Image();
     image.crossOrigin = "anonymous";
     image.onload = () => {
@@ -28,7 +26,7 @@ export default function BannerPalette({
           canvas.width,
           canvas.height,
         );
-        setColors(bannerPalette(data));
+        setSample({ src, colors: bannerPalette(data) });
       } catch {
         // Some externally hosted banners allow display but prohibit sampling.
       }
@@ -40,12 +38,5 @@ export default function BannerPalette({
     };
   }, [src]);
 
-  if (!colors.length) return null;
-  return (
-    <datalist id={id}>
-      {colors.map((color) => (
-        <option key={color} value={color} />
-      ))}
-    </datalist>
-  );
+  return sample && sample.src === src ? sample.colors : [];
 }

@@ -13,7 +13,7 @@ import type { BrandingColorKey, EventBranding } from "@/types/event/branding";
 import type { ParticipantEventData } from "@/types/event/participant";
 import BrandingUploadDialog from "./BrandingUploadDialog";
 import BrandingColorPicker from "./BrandingColorPicker";
-import BannerPalette from "./BannerPalette";
+import useBannerPalette from "@/hooks/useBannerPalette";
 import BrandingDialogFrame from "./BrandingDialogFrame";
 import BrandingIcon from "./BrandingIcon";
 import BrandingIdentitySection from "./BrandingIdentitySection";
@@ -41,7 +41,7 @@ export default function SetupBrandingDialog({
   const visual = useTranslations("eventBrandVisual");
   const [value, setValue] = useState(branding);
   const [error, setError] = useState<"invalidBrand" | "saveError" | null>(null);
-  const paletteId = useId();
+  const palette = useBannerPalette(value.banner?.url ?? bannerUrl);
   const previewTitle = useId();
   const upload = useModal();
   const identity = value.identity ?? "icon";
@@ -64,7 +64,7 @@ export default function SetupBrandingDialog({
         <BrandingColorPicker
           label={label}
           value={hex}
-          paletteId={paletteId}
+          palette={palette}
           onSelect={(next) => change({ [field]: next })}
         />
       </div>
@@ -109,7 +109,6 @@ export default function SetupBrandingDialog({
         </>
       }
     >
-      {bannerUrl && <BannerPalette key={bannerUrl} id={paletteId} src={bannerUrl} />}
       <div className={styles.settingsLayout}>
         <div
           className={styles.settings}
