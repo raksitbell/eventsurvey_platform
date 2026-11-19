@@ -64,8 +64,8 @@ function mapListedPortalUser(
   if (mock.system_role === "event_user" && !mock.event_id) {
     return {
       id: mock.id,
-      name: mock.display_name,
-      email: mock.email,
+      name: mock.display_name?.trim() || "",
+      email: mock.email ?? "",
       phone: null,
       role: "event_owner",
       status: mock.status === "active" ? "active" : "inactive",
