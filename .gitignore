@@ -17,6 +17,7 @@ yarn.lock
 
 # next.js
 /.next/
+/.eventsurvey-media/
 /out/
 
 # production

@@ -1361,7 +1361,7 @@
       "native": "Open browser color picker"
     },
     "fileCount": "Choose one image at a time.",
-    "fileOutputSize": "This image exceeds the 1 MB storage limit for each image. Choose a smaller file.",
+    "fileOutputSize": "The image could not be uploaded. It exceeds the 1 MB limit for browser storage. Try saving again or choose a smaller image.",
     "fileStorage": "Unable to save this image. Browser storage may be full. Your previous image is unchanged."
   },
   "participantEvent": {

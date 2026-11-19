@@ -10,7 +10,7 @@ import {
 } from "@/core/event/setup-media-url";
 import { isActiveMockUser } from "@/core/mock/map-user";
 import type { MockEvent, MockUser } from "@/types/mock";
-import { IMAGE_MAX_SAVED_BYTES } from "@/utils/image-upload";
+import { IMAGE_MAX_INPUT_BYTES } from "@/utils/image-upload";
 
 export { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
 
@@ -31,7 +31,7 @@ type MediaMetadata = {
 };
 
 export type EventSetupMedia = MediaMetadata & { id: string };
-const maxFormBytes = IMAGE_MAX_SAVED_BYTES + 64 * 1024;
+const maxFormBytes = IMAGE_MAX_INPUT_BYTES + 64 * 1024;
 
 function isSupportedType(type: unknown): type is MediaContentType {
   return typeof type === "string" && supportedTypes.some((entry) => entry === type);
@@ -39,7 +39,10 @@ function isSupportedType(type: unknown): type is MediaContentType {
 
 function mediaDirectory() {
   const path = process.env.EVENT_SETUP_MEDIA_DIR;
-  return path && isAbsolute(path) ? path : null;
+  if (path) return isAbsolute(path) ? path : null;
+  return process.env.NODE_ENV === "development"
+    ? join(process.cwd(), ".eventsurvey-media")
+    : null;
 }
 
 function isMissingFile(error: unknown) {
@@ -121,7 +124,7 @@ async function readUpload(request: Request, eventId: string) {
     throw new ServiceError("INVALID_SETUP_MEDIA", 400);
   }
   if (file.size < 1) throw new ServiceError("INVALID_SETUP_MEDIA", 400);
-  if (file.size > IMAGE_MAX_SAVED_BYTES) {
+  if (file.size >= IMAGE_MAX_INPUT_BYTES) {
     throw new ServiceError("SETUP_MEDIA_TOO_LARGE", 413);
   }
   const type = file.type.toLowerCase();
@@ -208,7 +211,7 @@ export async function findEventSetupMedia(id: string): Promise<EventSetupMedia |
       typeof metadata.size !== "number" ||
       !Number.isSafeInteger(metadata.size) ||
       metadata.size < 1 ||
-      metadata.size > IMAGE_MAX_SAVED_BYTES
+      metadata.size >= IMAGE_MAX_INPUT_BYTES
     ) {
       return null;
     }

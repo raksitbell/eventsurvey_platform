@@ -1,16 +1,19 @@
 import { api } from "@/core/api";
 import { bannerLayouts } from "@/core/event/banner-layout";
-import { eventBrandingSchema } from "@/core/event/branding";
+import { brandingDataUrlPrefix, eventBrandingSchema } from "@/core/event/branding";
 import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
 import type { BrandingBanner, EventBranding } from "@/types/event/branding";
 import type { EventSetupMediaKind } from "@/types/event/setup";
-import { rasterizeBrandingSvg } from "@/utils/image-upload";
+import {
+  IMAGE_MAX_LOCAL_BYTES,
+  ImageUploadError,
+  rasterizeBrandingSvg,
+} from "@/utils/image-upload";
 
 const mediaFields = ["logo", "wordmark", "banner"] as const;
 const localMediaSchema = eventBrandingSchema
   .pick({ logo: true, wordmark: true, banner: true })
   .partial();
-const localImagePattern = /^data:(image\/(?:png|jpeg|webp|avif|gif|bmp|svg\+xml));base64,/;
 type LocalMedia = Partial<Record<EventSetupMediaKind, BrandingBanner>>;
 
 export function setupLocalMediaKey(userId: string, eventId: string, locale: string) {
@@ -24,7 +27,7 @@ export function readSetupLocalMedia(key: string): LocalMedia {
     const parsed = localMediaSchema.safeParse(raw ? JSON.parse(raw) : {});
     if (!parsed.success) return {};
     return Object.fromEntries(
-      Object.entries(parsed.data).filter(([, image]) => image && localImagePattern.test(image.url)),
+      Object.entries(parsed.data).filter(([, image]) => image && brandingDataUrlPrefix.test(image.url)),
     );
   } catch {
     return {};
@@ -56,15 +59,11 @@ export function applySetupLocalMedia(
 async function uploadImage(
   eventId: string,
   image: BrandingBanner,
+  original: File,
   kind: EventSetupMediaKind,
   layout: EventBranding["layout"],
 ): Promise<BrandingBanner | null> {
-  const prefix = localImagePattern.exec(image.url);
-  if (!prefix) return null;
   try {
-    const encoded = image.url.slice(prefix[0].length);
-    const bytes = Uint8Array.from(globalThis.atob(encoded), (byte) => byte.charCodeAt(0));
-    const original = new File([bytes], image.name, { type: prefix[1] });
     const file = original.type === "image/svg+xml"
       ? await rasterizeBrandingSvg(original, {
           maxDimension: kind === "banner" ? 2560 : 512,
@@ -94,23 +93,41 @@ export async function prepareSetupBranding(
   const local = readSetupLocalMedia(key);
   const value = { ...branding };
   const pendingMedia = new Set(previousPending);
+  let localChanged = false;
   for (const kind of mediaFields) {
     const image = value[kind];
-    if (!image || !localImagePattern.test(image.url)) {
+    const prefix = image && brandingDataUrlPrefix.exec(image.url);
+    if (!image || !prefix) {
       if (explicitMedia.has(kind)) pendingMedia.delete(kind);
       continue;
     }
-    const uploaded = await uploadImage(eventId, image, kind, branding.layout);
+    const decoded = globalThis.atob(image.url.slice(prefix[0].length));
+    const bytes = new Uint8Array(decoded.length);
+    for (let index = 0; index < decoded.length; index++) {
+      bytes[index] = decoded.charCodeAt(index);
+    }
+    const original = new File([bytes], image.name, { type: prefix[1] });
+    const uploaded = await uploadImage(eventId, image, original, kind, branding.layout);
     if (uploaded) {
       value[kind] = uploaded;
       pendingMedia.delete(kind);
     } else {
+      if (original.size > IMAGE_MAX_LOCAL_BYTES) {
+        throw new ImageUploadError("fileOutputSize");
+      }
       if (!local[kind] || JSON.stringify(local[kind]) !== JSON.stringify(image)) {
         local[kind] = image;
-        writeSetupLocalMedia(key, local);
+        localChanged = true;
       }
       value[kind] = stored[kind] ?? null;
       pendingMedia.add(kind);
+    }
+  }
+  if (localChanged) {
+    try {
+      writeSetupLocalMedia(key, local);
+    } catch {
+      throw new ImageUploadError("fileStorage");
     }
   }
   return { value, pendingMedia: [...pendingMedia] };

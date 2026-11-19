@@ -24,6 +24,7 @@ function DetailsForm(props: EventSetupPageProps) {
   const { workspace, userId, locale } = props;
   const t = useTranslations("eventSetup"),
     d = useTranslations("eventHome.details");
+  const brandingText = useTranslations("eventBranding");
   const dates = useTranslations("datePicker");
   const home = useTranslations("eventHome");
   const overview = useTranslations("eventOverview");
@@ -59,9 +60,11 @@ function DetailsForm(props: EventSetupPageProps) {
     ? t("draftConflict")
     : scheduleError ?? (status === "invalid"
       ? d(status)
-      : status === "error" || media.status === "error" || media.status === "invalid"
-        ? t("saveError")
-        : media.pendingMediaMessage ? t(media.pendingMediaMessage) : undefined);
+      : media.mediaSaveError
+        ? brandingText(media.mediaSaveError)
+        : status === "error" || media.status === "error" || media.status === "invalid"
+          ? t("saveError")
+          : media.pendingMediaMessage ? t(media.pendingMediaMessage) : undefined);
   return (
     <>
       <form

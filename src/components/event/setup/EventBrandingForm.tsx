@@ -29,6 +29,7 @@ function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
   const {
     branding,
     status,
+    mediaSaveError,
     readOnly,
     change,
     save,
@@ -44,10 +45,12 @@ function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
   useWhitelistNavigationGuard(detailsDirty || dirty, saveAll);
   const error = setup.conflict
     ? setupText("draftConflict")
-    : detailsStatus === "error" || detailsStatus === "invalid" ||
-        status === "error" || status === "invalid"
-      ? setupText("saveError")
-      : pendingMediaMessage ? setupText(pendingMediaMessage) : undefined;
+    : mediaSaveError
+      ? t(mediaSaveError)
+      : detailsStatus === "error" || detailsStatus === "invalid" ||
+          status === "error" || status === "invalid"
+        ? setupText("saveError")
+        : pendingMediaMessage ? setupText(pendingMediaMessage) : undefined;
   return (
     <form
       onSubmit={(event) => {

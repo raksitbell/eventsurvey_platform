@@ -49,7 +49,7 @@ npm ci
 npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 ```
 
-ตั้ง `MOCK_API_BASE_URL=http://127.0.0.1:3001` ใน `.env.local` ของ EventSurvey ก่อนเริ่ม Next.js
+ตั้ง `MOCK_API_BASE_URL=http://127.0.0.1:3001` ใน `.env.local` ของ EventSurvey ก่อนเริ่ม Next.js เมื่อรัน `npm run dev` ระบบเก็บ Banner และรูป Branding ใน `.eventsurvey-media/` ของโปรเจกต์โดยอัตโนมัติ หากต้องการเก็บไว้นอกโปรเจกต์ ให้ตั้ง `EVENT_SETUP_MEDIA_DIR` เป็นพาธแบบ absolute
 
 ### Hosting
 
@@ -69,7 +69,7 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 | `NEXT_PUBLIC_API_BASE_URL` | URL สำรองเมื่อไม่มี `MOCK_API_BASE_URL` ใช้เฉพาะค่าที่เปิดเผยได้ |
 | `APP_URL` | Origin ของ EventSurvey สำหรับลิงก์ตั้งรหัสผ่าน ลิงก์อีเวนต์ และ QR ค่า local คือ `http://localhost:3000` ค่า hosting คือ HTTPS origin จริง |
 | `EVENT_SETUP_DATA_SECRET` | คีย์เข้ารหัสข้อมูล Event Setup อย่างน้อย 32 อักขระ ใช้ค่าคงที่แยกตาม environment แนะนำให้ตั้งแยกจาก `AUTH_SESSION_SECRET` บน hosting |
-| `EVENT_SETUP_MEDIA_DIR` | พาธแบบ absolute ไปยัง volume ที่เขียนได้และคงอยู่ข้ามการรีสตาร์ต หากไม่ตั้งค่า ไฟล์ Branding ที่อัปโหลดไม่ได้จะอยู่ในเบราว์เซอร์ |
+| `EVENT_SETUP_MEDIA_DIR` | พาธแบบ absolute ไปยัง volume ที่เขียนได้และคงอยู่ข้ามการรีสตาร์ต รับรูปขนาดต่ำกว่า 10 MiB เมื่ออัปโหลดไม่สำเร็จ เบราว์เซอร์เก็บสำรองได้สูงสุด 1 MiB ต่อรูป |
 
 คุกกี้ session มีอายุ 8 ชั่วโมงและถูกล้างเมื่อออกจากระบบ เมื่อเปลี่ยน `AUTH_SESSION_SECRET` ผู้ใช้ต้องเข้าสู่ระบบใหม่ และต้องออกลิงก์ตั้งรหัสผ่านใหม่สำหรับคำเชิญที่ยังไม่ได้ใช้
 

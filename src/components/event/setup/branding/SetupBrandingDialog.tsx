@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useModal } from "@/hooks/useModal";
-import { eventBrandingSchema } from "@/core/event/branding";
+import { eventBrandingEditSchema } from "@/core/event/branding";
 import type { BrandingColorKey, EventBranding } from "@/types/event/branding";
 import BrandingUploadDialog from "./BrandingUploadDialog";
 import BrandingMaterialPreview from "./BrandingMaterialPreview";
@@ -107,7 +107,7 @@ export default function SetupBrandingDialog({
           <button
             type="button"
             onClick={() => {
-              if (!eventBrandingSchema.safeParse(value).success)
+              if (!eventBrandingEditSchema.safeParse(value).success)
                 setError("invalidBrand");
               else if (onSave(value)) onClose();
               else setError("saveError");

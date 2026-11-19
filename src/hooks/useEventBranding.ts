@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { defaultEventBranding, eventBrandingSchema } from "@/core/event/branding";
+import { defaultEventBranding, eventBrandingEditSchema } from "@/core/event/branding";
 import {
   applySetupLocalMedia,
   clearUnneededSetupLocalMedia,
@@ -12,6 +12,7 @@ import useSetupApiState, { type SetupDraftApi } from "@/hooks/useSetupApiState";
 import type { EventBranding } from "@/types/event/branding";
 import type { DraftSaveStatus, EventSetupMediaKind } from "@/types/event/setup";
 import type { EventWorkspace } from "@/types/event/workspace";
+import { ImageUploadError } from "@/utils/image-upload";
 
 interface BrandingEdit {
   value: EventBranding;
@@ -41,6 +42,9 @@ export default function useEventBranding(
   const [edit, setEdit] = useState<BrandingEdit | null>(null);
   const [acknowledged, setAcknowledged] = useState<SavedBranding | null>(null);
   const [status, setStatus] = useState<DraftSaveStatus | "idle">("idle");
+  const [mediaSaveError, setMediaSaveError] = useState<
+    "fileOutputSize" | "fileStorage" | undefined
+  >();
   const [saving, setSaving] = useState(false);
   const inFlight = useRef<Promise<boolean> | null>(null);
   const ownSaved =
@@ -55,7 +59,7 @@ export default function useEventBranding(
 
   function change(changes: Partial<EventBranding>) {
     if (readOnly) return false;
-    const next = eventBrandingSchema.safeParse({ ...branding, ...changes });
+    const next = eventBrandingEditSchema.safeParse({ ...branding, ...changes });
     if (!next.success) {
       setStatus("invalid");
       return false;
@@ -65,13 +69,21 @@ export default function useEventBranding(
       revision: edit?.revision ?? api.getRevision(),
       explicitMedia: new Set([
         ...(edit?.explicitMedia ?? []),
-        ...mediaKinds.filter((kind) =>
-          Object.hasOwn(changes, kind) &&
-          JSON.stringify(changes[kind]) !== JSON.stringify(branding[kind]),
-        ),
+        ...mediaKinds.filter((kind) => {
+          if (!Object.hasOwn(changes, kind)) return false;
+          const previous = branding[kind];
+          const current = changes[kind];
+          return (
+            previous?.name !== current?.name ||
+            previous?.url !== current?.url ||
+            (kind === "banner" && branding.banner?.cropPosition !== changes.banner?.cropPosition) ||
+            (previous === null) !== (current === null)
+          );
+        }),
       ]),
     });
     setStatus("idle");
+    setMediaSaveError(undefined);
     return true;
   }
 
@@ -84,6 +96,7 @@ export default function useEventBranding(
       explicitMedia: new Set([...(current?.explicitMedia ?? []), kind]),
     }));
     setStatus("idle");
+    setMediaSaveError(undefined);
   }
 
   async function persist() {
@@ -111,7 +124,13 @@ export default function useEventBranding(
       setEdit((current) => (current === edit ? null : current));
       setStatus("saved");
       return true;
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof ImageUploadError &&
+        (error.code === "fileOutputSize" || error.code === "fileStorage")
+      ) {
+        setMediaSaveError(error.code);
+      }
       setStatus("error");
       return false;
     } finally {
@@ -126,6 +145,7 @@ export default function useEventBranding(
       (!edit && !pendingMedia.some((kind) => branding[kind]?.url.startsWith("data:")))
     ) return true;
     if (inFlight.current) return inFlight.current;
+    setMediaSaveError(undefined);
     setSaving(true);
     inFlight.current = persist();
     return inFlight.current;
@@ -145,6 +165,7 @@ export default function useEventBranding(
   return {
     branding,
     status,
+    mediaSaveError,
     readOnly,
     change,
     save,

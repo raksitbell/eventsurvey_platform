@@ -48,7 +48,6 @@ export default function BrandingUploadDialog({
       preparation.current?.abort();
       preparation.current = null;
       setBusy(false);
-      setSelected(null);
       setError(
         rejected.some((item) =>
           item.errors.some((issue) => issue.code === "file-too-large"),
@@ -69,7 +68,6 @@ export default function BrandingUploadDialog({
       preparation.current = controller;
       setBusy(true);
       setError(null);
-      setSelected(null);
       try {
         const { name, url } = await prepareBrandingImage(file, {
           maxDimension: kind === "logo" ? 512 : 2560,
@@ -81,7 +79,10 @@ export default function BrandingUploadDialog({
         if (preparation.current === controller && !controller.signal.aborted)
           setError(error instanceof ImageUploadError ? error.code : "fileRead");
       } finally {
-        if (preparation.current === controller) setBusy(false);
+        if (preparation.current === controller) {
+          preparation.current = null;
+          setBusy(false);
+        }
       }
     },
   });
@@ -126,9 +127,8 @@ export default function BrandingUploadDialog({
               src={selected.url}
               alt={selected.name}
               width={160}
-              height={88}
+              height={80}
               unoptimized
-              className="h-20"
             />
           ) : (
             <BrandingIcon name="upload" size={28} />

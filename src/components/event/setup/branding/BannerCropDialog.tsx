@@ -127,13 +127,14 @@ export default function BannerCropDialog({
         .join(",")}
       onChange={(event) => {
         const next = event.target.files?.[0];
+        event.target.value = "";
         if (!next) return;
-        originalLoad.current?.abort();
         const issue = imageUploadError(next);
         setError(issue ?? "");
-        setFile(issue ? null : next);
+        if (issue) return;
+        originalLoad.current?.abort();
+        setFile(next);
         setPosition(50);
-        event.target.value = "";
       }}
     />
   );

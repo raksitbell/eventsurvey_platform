@@ -378,6 +378,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
 
 const {
   defaultEventBranding,
+  eventBrandingEditSchema,
   eventBrandingKey,
   eventBrandingSchema,
   loadEventBranding,
@@ -523,7 +524,7 @@ const {
   imageUploadError,
   fitImageDimensions,
   prepareBrandingImage,
-  IMAGE_MAX_SAVED_BYTES,
+  IMAGE_MAX_LOCAL_BYTES,
   rasterizeBrandingSvg,
 } = load("src/utils/image-upload.ts");
 test("image uploads accept shared PNG/JPG and supported types strictly below 10 MiB", () => {
@@ -735,20 +736,19 @@ test("PNG optimization retains alpha and resizes the full image without baking t
     { code: "cropSize" },
   );
 });
-test("an oversized banner is rejected if optimization cannot meet the selected minimum", async (t) => {
+test("a banner above the browser limit can be staged and uploaded at the required resolution", async (t) => {
+  const values = storage(t);
+  const optimizedBytes = IMAGE_MAX_LOCAL_BYTES + 256 * 1024;
   const { calls } = imageBrowser(t, {
     width: 2400,
     height: 1350,
-    sizes: [IMAGE_MAX_SAVED_BYTES + 1],
+    sizes: [optimizedBytes],
   });
-  await assert.rejects(
-    prepareBrandingImage(
-      new File([new Uint8Array(2 * IMAGE_MAX_SAVED_BYTES)], "banner.png", {
-        type: "image/png",
-      }),
-      { minimumSize: { width: 1920, height: 1080 } },
-    ),
-    { code: "fileOutputSize" },
+  const image = await prepareBrandingImage(
+    new File([new Uint8Array(2 * IMAGE_MAX_LOCAL_BYTES)], "banner.png", {
+      type: "image/png",
+    }),
+    { minimumSize: { width: 1920, height: 1080 } },
   );
   assert.deepEqual(
     calls.encodes.map(({ width, height }) => [width, height]),
@@ -757,8 +757,89 @@ test("an oversized banner is rejected if optimization cannot meet the selected m
       [1920, 1080],
     ],
   );
+  const url = "/api/event/setup/media/22222222-2222-4222-8222-222222222222";
+  let online = false;
+  const uploads = [];
+  const { prepareSetupBranding, setupLocalMediaKey } = loadSource({
+    "@/core/api": {
+      api: {
+        async postForm(_route, body) {
+          const file = body.get("file");
+          uploads.push([file.type, file.size]);
+          if (!online) throw new Error("storage unavailable");
+          return { url };
+        },
+      },
+    },
+  })("src/core/event/setup-media-local.ts");
+  const key = setupLocalMediaKey("owner", "event-a", "th");
+  const oldBanner = { name: "old.png", url: "data:image/png;base64,AA==" };
+  values.set(key, JSON.stringify({ banner: oldBanner }));
+  const stored = { ...defaultEventBranding, banner: { name: "saved.png", url } };
+  const staged = {
+    ...stored,
+    logo: { name: "small.png", url: oldBanner.url },
+    banner: { ...image, cropPosition: 75 },
+  };
+  const edit = eventBrandingEditSchema.parse(staged);
+  assert.equal(eventBrandingSchema.safeParse(edit).success, false);
+  const fields = new Set(["logo", "banner"]);
+  await assert.rejects(
+    prepareSetupBranding(edit, stored, ["banner"], fields, key, "event-a"),
+    { code: "fileOutputSize" },
+  );
+  assert.deepEqual(JSON.parse(values.get(key)), { banner: oldBanner });
+
+  online = true;
+  const accepted = await prepareSetupBranding(edit, stored, ["banner"], fields, key, "event-a");
+  assert.deepEqual(uploads, [
+    ["image/png", 1], ["image/png", optimizedBytes],
+    ["image/png", 1], ["image/png", optimizedBytes],
+  ]);
+  assert.deepEqual(accepted.pendingMedia, []);
+  assert.deepEqual(accepted.value.banner, { name: "banner.png", url, cropPosition: 75 });
+  assert.equal(eventBrandingSchema.safeParse(accepted.value).success, true);
 });
-test("optimization ignores mismatched MIME and keeps the original only within the storage cap", async (t) => {
+test("a tall PNG can shrink while meeting the landscape banner resolution", async (t) => {
+  const { calls } = imageBrowser(t, { width: 2400, height: 4800 });
+  const result = await prepareBrandingImage(
+    new File([new Uint8Array(2 * IMAGE_MAX_LOCAL_BYTES)], "banner.png", {
+      type: "image/png",
+    }),
+    { minimumSize: { width: 1920, height: 1080 } },
+  );
+
+  assert.deepEqual(calls.draws, [[0, 0, 1920, 3840]]);
+  assert.match(result.url, /^data:image\/png;base64,/);
+  assert.equal(Buffer.from(result.url.split(",")[1], "base64").length, 60);
+});
+test("an oversized JPEG can lower quality when its banner dimensions cannot shrink further", async (t) => {
+  const { calls } = imageBrowser(t, {
+    width: 1920,
+    height: 1080,
+    sizes: [
+      IMAGE_MAX_LOCAL_BYTES + 100,
+      IMAGE_MAX_LOCAL_BYTES + 50,
+      IMAGE_MAX_LOCAL_BYTES + 1,
+      IMAGE_MAX_LOCAL_BYTES,
+    ],
+  });
+  const result = await prepareBrandingImage(
+    new File([new Uint8Array(2 * IMAGE_MAX_LOCAL_BYTES)], "banner.jpg", {
+      type: "image/jpeg",
+    }),
+    { minimumSize: { width: 1920, height: 1080 } },
+  );
+
+  assert.deepEqual(calls.draws, [[0, 0, 1920, 1080]]);
+  assert.ok(calls.encodes.at(-1).quality < calls.encodes.at(-2).quality);
+  assert.match(result.url, /^data:image\/jpeg;base64,/);
+  assert.equal(
+    Buffer.from(result.url.split(",")[1], "base64").length,
+    IMAGE_MAX_LOCAL_BYTES,
+  );
+});
+test("optimization ignores mismatched MIME and keeps original raster bytes for upload", async (t) => {
   const { calls } = imageBrowser(t, { outputType: "image/png" });
   const file = new File([new Uint8Array(450000)], "logo.jpg", {
     type: "image/jpeg",
@@ -771,14 +852,11 @@ test("optimization ignores mismatched MIME and keeps the original only within th
     file.size,
   );
   for (const type of ["image/jpeg", "image/webp"]) {
-    await assert.rejects(
-      prepareBrandingImage(
-        new File([new Uint8Array(IMAGE_MAX_SAVED_BYTES + 1)], "too-large", {
-          type,
-        }),
-      ),
-      { code: "fileOutputSize" },
+    const original = await prepareBrandingImage(
+      new File([new Uint8Array(IMAGE_MAX_LOCAL_BYTES + 1)], "original", { type }),
     );
+    assert.ok(original.url.startsWith(`data:${type};base64,`));
+    assert.equal(Buffer.from(original.url.split(",")[1], "base64").length, IMAGE_MAX_LOCAL_BYTES + 1);
   }
   assert.equal(calls.encodes.length, 2);
   assert.equal(calls.closed, 3);
@@ -809,12 +887,21 @@ test("SVG/browser decoder fallback saves the SVG and revokes its object URL", as
   assert.equal(calls.imageCleared, true);
 });
 test("a captured SVG is rasterized through the image element within the upload limits", async (t) => {
-  const { calls, canvas } = imageBrowser(t, { width: 1600, height: 800 });
-  const file = new File(["<svg/>"], "wordmark.SVG", { type: "image/svg+xml" });
+  const { calls, canvas } = imageBrowser(t, {
+    width: 1600,
+    height: 800,
+    sizes: [IMAGE_MAX_LOCAL_BYTES + 1],
+  });
+  const file = new File(
+    ["<svg><!--", " ".repeat(IMAGE_MAX_LOCAL_BYTES), "--></svg>"],
+    "wordmark.SVG",
+    { type: "image/svg+xml" },
+  );
   const png = await rasterizeBrandingSvg(file, { maxDimension: 512 });
 
   assert.equal(png.type, "image/png");
   assert.equal(png.name, "wordmark.png");
+  assert.equal(png.size, IMAGE_MAX_LOCAL_BYTES + 1);
   assert.equal(calls.bitmaps, 0);
   assert.deepEqual(calls.alpha, { alpha: true });
   assert.deepEqual(calls.draws[0], [0, 0, 512, 256]);
