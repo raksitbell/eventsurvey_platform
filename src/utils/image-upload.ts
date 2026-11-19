@@ -1,4 +1,4 @@
-/** Prepare images for browser-only Branding storage. */
+/** Validate and prepare Branding images in the browser. */
 export const IMAGE_MAX_INPUT_BYTES = 10 * 1024 * 1024;
 const IMAGE_TARGET_BYTES = 350 * 1024;
 export const IMAGE_MAX_SAVED_BYTES = 1024 * 1024;
@@ -101,6 +101,11 @@ async function decodeImage(
       };
     }
   }
+  return decodeImageElement(file, signal);
+}
+
+async function decodeImageElement(file: File, signal?: AbortSignal): Promise<DecodedImage> {
+  checkAbort(signal);
   const url = URL.createObjectURL(file);
   try {
     const image = new globalThis.Image();
@@ -194,11 +199,12 @@ function blobDataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
     }
   });
 }
-async function shrinkImage(
-  file: File,
+async function encodeSizedImage(
   decoded: DecodedImage,
+  type: string,
   { maxDimension = 2560, minimumSize, signal }: ImageOptions,
-): Promise<Blob> {
+  original?: Blob,
+): Promise<Blob | undefined> {
   const { width, height } = fitImageDimensions(
     decoded.width,
     decoded.height,
@@ -208,13 +214,13 @@ async function shrinkImage(
   const minScale = minimumSize
     ? Math.max(minimumSize.width / width, minimumSize.height / height)
     : 0.18;
-  if (minScale > 1) return file;
+  if (minScale > 1) return original;
 
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { alpha: true });
-  if (!context) return file;
+  if (!context) return original;
 
-  let smallest: Blob = file;
+  let smallest = original;
   try {
     for (let scale = 1; ; scale = Math.max(minScale, scale * 0.75)) {
       checkAbort(signal);
@@ -222,14 +228,14 @@ async function shrinkImage(
       canvas.height = Math.max(1, Math.round(height * scale));
       context.imageSmoothingQuality = "high";
       context.drawImage(decoded.source, 0, 0, canvas.width, canvas.height);
-      for (const quality of file.type === "image/jpeg"
+      for (const quality of type === "image/jpeg"
         ? [0.86, 0.72, 0.6]
         : [1]) {
         checkAbort(signal);
-        const candidate = await encodeImage(canvas, file.type, quality);
+        const candidate = await encodeImage(canvas, type, quality);
         checkAbort(signal);
         if (!candidate) return smallest;
-        if (candidate.size < smallest.size) smallest = candidate;
+        if (!smallest || candidate.size < smallest.size) smallest = candidate;
         if (smallest.size <= IMAGE_TARGET_BYTES) return smallest;
       }
       if (scale === minScale) return smallest;
@@ -263,7 +269,7 @@ export async function prepareBrandingImage(
       file.size > IMAGE_TARGET_BYTES &&
       (file.type === "image/jpeg" || file.type === "image/png");
     const saved = shouldOptimize
-      ? await shrinkImage(file, decoded, { maxDimension, minimumSize, signal })
+      ? (await encodeSizedImage(decoded, file.type, { maxDimension, minimumSize, signal }, file)) ?? file
       : file;
     if (saved.size > IMAGE_MAX_SAVED_BYTES)
       throw new ImageUploadError("fileOutputSize");
@@ -272,6 +278,32 @@ export async function prepareBrandingImage(
       name: file.name.slice(0, 255),
       url: await blobDataUrl(saved, signal),
     };
+  } finally {
+    decoded.close();
+  }
+}
+
+/** Make an uploadable PNG while the original SVG remains available to the browser. */
+export async function rasterizeBrandingSvg(file: File, options: ImageOptions = {}) {
+  if (file.type !== "image/svg+xml") throw new ImageUploadError("fileType");
+  if (file.size < 1 || file.size > IMAGE_MAX_SAVED_BYTES)
+    throw new ImageUploadError("fileOutputSize");
+
+  // Load SVG in image context before drawing it into a size-limited canvas.
+  const decoded = await decodeImageElement(file, options.signal);
+  try {
+    const { minimumSize, maxDimension = 2560 } = options;
+    const size = fitImageDimensions(decoded.width, decoded.height, maxDimension, maxDimension);
+    if (minimumSize && (size.width < minimumSize.width || size.height < minimumSize.height))
+      throw new ImageUploadError("cropSize");
+
+    const png = await encodeSizedImage(decoded, "image/png", options);
+    if (!png) throw new ImageUploadError("fileRead");
+    if (png.size > IMAGE_MAX_SAVED_BYTES)
+      throw new ImageUploadError("fileOutputSize");
+
+    const name = file.name.replace(/\.svg$/i, "").slice(0, 251) || "image";
+    return new File([png], `${name}.png`, { type: png.type });
   } finally {
     decoded.close();
   }

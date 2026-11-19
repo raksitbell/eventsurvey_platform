@@ -10,6 +10,10 @@ import {
 import { eventShareOrigin, eventShareUrl } from "@/core/event/share-links";
 import { eventQrDataUrl } from "@/core/event/share-qr";
 import { resolveFormWindows } from "@/core/forms/lifecycle";
+import {
+  getPublishedForm,
+  withPublishedFormSchedule,
+} from "@/core/forms/published-schedule";
 import { isActiveMockUser, resolveAppRole } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import type { Locale } from "@/i18n/routing";
@@ -105,20 +109,6 @@ async function findShareableForm(
   }
 }
 
-function publishedForm(event: MockEvent, kind: ParticipantFormKind) {
-  return readSetupRecord(event).publication?.forms[kind];
-}
-
-function formWindow(event: MockEvent, kind: ParticipantFormKind, row: MockForm) {
-  const saved = publishedForm(event, kind);
-  return saved?.id === row.id
-    ? {
-        opensAt: saved.opensAt ? Date.parse(saved.opensAt) : null,
-        closesAt: saved.closesAt ? Date.parse(saved.closesAt) : null,
-      }
-    : resolveFormWindows(row, event);
-}
-
 async function loadShareableWindows(
   event: MockEvent,
 ): Promise<EventShareResponse["windows"]> {
@@ -137,7 +127,10 @@ async function loadShareableWindows(
     formKinds.map(async (kind) => {
       const result = await findShareableForm(event, kind, rows);
       if (!result) return null;
-      const { opensAt, closesAt } = formWindow(event, kind, result.row);
+      const { opensAt, closesAt } = resolveFormWindows(
+        withPublishedFormSchedule(result.row, event),
+        event,
+      );
       const eventEnd = event.end_at ? Date.parse(event.end_at) : NaN;
       const close =
         kind === "registration" && Number.isFinite(eventEnd)
@@ -319,9 +312,12 @@ export async function getPublicFormBySlug(
   if (!result) return { status: "unavailable" };
 
   const { row, form } = result;
-  const saved = publishedForm(event, kind);
+  const saved = getPublishedForm(event, kind);
   if (saved && saved.id !== row.id) return { status: "unavailable" };
-  const { opensAt, closesAt } = formWindow(event, kind, row);
+  const { opensAt, closesAt } = resolveFormWindows(
+    withPublishedFormSchedule(row, event),
+    event,
+  );
   const now = Date.now();
   const eventEndsAt = event.end_at ? Date.parse(event.end_at) : null;
   if (

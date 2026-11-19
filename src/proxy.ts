@@ -10,6 +10,7 @@ import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 
 const intlMiddleware = createMiddleware(routing);
+const participantPreviewPath = "/preview/event";
 
 /**
  * Match a guarded area exactly, not by prefix. `startsWith("/admin")` also
@@ -53,7 +54,7 @@ function authRedirect(
     return null;
   }
 
-  if (isArea(pathname, "/event")) {
+  if (isArea(pathname, "/event") || pathname === participantPreviewPath) {
     if (!session) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -81,16 +82,18 @@ export default function proxy(request: NextRequest) {
     ? pathname.slice(localePrefix.length + 1) || "/"
     : pathname;
 
+  const redirect = authRedirect(request, canonicalPath);
+  if (redirect) return redirect;
+
   // Let next-intl's localized participant rewrite finish without a second redirect.
   if (
     localePrefix &&
-    (isArea(canonicalPath, "/participant/display") ||
+    (canonicalPath === participantPreviewPath ||
+      isArea(canonicalPath, "/participant/display") ||
       isPublicEventPath(canonicalPath))
   ) {
     return NextResponse.next();
   }
-  const redirect = authRedirect(request, canonicalPath);
-  if (redirect) return redirect;
   return intlMiddleware(request);
 }
 

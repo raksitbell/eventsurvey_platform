@@ -11,7 +11,7 @@ export default function ParticipantFooter({
 }: ParticipantFooterProps) {
   const t = useTranslations("participantEvent");
   return (
-    <footer className="flex min-h-20 shrink-0 flex-col items-center justify-center gap-2 bg-(--participant-secondary) px-4 py-3 text-theme-sm text-(--participant-on-secondary) @4xl/participant:min-h-18 @4xl/participant:flex-row @4xl/participant:justify-between @4xl/participant:px-8 dark:bg-(--participant-secondary) dark:text-(--participant-on-secondary)">
+    <footer className="flex min-h-20 shrink-0 flex-col items-center justify-center gap-2 bg-(--participant-footer-surface) px-4 py-3 text-theme-sm text-(--participant-on-secondary) @4xl/participant:min-h-18 @4xl/participant:flex-row @4xl/participant:justify-between @4xl/participant:px-8 dark:bg-(--participant-footer-surface) dark:text-(--participant-on-secondary)">
       <p className="order-2 @4xl/participant:order-none">
         <span className="@4xl/participant:hidden">© EventSurvey 2026</span>
         <span className="hidden @4xl/participant:inline">© EventSurvey</span>

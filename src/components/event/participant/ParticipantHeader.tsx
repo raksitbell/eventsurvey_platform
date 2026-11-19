@@ -33,7 +33,7 @@ export default function ParticipantHeader({
   const menuId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   return (
-    <header className="flex min-h-20 shrink-0 items-center justify-between gap-2 bg-(--participant-primary) px-6 py-4 text-(--participant-on-primary) @4xl/participant:px-4 dark:bg-(--participant-primary) dark:text-(--participant-on-primary)">
+    <header className="flex min-h-20 shrink-0 items-center justify-between gap-2 bg-(--participant-header-surface) px-6 py-4 text-(--participant-on-header) @4xl/participant:px-4 dark:bg-(--participant-header-surface) dark:text-(--participant-on-header)">
       <div className="flex min-w-0 items-center gap-3">
         {asset ? (
           <Image
@@ -84,7 +84,7 @@ export default function ParticipantHeader({
           aria-expanded={open}
           aria-controls={open ? menuId : undefined}
           onClick={() => setOpen((value) => !value)}
-          className="dropdown-toggle flex items-center gap-1 rounded-lg px-2 py-1 text-base text-(--participant-on-primary) hover:bg-white/10 dark:text-(--participant-on-primary) dark:hover:bg-white/10"
+          className="dropdown-toggle flex items-center gap-1 rounded-lg px-2 py-1 text-base text-(--participant-on-header) hover:bg-white/10 dark:text-(--participant-on-header) dark:hover:bg-white/10"
         >
           <GlobeAltIcon className="size-4.5" aria-hidden="true" />
           {(readOnly ? (contentLocale ?? locale) : locale).toUpperCase()}

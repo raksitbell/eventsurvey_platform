@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const ts = require("typescript");
+const { loadSource } = require("./support/load-source.cjs");
 
 const sourceRoot = path.join(__dirname, "../src");
 const cache = new Map();
@@ -256,4 +257,150 @@ test("does not distribute a missing or draft form, including by direct URL", asy
   assert.deepEqual(await getPublicFormBySlug(event.slug, "survey"), {
     status: "unavailable",
   });
+});
+
+
+test("both cron jobs honor the published Survey window after the Event closes", async (t) => {
+  const survey = forms[1];
+  const originals = {
+    event: { ...event },
+    forms: forms.map((form) => ({ ...form })),
+  };
+  let now = Date.parse("2099-01-09T00:00:00Z");
+  t.mock.method(Date, "now", () => now);
+  t.after(() => {
+    delete event.setup;
+    Object.assign(event, originals.event);
+    forms.forEach((form, i) => Object.assign(form, originals.forms[i]));
+  });
+
+  const writeFormStatus = async (resource, updates) => {
+    const form = forms.find((row) => resource === `/forms/${row.id}`);
+    assert.ok(form);
+    form.status = updates.status;
+    return form;
+  };
+  const cronLoad = loadSource({
+    "node:fs": { existsSync: () => false },
+    "@/core/mail/send-invite": { sendSetupPasswordInvite: async () => {} },
+    "@/core/api/mock-client": {
+      mockApi: {
+        get: async (resource) => {
+          if (resource === "/events") return [{ ...event }];
+          if (resource === `/events/${event.id}`) return { ...event };
+          if (resource === "/forms" || resource === `/forms?event_id=${event.id}`) {
+            return forms.map((form) => ({ ...form }));
+          }
+          throw new Error(`Unexpected Mock API request: ${resource}`);
+        },
+        patch: async (resource, updates) => {
+          if (resource === `/events/${event.id}`) {
+            event.status = updates.status;
+            return event;
+          }
+          return writeFormStatus(resource, updates);
+        },
+        put: writeFormStatus,
+      },
+    },
+  });
+  const { runEventLifecycleCron, getEventCloseWarnings } = cronLoad("src/services/admin/events.ts");
+  const { runFormsCron } = cronLoad("src/services/event/forms.ts");
+  const { withPublishedFormSchedule } = cronLoad("src/core/forms/published-schedule.ts");
+  const { encodeSetupRecord } = load("@/core/event/setup-storage");
+  const { defaultEventBranding } = load("@/core/event/branding");
+  const { surveyClosingTime } = load("@/core/event/schedule");
+  const secret = process.env.EVENT_SETUP_DATA_SECRET;
+  process.env.EVENT_SETUP_DATA_SECRET = "eventsurvey-schedule-regression-test-key";
+  t.after(() => {
+    if (secret === undefined) delete process.env.EVENT_SETUP_DATA_SECRET;
+    else process.env.EVENT_SETUP_DATA_SECRET = secret;
+  });
+
+  const draft = {
+    eventName: "Book Expo",
+    description: null,
+    locationName: "Atrium",
+    startsAt: event.start_at,
+    endsAt: event.end_at,
+    isPrivate: false,
+    hasRegistration: true,
+    hasSurvey: true,
+    surveyAccess: "public",
+  };
+  const publishedClose = surveyClosingTime(draft);
+  const head = {
+    en: { title: "Survey", description: "" },
+    th: { title: "แบบสอบถาม", description: "" },
+  };
+  const label = { label: "Feedback", placeholder: "", choices: { th: [], en: [] } };
+  event.setup = encodeSetupRecord(event.id, {
+    revision: 4,
+    draft: null,
+    branding: {},
+    pendingMedia: {},
+    whitelist: null,
+    publication: {
+      publishedAt: event.start_at,
+      draft,
+      branding: defaultEventBranding,
+      forms: {
+        registration: null,
+        survey: {
+          id: survey.id,
+          eventId: event.id,
+          type: "survey",
+          status: "open",
+          opensAt: event.start_at,
+          closesAt: publishedClose,
+          createdAt: event.start_at,
+          updatedAt: event.start_at,
+          head,
+          questions: [{
+            question: {
+              type: "short_text",
+              display_order: 1,
+              min_number: 0,
+              max_number: 0,
+              min_length: 0,
+              max_length: 255,
+              is_required: false,
+              label: { th: [label], en: [label] },
+            },
+          }],
+        },
+      },
+    },
+  });
+
+  forms[0].closes_at = event.end_at;
+  survey.closes_at = event.end_at;
+  const replacement = { ...survey, id: "replacement-survey" };
+  assert.equal(withPublishedFormSchedule(replacement, event), replacement);
+
+  const warnings = await getEventCloseWarnings(event.id);
+  const surveyWarning = warnings.find(({ formId }) => formId === survey.id);
+  assert.equal(surveyWarning.closesAt, publishedClose);
+  assert.deepEqual(surveyWarning.reasons, ["still_open", "not_expired", "post_event"]);
+
+  const lifecycle = await runEventLifecycleCron("platform-admin");
+  assert.deepEqual(lifecycle.closed, [event.id]);
+  assert.deepEqual(lifecycle.formsClosed, [forms[0].id]);
+  assert.deepEqual((await runFormsCron(now)).closed, []);
+  survey.status = "scheduled";
+  survey.opens_at = publishedClose;
+  assert.deepEqual((await runFormsCron(now)).opened, [survey.id]);
+  assert.equal((await getPublicFormBySlug(event.slug, "survey")).status, "open");
+  assert.equal(survey.closes_at, event.end_at);
+  assert.equal(survey.opens_at, publishedClose);
+
+  survey.status = "closed";
+  assert.equal((await getPublicFormBySlug(event.slug, "survey")).status, "closed");
+  survey.status = "open";
+
+  now = Date.parse(publishedClose);
+  assert.deepEqual((await runFormsCron(now)).closed, [survey.id]);
+  assert.equal((await getPublicFormBySlug(event.slug, "survey")).status, "closed");
+  survey.status = "open";
+  assert.deepEqual((await runEventLifecycleCron("platform-admin")).formsClosed, [survey.id]);
 });

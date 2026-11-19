@@ -52,11 +52,7 @@ function DetailsForm(props: EventSetupPageProps) {
       ? d(status)
       : status === "error" || media.status === "error" || media.status === "invalid"
         ? t("saveError")
-        : media.pendingMedia?.length
-          ? t(media.pendingMedia.every((kind) => media.branding[kind]?.url.startsWith("data:"))
-            ? "mediaLocalOnly"
-            : "mediaAnotherBrowser")
-          : undefined;
+        : media.pendingMediaMessage ? t(media.pendingMediaMessage) : undefined;
   return (
     <>
       <form

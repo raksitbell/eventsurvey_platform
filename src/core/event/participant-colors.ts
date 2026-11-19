@@ -45,12 +45,23 @@ function readableAccent(accentHex: string, backgroundHex: string): string {
 }
 
 export function participantColors(
-  branding: Pick<EventBranding, "primary" | "secondary" | "accent">,
+  branding: Pick<
+    EventBranding,
+    "primary" | "secondary" | "accent" | "transparentChrome"
+  >,
 ) {
   return {
     "--participant-primary": branding.primary,
     "--participant-secondary": branding.secondary,
-    "--participant-on-primary": eventColorForeground(branding.primary),
+    "--participant-header-surface": branding.transparentChrome
+      ? "transparent"
+      : branding.primary,
+    "--participant-footer-surface": branding.transparentChrome
+      ? "transparent"
+      : branding.secondary,
+    "--participant-on-header": eventColorForeground(
+      branding.transparentChrome ? branding.secondary : branding.primary,
+    ),
     "--participant-on-secondary": eventColorForeground(branding.secondary),
     "--participant-link": readableAccent(branding.accent, branding.secondary),
     "--participant-control-text": readableAccent(branding.accent, "#FFFFFF"),

@@ -37,7 +37,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     save: saveDraft,
     readOnly,
   } = useEventDraft(workspace, userId, locale, setupApi);
-  const { branding, save: saveBranding } = useEventBranding(
+  const { branding, save: saveBranding, pendingMediaMessage } = useEventBranding(
     workspace, userId, locale, setupApi,
   );
   const receipt = workspace.setup?.publication ?? null;
@@ -131,7 +131,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       router.push("/event/qr");
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "SETUP_MEDIA_PENDING") {
-        setError(s("mediaAnotherBrowser"));
+        setError(s(pendingMediaMessage ?? "mediaAnotherBrowser"));
       } else if (cause instanceof ApiError && cause.code === "SETUP_PUBLISH_IN_PAST") {
         setError(t("issues.eventSchedule"));
       } else if (cause instanceof ApiError && cause.code === "SETUP_PUBLISH_INVALID") {

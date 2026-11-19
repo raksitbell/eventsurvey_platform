@@ -1,6 +1,7 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { maskEmail, maskName, mayViewPii, type PiiViewer } from "@/core/auth/pii";
+import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
 import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
 import { resolveEventTitle } from "@/core/mock/event-title";
 import { routing, type Locale } from "@/i18n/routing";
@@ -99,7 +100,8 @@ export async function getEventCloseWarnings(
   const now = Date.now();
   const warnings: EventCloseWarning[] = [];
 
-  for (const form of forms) {
+  for (const row of forms) {
+    const form = withPublishedFormSchedule(row, event);
     if (form.status === "closed" || form.status === "draft") continue;
 
     const reasons: EventCloseWarning["reasons"] = [];
@@ -851,11 +853,15 @@ export async function runEventLifecycleCron(
     }
   }
 
+  const eventsById = new Map(events.map((event) => [event.id, event]));
   for (const form of forms) {
-    if (form.deleted_at || form.status === "closed" || !form.closes_at) {
-      continue;
-    }
-    const closesMs = Date.parse(form.closes_at);
+    if (form.deleted_at || form.status === "closed") continue;
+    const { closes_at } = withPublishedFormSchedule(
+      form,
+      eventsById.get(form.event_id),
+    );
+    if (!closes_at) continue;
+    const closesMs = Date.parse(closes_at);
     if (Number.isNaN(closesMs) || closesMs > now) continue;
     await mockApi.patch(`/forms/${form.id}`, {
       status: "closed",

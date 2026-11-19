@@ -131,15 +131,25 @@ export default function useEventBranding(
     return inFlight.current;
   }
 
+  const pending = pendingMedia.filter((kind) =>
+    !edit?.explicitMedia.has(kind) || branding[kind]?.url.startsWith("data:"),
+  );
+  const pendingMediaMessage = pending.some((kind) =>
+    branding[kind]?.url.startsWith("data:image/svg+xml;base64,"),
+  )
+    ? "mediaSvgLocalOnly"
+    : pending.every((kind) => branding[kind]?.url.startsWith("data:"))
+      ? "mediaLocalOnly"
+      : "mediaAnotherBrowser";
+
   return {
     branding,
     status,
     readOnly,
     change,
     save,
-    pendingMedia: pendingMedia.filter((kind) =>
-      !edit?.explicitMedia.has(kind) || branding[kind]?.url.startsWith("data:"),
-    ),
+    pendingMedia: pending,
+    pendingMediaMessage: pending.length ? pendingMediaMessage : undefined,
     discardPendingMedia,
     saving,
     dirty: !readOnly && !!edit,

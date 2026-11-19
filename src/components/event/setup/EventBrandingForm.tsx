@@ -34,6 +34,7 @@ function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
     save,
     saving,
     pendingMedia,
+    pendingMediaMessage,
     discardPendingMedia,
     dirty,
   } = useEventBranding(workspace, userId, locale, setup);
@@ -46,11 +47,7 @@ function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
     : detailsStatus === "error" || detailsStatus === "invalid" ||
         status === "error" || status === "invalid"
       ? setupText("saveError")
-      : pendingMedia?.length
-        ? setupText(pendingMedia.every((kind) => branding[kind]?.url.startsWith("data:"))
-          ? "mediaLocalOnly"
-          : "mediaAnotherBrowser")
-        : undefined;
+      : pendingMediaMessage ? setupText(pendingMediaMessage) : undefined;
   return (
     <form
       onSubmit={(event) => {

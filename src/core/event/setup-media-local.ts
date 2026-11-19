@@ -1,8 +1,10 @@
 import { api } from "@/core/api";
+import { bannerLayouts } from "@/core/event/banner-layout";
 import { eventBrandingSchema } from "@/core/event/branding";
 import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
 import type { BrandingBanner, EventBranding } from "@/types/event/branding";
 import type { EventSetupMediaKind } from "@/types/event/setup";
+import { rasterizeBrandingSvg } from "@/utils/image-upload";
 
 const mediaFields = ["logo", "wordmark", "banner"] as const;
 const localMediaSchema = eventBrandingSchema
@@ -54,19 +56,27 @@ export function applySetupLocalMedia(
 async function uploadImage(
   eventId: string,
   image: BrandingBanner,
+  kind: EventSetupMediaKind,
+  layout: EventBranding["layout"],
 ): Promise<BrandingBanner | null> {
   const prefix = localImagePattern.exec(image.url);
   if (!prefix) return null;
   try {
     const encoded = image.url.slice(prefix[0].length);
     const bytes = Uint8Array.from(globalThis.atob(encoded), (byte) => byte.charCodeAt(0));
-    const file = new File([bytes], image.name, { type: prefix[1] });
+    const original = new File([bytes], image.name, { type: prefix[1] });
+    const file = original.type === "image/svg+xml"
+      ? await rasterizeBrandingSvg(original, {
+          maxDimension: kind === "banner" ? 2560 : 512,
+          minimumSize: kind === "banner" ? bannerLayouts[layout ?? "portrait"] : undefined,
+        })
+      : original;
     const body = new FormData();
     body.set("eventId", eventId);
     body.set("file", file);
     const { url } = await api.postForm<{ url?: string }>("/event/setup/media", body);
     return typeof url === "string" && isEventSetupMediaUrl(url)
-      ? { ...image, url }
+      ? { ...image, name: file.name, url }
       : null;
   } catch {
     return null;
@@ -90,7 +100,7 @@ export async function prepareSetupBranding(
       if (explicitMedia.has(kind)) pendingMedia.delete(kind);
       continue;
     }
-    const uploaded = await uploadImage(eventId, image);
+    const uploaded = await uploadImage(eventId, image, kind, branding.layout);
     if (uploaded) {
       value[kind] = uploaded;
       pendingMedia.delete(kind);

@@ -1235,6 +1235,7 @@
     "recoveryFound": "This browser has an Event Setup draft to recover.",
     "recoverDraft": "Recover browser draft",
     "draftConflict": "Someone saved a newer draft. Reload it before saving again.",
+    "mediaSvgLocalOnly": "The SVG is saved in this browser. If it still cannot be uploaded, replace it with a PNG or remove the pending image before publishing.",
     "mediaLocalOnly": "Images that could not upload are saved in this browser. Upload them again or remove them before publishing.",
     "mediaAnotherBrowser": "Some images are still pending upload. Upload them here or remove their pending selection before publishing.",
     "mediaDiscardPending": "Remove pending {name}",

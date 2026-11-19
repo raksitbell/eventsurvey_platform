@@ -490,6 +490,7 @@ const {
   fitImageDimensions,
   prepareBrandingImage,
   IMAGE_MAX_SAVED_BYTES,
+  rasterizeBrandingSvg,
 } = load("src/utils/image-upload.ts");
 test("image uploads accept shared PNG/JPG and supported types strictly below 10 MiB", () => {
   for (const type of [
@@ -602,8 +603,8 @@ function imageBrowser(t, options = {}) {
     globalThis,
     "Image",
     class {
-      naturalWidth = 3000;
-      naturalHeight = 4000;
+      naturalWidth = options.width ?? 3000;
+      naturalHeight = options.height ?? 4000;
       set src(value) {
         if (!value) {
           calls.imageCleared = true;
@@ -773,6 +774,81 @@ test("SVG/browser decoder fallback saves the SVG and revokes its object URL", as
   assert.deepEqual(calls.revoked, calls.urls);
   assert.equal(calls.imageCleared, true);
 });
+test("a captured SVG is rasterized through the image element within the upload limits", async (t) => {
+  const { calls, canvas } = imageBrowser(t, { width: 1600, height: 800 });
+  const file = new File(["<svg/>"], "wordmark.SVG", { type: "image/svg+xml" });
+  const png = await rasterizeBrandingSvg(file, { maxDimension: 512 });
+
+  assert.equal(png.type, "image/png");
+  assert.equal(png.name, "wordmark.png");
+  assert.equal(calls.bitmaps, 0);
+  assert.deepEqual(calls.alpha, { alpha: true });
+  assert.deepEqual(calls.draws[0], [0, 0, 512, 256]);
+  assert.deepEqual(calls.revoked, calls.urls);
+  assert.equal(calls.imageCleared, true);
+  assert.deepEqual([canvas.width, canvas.height], [0, 0]);
+  await assert.rejects(
+    rasterizeBrandingSvg(file, { minimumSize: { width: 1920, height: 1080 } }),
+    { code: "cropSize" },
+  );
+});
+
+test("an SVG PNG export keeps the original pending if uploading fails, then retries the PNG", async (t) => {
+  const values = storage(t);
+  const browserOptions = { width: 1000, height: 500, nullBlob: true };
+  imageBrowser(t, browserOptions);
+  const url = "/api/event/setup/media/77777777-7777-4777-8777-777777777777";
+  let uploads = 0;
+  const {
+    applySetupLocalMedia,
+    clearUnneededSetupLocalMedia,
+    prepareSetupBranding,
+    setupLocalMediaKey,
+  } = loadSource({
+    "@/core/api": {
+      api: {
+        async postForm(route, body) {
+          assert.equal(route, "/event/setup/media");
+          assert.equal(body.get("eventId"), "event-a");
+          assert.equal(body.get("file").type, "image/png");
+          assert.equal(body.get("file").name, "mark.png");
+          if (++uploads === 1) throw new Error("storage unavailable");
+          return { url };
+        },
+      },
+    },
+  })("src/core/event/setup-media-local.ts");
+  const key = setupLocalMediaKey("owner", "event-a", "th");
+  const svg = { name: "mark.svg", url: "data:image/svg+xml;base64,PHN2Zy8+" };
+  const initial = { ...defaultEventBranding, wordmark: svg };
+
+  const pending = await prepareSetupBranding(
+    initial, defaultEventBranding, [], new Set(["wordmark"]), key, "event-a",
+  );
+  assert.deepEqual(pending.pendingMedia, ["wordmark"]);
+  assert.deepEqual(JSON.parse(values.get(key)).wordmark, svg);
+  assert.equal(uploads, 0);
+  const restored = applySetupLocalMedia(pending.value, key, pending.pendingMedia);
+  assert.deepEqual(restored.wordmark, svg);
+
+  browserOptions.nullBlob = false;
+  const unavailable = await prepareSetupBranding(
+    restored, pending.value, pending.pendingMedia, new Set(), key, "event-a",
+  );
+  assert.equal(uploads, 1);
+  assert.deepEqual(unavailable.pendingMedia, ["wordmark"]);
+  assert.deepEqual(JSON.parse(values.get(key)).wordmark, svg);
+  const accepted = await prepareSetupBranding(
+    restored, unavailable.value, unavailable.pendingMedia, new Set(), key, "event-a",
+  );
+  assert.deepEqual(accepted.pendingMedia, []);
+  assert.deepEqual(accepted.value.wordmark, { name: "mark.png", url });
+  assert.equal(uploads, 2);
+  assert.ok(values.has(key));
+  clearUnneededSetupLocalMedia(key, accepted.pendingMedia);
+  assert.equal(values.has(key), false);
+});
+
 test("unreadable image fallback reports an error and never leaks its temporary URL", async (t) => {
   const { calls } = imageBrowser(t, { bitmapError: true, decodeError: true });
   await assert.rejects(
@@ -983,6 +1059,21 @@ test("Secondary colors the participant content exactly and text stays readable o
         contrast(colors["--participant-control-text"], "#FFFFFF") >= 4.5,
       );
     }
+});
+test("Participant chrome uses the content surface for transparent foregrounds", () => {
+  const { participantColors } = load("src/core/event/participant-colors.ts");
+  const branding = { ...defaultEventBranding, primary: "#FFFFFF", secondary: "#000000" };
+  const opaque = participantColors(branding);
+  assert.equal(opaque["--participant-header-surface"], "#FFFFFF");
+  assert.equal(opaque["--participant-footer-surface"], "#000000");
+  assert.equal(opaque["--participant-on-header"], "#000000");
+
+  const transparent = participantColors({ ...branding, transparentChrome: true });
+  assert.equal(transparent["--participant-header-surface"], "transparent");
+  assert.equal(transparent["--participant-footer-surface"], "transparent");
+  assert.equal(transparent["--participant-surface"], "#000000");
+  assert.equal(transparent["--participant-on-header"], "#FFFFFF");
+  assert.equal(transparent["--participant-on-secondary"], "#FFFFFF");
 });
 test("Color Picker translations have matching nested keys", () => {
   const th = JSON.parse(
