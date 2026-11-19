@@ -80,6 +80,7 @@ function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
             branding={branding}
             draft={draft}
             bannerUrl={workspace.bannerUrl}
+            disabled={pending}
             onOpen={() => !pending && saveAll()}
           />
         </div>

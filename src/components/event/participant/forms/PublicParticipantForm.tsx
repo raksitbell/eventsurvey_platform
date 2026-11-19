@@ -38,9 +38,10 @@ type PublicParticipantFormProps = {
   bannerUrl: string | null;
   contentLocale?: string | null;
 } & (
-  | { readOnly: true; eventHref?: never; checkAvailability?: never }
+  | { readOnly: true; fillViewport?: boolean; eventHref?: never; checkAvailability?: never }
   | {
       readOnly?: false;
+      fillViewport?: never;
       eventHref: string;
       checkAvailability: () => Promise<"open" | PublicFormStatus>;
     }
@@ -54,6 +55,7 @@ export default function PublicParticipantForm({
   bannerUrl,
   contentLocale,
   readOnly = false,
+  fillViewport = false,
   checkAvailability,
 }: PublicParticipantFormProps) {
   const t = useTranslations("publicParticipantForm");
@@ -229,12 +231,13 @@ export default function PublicParticipantForm({
     "--color-brand-500": colors["--participant-control-text"],
   } as CSSProperties;
   const Container = readOnly ? "section" : "main";
+  const pageHeight = fillViewport ? "grow shrink-0" : readOnly ? "" : "min-h-dvh";
   const backClass =
     "inline-block rounded-md bg-(--participant-secondary) px-2 py-1 font-medium text-(--participant-link)";
   return (
     <Container
       style={style}
-      className={`@container/participant flex w-full min-w-0 flex-col bg-(--participant-secondary) ${readOnly ? "" : "min-h-dvh"}`}
+      className={`@container/participant flex w-full min-w-0 flex-col bg-(--participant-secondary) ${pageHeight}`}
     >
       <ParticipantHeader
         branding={branding}

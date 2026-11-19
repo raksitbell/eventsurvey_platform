@@ -2117,6 +2117,11 @@ test("Branding preview tabs show the selected participant surface and implement 
   findSetupElement(formView, (n) => n.type === "button" && n.props.children === "survey").props.onClick();
   const getPublicForm = (tree) => findSetupElement(tree, (n) => n.type === PublicForm).props;
   assert.equal(getPublicForm(render()).readOnly, true);
+  const fullPage = render({ pageHeader: (tabs) => require("react").createElement("header", null, tabs) });
+  const header = findSetupElement(fullPage, (node) => node.type === "header");
+  assert.ok(findSetupElement(header, (node) => node.props.role === "tablist"));
+  assert.equal(getPublicForm(fullPage).fillViewport, true);
+  assert.equal(getPublicForm(render()).fillViewport, false);
   assert.equal(getPublicForm(render()).branding, props.branding);
   assert.deepEqual(getPublicForm(render()).result, { status: "open", form: forms[1] });
   const disabled = render({ draft: { ...seed, hasSurvey: false, hasRegistration: false } });
@@ -2124,6 +2129,23 @@ test("Branding preview tabs show the selected participant surface and implement 
   const failed = render({ formState: { error: true, forms: [] } });
   assert.ok(findSetupElement(failed, (node) => node.props?.role === "alert"));
   assert.equal(findSetupElement(failed, (node) => node.type === PublicForm || node.type === PreviewSkeleton), null);
+  for (const [initialSelection, availableForms, expected] of [
+    [{ tab: "display", formKind: null }, forms, { tab: "display", formKind: null }],
+    [{ tab: "display", formKind: "survey" }, forms, { tab: "display", formKind: "survey" }],
+    [{ tab: "form", formKind: "survey" }, forms, { tab: "form", formKind: "survey" }],
+    [{ tab: "form", formKind: null }, [forms[1]], { tab: "form", formKind: "survey" }],
+  ]) {
+    let opened;
+    const withAction = render({
+      formState: { forms: availableForms },
+      selectionState: [initialSelection, () => {}],
+      fullPreview: { label: "Full preview", onOpen: (value) => { opened = value; } },
+    });
+    const button = findSetupElement(withAction, (node) => node.type === setupButton && node.props.children === "Full preview");
+    assert.equal(button.props.type, "button");
+    button.props.onClick();
+    assert.deepEqual(opened, expected);
+  }
 });
 
 function setupActionButtons(form) {
@@ -2685,79 +2707,84 @@ test("Publish does not create a receipt or report success after cancellation, st
   assert.equal(loadPublication(key), null);
 });
 
-test("Publish preview opens the dialog only after saving succeeds", async () => {
-  let opens = 0;
-  let isOpen = false;
+test("Publish and Branding open the selected preview page only after a successful save", async (t) => {
   const Display = () => null;
   const Gallery = () => null;
+  const SourceGallery = () => null;
   const content = getEventContent(seed, "th");
   const language = { content, translation: content.translations[0], contentLocale: "th", selectLanguage() {} };
-  const Preview = compileSetupComponent(
+  const mocks = {
+    "@/components/event/participant/ParticipantDisplayPreview": { default: Display },
+    "@/components/event/participant/ParticipantPreviewLanguage": { default: () => null },
+    "next-intl": { useTranslations: () => (key) => key },
+  };
+  const Publish = compileSetupComponent(
     "src/components/event/setup/publish/PublishParticipantPreview.tsx",
+    { ...mocks, "@/components/event/setup/branding/SetupPreviewGallery": { default: SourceGallery } },
+  );
+  const Branding = compileSetupComponent(
+    "src/components/event/setup/branding/BrandingPreview.tsx",
     {
-      "@/components/event/setup/branding/BrandingPreviewGallery": { default: Gallery },
-      "@/components/event/participant/ParticipantDisplayPreview": {
-        default: Display,
-      },
-      "@/components/event/participant/ParticipantPreviewLanguage": { default: () => null },
-      "@/core/event/draft": load("src/core/event/draft.ts"),
-      "@/hooks/useModal": {
-        useModal: () => ({ isOpen, openModal: () => opens++ }),
-      },
-      "@heroicons/react/24/outline": { EyeIcon: () => null, XMarkIcon: () => null },
-      "next-intl": { useTranslations: () => (key) => key },
-      react: {
-        useState: (initial) => [initial, () => {}],
-        useEffect() {},
-        useId: () => "preview",
-        useRef: () => ({ current: null }),
-      },
+      ...mocks, "./SetupPreviewGallery": { default: SourceGallery },
+      "@/core/event/banner-layout": load("src/core/event/banner-layout.ts"),
+      "@/hooks/useParticipantPreviewLanguage": { default: () => language },
     },
   );
-  for (const saved of [false, true]) {
-    let saves = 0;
-    const screen = Preview({
-      workspace: seed,
-      draft: seed,
-      language,
-      branding: { ...defaultEventBranding, layout: "landscape" },
-      onOpen: () => {
-        saves++;
-        return Promise.resolve(saved);
-      },
-    });
-    const gallery = findSetupElement(screen, (node) => node.type === Gallery);
-    assert.equal(gallery.props.workspace, seed);
-    assert.equal(gallery.props.contentLocale, "th");
-    const display = findSetupElement(gallery, (node) => node.type === Display);
-    assert.equal(display.props.branding.layout, "landscape");
-    assert.equal(display.props.contentLocale, "th");
-    const trigger = findSetupElement(screen, (node) =>
-      node.type === "button" && node.props["aria-haspopup"] === "dialog",
-    );
-    const opening = trigger.props.onClick();
-    assert.equal(saves, 1);
-    assert.equal(opens, 0);
-    await opening;
-    assert.equal(opens, saved ? 1 : 0);
-  }
-  isOpen = true;
-  for (const layout of ["portrait", "square", "landscape"]) {
-    const screen = Preview({
-      workspace: seed,
-      draft: seed,
-      language,
-      branding: { ...defaultEventBranding, layout },
-      onOpen: () => true,
-    });
-    const dialog = findSetupElement(screen, (node) => node.type === "dialog");
-    const gallery = findSetupElement(dialog, (node) => node.type === Gallery);
-    assert.equal(gallery.props.workspace, seed);
-    assert.equal(gallery.props.contentLocale, "th");
-    const display = findSetupElement(gallery, (node) => node.type === Display);
-    assert.equal(dialog.props["data-banner-layout"], layout);
-    assert.equal(display.props.branding.layout, layout);
-    assert.equal(display.props.contentLocale, "th");
+  const paths = [];
+  const sourceEntries = [];
+  const priorHistory = Object.getOwnPropertyDescriptor(globalThis, "history");
+  Object.defineProperty(globalThis, "history", {
+    configurable: true, value: { replaceState: (_data, _title, href) => sourceEntries.push(href) },
+  });
+  t.after(() => {
+    if (priorHistory) Object.defineProperty(globalThis, "history", priorHistory);
+    else delete globalThis.history;
+  });
+  const routeQuery = new URLSearchParams("lang=th&tab=form&form=survey");
+  const Source = compileSetupComponent(
+    "src/components/event/setup/branding/SetupPreviewGallery.tsx",
+    {
+      "./BrandingPreviewGallery": { default: Gallery },
+      "@/core/event/draft": load("src/core/event/draft.ts"),
+      "@/core/event/participant": load("src/core/event/participant.ts"),
+      "@/i18n/navigation": { useRouter: () => ({ push: (href) => paths.push(href) }) },
+      "next/navigation": { useSearchParams: () => routeQuery },
+      react: { useState: (initial) => [typeof initial === "function" ? initial() : initial, () => {}] },
+    },
+  );
+  for (const [origin, Component] of [["publish", Publish], ["branding", Branding]]) {
+    for (const saved of [false, true]) {
+      paths.length = 0;
+      sourceEntries.length = 0;
+      let finishSave;
+      const screen = Component({
+        workspace: seed, draft: seed, language,
+        branding: { ...defaultEventBranding, layout: "landscape" },
+        onOpen: () => new Promise((resolve) => { finishSave = resolve; }),
+      });
+      const entry = findSetupElement(screen, (node) => node.type === SourceGallery);
+      assert.equal(entry.props.origin, origin);
+      assert.equal(entry.props.contentLocale, "th");
+      const display = findSetupElement(entry, (node) => node.type === Display);
+      assert.equal(display.props.branding.layout, "landscape");
+      assert.equal(display.props.contentLocale, "th");
+      assert.equal(findSetupElement(screen, (node) => node.type === "dialog"), null);
+      const gallery = Source(entry.props).props;
+      assert.deepEqual(gallery.selectionState[0], { tab: "form", formKind: "survey" });
+      const opening = gallery.fullPreview.onOpen(gallery.selectionState[0]);
+      assert.deepEqual(paths, []);
+      assert.deepEqual(sourceEntries, []);
+      finishSave(saved);
+      await opening;
+      const expected = origin === "publish" ? "from=publish&" : "";
+      assert.deepEqual(paths, saved ? [`/preview/event?${expected}lang=th&tab=form&form=survey`] : []);
+      assert.deepEqual(sourceEntries, saved ? [`/event/${origin}?lang=th&tab=form&form=survey`] : []);
+      paths.length = 0;
+      const pending = Source({ ...entry.props, disabled: true }).props.fullPreview;
+      assert.equal(pending.disabled, true);
+      await pending.onOpen({ tab: "display", formKind: null });
+      assert.deepEqual(paths, []);
+    }
   }
 });
 
@@ -3598,7 +3625,7 @@ test("Legacy publication remains frozen and available to the shared setup across
 });
 
 test("Full Preview keeps valid content language and bounded origins", () => {
-  const { participantPreviewHref, participantPreviewReturnHref } = load(
+  const { participantPreviewHref, participantPreviewReturnHref, participantPreviewSelection } = load(
     "src/core/event/participant.ts",
   );
   assert.equal(
@@ -3622,4 +3649,10 @@ test("Full Preview keeps valid content language and bounded origins", () => {
     participantPreviewReturnHref("publish", "en-CA"),
     "/event/publish",
   );
+  const survey = participantPreviewSelection(["form"], ["survey"]);
+  assert.deepEqual(survey, { tab: "form", formKind: "survey" });
+  assert.equal(participantPreviewHref("publish", "th", survey), "/preview/event?from=publish&lang=th&tab=form&form=survey");
+  assert.equal(participantPreviewReturnHref("branding", "th", survey), "/event/branding?lang=th&tab=form&form=survey");
+  assert.deepEqual(participantPreviewSelection(["form", "display"], ["survey", "registration"]), { tab: "display", formKind: null });
+  assert.deepEqual(participantPreviewSelection("unknown", "/event/details"), { tab: "display", formKind: null });
 });

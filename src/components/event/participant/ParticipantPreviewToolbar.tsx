@@ -1,58 +1,62 @@
 "use client";
 
-import { participantPreviewReturnHref } from "@/core/event/participant";
 import { Link } from "@/i18n/navigation";
-import type { ParticipantPreviewOrigin } from "@/types/event/participant";
-import {
-  ChevronLeftIcon,
-  EyeIcon,
-} from "@heroicons/react/24/outline";
+import { ChevronLeftIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 
 interface ParticipantPreviewToolbarProps {
-  origin?: ParticipantPreviewOrigin;
-  contentLocale?: string | null;
+  returnHref: string;
+  languageControl?: ReactNode;
+  children?: ReactNode;
 }
+
 export default function ParticipantPreviewToolbar({
-  origin = "branding",
-  contentLocale,
+  returnHref,
+  languageControl,
+  children,
 }: ParticipantPreviewToolbarProps) {
   const t = useTranslations("eventPreview");
+
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-preview-border bg-preview-page px-3 py-1.5 @xl/preview:px-6 dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex min-w-0 shrink-0 items-center gap-2 text-participant-text dark:text-gray-100">
+    <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 border-b border-preview-border bg-preview-page px-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-x-4 lg:px-6 dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex min-h-14 min-w-0 items-center gap-2 text-participant-text lg:min-h-16 dark:text-gray-100">
         <EyeIcon
-          className="size-4.5 shrink-0 @xl/preview:size-5.5"
+          className="hidden size-5 shrink-0 xsm:block"
           aria-hidden="true"
         />
-        <div className="flex flex-col gap-0.75">
-          <p className="text-preview-control font-bold @xl/preview:hidden">
-            {t("titleCompact")}
-          </p>
-          <p className="hidden text-preview-title font-bold @xl/preview:block">
-            {t("title")}
-          </p>
-          <p className="hidden text-theme-xs leading-tight text-participant-muted @xl/preview:block dark:text-gray-400">
+        <div>
+          <h1 className="text-preview-control font-bold lg:text-preview-title">
+            <span className="lg:hidden">{t("titleCompact")}</span>
+            <span className="hidden lg:inline">{t("title")}</span>
+          </h1>
+          <p className="sr-only text-theme-xs leading-tight text-participant-muted lg:not-sr-only dark:text-gray-400">
             {t("description")}
           </p>
         </div>
       </div>
-      <nav
-        aria-label={t("titleCompact")}
-        className="flex shrink-0 items-center justify-end gap-2"
-      >
+      {children && (
+        <div className="col-span-2 row-start-2 pb-2 lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:pb-0">
+          {children}
+        </div>
+      )}
+      <div className="col-start-2 row-start-1 flex items-center justify-end gap-2 lg:col-start-3">
+        {languageControl && (
+          <div className="max-w-28 sm:max-w-48">{languageControl}</div>
+        )}
         <Link
-          href={participantPreviewReturnHref(origin, contentLocale)}
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-preview-control border border-preview-border bg-white px-2.25 text-preview-compact font-semibold text-participant-text @xl/preview:px-3.5 @xl/preview:text-preview-control dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          href={returnHref}
+          replace
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-preview-control border border-preview-border bg-white px-2.5 text-preview-control font-semibold text-participant-text sm:px-3.5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
         >
           <ChevronLeftIcon
             className="size-4.5 rtl:rotate-180"
             aria-hidden="true"
           />
-          <span className="@xl/preview:hidden">{t("backCompact")}</span>
-          <span className="hidden @xl/preview:inline">{t("back")}</span>
+          <span className="sm:hidden">{t("backCompact")}</span>
+          <span className="hidden sm:inline">{t("back")}</span>
         </Link>
-      </nav>
+      </div>
     </header>
   );
 }

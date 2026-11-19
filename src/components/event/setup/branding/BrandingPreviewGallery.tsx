@@ -7,22 +7,18 @@ import { selectSetupForms } from "@/core/event/form-summary";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import type {
   ParticipantEventData,
-  ParticipantFormKind,
+  ParticipantPreviewSelection,
 } from "@/types/event/participant";
 import type { EventWorkspace } from "@/types/event/workspace";
 import {
   ClipboardDocumentListIcon,
   ComputerDesktopIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
 
-type PreviewTab = "display" | "form";
-interface PreviewSelection {
-  tab: PreviewTab;
-  formKind: ParticipantFormKind | null;
-}
-export const initialPreviewSelection: PreviewSelection = {
+const initialPreviewSelection: ParticipantPreviewSelection = {
   tab: "display",
   formKind: null,
 };
@@ -38,7 +34,16 @@ interface Props extends ParticipantEventData {
   viewportClassName?: string;
   contentLocale?: string | null;
   formState?: ReturnType<typeof useEventFormSummaries>;
-  selectionState?: [PreviewSelection, (next: PreviewSelection) => void];
+  selectionState?: [
+    ParticipantPreviewSelection,
+    (next: ParticipantPreviewSelection) => void,
+  ];
+  fullPreview?: {
+    label: string;
+    disabled?: boolean;
+    onOpen: (selection: ParticipantPreviewSelection) => void;
+  };
+  pageHeader?: (tabs: ReactNode) => ReactNode;
 }
 
 export default function BrandingPreviewGallery({
@@ -48,6 +53,8 @@ export default function BrandingPreviewGallery({
   workspace,
   formState,
   selectionState,
+  fullPreview,
+  pageHeader,
   draft,
   branding,
   bannerUrl,
@@ -84,7 +91,7 @@ export default function BrandingPreviewGallery({
     ? forms.find((item) => item.type === kind && item.id === frozen?.id)
     : available[kind];
   function selectWithKeyboard(event: KeyboardEvent<HTMLButtonElement>) {
-    let next: PreviewTab;
+    let next: ParticipantPreviewSelection["tab"];
     switch (event.key) {
       case "ArrowLeft":
       case "ArrowRight":
@@ -106,32 +113,35 @@ export default function BrandingPreviewGallery({
       ?.focus({ preventScroll: true });
   }
 
-  const panelClass = `custom-scrollbar min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl ${viewportClassName}`;
+  const panelClass = `custom-scrollbar min-h-0 min-w-0 overflow-y-auto overscroll-contain ${pageHeader ? "flex-1" : "rounded-xl"} ${viewportClassName}`;
+  const tabList = (
+    <div
+      role="tablist"
+      aria-label={previewText("preview")}
+      className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-event-tile p-1 dark:bg-gray-800"
+    >
+      {tabs.map(({ id, label, Icon }) => (
+        <button
+          key={id}
+          id={`${galleryId}-tab-${id}`}
+          type="button"
+          role="tab"
+          aria-selected={tab === id}
+          aria-controls={`${galleryId}-panel-${id}`}
+          tabIndex={tab === id ? 0 : -1}
+          onClick={() => setSelection({ ...selection, tab: id })}
+          onKeyDown={selectWithKeyboard}
+          className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-700 hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-event-action aria-selected:bg-event-action aria-selected:text-white dark:text-gray-200 dark:hover:bg-gray-700 dark:aria-selected:bg-event-action dark:aria-selected:text-white"
+        >
+          <Icon aria-hidden="true" className="size-5 shrink-0" />
+          {visual(label)}
+        </button>
+      ))}
+    </div>
+  );
   return (
     <div className={`flex min-h-0 min-w-0 flex-col ${className}`}>
-      <div
-        role="tablist"
-        aria-label={previewText("preview")}
-        className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-event-tile p-1 dark:bg-gray-800"
-      >
-        {tabs.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            id={`${galleryId}-tab-${id}`}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            aria-controls={`${galleryId}-panel-${id}`}
-            tabIndex={tab === id ? 0 : -1}
-            onClick={() => setSelection({ ...selection, tab: id })}
-            onKeyDown={selectWithKeyboard}
-            className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-700 hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-event-action aria-selected:bg-event-action aria-selected:text-white dark:text-gray-200 dark:hover:bg-gray-700 dark:aria-selected:bg-event-action dark:aria-selected:text-white"
-          >
-            <Icon aria-hidden="true" className="size-5 shrink-0" />
-            {visual(label)}
-          </button>
-        ))}
-      </div>
+      {pageHeader ? pageHeader(tabList) : tabList}
       <div
         role="tabpanel"
         id={`${galleryId}-panel-display`}
@@ -151,10 +161,14 @@ export default function BrandingPreviewGallery({
         className={panelClass}
       >
         {tab === "form" && (
-          <div className="space-y-2 p-3">
+          <div
+            className={
+              pageHeader ? "flex min-h-full flex-col" : "space-y-2 p-3"
+            }
+          >
             {draft.hasRegistration && draft.hasSurvey && (
               <div
-                className="flex flex-wrap gap-1"
+                className={`flex flex-wrap gap-1 ${pageHeader ? "shrink-0 justify-center border-b border-preview-border bg-white p-2 dark:border-gray-700 dark:bg-gray-900" : ""}`}
                 role="group"
                 aria-label={visual("publicFormPreview")}
               >
@@ -166,7 +180,7 @@ export default function BrandingPreviewGallery({
                     onClick={() =>
                       setSelection({ ...selection, formKind: type })
                     }
-                    className="rounded-lg border border-event-border px-2 py-1 text-sm aria-pressed:bg-event-action aria-pressed:text-white dark:border-gray-600"
+                    className={`rounded-lg border border-event-border text-sm font-medium text-gray-700 focus-visible:outline-2 focus-visible:outline-event-action aria-pressed:bg-event-action aria-pressed:text-white dark:border-gray-600 dark:text-gray-200 dark:aria-pressed:text-white ${pageHeader ? "min-h-10 px-3" : "px-2 py-1"}`}
                   >
                     {participant(type)}
                   </button>
@@ -174,7 +188,10 @@ export default function BrandingPreviewGallery({
               </div>
             )}
             {error ? (
-              <div role="alert" className="flex items-center gap-3">
+              <div
+                role="alert"
+                className={`flex items-center gap-3 ${pageHeader ? "p-4" : ""}`}
+              >
                 {formsText("loadError")}
                 <Button size="sm" onClick={retry}>
                   {formsText("retry")}
@@ -186,6 +203,7 @@ export default function BrandingPreviewGallery({
               <PublicParticipantForm
                 key={form?.id ?? kind}
                 readOnly
+                fillViewport={Boolean(pageHeader)}
                 kind={kind}
                 result={
                   form ? { status: "open", form } : { status: "unavailable" }
@@ -198,6 +216,23 @@ export default function BrandingPreviewGallery({
           </div>
         )}
       </div>
+      {fullPreview && (
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-3 min-h-11 self-center"
+          startIcon={<EyeIcon className="size-4" aria-hidden="true" />}
+          disabled={fullPreview.disabled}
+          onClick={() =>
+            fullPreview.onOpen({
+              tab,
+              formKind: tab === "form" ? kind : formKind,
+            })
+          }
+        >
+          {fullPreview.label}
+        </Button>
+      )}
     </div>
   );
 }

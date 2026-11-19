@@ -20,6 +20,7 @@ const landscapeCanvas = { width: 1920, height: 1080 };
 interface ParticipantDisplayPreviewProps extends ParticipantEventData {
   contentLocale?: string | null;
   fitContent?: boolean;
+  fillViewport?: boolean;
 }
 
 function formatDate(value: string | null, formatter: Intl.DateTimeFormat) {
@@ -57,6 +58,7 @@ export default function ParticipantDisplayPreview({
   bannerUrl,
   contentLocale,
   fitContent = true,
+  fillViewport = false,
 }: ParticipantDisplayPreviewProps) {
   const locale = useLocale();
   const t = useTranslations("participantDisplay");
@@ -67,7 +69,11 @@ export default function ParticipantDisplayPreview({
   const size = layout === "landscape" ? landscapeCanvas : portraitCanvas;
   const frame = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
-  const [bounds, setBounds] = useState({ width: 0, height: 0 });
+  const [bounds, setBounds] = useState({
+    width: 0,
+    viewportHeight: 0,
+    contentHeight: 0,
+  });
 
   useLayoutEffect(() => {
     const viewport = frame.current;
@@ -75,11 +81,14 @@ export default function ParticipantDisplayPreview({
     if (!viewport || !canvas) return;
     const measure = () => {
       const width = viewport.clientWidth;
-      const height = canvas.offsetHeight;
+      const viewportHeight = fillViewport ? viewport.clientHeight : 0;
+      const contentHeight = canvas.offsetHeight;
       setBounds((current) =>
-        current.width === width && current.height === height
+        current.width === width &&
+        current.viewportHeight === viewportHeight &&
+        current.contentHeight === contentHeight
           ? current
-          : { width, height },
+          : { width, viewportHeight, contentHeight },
       );
     };
     measure();
@@ -87,10 +96,13 @@ export default function ParticipantDisplayPreview({
     observer.observe(viewport);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, []);
+  }, [fillViewport]);
 
-  const scale = Math.min(1, bounds.width / size.width);
-  const height = Math.max(size.height, fitContent ? bounds.height : 0);
+  const expandContent = fillViewport || fitContent;
+  const height = Math.max(size.height, expandContent ? bounds.contentHeight : 0);
+  const scale = fillViewport
+    ? Math.min(bounds.width / size.width, bounds.viewportHeight / height)
+    : Math.min(1, bounds.width / size.width);
   const translation = resolveEventTranslation(
     getEventContent(draft, locale),
     contentLocale,
@@ -143,16 +155,17 @@ export default function ParticipantDisplayPreview({
     socialHandle: "",
   };
 
-  return (
+  const screen = (
     <div
-      ref={frame}
+      ref={fillViewport ? undefined : frame}
       className="relative mx-auto w-full min-w-0 overflow-hidden after:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-solid after:border-event-banner/90 dark:after:border-brand-400"
       data-participant-display-preview
       data-layout={layout}
       role="region"
       aria-label={previewText("viewport")}
       style={{
-        maxWidth: size.width,
+        maxWidth: fillViewport ? undefined : size.width,
+        width: fillViewport ? size.width * scale : undefined,
         aspectRatio: size.width / size.height,
         height: scale ? height * scale : undefined,
       }}
@@ -162,9 +175,9 @@ export default function ParticipantDisplayPreview({
         className="absolute start-0 top-0 origin-top-left rtl:origin-top-right"
         style={{
           width: size.width,
-          height: fitContent ? undefined : size.height,
+          height: expandContent ? undefined : size.height,
           transform: `scale(${scale})`,
-          overflowY: fitContent ? undefined : "auto",
+          overflowY: expandContent ? undefined : "auto",
         }}
       >
         {scale > 0 && (
@@ -195,6 +208,16 @@ export default function ParticipantDisplayPreview({
           />
         )}
       </div>
+    </div>
+  );
+  if (!fillViewport) return screen;
+  return (
+    <div
+      ref={frame}
+      data-display-preview-stage
+      className="grid h-full min-h-0 w-full min-w-0 place-items-center overflow-hidden"
+    >
+      {screen}
     </div>
   );
 }
