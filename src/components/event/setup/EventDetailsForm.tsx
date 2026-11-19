@@ -93,6 +93,8 @@ function DetailsForm(props: EventSetupPageProps) {
         />
         <div className="event-details-sheet">
           <SetupMediaPanel
+            workspace={workspace}
+            draft={draft}
             branding={media.branding}
             bannerUrl={workspace.bannerUrl}
             readOnly={readOnly || pending}

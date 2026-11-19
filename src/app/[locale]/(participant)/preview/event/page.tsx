@@ -4,7 +4,6 @@ import { normalizeContentLocale } from "@/core/event/content";
 
 interface ParticipantPreviewPageProps {
   searchParams: Promise<{
-    device?: string | string[];
     from?: string | string[];
     lang?: string | string[];
   }>;
@@ -12,12 +11,11 @@ interface ParticipantPreviewPageProps {
 export default async function ParticipantPreviewPage({
   searchParams,
 }: ParticipantPreviewPageProps) {
-  const { device, from, lang } = await searchParams;
+  const { from, lang } = await searchParams;
   return (
     <AuthGuard area="event">
       <ParticipantEventPreviewPanel
         origin={from === "publish" ? "publish" : "branding"}
-        device={device === "mobile" ? "mobile" : "desktop"}
         requestedLocale={normalizeContentLocale(lang)}
       />
     </AuthGuard>

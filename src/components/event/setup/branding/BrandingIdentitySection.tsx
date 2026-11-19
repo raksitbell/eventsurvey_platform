@@ -8,7 +8,6 @@ interface Props {
   value: EventBranding;
   change: (changes: Partial<EventBranding>) => void;
   onUpload: () => void;
-  onPreview: () => void;
 }
 const platforms = [
   "Facebook",
@@ -26,7 +25,6 @@ export default function BrandingIdentitySection({
   value,
   change,
   onUpload,
-  onPreview,
 }: Props) {
   const t = useTranslations("eventSetup");
   const visual = useTranslations("eventBrandVisual");
@@ -46,33 +44,27 @@ export default function BrandingIdentitySection({
             type="button"
             className={styles.control}
             aria-pressed={choice === identity}
-            onClick={() => {
-              change({ identity: choice });
-              onPreview();
-            }}
+            onClick={() => change({ identity: choice })}
           >
             {t(choice)}
           </button>
         ))}
       </div>
-      <div className={styles.assetRow} data-wordmark={identity === "wordmark"}>
+      <div className={styles.assetRow}>
         <button type="button" className={styles.assetButton} onClick={onUpload}>
           <BrandingIcon name="choose-banner" size={18} />
           {visual("uploadIdentity", { name: t(identity) })}
         </button>
-        {(identity === "wordmark" || asset) && (
-          <figure className={styles.identityPreview}>
-            {asset && (
-              <Image
-                unoptimized
-                src={asset.url}
-                alt={asset.name}
-                width={227}
-                height={54}
-                className="size-full object-contain"
-              />
-            )}
-          </figure>
+        {asset && (
+          <div className={styles.identityPreview}>
+            <Image
+              unoptimized
+              src={asset.url}
+              alt={asset.name}
+              width={140}
+              height={40}
+            />
+          </div>
         )}
       </div>
       <label className={styles.field}>

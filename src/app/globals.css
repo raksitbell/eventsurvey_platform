@@ -1446,21 +1446,6 @@ pre[class*="language-"].line-numbers {
   }
 }
 
-/* Continuous HSV picker: horizontal saturation and vertical brightness. */
-.branding-color-plane::before,
-.branding-color-plane::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.branding-color-plane::before {
-  background: linear-gradient(90deg, var(--color-white), transparent);
-}
-.branding-color-plane::after {
-  background: linear-gradient(180deg, transparent, var(--color-picker-black));
-}
-
 /* Event lifecycle dialogs share useConfirm; existing dialogs retain their defaults. */
 .es-swal-event.swal2-popup {
   @apply max-w-full rounded-2xl! border border-preview-border p-8! text-start shadow-none! dark:border-gray-700 dark:bg-gray-900;
@@ -1485,17 +1470,6 @@ pre[class*="language-"].line-numbers {
 }
 .es-swal-event .es-swal-cancel {
   @apply w-1/3 border! border-preview-border! bg-white! text-participant-text! shadow-none! dark:border-gray-700! dark:bg-gray-900! dark:text-gray-200!;
-}
-
-/* Native range semantics with the Theme Customization hue spectrum. */
-.branding-hue {
-  background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
-}
-.branding-hue::-webkit-slider-thumb {
-  @apply h-5.5 w-2 cursor-grab appearance-none rounded-xs border border-picker-label bg-white dark:border-picker-label dark:bg-white;
-}
-.branding-hue::-moz-range-thumb {
-  @apply h-5.5 w-2 cursor-grab appearance-none rounded-xs border border-picker-label bg-white dark:border-picker-label dark:bg-white;
 }
 
 /* Event admin workspace, setup panels and fixed action row. */

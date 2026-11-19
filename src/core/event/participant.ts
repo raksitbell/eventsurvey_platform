@@ -1,26 +1,20 @@
 import { normalizeContentLocale } from "@/core/event/content";
 import type { EventDraft } from "@/types/event/setup";
 import type {
-  ParticipantDevice,
   ParticipantFormKind,
   ParticipantPreviewOrigin,
 } from "@/types/event/participant";
 
-export const PARTICIPANT_VIEWPORTS = {
-  desktop: { width: 1440, height: 900 },
-  mobile: { width: 390, height: 844 },
-} as const;
-
 export function participantPreviewHref(
-  device: ParticipantDevice,
   origin: ParticipantPreviewOrigin,
   locale?: string | null,
 ): string {
-  const search = new URLSearchParams({ device });
+  const search = new URLSearchParams();
   if (origin === "publish") search.set("from", origin);
   const contentLocale = normalizeContentLocale(locale);
   if (contentLocale) search.set("lang", contentLocale);
-  return `/preview/event?${search}`;
+  const query = search.toString();
+  return query ? `/preview/event?${query}` : "/preview/event";
 }
 
 export function participantPreviewReturnHref(

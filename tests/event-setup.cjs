@@ -1109,27 +1109,13 @@ test("full preview copy matches the Figma state in both locales", () => {
   assert.equal(th.eventPreview.back, "กลับไปหน้าตั้งค่า");
 });
 
-test("continuous color picker round-trips arbitrary colors and the complete HSV range", () => {
-  const { hexToHsv, hsvToHex } = load("src/core/event/branding-colors.ts");
-  for (const color of [
-    "#000000",
-    "#FFFFFF",
-    "#FF0000",
-    "#00FF00",
-    "#0000FF",
-    "#1279BD",
-    "#DB2777",
-    "#4D80E8",
-    "#ABCDEF",
-  ])
-    assert.equal(hsvToHex(hexToHsv(color)), color);
-  assert.equal(hsvToHex({ hue: 360, saturation: 1, brightness: 1 }), "#FF0000");
-  assert.equal(hsvToHex({ hue: 120, saturation: 1, brightness: 1 }), "#00FF00");
-  assert.equal(hsvToHex({ hue: 240, saturation: 1, brightness: 1 }), "#0000FF");
-  assert.equal(
-    hsvToHex({ hue: 47.3, saturation: 0, brightness: 0.5 }),
-    "#808080",
-  );
+test("banner palette ranks sampled colors and skips transparent pixels", () => {
+  const { bannerPalette } = load("src/core/event/branding-colors.ts");
+  const pixels = Uint8ClampedArray.from([
+    0, 0, 0, 0, 255, 255, 255, 255, 16, 32, 48, 255, 17, 33, 49, 255,
+  ]);
+  assert.deepEqual(bannerPalette(pixels), ["#102030", "#FFFFFF"]);
+  assert.deepEqual(bannerPalette(new Uint8ClampedArray(4)), []);
 });
 test("arbitrary picker colors persist immediately without altering other fields", (t) => {
   storage(t);
@@ -1221,9 +1207,7 @@ test("Color Picker translations have matching nested keys", () => {
     fs.readFileSync(path.join(root, "src/messages/en.json")),
   ).eventBranding.colorPicker;
   assert.deepEqual(Object.keys(th).sort(), Object.keys(en).sort());
-  assert.deepEqual(Object.keys(th.hues).sort(), Object.keys(en.hues).sort());
-  assert.equal(th.hint, "ลากเลือกสี ปรับ Hue หรือกรอก HEX");
-  assert.equal(th.done, "เสร็จสิ้น");
+  for (const label of [th.title, en.title]) assert.match(label, /\{name\}/);
 });
 
 const {
@@ -1881,6 +1865,50 @@ function findSetupElement(node, predicate) {
   }
   return null;
 }
+test("Branding previews use the platform workspace card and the selected read-only participant form", () => {
+  const WorkspaceCard = () => null;
+  const PublicForm = () => null;
+  const forms = ["registration", "survey"].map((type) => ({ id: type, type }));
+  let selected = null;
+  const Preview = compileSetupComponent(
+    "src/components/event/setup/branding/BrandingInterfacePreviews.tsx",
+    {
+      "@/components/event/workspace/EventWorkspaceCard": { default: WorkspaceCard },
+      "@/components/event/participant/forms/PublicParticipantForm": { default: PublicForm },
+      "@/components/ui/button/Button": { default: setupButton },
+      "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
+      "@/hooks/useEventFormSummaries": {
+        default: (id, enabled) => {
+          assert.equal(id, seed.eventId);
+          return { forms: enabled ? forms : [] };
+        },
+      },
+      "next-intl": { useTranslations: () => (key) => key },
+      react: { useState: () => [selected, (value) => { selected = value; }] },
+    },
+  );
+  const props = {
+    workspace: { ...seed, canAccessForms: true },
+    draft: seed,
+    branding: { ...defaultEventBranding, primary: "#123456" },
+    bannerUrl: null,
+  };
+  const rendered = Preview(props);
+  const card = findSetupElement(rendered, (node) => node.type === WorkspaceCard);
+  assert.equal(card.props.workspace.eventId, seed.eventId);
+  assert.equal(card.props.branding, undefined);
+  findSetupElement(rendered, (node) => node.type === "button" && node.props.children === "survey").props.onClick();
+
+  const getPublicForm = (tree) => findSetupElement(tree, (node) => node.type === PublicForm).props;
+  const survey = getPublicForm(Preview(props));
+  assert.equal(survey.readOnly, true);
+  assert.equal(survey.branding, props.branding);
+  assert.deepEqual(survey.result, { status: "open", form: forms[1] });
+
+  const disabled = Preview({ ...props, draft: { ...seed, hasSurvey: false, hasRegistration: false } });
+  assert.deepEqual(getPublicForm(disabled).result, { status: "unavailable" });
+});
+
 function setupActionButtons(form) {
   const element = findSetupElement(form, (node) => node.type === setupActions);
   const footer = setupActions(element.props);
@@ -2350,58 +2378,72 @@ test("Publish does not create a receipt or report success after cancellation, st
   assert.equal(loadPublication(key), null);
 });
 
-test("Publish Full Preview link only navigates after its API save succeeds", async () => {
-  const navigation = [];
-  const Viewport = () => null;
+test("Publish preview opens the dialog only after saving succeeds", async () => {
+  let opens = 0;
+  let isOpen = false;
+  const Display = () => null;
   const content = getEventContent(seed, "th");
   const Preview = compileSetupComponent(
     "src/components/event/setup/publish/PublishParticipantPreview.tsx",
     {
-      "@/components/event/participant/ParticipantPreviewViewport": {
-        default: Viewport,
+      "@/components/event/participant/ParticipantDisplayPreview": {
+        default: Display,
       },
       "@/components/event/participant/ParticipantPreviewLanguage": { default: () => null },
       "@/core/event/draft": load("src/core/event/draft.ts"),
-      "@/core/event/participant": load("src/core/event/participant.ts"),
+      "@/hooks/useModal": {
+        useModal: () => ({ isOpen, openModal: () => opens++ }),
+      },
       "@/hooks/useParticipantPreviewLanguage": {
         default: () => ({
           content, translation: content.translations[0], contentLocale: "th",
           selectLanguage() {},
         }),
       },
-      "@/i18n/navigation": { Link: () => null, useRouter: () => ({ push: (url) => navigation.push(url) }) },
+      "@heroicons/react/24/outline": { EyeIcon: () => null, XMarkIcon: () => null },
       "next-intl": { useTranslations: () => (key) => key },
-      react: { useState: (initial) => [initial, () => {}] },
+      react: {
+        useState: (initial) => [initial, () => {}],
+        useEffect() {},
+        useId: () => "preview",
+        useRef: () => ({ current: null }),
+      },
     },
   );
   for (const saved of [false, true]) {
     let saves = 0;
-    let prevented = false;
     const screen = Preview({
       draft: seed,
-      branding: defaultEventBranding,
+      branding: { ...defaultEventBranding, layout: "landscape" },
       onOpen: () => {
         saves++;
         return Promise.resolve(saved);
       },
     });
-    const viewport = findSetupElement(screen, (node) => node.type === Viewport);
-    assert.equal(viewport.props.device, "desktop");
-    assert.equal(viewport.props.readOnly, true);
-    assert.equal(viewport.props.contentLocale, "th");
-    const link = findSetupElement(screen, (node) =>
-      node.props?.href?.startsWith("/preview/event"),
+    const display = findSetupElement(screen, (node) => node.type === Display);
+    assert.equal(display.props.branding.layout, "landscape");
+    assert.equal(display.props.contentLocale, "th");
+    const trigger = findSetupElement(screen, (node) =>
+      node.type === "button" && node.props["aria-haspopup"] === "dialog",
     );
-    assert.equal(link.props.href, "/preview/event?device=desktop&from=publish&lang=th");
-    link.props.onClick({
-      preventDefault() {
-        prevented = true;
-      },
-    });
+    const opening = trigger.props.onClick();
     assert.equal(saves, 1);
-    assert.equal(prevented, true);
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(navigation.length, saved ? 1 : 0);
+    assert.equal(opens, 0);
+    await opening;
+    assert.equal(opens, saved ? 1 : 0);
+  }
+  isOpen = true;
+  for (const layout of ["portrait", "square", "landscape"]) {
+    const screen = Preview({
+      draft: seed,
+      branding: { ...defaultEventBranding, layout },
+      onOpen: () => true,
+    });
+    const dialog = findSetupElement(screen, (node) => node.type === "dialog");
+    const display = findSetupElement(dialog, (node) => node.type === Display);
+    assert.equal(dialog.props["data-banner-layout"], layout);
+    assert.equal(display.props.branding.layout, layout);
+    assert.equal(display.props.contentLocale, "th");
   }
 });
 
@@ -3163,22 +3205,23 @@ test("Legacy publication remains frozen and available to the shared setup across
   assert.equal(values.get(key), raw);
 });
 
-test("Full Preview keeps valid content language through both devices and bounded origins", () => {
+test("Full Preview keeps valid content language and bounded origins", () => {
   const { participantPreviewHref, participantPreviewReturnHref } = load(
     "src/core/event/participant.ts",
   );
   assert.equal(
-    participantPreviewHref("mobile", "publish", " DE "),
-    "/preview/event?device=mobile&from=publish&lang=de",
+    participantPreviewHref("publish", " DE "),
+    "/preview/event?from=publish&lang=de",
   );
   assert.equal(
-    participantPreviewHref("desktop", "branding", "ko"),
-    "/preview/event?device=desktop&lang=ko",
+    participantPreviewHref("branding", "ko"),
+    "/preview/event?lang=ko",
   );
   assert.equal(
-    participantPreviewHref("desktop", "publish", "zz"),
-    "/preview/event?device=desktop&from=publish",
+    participantPreviewHref("publish", "zz"),
+    "/preview/event?from=publish",
   );
+  assert.equal(participantPreviewHref("branding"), "/preview/event");
   assert.equal(
     participantPreviewReturnHref("branding", "fr"),
     "/event/branding?lang=fr",

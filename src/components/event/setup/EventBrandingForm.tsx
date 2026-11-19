@@ -69,12 +69,14 @@ function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
       <EventSetupSteps current={2} onNavigate={() => !pending && saveAll()} />
       <div className="grid rounded-2xl bg-white lg:grid-cols-3 dark:bg-gray-900">
         <BrandingAppearance
+          bannerUrl={workspace.bannerUrl}
           branding={branding}
           readOnly={readOnly || pending}
           onChange={change}
         />
         <div className="min-w-0 lg:col-span-2">
           <BrandingPreview
+            workspace={workspace}
             branding={branding}
             draft={draft}
             bannerUrl={workspace.bannerUrl}

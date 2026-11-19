@@ -1,8 +1,8 @@
 "use client";
 
+import ParticipantDisplayPreview from "@/components/event/participant/ParticipantDisplayPreview";
 import ParticipantPreviewLanguage from "@/components/event/participant/ParticipantPreviewLanguage";
 import ParticipantPreviewState from "@/components/event/participant/ParticipantPreviewState";
-import ParticipantPreviewViewport from "@/components/event/participant/ParticipantPreviewViewport";
 import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { getEventContent, resolveEventTranslation } from "@/core/event/content";
@@ -13,21 +13,16 @@ import {
 import useEventBranding from "@/hooks/useEventBranding";
 import useEventWorkspace from "@/hooks/useEventWorkspace";
 import { Link, useRouter } from "@/i18n/navigation";
-import type {
-  ParticipantDevice,
-  ParticipantPreviewOrigin,
-} from "@/types/event/participant";
+import type { ParticipantPreviewOrigin } from "@/types/event/participant";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 interface ParticipantEventPreviewPanelProps {
-  device: ParticipantDevice;
   origin?: ParticipantPreviewOrigin;
   requestedLocale?: string | null;
 }
 interface LoadedParticipantPreviewProps {
-  device: ParticipantDevice;
   workspace: EventWorkspace;
   userId: string;
   locale: string;
@@ -37,24 +32,21 @@ function LoadedParticipantPreview({
   workspace,
   userId,
   locale,
-  device,
   contentLocale,
 }: LoadedParticipantPreviewProps) {
   const { branding } = useEventBranding(workspace, userId, locale);
   return (
-    <ParticipantPreviewViewport
-      draft={workspace}
-      branding={branding}
-      bannerUrl={workspace.bannerUrl}
-      device={device}
-      contentLocale={contentLocale}
-      fitContent
-      readOnly
-    />
+    <div className={`mx-auto w-full p-3 sm:p-6 ${branding.layout === "landscape" ? "max-w-5xl" : "max-w-lg"}`}>
+      <ParticipantDisplayPreview
+        draft={workspace}
+        branding={branding}
+        bannerUrl={workspace.bannerUrl}
+        contentLocale={contentLocale}
+      />
+    </div>
   );
 }
 export default function ParticipantEventPreviewPanel({
-  device,
   origin = "branding",
   requestedLocale = null,
 }: ParticipantEventPreviewPanelProps) {
@@ -77,7 +69,7 @@ export default function ParticipantEventPreviewPanel({
     workspace?.content || selectedLocale ? translation?.localeCode : null;
   const changeLanguage = (value: string) => {
     setSelection({ prior: requestedLocale, value });
-    router.replace(participantPreviewHref(device, origin, value), {
+    router.replace(participantPreviewHref(origin, value), {
       scroll: false,
     });
   };
@@ -116,13 +108,11 @@ export default function ParticipantEventPreviewPanel({
         workspace={workspace}
         userId={userId}
         locale={locale}
-        device={device}
         contentLocale={contentLocale}
       />
     );
   return (
     <ParticipantPreviewState
-      device={device}
       origin={origin}
       contentLocale={contentLocale ?? requestedLocale}
       languageControl={
