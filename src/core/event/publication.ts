@@ -5,6 +5,7 @@ import {
   legacyEventSetupLocales,
 } from "@/core/event/draft";
 import { eventBrandingSchema } from "@/core/event/branding";
+import { uniqueFieldIssue } from "@/core/forms/unique-field";
 import type { EventDraft } from "@/types/event/setup";
 import type { FormType } from "@/types/event/form";
 
@@ -244,7 +245,7 @@ export function reviewPublication(
       const matches = formList.filter((item) => item.type === type);
       if (
         matches.length !== 1 ||
-        !["scheduled", "open", "published"].includes(matches[0].status)
+        !["draft", "scheduled", "open", "published"].includes(matches[0].status)
       ) {
         formProblems[type].push("formStatus");
         issues.add("formStatus");
@@ -308,10 +309,12 @@ export function publicationIssues(
 }
 
 function hasCompleteContent(type: FormType, definition: MinimalForm): boolean {
+  const parsed = form.safeParse(definition);
   if (
     definition.type !== type ||
-    !form.safeParse(definition).success ||
-    !definition.questions.length
+    !parsed.success ||
+    !parsed.data.questions.length ||
+    uniqueFieldIssue(parsed.data.questions)
   ) {
     return false;
   }

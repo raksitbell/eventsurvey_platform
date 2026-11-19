@@ -876,7 +876,7 @@
     },
     "builder": {
       "formTitlePlaceholder": "ชื่อแบบฟอร์ม",
-      "workspaceDescription": "แก้ไขคำถามและกำหนดเวลาเปิด–ปิดรับคำตอบ",
+      "workspaceDescription": "แก้ไขชื่อ คำอธิบาย และคำถามในฟอร์ม",
       "description": "คำอธิบาย",
       "save": "บันทึกแบบร่าง",
       "saving": "กำลังบันทึก...",
@@ -887,7 +887,7 @@
       "scheduleSuccess": "เปลี่ยนสถานะเป็นกำหนดเวลาสำเร็จ",
       "revertSuccess": "เปลี่ยนสถานะกลับเป็นแบบร่างสำเร็จ",
       "scheduleRequiredError": "กรุณากำหนดเวลาเปิดหรือเวลาปิดรับคำตอบก่อนตั้งเวลาเปิดฟอร์ม",
-      "lockedNotice": "ฟอร์มนี้ไม่ได้อยู่ในสถานะแบบร่าง จึงไม่สามารถแก้ไขเนื้อหาได้ (กดเปลี่ยนกลับเป็นแบบร่างหากต้องการแก้ไข)",
+      "lockedNotice": "สถานะปัจจุบันของฟอร์มเปิดให้อ่านได้อย่างเดียว",
       "choice": {
         "short_text": "คำตอบสั้นๆ",
         "long_text": "คำตอบยาว",
@@ -1410,7 +1410,7 @@
     "confirmTitle": "ยืนยันการเผยแพร่อีเวนต์",
     "confirmSubtitle": "Event Admin · Draft → Published",
     "confirmBody": "ตรวจข้อมูล Event, Form, Unique Field, Whitelist และช่วงเวลาให้ครบถ้วน หลัง Publish ไม่สามารถแก้การตั้งค่า Event/Form หรือ Capacity ได้ (ยกเว้น Dashboard)",
-    "confirmNote": "เมื่อพร้อม ระบบจะใช้ Schedule ของแต่ละ Form เปิด–ปิดรับอัตโนมัติ",
+    "confirmNote": "ฟอร์มจะเปิดและปิดรับคำตอบอัตโนมัติตามเวลาที่กำหนดใน Event Setup",
     "confirm": "ยืนยัน Publish",
     "cancel": "ยกเลิก",
     "errorTitle": "ยังเผยแพร่อีเวนต์ไม่ได้",
@@ -1424,7 +1424,7 @@
     "successNote": "แชร์อีเวนต์ที่เผยแพร่ได้จากหน้า QR",
     "close": "ปิดหน้าต่าง",
     "issues": {
-      "formStatus": "กำหนดเวลาเปิดรับฟอร์มนี้ก่อนเผยแพร่",
+      "formStatus": "ตรวจสอบว่ามีฟอร์มประเภทนี้ที่ใช้เผยแพร่ได้หนึ่งฟอร์ม",
       "eventName": "กรุณาระบุชื่ออีเวนต์",
       "contentTitle": "กรุณาระบุชื่ออีเวนต์ · {language}",
       "contentVenue": "กรุณาระบุสถานที่จัดงาน · {language}",

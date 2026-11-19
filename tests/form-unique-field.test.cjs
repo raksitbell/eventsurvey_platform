@@ -64,6 +64,7 @@ test("draft creation, editing, and scheduling reject invalid Unique Fields befor
           if (resource.includes("?")) return [];
           throw new Error(`Unexpected read ${resource}`);
         },
+        getFresh(resource) { return this.get(resource); },
       },
     },
   })("src/services/event/forms.ts");
@@ -84,7 +85,7 @@ test("two concurrent saves with different new Unique Fields leave one active sel
   const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "form-unique-fields-"));
   t.after(() => fs.rmSync(cacheDir, { recursive: true, force: true }));
   const form = { id: "concurrent-form", event_id: "concurrent-event", type: "registration", status: "draft" };
-  const rows = { forms: [form], form_fields: [], field_translations: [], form_translations: [], field_options: [] };
+  const rows = { events: [{ id: form.event_id }], forms: [form], form_fields: [], field_translations: [], form_translations: [], field_options: [] };
   function matching(resource) {
     const url = new URL(resource, "https://fixture.example.test");
     const [, name, id] = url.pathname.split("/");
@@ -99,6 +100,7 @@ test("two concurrent saves with different new Unique Fields leave one active sel
     "@/core/api/mock-client": {
       mockApi: {
         async get(resource) { return structuredClone(matching(resource)); },
+        getFresh(resource) { return this.get(resource); },
         async post(resource, data) { rows[resource.slice(1)].push(data); return data; },
         async put(resource, data) { return Object.assign(matching(resource), data); },
         async patch(resource, data) { return Object.assign(matching(resource), data); },

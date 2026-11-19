@@ -12,7 +12,12 @@ import {
   nextCronFormStatus,
   resolveEffectiveFormStatus,
 } from "@/core/forms/lifecycle";
-import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
+import {
+  getPublishedForm,
+  matchPublishedForm,
+  publishedFormDefinition,
+  withPublishedFormSchedule,
+} from "@/core/forms/published-schedule";
 import { uniqueFieldIssue } from "@/core/forms/unique-field";
 import { validatePublishReady } from "@/core/validation/forms";
 import type {
@@ -300,20 +305,45 @@ async function getLiveForm(id: string): Promise<MockForm> {
   return form;
 }
 
-async function loadEvent(eventId: string): Promise<MockEvent> {
+async function loadEvent(eventId: string, { fresh = false } = {}): Promise<MockEvent> {
   let event: MockEvent;
   try {
-    event = await mockApi.get<MockEvent>(`/events/${eventId}`);
+    const resource = `/events/${eventId}`;
+    event = fresh
+      ? await mockApi.getFresh<MockEvent>(resource)
+      : await mockApi.get<MockEvent>(resource);
   } catch (error) {
     if (error instanceof MockApiError && error.status === 404) {
       throw new ServiceError("EVENT_NOT_FOUND", 404);
     }
     throw error;
   }
-  if (!event || event.deleted_at) {
+  if (!event || event.id !== eventId || event.deleted_at) {
     throw new ServiceError("EVENT_NOT_FOUND", 404);
   }
   return event;
+}
+
+async function writeFormSerially<T>(
+  id: string,
+  operation: (form: MockForm, event: MockEvent) => Promise<T>,
+) {
+  const { event_id: eventId } = await getLiveForm(id);
+  return writeSerially(eventId, async () => {
+    const form = await getLiveForm(id);
+    const event = await loadEvent(form.event_id, { fresh: true });
+    return operation(form, event);
+  });
+}
+
+function assertUnpublishedForm(
+  form: MockForm,
+  event: MockEvent,
+  code: "FORM_NOT_EDITABLE" | "FORM_NOT_DELETABLE" | "FORM_STATUS_LOCKED",
+) {
+  if (getPublishedForm(event, form.type)?.id === form.id) {
+    throw new ServiceError(code, 409, "Published event forms are read-only");
+  }
 }
 
 function assertCanEdit(status: FormStatus): void {
@@ -668,10 +698,19 @@ function mergeWithCachedRecord(
 
 async function toFormRecord(
   form: MockForm,
-  event?: MockEvent,
+  loadedEvent?: MockEvent,
 ): Promise<FormRecord> {
-  if (!event) {
-    await loadEvent(form.event_id);
+  const event = loadedEvent ?? (await loadEvent(form.event_id));
+  const published = getPublishedForm(event, form.type);
+  const lifecycle = matchPublishedForm(form, published);
+  if (published && lifecycle) {
+    const { head, questions } = publishedFormDefinition(published);
+    return {
+      ...buildAuthoritativeFormRecord(lifecycle, head, questions),
+      canEdit: false,
+      canDelete: false,
+      canChangeStatus: false,
+    };
   }
   const cached = getCachedFormRecord(form.id, form.event_id, form.type);
   const translationRows = await loadFormTranslations(form.id);
@@ -1378,6 +1417,7 @@ export async function listForms(
 
   for (const cached of getCachedFormsForEvent(eventId, allowed)) {
     if (!seenIds.has(cached.id) && !seenTypes.has(cached.type)) {
+      if (getPublishedForm(event, cached.type)) continue;
       items.push(cached);
       seenIds.add(cached.id);
       seenTypes.add(cached.type);
@@ -1444,7 +1484,10 @@ export async function createForm(
 }
 
 async function createOrUpdateDraft(input: FormCreateBody, userId: string): Promise<FormRecord> {
-  const event = await loadEvent(input.eventId);
+  const event = await loadEvent(input.eventId, { fresh: true });
+  if (getPublishedForm(event, input.type)) {
+    throw new ServiceError("FORM_TYPE_EXISTS", 409, `A published ${input.type} form already exists for this event`);
+  }
   const existingConflict = await findExistingLiveType(input.eventId, input.type);
   if (existingConflict) {
     if (resolveEffectiveFormStatus(existingConflict) === "draft") {
@@ -1528,9 +1571,11 @@ export async function updateForm(
   input: Form,
   userId: string,
 ): Promise<FormRecord> {
-  const form = await getLiveForm(id);
-  assertValidUniqueField(input.questions);
-  return writeSerially(form.event_id, async () => updateDraft(await getLiveForm(id), input, userId));
+  return writeFormSerially(id, (form, event) => {
+    assertUnpublishedForm(form, event, "FORM_NOT_EDITABLE");
+    assertValidUniqueField(input.questions);
+    return updateDraft(form, input, userId);
+  });
 }
 
 async function updateDraft(form: MockForm, input: Form, userId: string): Promise<FormRecord> {
@@ -1606,8 +1651,19 @@ export async function updateFormStatus(
   patch: FormStatusPatchInput,
   userId: string,
 ): Promise<FormRecord> {
-  const form = await getLiveForm(id);
-  const event = await loadEvent(form.event_id);
+  return writeFormSerially(id, (form, event) =>
+    changeFormStatus(form, event, patch, userId),
+  );
+}
+
+async function changeFormStatus(
+  form: MockForm,
+  event: MockEvent,
+  patch: FormStatusPatchInput,
+  userId: string,
+): Promise<FormRecord> {
+  assertUnpublishedForm(form, event, "FORM_STATUS_LOCKED");
+  const { id } = form;
   const current = resolveEffectiveFormStatus(form);
   assertCanChangeStatus(current);
   const stamp = nowIso();
@@ -1724,7 +1780,14 @@ export async function runFormsCron(
 }
 
 export async function deleteForm(id: string, userId: string): Promise<void> {
-  const form = await getLiveForm(id);
+  return writeFormSerially(id, (form, event) => {
+    assertUnpublishedForm(form, event, "FORM_NOT_DELETABLE");
+    return removeDraft(form, userId);
+  });
+}
+
+async function removeDraft(form: MockForm, userId: string): Promise<void> {
+  const { id } = form;
   const effective = resolveEffectiveFormStatus(form);
   assertCanDelete(effective);
 

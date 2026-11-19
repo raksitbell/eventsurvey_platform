@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import {
-  ArrowPathIcon,
   CheckCircleIcon,
   EyeIcon,
   LockClosedIcon,
@@ -185,7 +184,6 @@ export default function FormBuilder({
   const [canEdit, setCanEdit] = useState<boolean>(true);
   /** Permission matrix is view_only — stay in FormPreview; never reopen editor. */
   const [previewOnly, setPreviewOnly] = useState<boolean>(false);
-  const [canChangeStatus, setCanChangeStatus] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
@@ -344,7 +342,6 @@ export default function FormBuilder({
       setFormId(record.id);
       setFormStatus(record.status);
       setCanEdit(record.canEdit);
-      setCanChangeStatus(record.canChangeStatus);
       if (!preserveHasEnglish) {
         setHasEnglish(detectedEnglishDiff);
       }
@@ -455,7 +452,10 @@ export default function FormBuilder({
     return () => window.removeEventListener("resize", updatePosition);
   }, [activeSectionId, form.questions, hasEnglish, mobileTab]);
 
-  const buildPayloadForApi = (currentForm: Form, isUpdate: boolean): Form => {
+  const buildPayloadForApi = (
+    currentForm: Form,
+    isUpdate: boolean,
+  ): Omit<Form, "opens_at" | "closes_at"> => {
     const fallbackTitle =
       type === "registration" ? t("registration") : t("survey");
     const thTitle = currentForm.head.th.title.trim() || fallbackTitle;
@@ -561,14 +561,12 @@ export default function FormBuilder({
         en: { title: enTitle, description: enDesc },
         th: { title: thTitle, description: thDesc },
       },
-      opens_at: currentForm.opens_at ?? null,
-      closes_at: currentForm.closes_at ?? null,
       questions: mappedQuestions,
     };
   };
 
-  const handleSave = async (silent = false): Promise<FormRecord | null> => {
-    if (!eventId) return null;
+  const handleSave = async () => {
+    if (!eventId) return;
     setIsSaving(true);
 
     try {
@@ -601,70 +599,13 @@ export default function FormBuilder({
               title: resolveErrorMessage(putErr, tbuilder("saveError")),
               variant: "error",
             });
-            return null;
+            return;
           }
         }
       }
 
       applyServerRecord(saved, true);
-      if (!silent) {
-        showToast({ title: tbuilder("saveSuccess"), variant: "success" });
-      }
-      return saved;
-    } catch (err) {
-      showToast({
-        title: resolveErrorMessage(err, tbuilder("saveError")),
-        variant: "error",
-      });
-      return null;
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleToggleSchedule = async () => {
-    if (
-      formStatus === "draft" &&
-      !form.opens_at?.trim() &&
-      !form.closes_at?.trim()
-    ) {
-      showToast({
-        title: tbuilder("scheduleRequiredError"),
-        variant: "warning",
-      });
-      setActiveSectionId("header");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      let targetId = formId;
-      if (formStatus === "draft") {
-        // Save latest draft edits before transitioning to scheduled
-        const saved = await handleSave(true);
-        if (!saved) return;
-        targetId = saved.id;
-      }
-      if (!targetId) return;
-
-      const nextStatus = formStatus === "draft" ? "scheduled" : "draft";
-      const updated = await api.patch<FormRecord>(
-        `/event/forms/${targetId}/status`,
-        {
-          status: nextStatus,
-          opensAt: form.opens_at ?? null,
-          closesAt: form.closes_at ?? null,
-        },
-      );
-
-      applyServerRecord(updated, true);
-      showToast({
-        title:
-          nextStatus === "scheduled"
-            ? tbuilder("scheduleSuccess")
-            : tbuilder("revertSuccess"),
-        variant: "success",
-      });
+      showToast({ title: tbuilder("saveSuccess"), variant: "success" });
     } catch (err) {
       showToast({
         title: resolveErrorMessage(err, tbuilder("saveError")),
@@ -1416,22 +1357,6 @@ export default function FormBuilder({
     }));
   };
 
-  const setOpensAt = (opensAt: string | null) => {
-    if (!canEdit) return;
-    setForm((prev) => ({
-      ...prev,
-      opens_at: opensAt,
-    }));
-  };
-
-  const setClosesAt = (closesAt: string | null) => {
-    if (!canEdit) return;
-    setForm((prev) => ({
-      ...prev,
-      closes_at: closesAt,
-    }));
-  };
-
   const setQuestionLabel = (
     id: string,
     locale: FormLocale,
@@ -1550,22 +1475,6 @@ export default function FormBuilder({
             >
               <CheckCircleIcon className="h-4 w-4" />
               <span>{isSaving ? tbuilder("saving") : tbuilder("save")}</span>
-            </button>
-          )}
-
-          {canChangeStatus && (formId || canEdit) && (
-            <button
-              type="button"
-              disabled={isSaving || isLoading || !eventId}
-              onClick={() => void handleToggleSchedule()}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <ArrowPathIcon className="h-4 w-4" />
-              <span>
-                {formStatus === "draft"
-                  ? tbuilder("schedule")
-                  : tbuilder("revertToDraft")}
-              </span>
             </button>
           )}
 
@@ -1713,15 +1622,10 @@ export default function FormBuilder({
                   showLocaleBadge
                   title={form.head[loc].title}
                   description={form.head[loc].description}
-                  opensAt={form.opens_at ?? null}
-                  closesAt={form.closes_at ?? null}
-                  readOnly={!canEdit}
                   isActive={activeSectionId === "header"}
                   onSelect={() => setActiveSectionId("header")}
                   onChangeTitle={(val) => setTitle(loc, val)}
                   onChangeDescription={(val) => setDescription(loc, val)}
-                  onChangeOpensAt={setOpensAt}
-                  onChangeClosesAt={setClosesAt}
                 />
               </div>
             ))}
@@ -1914,7 +1818,6 @@ function FormBuilderSkeleton({
         <div className="flex flex-wrap items-center gap-2 md:me-16">
           <Skeleton className="h-9 w-28 rounded-lg" />
           <Skeleton className="h-9 w-24 rounded-lg" />
-          <Skeleton className="h-9 w-24 rounded-lg" />
           <Skeleton className="h-9 w-20 rounded-lg" />
         </div>
       </div>
@@ -1927,16 +1830,6 @@ function FormBuilderSkeleton({
             <Skeleton className="mb-3 h-6 w-24 rounded-full" />
             <Skeleton className="h-8 w-64 max-w-full" />
             <Skeleton className="mt-3 h-5 w-96 max-w-full" />
-            <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 sm:gap-4 dark:border-gray-800">
-              <div className="space-y-1.5">
-                <Skeleton className="h-3.5 w-24" />
-                <Skeleton className="h-10 w-full rounded-lg" />
-              </div>
-              <div className="space-y-1.5">
-                <Skeleton className="h-3.5 w-24" />
-                <Skeleton className="h-10 w-full rounded-lg" />
-              </div>
-            </div>
           </div>
 
           {/* Question Cards Skeleton */}

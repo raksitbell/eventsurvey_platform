@@ -876,7 +876,7 @@
     },
     "builder": {
       "formTitlePlaceholder": "Form title",
-      "workspaceDescription": "Edit questions and set when the form accepts responses.",
+      "workspaceDescription": "Edit the form title, description, and questions.",
       "description": "description",
       "save": "Save draft",
       "saving": "Saving...",
@@ -887,7 +887,7 @@
       "scheduleSuccess": "Form scheduled successfully",
       "revertSuccess": "Reverted to draft",
       "scheduleRequiredError": "Please set Opens at or Closes at before scheduling the form",
-      "lockedNotice": "This form is locked because it is not in draft status. Revert to draft first to edit.",
+      "lockedNotice": "This form is read-only in its current status.",
       "choice": {
         "short_text": "Short Text",
         "long_text": "Long Text",
@@ -1410,7 +1410,7 @@
     "confirmTitle": "Confirm event publication",
     "confirmSubtitle": "Event Admin · Draft → Published",
     "confirmBody": "Review Event, Form, Unique Field, Whitelist and schedules. After Publish, Event/Form settings and Capacity cannot be edited (except Dashboard).",
-    "confirmNote": "Each Form opens and closes automatically according to its Schedule.",
+    "confirmNote": "Forms open and close automatically according to the schedule in Event Setup.",
     "confirm": "Confirm Publish",
     "cancel": "Cancel",
     "errorTitle": "Event cannot be published yet",
@@ -1424,7 +1424,7 @@
     "successNote": "Share the published event from its QR page.",
     "close": "Close",
     "issues": {
-      "formStatus": "Set the form schedule before publishing.",
+      "formStatus": "Choose one eligible form of this type before publishing.",
       "eventName": "Enter an event name.",
       "contentTitle": "Enter the event name in {language}.",
       "contentVenue": "Enter the event location in {language}.",

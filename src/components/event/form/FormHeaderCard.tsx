@@ -1,10 +1,6 @@
 "use client";
 
-import { useId } from "react";
 import { useTranslations } from "next-intl";
-import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
-import DateTimePicker from "@/components/form/DateTimePicker";
-import { shiftBangkokMinute } from "@/core/i18n/bangkok-datetime";
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
 import type { FormLocale } from "@/types/event/form";
 
@@ -13,16 +9,11 @@ interface FormHeaderCardProps {
   showLocaleBadge?: boolean;
   title: string;
   description: string;
-  opensAt: string | null;
-  closesAt: string | null;
-  readOnly: boolean;
   isActive: boolean;
   sectionRef?: (el: HTMLDivElement | null) => void;
   onSelect: () => void;
   onChangeTitle: (title: string) => void;
   onChangeDescription: (description: string) => void;
-  onChangeOpensAt: (opensAt: string | null) => void;
-  onChangeClosesAt: (closesAt: string | null) => void;
 }
 
 export default function FormHeaderCard({
@@ -30,26 +21,16 @@ export default function FormHeaderCard({
   showLocaleBadge = true,
   title,
   description,
-  opensAt,
-  closesAt,
-  readOnly,
   isActive,
   sectionRef,
   onSelect,
   onChangeTitle,
   onChangeDescription,
-  onChangeOpensAt,
-  onChangeClosesAt,
 }: FormHeaderCardProps) {
-  const scheduleId = useId();
   const tbuilder = useTranslations("form.builder");
   const FlagIcon = locale === "th" ? ThFlagIcon : UsFlagIcon;
   const localeLabel =
     locale === "th" ? tbuilder("langThai") : tbuilder("langEnglish");
-
-  const range = { start: opensAt, end: closesAt };
-  const isDateRangeInvalid =
-    opensAt && closesAt && Date.parse(opensAt) >= Date.parse(closesAt);
 
   return (
     <div
@@ -92,45 +73,6 @@ export default function FormHeaderCard({
           className="mt-2 w-full border-b border-transparent bg-transparent pb-1 text-sm text-gray-600 transition-all placeholder:text-gray-400 hover:border-gray-200 focus:border-b-2 focus:border-brand-500 focus:outline-none dark:text-gray-300 dark:hover:border-gray-700"
         />
 
-        {/* Form Schedule: opens_at & closes_at */}
-        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 sm:gap-4 dark:border-gray-800">
-          <DateTimePicker
-            id={`${scheduleId}-opens`}
-            label={tbuilder("opensAt")}
-            value={opensAt}
-            readOnly={readOnly}
-            blockPast
-            max={shiftBangkokMinute(closesAt, -1)}
-            range={range}
-            placeholder={tbuilder("selectDateTime")}
-            clearLabel={tbuilder("clearDate")}
-            onChange={onChangeOpensAt}
-            onFocus={onSelect}
-          />
-          <DateTimePicker
-            id={`${scheduleId}-closes`}
-            label={tbuilder("closesAt")}
-            value={closesAt}
-            readOnly={readOnly}
-            blockPast
-            min={shiftBangkokMinute(opensAt, 1)}
-            range={range}
-            placeholder={tbuilder("selectDateTime")}
-            clearLabel={tbuilder("clearDate")}
-            onChange={onChangeClosesAt}
-            onFocus={onSelect}
-          />
-        </div>
-
-        {isDateRangeInvalid && (
-          <div
-            role="alert"
-            className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-error-600 dark:text-error-400"
-          >
-            <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
-            <span>{tbuilder("dateRangeInvalid")}</span>
-          </div>
-        )}
       </div>
     </div>
   );

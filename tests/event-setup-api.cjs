@@ -4,7 +4,7 @@ const { randomBytes } = require("node:crypto");
 const test = require("node:test");
 const { loadSource } = require("./support/load-source.cjs");
 
-function fixture(t, { registration = null, whitelist = [] } = {}) {
+function fixture(t, { registration = null, whitelist = [], forms = [] } = {}) {
   const previous = process.env.EVENT_SETUP_DATA_SECRET;
   process.env.EVENT_SETUP_DATA_SECRET = randomBytes(32).toString("hex");
   t.after(() => {
@@ -42,7 +42,10 @@ function fixture(t, { registration = null, whitelist = [] } = {}) {
       },
     },
     "@/services/event/workspace": { getEventWorkspace: async () => workspace },
-    "@/services/event/forms": { getForm: async () => registration },
+    "@/services/event/forms": {
+      getForm: async () => registration,
+      listForms: async () => ({ forms }),
+    },
     "@/services/event/setup-media": { assertEventSetupMedia: async () => {} },
   });
   return {
@@ -177,6 +180,41 @@ test("Legacy recovery keeps a private receipt and Publish schedules an immutable
   await assert.rejects(service.saveSetupDraft(context, { revision: published.revision, draft }), {
     code: "SETUP_READ_ONLY",
   });
+});
+
+test("Publishing enabled draft forms freezes their Event Setup schedule in the event snapshot", async (t) => {
+  const label = { label: "Name", placeholder: "", choices: { th: [], en: [] } };
+  const forms = ["registration", "survey"].map((type) => ({
+    id: `${type}-a`, eventId: "event-a", type, status: "draft",
+    opensAt: null, closesAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    head: { th: { title: "แบบฟอร์ม", description: "" }, en: { title: "Form", description: "" } },
+    questions: [{ question: {
+      type: "short_text", display_order: 1, min_number: 0, max_number: 0,
+      min_length: 0, max_length: 255, is_required: true, label: { th: [label], en: [label] },
+    } }],
+  }));
+  const { service, draft, event, writes } = fixture(t, { forms });
+  const context = await service.getSetupContext("owner");
+  const surveyClose = new Date(Date.parse(draft.endsAt) + 60_000).toISOString();
+  const saved = await service.saveSetupDraft(context, {
+    revision: 0,
+    draft: {
+      ...draft, hasRegistration: true, hasSurvey: true, surveyAccess: "public",
+      surveyCloseMode: "custom", surveyCustomClose: surveyClose,
+    },
+  });
+  const published = await service.publishSetup(context, { revision: saved.revision, locale: "en" });
+  const snapshot = published.publication.forms;
+  assert.equal(snapshot.registration.status, "scheduled");
+  assert.equal(snapshot.registration.opensAt, draft.startsAt);
+  assert.equal(snapshot.registration.closesAt, draft.endsAt);
+  assert.equal(snapshot.survey.status, "scheduled");
+  assert.equal(snapshot.survey.opensAt, draft.startsAt);
+  assert.equal(snapshot.survey.closesAt, surveyClose);
+  assert.ok(forms.every((form) => form.status === "draft" && form.opensAt === null && form.closesAt === null));
+  assert.equal(event().status, "scheduled");
+  assert.equal(writes(), 2);
 });
 
 test("Saving the current field preserves previously used Whitelist entries without exposing them in the draft", async (t) => {

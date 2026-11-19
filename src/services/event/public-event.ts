@@ -1,6 +1,7 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { projectEventContent } from "@/core/event/content";
+import type { LocalPublication } from "@/core/event/publication";
 import { readSetupRecord } from "@/core/event/setup-storage";
 import { defaultEventBranding } from "@/core/event/branding";
 import {
@@ -11,14 +12,14 @@ import { eventShareOrigin, eventShareUrl } from "@/core/event/share-links";
 import { eventQrDataUrl } from "@/core/event/share-qr";
 import { resolveFormWindows } from "@/core/forms/lifecycle";
 import {
-  getPublishedForm,
-  withPublishedFormSchedule,
+  matchPublishedForm,
+  publishedFormDefinition,
 } from "@/core/forms/published-schedule";
 import { isActiveMockUser, resolveAppRole } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import type { Locale } from "@/i18n/routing";
 import { getForm } from "@/services/event/forms";
-import type { Form, FormRecord } from "@/types/event/form";
+import type { Form, FormStatus } from "@/types/event/form";
 import type { ParticipantFormKind } from "@/types/event/participant";
 import type {
   EventShareResponse,
@@ -63,15 +64,26 @@ async function findPublicEvent(slug: string): Promise<MockEvent | null> {
     : null;
 }
 
-function isEnabled(event: MockEvent, kind: ParticipantFormKind) {
-  return kind === "registration" ? event.has_registration : event.has_survey;
+function isEnabled(
+  event: MockEvent,
+  kind: ParticipantFormKind,
+  publication: LocalPublication | null,
+) {
+  return kind === "registration"
+    ? publication?.draft.hasRegistration ?? event.has_registration
+    : publication?.draft.hasSurvey ?? event.has_survey;
 }
 
-function needsEligibility(event: MockEvent, kind: ParticipantFormKind) {
+function needsEligibility(
+  event: MockEvent,
+  kind: ParticipantFormKind,
+  publication: LocalPublication | null,
+) {
   // The local Whitelist prototype and preview answers are not shared eligibility records.
   return kind === "registration"
-    ? event.is_private
-    : event.survey_access === "registered_only";
+    ? publication?.draft.isPrivate ?? event.is_private
+    : (publication ? publication.draft.surveyAccess : event.survey_access) ===
+        "registered_only";
 }
 
 async function loadPublishedForms(eventId: string) {
@@ -81,12 +93,30 @@ async function loadPublishedForms(eventId: string) {
   return rows.filter((form) => form.event_id === eventId && !form.deleted_at);
 }
 
+function hasShareableContent(form: { head: Form["head"]; questions: readonly unknown[] }) {
+  return !!(form.head.th.title.trim() || form.head.en.title.trim()) &&
+    form.questions.length > 0;
+}
+
 async function findShareableForm(
   event: MockEvent,
   kind: ParticipantFormKind,
   rows: MockForm[],
-): Promise<{ row: MockForm; form: FormRecord } | null> {
-  if (!isEnabled(event, kind) || needsEligibility(event, kind)) return null;
+  publication: LocalPublication | null,
+): Promise<{ row: MockForm; form: Form; status: FormStatus } | null> {
+  if (
+    !isEnabled(event, kind, publication) ||
+    needsEligibility(event, kind, publication)
+  ) return null;
+
+  if (publication) {
+    const snapshot = publication.forms[kind];
+    if (!snapshot || !hasShareableContent(snapshot)) return null;
+    const stored = rows.find((form) => form.id === snapshot.id && form.type === kind);
+    const row = stored ? matchPublishedForm(stored, snapshot) : null;
+    if (!row || !shareableStatuses.has(row.status)) return null;
+    return { row, form: publishedFormDefinition(snapshot), status: row.status };
+  }
 
   const matches = rows.filter((row) => row.type === kind);
   if (matches.length !== 1 || !shareableStatuses.has(matches[0].status))
@@ -95,13 +125,11 @@ async function findShareableForm(
   const row = matches[0];
   try {
     const form = await getForm(row.id);
-    const title = form.head.th.title.trim() || form.head.en.title.trim();
     return form.eventId === event.id &&
       form.type === kind &&
       shareableStatuses.has(form.status) &&
-      title &&
-      form.questions.length > 0
-      ? { row, form }
+      hasShareableContent(form)
+      ? { row, form, status: form.status }
       : null;
   } catch (error) {
     if (error instanceof ServiceError && error.status === 404) return null;
@@ -111,12 +139,14 @@ async function findShareableForm(
 
 async function loadShareableWindows(
   event: MockEvent,
+  publication: LocalPublication | null,
 ): Promise<EventShareResponse["windows"]> {
   const empty = { registration: null, survey: null };
   if (
     !isPublishedEvent(event) ||
     !formKinds.some(
-      (kind) => isEnabled(event, kind) && !needsEligibility(event, kind),
+      (kind) =>
+        isEnabled(event, kind, publication) && !needsEligibility(event, kind, publication),
     )
   ) {
     return empty;
@@ -125,12 +155,9 @@ async function loadShareableWindows(
   const rows = await loadPublishedForms(event.id);
   const [registration, survey] = await Promise.all(
     formKinds.map(async (kind) => {
-      const result = await findShareableForm(event, kind, rows);
+      const result = await findShareableForm(event, kind, rows, publication);
       if (!result) return null;
-      const { opensAt, closesAt } = resolveFormWindows(
-        withPublishedFormSchedule(result.row, event),
-        event,
-      );
+      const { opensAt, closesAt } = resolveFormWindows(result.row, event);
       const eventEnd = event.end_at ? Date.parse(event.end_at) : NaN;
       const close =
         kind === "registration" && Number.isFinite(eventEnd)
@@ -164,13 +191,14 @@ export async function getPublicEventBySlug(
   const event = await findPublicEvent(slug);
   if (!event) return null;
 
+  const setup = readSetupRecord(event);
   const eventId = encodeURIComponent(event.id);
   const [translations, banners, windows] = await Promise.all([
     mockApi.get<MockEventTranslation[]>(
       `/event_translations?event_id=${eventId}`,
     ),
     mockApi.get<MockEventBanner[]>(`/event_banners?event_id=${eventId}`),
-    loadShareableWindows(event),
+    loadShareableWindows(event, setup.publication),
   ]);
   const localized = translations.filter(
     (translation) => translation.event_id === event.id,
@@ -195,7 +223,6 @@ export async function getPublicEventBySlug(
       }),
   );
 
-  const setup = readSetupRecord(event);
   if (setup.publication) {
     return {
       draft: projectEventContent({
@@ -281,7 +308,10 @@ export async function getAssignedShareLinks(
     return null;
   }
 
-  const windows = await loadShareableWindows(publicEvent);
+  const windows = await loadShareableWindows(
+    publicEvent,
+    readSetupRecord(publicEvent).publication,
+  );
   return {
     links: {
       event: eventShareUrl(origin, event.slug),
@@ -303,7 +333,7 @@ export async function getPublicFormBySlug(
 ): Promise<PublicForm | null> {
   const event = await findPublicEvent(slug);
   if (!event) return null;
-  return resolvePublicForm(event, kind);
+  return resolvePublicForm(event, kind, readSetupRecord(event).publication);
 }
 
 export async function getPublicFormPageBySlug(
@@ -314,7 +344,7 @@ export async function getPublicFormPageBySlug(
   const event = await findPublicEvent(slug);
   if (!event) return null;
   const { publication, publishedBranding } = readSetupRecord(event);
-  const result = await resolvePublicForm(event, kind);
+  const result = await resolvePublicForm(event, kind, publication);
   if (!result) return null;
 
   const branding = publication
@@ -333,30 +363,27 @@ export async function getPublicFormPageBySlug(
 async function resolvePublicForm(
   event: MockEvent,
   kind: ParticipantFormKind,
+  publication: LocalPublication | null,
 ): Promise<PublicForm | null> {
-  if (!isEnabled(event, kind)) return null;
+  if (!isEnabled(event, kind, publication)) return null;
   if (event.status === "scheduled") return { status: "scheduled" };
-  if (needsEligibility(event, kind)) return { status: "restricted" };
+  if (needsEligibility(event, kind, publication)) return { status: "restricted" };
 
   const result = await findShareableForm(
     event,
     kind,
     await loadPublishedForms(event.id),
+    publication,
   );
   if (!result) return { status: "unavailable" };
 
-  const { row, form } = result;
-  const saved = getPublishedForm(event, kind);
-  if (saved && saved.id !== row.id) return { status: "unavailable" };
-  const { opensAt, closesAt } = resolveFormWindows(
-    withPublishedFormSchedule(row, event),
-    event,
-  );
+  const { row, form, status } = result;
+  const { opensAt, closesAt } = resolveFormWindows(row, event);
   const now = Date.now();
   const eventEndsAt = event.end_at ? Date.parse(event.end_at) : null;
   if (
     row.status === "closed" ||
-    form.status === "closed" ||
+    status === "closed" ||
     (closesAt !== null && now >= closesAt) ||
     (kind === "registration" &&
       (event.status === "closed" ||
@@ -366,17 +393,16 @@ async function resolvePublicForm(
   }
   if (
     row.status === "scheduled" ||
-    form.status === "scheduled" ||
+    status === "scheduled" ||
     (opensAt !== null && now < opensAt)
   )
     return { status: "scheduled" };
-  if (row.status === "paused" || form.status === "paused")
+  if (row.status === "paused" || status === "paused")
     return { status: "unavailable" };
 
   const settings = await mockApi.get<MockEventFormSettings[]>(
     `/event_form_settings?event_id=${encodeURIComponent(event.id)}`,
   );
-  const publication = readSetupRecord(event).publication;
   const capacity = publication ? (kind === "registration" ? publication.draft.registrationCapacity : publication.draft.surveyCapacity) : settings.find(
     (entry) =>
       entry.event_id === event.id &&
@@ -397,17 +423,5 @@ async function resolvePublicForm(
     }
   }
 
-  const definition: Form = saved ? {
-    head: saved.head,
-    type: saved.type,
-    questions: saved.questions.map(({ question }) => ({ question: {
-      ...question,
-      is_required: question.is_required ?? question.required ?? false,
-      is_unique: question.is_unique ?? false,
-      rating_display: question.rating_display ?? "icon",
-      rating_icon: question.rating_icon ?? "star",
-      rating_max: question.rating_max ?? 5,
-    } })),
-  } : { head: form.head, type: form.type, questions: form.questions };
-  return { status: "open", form: definition };
+  return { status: "open", form: { head: form.head, type: form.type, questions: form.questions } };
 }

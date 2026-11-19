@@ -32,9 +32,14 @@ test("the form service rejects new past dates and invalid merged windows while p
           if (resource.includes("?")) return [];
           throw new Error(`Unexpected read ${resource}`);
         },
+        getFresh(resource) { return this.get(resource); },
         async put(resource, body) {
           assert.equal(resource, `/forms/${form.id}`);
           writes.push(body);
+          return body;
+        },
+        async post(resource, body) {
+          assert.ok(["/form_translations", "/audit_logs"].includes(resource));
           return body;
         },
       },
@@ -56,10 +61,26 @@ test("the form service rejects new past dates and invalid merged windows while p
   });
   assert.deepEqual(writes, []);
 
+  const editorSave = {
+    ...input,
+    head: {
+      th: { title: "Updated form", description: "" },
+      en: { title: "Updated form", description: "" },
+    },
+  };
+  const saved = await updateForm(form.id, editorSave, "owner");
+  assert.equal(saved.status, "draft");
+  assert.equal(saved.opensAt, past);
+  assert.equal(saved.closesAt, future);
+  assert.equal(writes.length, 1);
+
   form.status = "scheduled";
+  await assert.rejects(updateForm(form.id, editorSave, "owner"), {
+    code: "FORM_NOT_EDITABLE",
+  });
   const reverted = await updateFormStatus(form.id, { status: "draft" }, "owner");
   assert.equal(reverted.status, "draft");
   assert.equal(reverted.opensAt, past);
   assert.equal(reverted.closesAt, future);
-  assert.equal(writes.length, 1);
+  assert.equal(writes.length, 2);
 });

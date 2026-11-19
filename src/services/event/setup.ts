@@ -17,6 +17,7 @@ import { getForm, listForms } from "@/services/event/forms";
 import { assertEventSetupMedia } from "@/services/event/setup-media";
 import { getEventWorkspace } from "@/services/event/workspace";
 import type { EventBranding } from "@/types/event/branding";
+import type { FormRecord } from "@/types/event/form";
 import type { EventDraft, EventSetupMediaKind, EventSetupState } from "@/types/event/setup";
 import type { WhitelistEntry } from "@/types/event/whitelist";
 import type { MockEvent, MockForm, MockWhitelistEntry } from "@/types/mock";
@@ -316,6 +317,10 @@ export async function recoverSetupDraft(
   });
 }
 
+function snapshotForm(form: FormRecord | null): FormRecord | null {
+  return form?.status === "draft" ? { ...form, status: "scheduled" } : form;
+}
+
 export async function publishSetup(
   context: SetupContext,
   input: { revision: number; locale: Locale },
@@ -358,7 +363,15 @@ export async function publishSetup(
       setup.branding[input.locale] ??
       setup.branding[draft.content?.defaultLocale ?? ""] ??
       defaultEventBranding;
-    const publication = publicationSchema.parse({ publishedAt, draft, branding, forms: definitions });
+    const publication = publicationSchema.parse({
+      publishedAt,
+      draft,
+      branding,
+      forms: {
+        registration: snapshotForm(definitions.registration),
+        survey: snapshotForm(definitions.survey),
+      },
+    });
     const next = {
       ...setup,
       revision: setup.revision + 1,

@@ -154,6 +154,7 @@ function fixture(t) {
         async get(resourcePath) {
           return structuredClone(lookup(resourcePath));
         },
+        getFresh(resourcePath) { return this.get(resourcePath); },
         async post(resourcePath, body) {
           const url = new URL(resourcePath, "https://fixture.example.test");
           const collection = url.pathname.split("/").filter(Boolean)[0];

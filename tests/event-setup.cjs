@@ -1346,7 +1346,7 @@ test("Raksit summaries adapt existing BFF statuses without mutating definitions"
 test("Publication reports each form's validation at its own checklist row", () => {
   const { reviewPublication } = load("src/core/event/publication.ts");
   const registration = { ...formSummary("registration"), questions: [], status: "scheduled" };
-  const survey = formSummary("survey");
+  const survey = { ...formSummary("survey"), status: "archived" };
   const draft = { ...publishDraft, surveyAccess: "public" };
   const review = reviewPublication(draft, { registration, survey }, [registration, survey]);
   assert.deepEqual(review.formProblems, { registration: ["formContent"], survey: ["formStatus"] });
@@ -1372,6 +1372,11 @@ test("SRS permits no forms and blocks enabled forms with incomplete metadata or 
     registration: formSummary("registration"),
     survey: formSummary("survey"),
   };
+  const { reviewPublication } = load("src/core/event/publication.ts");
+  assert.deepEqual(
+    reviewPublication({ ...publishDraft, surveyAccess: "public" }, forms, Object.values(forms)).issues,
+    [],
+  );
   assert.deepEqual(
     publicationIssues({ ...publishDraft, surveyAccess: "public" }, forms),
     [],

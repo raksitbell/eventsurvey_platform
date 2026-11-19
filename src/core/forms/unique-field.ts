@@ -18,7 +18,9 @@ export function canToggleUniqueField(
   return question.is_unique || (!formHasUniqueField && supportsUniqueField(question.type));
 }
 
-export function uniqueFieldIssue(questions: Question[]) {
+export function uniqueFieldIssue(
+  questions: readonly { question: { type: QuestionType; is_unique?: boolean } }[],
+) {
   const fields = questions.filter(({ question }) => question.is_unique);
   if (fields.length > 1) return "FORM_UNIQUE_FIELD_LIMIT";
   if (fields.length && !supportsUniqueField(fields[0].question.type)) {
