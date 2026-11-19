@@ -47,11 +47,6 @@ export function canInspectEvent(role: UserRole): boolean {
   return role === "super_admin";
 }
 
-/** @deprecated Use canInspectEvent. */
-export function canImpersonate(role: UserRole): boolean {
-  return canInspectEvent(role);
-}
-
 export function isImpersonatableRole(role: UserRole): boolean {
   return EVENT_ROLES.includes(role);
 }

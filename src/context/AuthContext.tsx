@@ -41,10 +41,6 @@ interface AuthContextValue {
   stopInspectingEvent: () => Promise<void>;
   /** Re-read `/api/auth/session` (e.g. after editing own platform flags). */
   refreshAuth: () => Promise<void>;
-  /** @deprecated Use inspectEvent. */
-  impersonate: (userId: string) => Promise<void>;
-  /** @deprecated Use stopInspectingEvent. */
-  stopImpersonating: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -226,10 +222,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       inspectEvent,
       stopInspectingEvent,
       refreshAuth,
-      impersonate: async () => {
-        throw new Error("IMPERSONATION_REMOVED");
-      },
-      stopImpersonating: stopInspectingEvent,
     }),
     [
       user,

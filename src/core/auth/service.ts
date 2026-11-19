@@ -53,13 +53,3 @@ export async function endEventInspection() {
   const data = await api.delete<AuthSnapshot>("/auth/inspect-event");
   return normalizeSnapshot(data);
 }
-
-/** @deprecated Use startEventInspection — kept for transitional imports. */
-export function startImpersonation(_userId: string) {
-  return Promise.reject(new Error("IMPERSONATION_REMOVED"));
-}
-
-/** @deprecated Use endEventInspection. */
-export function endImpersonation() {
-  return endEventInspection();
-}

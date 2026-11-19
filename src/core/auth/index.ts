@@ -10,7 +10,6 @@ export {
   canAccessPortal,
   canEnterAdminArea,
   canEnterEventArea,
-  canImpersonate,
   canInspectEvent,
   getHomePathForRole,
   isImpersonatableRole,
@@ -20,10 +19,8 @@ export { clearLegacyAuthStorage, type AuthSnapshot } from "./session";
 
 export {
   endEventInspection,
-  endImpersonation,
   getAuthSnapshot,
   loginWithCredentials,
   signOut,
   startEventInspection,
-  startImpersonation,
 } from "./service";

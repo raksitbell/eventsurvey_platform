@@ -24,7 +24,7 @@ Paths below are relative to `src/` unless stated otherwise. `@/*` maps to `src/*
 
 - Put pages in the matching group under `app/[locale]/`. Route groups do not change URLs. Keep route filenames lowercase, components PascalCase with a default export, and hooks camelCase.
 - `app/[locale]/layout.tsx` is a Server Component that sets up `NextIntlClientProvider`, fonts, direction, and `AuthProvider`, `ThemeProvider`, and `SidebarProvider`. Use `"use client"` for interactive shells and components using client hooks, events, or browser APIs.
-- Keep UI out of `core/`. Prefer `@/core/*` and `@/types/user` over legacy `lib/` re-exports.
+- Keep UI out of `core/`. Use `@/core/*` for shared domain logic and `@/types/user` for user types.
 
 ### BFF and mock data
 
