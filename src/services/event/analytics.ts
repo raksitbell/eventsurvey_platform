@@ -88,10 +88,14 @@ async function audit(
 export async function getAnalytics(
   request: NextRequest,
   session: AuthSessionCookie,
-  action = "analytics.view",
+  action: "analytics.view" | `analytics.export.${"csv" | "pdf"}` =
+    "analytics.view",
 ): Promise<AnalyticsData> {
   const context = await scope(session);
-  const { event, canReadForm } = context;
+  const { event, canReadForm, canViewSubmissions, canExport } = context;
+  if (action !== "analytics.view" && !canExport) {
+    throw new AnalyticsError(403, "FORBIDDEN");
+  }
   const filters = parseFilters(request.nextUrl.searchParams);
   if (filters.eventId && filters.eventId !== event.id)
     throw new AnalyticsError(403, "FORBIDDEN_EVENT");
@@ -121,13 +125,15 @@ export async function getAnalytics(
           mockApi.get<Field[]>(`/form_fields?form_id=${q(f.id)}`),
         ),
       ),
-      Promise.all(
-        selected.map((f) =>
-          mockApi.get<AnalyticsSubmission[]>(
-            `/form_submissions?form_id=${q(f.id)}`,
-          ),
-        ),
-      ),
+      canViewSubmissions
+        ? Promise.all(
+            selected.map((f) =>
+              mockApi.get<AnalyticsSubmission[]>(
+                `/form_submissions?form_id=${q(f.id)}`,
+              ),
+            ),
+          )
+        : [],
       Promise.all(
         forms.map((f) =>
           mockApi.get<Translation[]>(`/form_translations?form_id=${q(f.id)}`),

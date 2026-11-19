@@ -14,6 +14,7 @@ import type { Locale } from "@/i18n/routing";
 import { showToast } from "@/utils/alert";
 import { translateRole } from "@/utils/i18n-labels";
 import EventLanguageDropdown from "./EventLanguageDropdown";
+import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
 
 export default function EventWorkspaceHeader() {
@@ -26,12 +27,16 @@ export default function EventWorkspaceHeader() {
   const { confirm } = useConfirm();
   const pathname = usePathname();
   const router = useRouter();
+  const navigationGuard = useEventNavigationGuard();
   const locale = useLocale() as Locale;
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const accountTrigger = useRef<HTMLButtonElement>(null);
 
-  function changeLanguage(language: Locale) {
+  async function changeLanguage(language: Locale) {
+    const confirmLeave = navigationGuard?.current;
+    if (confirmLeave && !(await confirmLeave())) return;
+
     router.replace(
       pathname + globalThis.location.search + globalThis.location.hash,
       { locale: language },
@@ -46,6 +51,8 @@ export default function EventWorkspaceHeader() {
       variant: impersonation ? "warning" : "danger",
     });
     if (!approved) return;
+    const confirmLeave = navigationGuard?.current;
+    if (confirmLeave && !(await confirmLeave())) return;
 
     setOpen(false);
     try {
@@ -83,7 +90,7 @@ export default function EventWorkspaceHeader() {
         <EventLanguageDropdown
           label={a("language")}
           value={locale}
-          onChange={changeLanguage}
+          onChange={(language) => void changeLanguage(language)}
           onOpen={() => setOpen(false)}
           className={styles.language}
         >

@@ -176,7 +176,7 @@ export async function getReportingData(
   const scope = await getDashboardScope(userId);
   if (!scope) throw new ReportingError(403, "Forbidden");
 
-  const { event, canReadForm } = scope;
+  const { event, canReadForm, canViewSubmissions, canExport } = scope;
   const [eventTranslations, eventForms, trash, eventUsers, layout] =
     await Promise.all([
       mockApi.get<MockEventTranslation[]>(
@@ -206,9 +206,11 @@ export async function getReportingData(
             `/form_translations?form_id=${q(form.id)}`,
           ),
           mockApi.get<ReportingField[]>(`/form_fields?form_id=${q(form.id)}`),
-          mockApi.get<ReportingSubmission[]>(
-            `/form_submissions?form_id=${q(form.id)}`,
-          ),
+          canViewSubmissions
+            ? mockApi.get<ReportingSubmission[]>(
+                `/form_submissions?form_id=${q(form.id)}`,
+              )
+            : [],
         ]);
         return {
           translations: translations.filter((row) => row.form_id === form.id),
@@ -415,6 +417,8 @@ export async function getReportingData(
         ? event.end_at
         : (responses[0]?.submittedAt ?? null),
     canManage,
+    canViewSubmissions,
+    canExport,
     forms: forms.map((form) => ({
       id: form.id,
       title:
@@ -442,7 +446,11 @@ export async function getReportingData(
     ),
     trash: await Promise.all(
       trashEntries(trash, allowedForms, event.id)
-        .filter(({ item }) => Number.isFinite(trashExpiry(item)))
+        .filter(
+          ({ item }) =>
+            (canViewSubmissions || item.resource_type === "form") &&
+            Number.isFinite(trashExpiry(item)),
+        )
         .map(async (entry) => {
           const { item, form, persisted } = entry;
           let title = item.display_name;

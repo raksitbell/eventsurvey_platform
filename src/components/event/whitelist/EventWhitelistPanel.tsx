@@ -16,9 +16,10 @@ import {
 import useEventWhitelist from "@/hooks/useEventWhitelist";
 import { useModal } from "@/hooks/useModal";
 import { useConfirm } from "@/hooks/useConfirm";
+import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 export function WhitelistPage({
   workspace,
   userId,
@@ -58,37 +59,29 @@ export function WhitelistPage({
   };
   const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (!hasChanges) return;
-    // MDN: event.preventDefault() is the standard way to trigger the browser
-    // unsaved-changes prompt. event.returnValue is deprecated in lib.dom.d.ts.
-    const beforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    globalThis.addEventListener("beforeunload", beforeUnload);
-    return () => globalThis.removeEventListener("beforeunload", beforeUnload);
-  }, [hasChanges]);
-  const back = async () => {
-    if (pendingDialog.current) return;
+  const confirmDiscard = useCallback(async () => {
+    if (pendingDialog.current) return false;
     pendingDialog.current = true;
     try {
-      if (
-        hasChanges &&
-        !(await confirm({
-          title: t("unsavedTitle"),
-          message: t("unsavedBody"),
-          confirmLabel: t("leave"),
-          cancelLabel: t("cancel"),
-          variant: "warning",
-          appearance: "event",
-        }))
-      )
-        return;
-      if (onClose) onClose();
-      else router.push("/event/details");
+      return await confirm({
+        title: t("unsavedTitle"),
+        message: t("unsavedBody"),
+        confirmLabel: t("leave"),
+        cancelLabel: t("cancel"),
+        variant: "warning",
+        appearance: "event",
+      });
     } finally {
       pendingDialog.current = false;
     }
+  }, [confirm, t]);
+  useWhitelistNavigationGuard(hasChanges, confirmDiscard);
+
+  const back = async () => {
+    if (pendingDialog.current || (hasChanges && !(await confirmDiscard())))
+      return;
+    if (onClose) onClose();
+    else router.push("/event/details");
   };
   const remove = async (id: string) => {
     const target = entries.find((item) => item.id === id);

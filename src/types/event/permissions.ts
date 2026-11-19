@@ -56,3 +56,7 @@ export interface InviteSubUserInput {
   roleName: string;
   permissions: EventPermissionMatrix;
 }
+
+export interface InviteSubUserResult extends EventSubUserItem {
+  inviteSent: boolean;
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal } from "@/components/ui/modal";
+import { ApiError } from "@/core/api";
 import { DEFAULT_SUB_USER_MATRIX } from "@/core/auth/event-permissions";
 import type {
   EventPermissionMatrix,
@@ -110,7 +111,12 @@ export default function InviteSubUserModal({
       });
       handleClose();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t("inviteError");
+      const msg =
+        err instanceof ApiError && err.code === "INVALID_EMAIL"
+          ? t("invalidInviteEmail")
+          : err instanceof Error
+            ? err.message
+            : t("inviteError");
       setError(msg);
     } finally {
       setIsSubmitting(false);

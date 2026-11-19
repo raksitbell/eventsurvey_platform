@@ -43,6 +43,7 @@ function DetailsForm(props: EventSetupPageProps) {
     <>
       <form
         className="event-details-page"
+        inert={list.isOpen}
         onSubmit={(e) => {
           e.preventDefault();
           navigate("/event/publish");

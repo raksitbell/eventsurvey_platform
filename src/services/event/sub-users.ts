@@ -5,20 +5,26 @@ import {
   matrixToMockPermissions,
   serializePermissionMatrix,
 } from "@/core/auth/event-permissions";
+import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
 import { isActiveMockUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import type {
   EventSubUserItem,
   InviteSubUserInput,
+  InviteSubUserResult,
   SubUsersListResponse,
   UpdateSubUserPermissionsInput,
 } from "@/types/event/permissions";
 import type {
+  MockEvent,
+  MockEventTranslation,
   MockPermissionCode,
   MockRole,
   MockRolePermission,
   MockUser,
 } from "@/types/mock";
+import { randomBytes, randomUUID } from "node:crypto";
+import { z } from "zod";
 
 function permissionsByRoleId(
   rows: MockRolePermission[],
@@ -172,74 +178,73 @@ export async function updateSubUserPermissions(
   await assertEventAdmin(eventId, currentUserId);
 
   const targetUser = await getEventMember(eventId, subUserId);
-
-  const now = new Date().toISOString();
-  const serializedMatrix = serializePermissionMatrix(input.permissions);
-  const newMockCodes = matrixToMockPermissions(input.permissions);
-
-  let roleId = targetUser.role_id;
-
-  if (roleId) {
-    // Update existing role
-    await mockApi.patch<MockRole>(`/roles/${roleId}`, {
-      name: input.roleName || "Custom Sub-User Role",
-      description: serializedMatrix,
-      updated_at: now,
-    });
-  } else {
-    // Create new role for this sub-user
-    roleId = crypto.randomUUID();
-    await mockApi.post<MockRole>("/roles", {
-      id: roleId,
-      event_id: eventId,
-      owner_user_id: currentUserId,
-      name: input.roleName || "Sub-User Role",
-      description: serializedMatrix,
-      created_at: now,
-      updated_at: now,
-      deleted_at: null,
-    });
-
-    await mockApi.patch<MockUser>(`/users/${subUserId}`, {
-      role_id: roleId,
-      role_assigned_by_user_id: currentUserId,
-      role_assigned_at: now,
-      updated_at: now,
-    });
+  if (
+    targetUser.system_role !== "event_user" ||
+    targetUser.status === "removed" ||
+    targetUser.removed_at
+  ) {
+    throw new ServiceError("USER_NOT_IN_EVENT", 400);
+  }
+  const currentCodes = await getRolePermissions(targetUser.role_id);
+  if (currentCodes.includes("manage_sub_user")) {
+    throw new ServiceError("FORBIDDEN", 403);
   }
 
-  // Sync role_permissions in mock
-  // 1. Get existing role permissions for this role
-  const existingPerms = await mockApi.get<MockRolePermission[]>(
-    `/role_permissions?role_id=${encodeURIComponent(roleId)}`,
+  const currentRole = targetUser.role_id
+    ? await mockApi.get<MockRole>(
+        `/roles/${encodeURIComponent(targetUser.role_id)}`,
+      )
+    : null;
+  if (currentRole && (currentRole.event_id !== eventId || currentRole.deleted_at)) {
+    throw new ServiceError("FORBIDDEN", 403);
+  }
+  const permissionMatrix = deserializePermissionMatrix(
+    serializePermissionMatrix(input.permissions),
   );
-  // Delete removed ones (if API supports deletion by ID or just overwrite)
-  for (const p of existingPerms) {
-    if (!newMockCodes.includes(p.permission)) {
-      // Some json-servers identify by compound id or row id
-      try {
-        await mockApi.delete(
-          `/role_permissions/${p.id ?? `${p.role_id}_${p.permission}`}`,
-        );
-      } catch {
-        // Fallback for json-server schemas
-      }
-    }
+  const serializedMatrix = serializePermissionMatrix(permissionMatrix);
+  const newMockCodes = matrixToMockPermissions(permissionMatrix);
+  if (currentCodes.includes("view_unmasked_pii")) {
+    newMockCodes.push("view_unmasked_pii");
   }
+  const roleName = input.roleName?.trim() || currentRole?.name || "Sub-User Role";
+  const unchanged =
+    currentRole &&
+    currentRole.name === roleName &&
+    currentRole.description === serializedMatrix &&
+    currentCodes.length === newMockCodes.length &&
+    newMockCodes.every((code) => currentCodes.includes(code));
+  let roleId = currentRole?.id ?? null;
+  if (!unchanged) {
+    const now = new Date().toISOString();
+    const userPath = `/users/${encodeURIComponent(subUserId)}`;
+    const staged = await stageSubUserRole({
+      eventId,
+      actorUserId: currentUserId,
+      name: roleName,
+      description: serializedMatrix,
+      permissions: newMockCodes,
+      now,
+    });
 
-  // Add new permissions
-  const existingCodes = new Set(existingPerms.map((p) => p.permission));
-  for (const code of newMockCodes) {
-    if (!existingCodes.has(code)) {
-      try {
-        await mockApi.post("/role_permissions", {
-          role_id: roleId,
-          permission: code,
-        });
-      } catch {
-        // Ignore duplicate insert errors in mock
+    // The new grants become active together. Other members can continue
+    // using the previous role.
+    try {
+      await mockApi.patch<MockUser>(userPath, {
+        role_id: staged.id,
+        role_assigned_by_user_id: currentUserId,
+        role_assigned_at: now,
+        updated_at: now,
+      });
+    } catch (error) {
+      const assignedUser = await mockApi
+        .get<MockUser>(userPath)
+        .catch(() => null);
+      if (assignedUser?.role_id !== staged.id) {
+        if (assignedUser) await discardStagedRole(staged.stagedPaths);
+        throw error;
       }
     }
+    roleId = staged.id;
   }
 
   return {
@@ -247,73 +252,145 @@ export async function updateSubUserPermissions(
     name: targetUser.display_name,
     email: targetUser.email,
     roleId,
-    customRoleName: input.roleName || "Sub-User Role",
+    customRoleName: roleName,
     status: targetUser.status,
     joinedAt: targetUser.joined_at,
     createdAt: targetUser.created_at,
-    permissions: input.permissions,
+    permissions: permissionMatrix,
     rawPermissions: newMockCodes,
   };
 }
 
-/**
- * Invite a new sub-user into the event with a custom permission matrix.
- */
+async function stageSubUserRole({
+  eventId,
+  actorUserId,
+  name,
+  description,
+  permissions,
+  now,
+}: {
+  eventId: string;
+  actorUserId: string;
+  name: string;
+  description: string;
+  permissions: readonly MockPermissionCode[];
+  now: string;
+}): Promise<{ id: string; stagedPaths: string[] }> {
+  const roleId = randomUUID();
+  const stagedPaths = [`/roles/${roleId}`];
+  try {
+    await mockApi.post<MockRole>("/roles", {
+      id: roleId,
+      event_id: eventId,
+      name,
+      description,
+      created_at: now,
+      created_by: actorUserId,
+      updated_at: now,
+      updated_by: actorUserId,
+      deleted_at: null,
+    });
+    for (const permission of permissions) {
+      const id = randomUUID();
+      stagedPaths.push(`/role_permissions/${id}`);
+      await mockApi.post<MockRolePermission>("/role_permissions", {
+        id,
+        role_id: roleId,
+        permission,
+      });
+    }
+  } catch (error) {
+    await discardStagedRole(stagedPaths);
+    throw error;
+  }
+
+  return { id: roleId, stagedPaths };
+}
+
+async function discardStagedRole(paths: string[]): Promise<void> {
+  for (const path of paths.reverse()) {
+    // An unassigned role cannot authorize anyone. Preserve the original error.
+    await mockApi.delete(path).catch(() => undefined);
+  }
+}
+
+const pendingInviteEmails = new Set<string>();
+
+/** Invite a new sub-user and deliver the signed password setup link. */
 export async function inviteSubUser(
   eventId: string,
   input: InviteSubUserInput,
   currentUserId: string,
-): Promise<EventSubUserItem> {
+): Promise<InviteSubUserResult> {
   await assertEventAdmin(eventId, currentUserId);
 
-  // Check email collision
-  const existingUsers = await mockApi.get<MockUser[]>(
-    `/users?email=${encodeURIComponent(input.email.trim().toLowerCase())}`,
-  );
-  const activeExisting = existingUsers.find(isActiveMockUser);
-  if (activeExisting) {
+  const email = input.email.trim().toLowerCase();
+  if (!z.email().max(320).safeParse(email).success) {
+    throw new ServiceError("INVALID_EMAIL", 400);
+  }
+  if (pendingInviteEmails.has(email)) {
+    throw new ServiceError("EMAIL_ALREADY_EXISTS", 409);
+  }
+
+  pendingInviteEmails.add(email);
+  try {
+    return await createSubUserInvite(eventId, { ...input, email }, currentUserId);
+  } finally {
+    pendingInviteEmails.delete(email);
+  }
+}
+
+async function createSubUserInvite(
+  eventId: string,
+  input: InviteSubUserInput,
+  currentUserId: string,
+): Promise<InviteSubUserResult> {
+  const { email } = input;
+  const [existingUsers, event, translations] = await Promise.all([
+    mockApi.get<MockUser[]>(`/users?email=${encodeURIComponent(email)}`),
+    mockApi.get<MockEvent>(`/events/${encodeURIComponent(eventId)}`),
+    mockApi.get<MockEventTranslation[]>(
+      `/event_translations?event_id=${encodeURIComponent(eventId)}`,
+    ),
+  ]);
+  if (
+    existingUsers.some(
+      (user) =>
+        user.email.trim().toLowerCase() === email &&
+        user.status !== "removed" &&
+        !user.removed_at,
+    )
+  ) {
     throw new ServiceError(
       "EMAIL_ALREADY_EXISTS",
       409,
       "User email is already registered",
     );
   }
-
-  const now = new Date().toISOString();
-  const roleId = crypto.randomUUID();
-  const userId = crypto.randomUUID();
-  const serializedMatrix = serializePermissionMatrix(input.permissions);
-  const newMockCodes = matrixToMockPermissions(input.permissions);
-
-  // 1. Create Role
-  await mockApi.post<MockRole>("/roles", {
-    id: roleId,
-    event_id: eventId,
-    owner_user_id: currentUserId,
-    name: input.roleName.trim() || "Sub-User Role",
-    description: serializedMatrix,
-    created_at: now,
-    updated_at: now,
-    deleted_at: null,
-  });
-
-  // 2. Insert Role Permissions
-  for (const code of newMockCodes) {
-    try {
-      await mockApi.post("/role_permissions", {
-        role_id: roleId,
-        permission: code,
-      });
-    } catch {
-      // Mock safety
-    }
+  if (event?.id !== eventId || event.deleted_at) {
+    throw new ServiceError("EVENT_NOT_FOUND", 404);
   }
 
-  // 3. Create User
+  const now = new Date().toISOString();
+  const userId = randomUUID();
+  const roleName = input.roleName.trim() || "Sub-User Role";
+  const permissionMatrix = deserializePermissionMatrix(
+    serializePermissionMatrix(input.permissions),
+  );
+  const newMockCodes = matrixToMockPermissions(permissionMatrix);
+  const { id: roleId, stagedPaths } = await stageSubUserRole({
+    eventId,
+    actorUserId: currentUserId,
+    name: roleName,
+    description: serializePermissionMatrix(permissionMatrix),
+    permissions: newMockCodes,
+    now,
+  });
+
   const newUser: MockUser = {
     id: userId,
-    email: input.email.trim().toLowerCase(),
-    password: "password123", // Default mock seed password
+    email,
+    password: randomBytes(18).toString("base64url"),
     display_name: input.name.trim(),
     system_role: "event_user",
     platform_role_id: null,
@@ -321,27 +398,61 @@ export async function inviteSubUser(
     role_id: roleId,
     role_assigned_by_user_id: currentUserId,
     role_assigned_at: now,
-    status: "active", // In demo mode, activated immediately
+    status: "invited",
     invited_by_user_id: currentUserId,
-    joined_at: now,
+    joined_at: null,
     created_at: now,
     updated_at: now,
     removed_at: null,
   };
 
-  await mockApi.post<MockUser>("/users", newUser);
+  try {
+    await mockApi.post<MockUser>("/users", newUser);
+  } catch (error) {
+    // A lost response may still have created the account with its new role.
+    const persistedUser = await mockApi
+      .get<MockUser | null>(`/users/${userId}`)
+      .catch((lookupError) => {
+        if (lookupError instanceof MockApiError && lookupError.status === 404) {
+          return null;
+        }
+        throw error;
+      });
+    if (!persistedUser) await discardStagedRole(stagedPaths);
+    if (persistedUser?.id !== userId || persistedUser.role_id !== roleId) {
+      throw error;
+    }
+  }
+
+  const eventTitles = translations.filter((row) => row.event_id === eventId);
+  let inviteSent = false;
+  try {
+    await sendSetupPasswordInvite({
+      to: email,
+      displayName: newUser.display_name,
+      userId,
+      audience: "event-member",
+      eventTitleTh: eventTitles.find((row) => row.locale_code === "th")?.title,
+      eventTitleEn: eventTitles.find((row) => row.locale_code === "en")?.title,
+      eventTitleFallback: event.slug,
+    });
+    inviteSent = true;
+  } catch {
+    // Keep the account pending and report the actual delivery outcome.
+  }
 
   return {
     id: userId,
     name: newUser.display_name,
     email: newUser.email,
     roleId,
-    customRoleName: input.roleName.trim(),
+    customRoleName: roleName,
     status: newUser.status,
     joinedAt: newUser.joined_at,
     createdAt: newUser.created_at,
-    permissions: input.permissions,
+    permissions: permissionMatrix,
     rawPermissions: newMockCodes,
+    inviteSent,
   };
 }
 

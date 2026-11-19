@@ -11,6 +11,7 @@ import type {
   EventPermissionMatrix,
   EventSubUserItem,
   InviteSubUserInput,
+  InviteSubUserResult,
   SubUsersListResponse,
 } from "@/types/event/permissions";
 import { useTranslations } from "next-intl";
@@ -25,6 +26,7 @@ export default function EventTeamPage() {
   const [canManage, setCanManage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [inviteMailFailed, setInviteMailFailed] = useState(false);
 
   const [selectedSubUser, setSelectedSubUser] =
     useState<EventSubUserItem | null>(null);
@@ -79,7 +81,8 @@ export default function EventTeamPage() {
   };
 
   const handleInviteSubUser = async (input: InviteSubUserInput) => {
-    await api.post<EventSubUserItem>("/event/sub-users", input);
+    const result = await api.post<InviteSubUserResult>("/event/sub-users", input);
+    setInviteMailFailed(!result.inviteSent);
     await fetchSubUsers();
   };
 
@@ -101,6 +104,15 @@ export default function EventTeamPage() {
           {t("teamMembersDesc")}
         </p>
       </header>
+
+      {inviteMailFailed && (
+        <p
+          role="alert"
+          className="rounded-xl bg-warning-50 p-4 text-sm text-warning-700 dark:bg-warning-950/40 dark:text-warning-300"
+        >
+          {t("inviteMailFailed")}
+        </p>
+      )}
 
       {error ? (
         <div className="rounded-2xl border border-error-200 bg-white p-6 text-sm text-error-700 dark:border-error-900/50 dark:bg-gray-900 dark:text-error-300">

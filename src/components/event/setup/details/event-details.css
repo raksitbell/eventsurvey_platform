@@ -142,6 +142,9 @@
   font-weight: 400;
   padding-inline: 13px;
 }
+.es-info-schedule input.pe-28 {
+  padding-inline-end: 7rem;
+}
 .es-info textarea.event-input {
   height: 89px;
   padding-block: 12px;

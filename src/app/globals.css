@@ -1351,19 +1351,6 @@ pre[class*="language-"].line-numbers {
   }
 }
 
-/* TailAdmin date/time input: Flatpickr's time controls share the app theme. */
-.event-datetime-calendar .flatpickr-time {
-  @apply border-gray-200 dark:border-gray-700;
-}
-.event-datetime-calendar .flatpickr-time input,
-.event-datetime-calendar .flatpickr-time .flatpickr-time-separator {
-  @apply text-gray-800 dark:text-gray-200;
-}
-.event-datetime-calendar .flatpickr-time input:hover,
-.event-datetime-calendar .flatpickr-time input:focus {
-  @apply bg-gray-100 dark:bg-gray-800;
-}
-
 /* Continuous HSV picker: horizontal saturation and vertical brightness. */
 .branding-color-plane::before,
 .branding-color-plane::after {

@@ -556,6 +556,24 @@ global.fetch = async (url, init = {}) => {
     (error) => error.status === 403,
   );
   reset();
+  db.roles[0].description = JSON.stringify({
+    event: "view_only",
+    surveyForm: "can_edit",
+    dashboard: "can_edit",
+    canViewSubmissions: false,
+    canExport: true,
+  });
+  delete db.form_submissions;
+  delete db.submission_answers;
+  const dashboardOnly = await getReportingData("owner", "en");
+  assert.equal(dashboardOnly.canManage, true);
+  assert.equal(dashboardOnly.canViewSubmissions, false);
+  assert.equal(dashboardOnly.canExport, false);
+  assert.deepEqual(dashboardOnly.forms.map((form) => form.id), ["form-a"]);
+  assert.deepEqual(dashboardOnly.responses, []);
+  assert.ok(dashboardOnly.trash.every((row) => row.type === "form"));
+
+  reset();
   delete db.trash_items;
   db.form_submissions.push({
     id: "invalid-date",

@@ -353,6 +353,42 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
   );
 });
 
+test("analytics honors submission visibility separately from dashboard editing", async () => {
+  db = fixture();
+  const role = db.roles.find((item) => item.id === "role-sub");
+  role.description = JSON.stringify({
+    event: "view_only",
+    registrationForm: "can_edit",
+    dashboard: "can_edit",
+    canViewSubmissions: false,
+    canExport: true,
+  });
+  const savedSubmissions = db.form_submissions;
+  delete db.form_submissions;
+  const data = await loadAnalytics("sub");
+  assert.equal(data.permissions.manage, true);
+  assert.deepEqual(data.forms.map((form) => form.id), ["reg"]);
+  assert.deepEqual(data.rows, []);
+  assert.equal(data.metrics.total, 0);
+  const exportRequest = request("sub");
+  await assert.rejects(
+    getAnalytics(exportRequest.request, exportRequest.session, "analytics.export.csv"),
+    { status: 403 },
+  );
+
+  db.form_submissions = savedSubmissions;
+  role.description = JSON.stringify({
+    ...JSON.parse(role.description),
+    canViewSubmissions: true,
+    canExport: false,
+  });
+  assert.equal((await loadAnalytics("sub")).rows.length, 1);
+  await assert.rejects(
+    getAnalytics(exportRequest.request, exportRequest.session, "analytics.export.csv"),
+    { status: 403 },
+  );
+});
+
 test("analytics export uses validated locales and escapes report values", async () => {
   db = fixture();
   db.field_option_translations[0].label = "=SUM(1,2)";
