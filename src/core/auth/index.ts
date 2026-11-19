@@ -1,7 +1,6 @@
 export {
   ADMIN_ROLES,
   EVENT_ROLES,
-  MOCK_DEMO_PASSWORD,
   PORTAL_ROLES,
 } from "./constants";
 

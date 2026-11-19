@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Link } from "@/i18n/navigation";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 
 export default function LoginForm() {
   const t = useTranslations("auth");
@@ -23,6 +23,7 @@ export default function LoginForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
     setError(null);
     setIsSubmitting(true);
 
@@ -30,13 +31,10 @@ export default function LoginForm() {
       await login(email.trim(), password);
     } catch (err) {
       const code = err instanceof Error ? err.message : "UNKNOWN";
-      if (code === "INVALID_CREDENTIALS") {
-        setError(t("errors.invalidCredentials"));
-      } else if (code === "UNSUPPORTED_ROLE") {
-        setError(t("errors.unsupportedRole"));
-      } else {
-        setError(t("errors.generic"));
-      }
+      let message = t("errors.generic");
+      if (code === "INVALID_CREDENTIALS") message = t("errors.invalidCredentials");
+      if (code === "UNSUPPORTED_ROLE") message = t("errors.unsupportedRole");
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -56,34 +54,38 @@ export default function LoginForm() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <Label>{t("email")}</Label>
+              <Label htmlFor="login-email" className="text-portal-label!">{t("email")}</Label>
               <Input
+                id="login-email"
                 type="email"
                 name="email"
                 placeholder={t("emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="text-portal-body!"
                 required
                 autoComplete="email"
               />
             </div>
 
             <div>
-              <Label>{t("password")}</Label>
+              <Label htmlFor="login-password" className="text-portal-label!">{t("password")}</Label>
               <div className="relative">
                 <Input
+                  id="login-password"
                   type={showPassword ? "text" : "password"}
                   name="password"
                   placeholder={t("passwordPlaceholder")}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  className="pe-12! text-portal-body!"
                   required
                   autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="inset-e-4 absolute top-1/2 z-30 -translate-y-1/2 cursor-pointer"
+                  className="absolute end-4 top-1/2 z-30 -translate-y-1/2 cursor-pointer"
                   aria-label={
                     showPassword ? t("hidePassword") : t("showPassword")
                   }
@@ -98,29 +100,24 @@ export default function LoginForm() {
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Checkbox checked={rememberMe} onChange={setRememberMe} />
-                <span className="text-theme-sm text-gray-700 dark:text-gray-400">
-                  {t("keepLoggedIn")}
-                </span>
-              </div>
+              <Checkbox label={t("keepLoggedIn")} checked={rememberMe} onChange={setRememberMe} />
               <Link
                 href="/forgot-password"
-                className="text-theme-sm font-medium text-brand-500 hover:text-brand-600"
+                className="text-portal-label font-medium text-brand-500 hover:text-brand-600"
               >
                 {t("forgotPassword")}
               </Link>
             </div>
 
-            {error ? (
-              <p className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+            {error && (
+              <p role="alert" className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-portal-label text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
                 {error}
               </p>
-            ) : null}
+            )}
 
             <Button
               type="submit"
-              className="w-full !rounded-xl !bg-[var(--color-event-sidebar)] !py-3.5 hover:!opacity-90"
+              className="w-full !rounded-xl !bg-[var(--color-event-sidebar)] !py-3.5 text-portal-body! hover:!opacity-90"
               size="md"
               disabled={isSubmitting}
             >
@@ -128,7 +125,7 @@ export default function LoginForm() {
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-8 text-center text-portal-label text-gray-500 dark:text-gray-400">
             <button
               type="button"
               className="font-medium text-gray-600 hover:text-brand-500 dark:text-gray-300 dark:hover:text-brand-400"
