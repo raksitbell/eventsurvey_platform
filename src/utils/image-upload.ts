@@ -25,6 +25,17 @@ export class ImageUploadError extends Error {
     this.name = "ImageUploadError";
   }
 }
+export const identityCropFrames = {
+  icon: { width: 1, height: 1, ratio: "1:1" },
+  wordmark: { width: 16, height: 5, ratio: "16:5" },
+} as const;
+export interface IdentityCrop {
+  asset: keyof typeof identityCropFrames;
+  x: number;
+  y: number;
+  zoom: number;
+}
+
 interface ImageOptions {
   minimumSize?: { width: number; height: number };
   maxDimension?: number;
@@ -258,10 +269,76 @@ async function encodeSizedImage(
   }
 }
 
+/** Export the same source rectangle that object-fit: cover and the crop frame display. */
+async function cropIdentityImage(
+  decoded: DecodedImage,
+  crop: IdentityCrop,
+  type: string,
+  signal?: AbortSignal,
+) {
+  const frame = identityCropFrames[crop.asset];
+  const scale = Math.min(
+    decoded.width / frame.width,
+    decoded.height / frame.height,
+  );
+  const zoom = Math.max(1, Math.min(3, crop.zoom));
+  const width = (frame.width * scale) / zoom;
+  const height = (frame.height * scale) / zoom;
+  if (
+    zoom === 1 &&
+    decoded.width * frame.height === decoded.height * frame.width
+  )
+    return null;
+
+  const offset = (space: number, position: number) =>
+    (space * Math.max(0, Math.min(100, position))) / 100;
+  const canvas = globalThis.document.createElement("canvas");
+  // Integer multiples preserve both fixed ratios, even after encoding.
+  const units = Math.max(
+    1,
+    Math.floor(Math.min(scale / zoom, 512 / frame.width)),
+  );
+  canvas.width = units * frame.width;
+  canvas.height = units * frame.height;
+  try {
+    const context = canvas.getContext("2d", { alpha: true });
+    if (!context) throw new ImageUploadError("fileRead");
+    context.imageSmoothingQuality = "high";
+    context.drawImage(
+      decoded.source,
+      offset(decoded.width - width, crop.x),
+      offset(decoded.height - height, crop.y),
+      width,
+      height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    const result = await encodeImage(
+      canvas,
+      type === "image/jpeg" ? type : "image/png",
+      0.92,
+    );
+    checkAbort(signal);
+    if (!result) throw new ImageUploadError("fileRead");
+    return result;
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+}
+
 /** Validate before saving, and keep the original bytes unless optimization helps. */
 export async function prepareBrandingImage(
   file: File,
-  { minimumSize, maxDimension, optimize = true, signal }: ImageOptions = {},
+  {
+    minimumSize,
+    maxDimension,
+    optimize = true,
+    signal,
+    identityCrop,
+  }: ImageOptions & { identityCrop?: IdentityCrop } = {},
 ) {
   const issue = imageUploadError(file);
   if (issue) throw new ImageUploadError(issue);
@@ -276,12 +353,31 @@ export async function prepareBrandingImage(
     )
       throw new ImageUploadError("cropSize");
 
+    const cropped =
+      identityCrop &&
+      (await cropIdentityImage(decoded, identityCrop, file.type, signal));
+    if (cropped) {
+      return {
+        name:
+          cropped.type === file.type
+            ? file.name.slice(0, 255)
+            : (file.name.replace(/\.[^.]+$/, "").slice(0, 251) || "image") +
+              ".png",
+        url: await blobDataUrl(cropped, signal),
+      };
+    }
+
     const shouldOptimize =
       optimize &&
       file.size > IMAGE_TARGET_BYTES &&
       (file.type === "image/jpeg" || file.type === "image/png");
     const saved = shouldOptimize
-      ? (await encodeSizedImage(decoded, file.type, { maxDimension, minimumSize, signal }, file)) ?? file
+      ? ((await encodeSizedImage(
+          decoded,
+          file.type,
+          { maxDimension, minimumSize, signal },
+          file,
+        )) ?? file)
       : file;
     return {
       name: file.name.slice(0, 255),

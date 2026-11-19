@@ -76,6 +76,7 @@ export default function SetupBrandingDialog({
       <BrandingUploadDialog
         kind="logo"
         identityAsset={identity}
+        initialImage={identity === "wordmark" ? value.wordmark : value.logo}
         onClose={upload.closeModal}
         onSelect={(image) => {
           change({ [identity === "wordmark" ? "wordmark" : "logo"]: image });

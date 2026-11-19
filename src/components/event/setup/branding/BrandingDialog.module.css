@@ -201,6 +201,30 @@
   cursor: grab;
   touch-action: none;
 }
+.cropStage[data-identity="true"] {
+  justify-content: center;
+  height: min(320px, 35dvh);
+}
+.cropStage[data-identity="true"] .cropFrame {
+  flex-shrink: 0;
+  background: repeating-conic-gradient(var(--line) 0 25%, var(--surface) 0 50%) 50% / 16px 16px;
+}
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+}
+.zoom input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--action);
+}
+.zoom span:last-child {
+  min-width: 4ch;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
 .cropFrame:active {
   cursor: grabbing;
 }

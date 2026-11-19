@@ -89,6 +89,7 @@ export default function BrandingAppearance({
       {isOpen && (
         <BrandingUploadDialog
           kind={kind}
+          initialImage={kind === "logo" ? branding.logo : null}
           onClose={closeModal}
           onSelect={(image) => {
             if (!onChange({ [kind]: image })) return false;

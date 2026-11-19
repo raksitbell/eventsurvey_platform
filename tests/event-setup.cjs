@@ -677,6 +677,37 @@ function imageBrowser(t, options = {}) {
   );
   return { calls, canvas };
 }
+test("icon cropping exports the selected pixels into a square transparent PNG", async (t) => {
+  const { calls, canvas } = imageBrowser(t, { width: 800, height: 400 });
+  const file = new File(["original"], "branding.SVG", { type: "image/svg+xml" });
+  const image = await prepareBrandingImage(file, { identityCrop: { asset: "icon", x: 100, y: 50, zoom: 2 } });
+  assert.deepEqual(calls.draws, [[600, 100, 200, 200, 0, 0, 200, 200]]);
+  assert.deepEqual(calls.alpha, { alpha: true });
+  assert.match(image.url, /^data:image\/png;base64,/);
+  assert.equal(image.name, "branding.png");
+  assert.equal(calls.closed, 1);
+  assert.deepEqual([canvas.width, canvas.height], [0, 0]);
+});
+test("wordmark cropping fits the header ratio at either edge of a tall image", async (t) => {
+  const { calls } = imageBrowser(t, { width: 1024, height: 1280 });
+  const file = new File(["original"], "mark.png", { type: "image/png" });
+  for (const y of [0, 100]) {
+    await prepareBrandingImage(file, { identityCrop: { asset: "wordmark", x: 50, y, zoom: 1 } });
+  }
+  assert.deepEqual(calls.draws, [
+    [0, 0, 1024, 320, 0, 0, 512, 160],
+    [0, 960, 1024, 320, 0, 0, 512, 160],
+  ]);
+});
+test("identity images already in the frame keep their original PNG and SVG bytes", async (t) => {
+  const { calls } = imageBrowser(t, { width: 128, height: 40 });
+  for (const [type, name] of [["image/svg+xml", "mark.svg"], ["image/png", "mark.png"]]) {
+    const file = new File(["original"], name, { type });
+    const image = await prepareBrandingImage(file, { identityCrop: { asset: "wordmark", x: 25, y: 100, zoom: 1 } });
+    assert.deepEqual(image, { name, url: `data:${type};base64,${Buffer.from("original").toString("base64")}` });
+  }
+  assert.deepEqual(calls.encodes, []);
+});
 test("small supported images keep their exact bytes, filename and type without encoding", async (t) => {
   const { calls } = imageBrowser(t);
   for (const [type, ext] of [
