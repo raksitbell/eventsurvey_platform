@@ -167,8 +167,9 @@ export async function resolveEventFormAccess(
   | { ok: true; access: EventFormAccessLevels }
   | { ok: false; response: NextResponse }
 > {
-  if (isInspectingEvent(session ?? null)) {
-    if (eventId && eventId !== session.inspectedEventId) {
+  const activeSession = session ?? null;
+  if (isInspectingEvent(activeSession)) {
+    if (eventId && eventId !== activeSession.inspectedEventId) {
       return { ok: false, response: authJson({ error: "FORBIDDEN" }, 403) };
     }
     return {
@@ -254,8 +255,9 @@ export async function denyUnlessEventPermission(
   eventId?: string,
   session?: AuthSessionCookie | null,
 ): Promise<NextResponse | null> {
-  if (isInspectingEvent(session ?? null)) {
-    if (eventId && eventId !== session.inspectedEventId) {
+  const activeSession = session ?? null;
+  if (isInspectingEvent(activeSession)) {
+    if (eventId && eventId !== activeSession.inspectedEventId) {
       return authJson({ error: "FORBIDDEN" }, 403);
     }
     return null;

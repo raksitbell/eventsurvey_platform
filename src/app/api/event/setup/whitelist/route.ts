@@ -1,5 +1,8 @@
 import { isAuthSession, requireEventSession } from "@/core/auth/api-guard";
-import { isInspectingEvent } from "@/core/auth/cookie";
+import {
+  isInspectingEvent,
+  type AuthSessionCookie,
+} from "@/core/auth/cookie";
 import { authJson } from "@/core/auth/route-response";
 import { setupRevisionSchema } from "@/core/event/setup-state";
 import { whitelistEntriesSchema } from "@/core/event/whitelist";
@@ -26,11 +29,12 @@ function requestLocale(request: NextRequest) {
     : routing.defaultLocale;
 }
 
-function inspectOptions(session: {
-  inspectedEventId: string | null;
-  impersonating: boolean;
-  realRole: string;
-}) {
+function inspectOptions(
+  session: Pick<
+    AuthSessionCookie,
+    "realRole" | "impersonating" | "inspectedEventId"
+  >,
+) {
   return {
     inspectedEventId: isInspectingEvent(session)
       ? session.inspectedEventId

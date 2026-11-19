@@ -1,5 +1,8 @@
 import { isAuthSession, requireEventSession } from "@/core/auth/api-guard";
-import { isInspectingEvent } from "@/core/auth/cookie";
+import {
+  isInspectingEvent,
+  type AuthSessionCookie,
+} from "@/core/auth/cookie";
 import { authJson } from "@/core/auth/route-response";
 import { setupDraftPatch } from "@/core/event/setup-request";
 import {
@@ -10,11 +13,12 @@ import {
 import { setupErrorResponse } from "@/services/event/setup-response";
 import type { NextRequest } from "next/server";
 
-function inspectOptions(session: {
-  inspectedEventId: string | null;
-  impersonating: boolean;
-  realRole: string;
-}) {
+function inspectOptions(
+  session: Pick<
+    AuthSessionCookie,
+    "realRole" | "impersonating" | "inspectedEventId"
+  >,
+) {
   return {
     inspectedEventId: isInspectingEvent(session)
       ? session.inspectedEventId

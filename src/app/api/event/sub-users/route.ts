@@ -4,18 +4,22 @@ import {
   isAuthSession,
   requireEventSession,
 } from "@/core/auth/api-guard";
-import { isInspectingEvent } from "@/core/auth/cookie";
+import {
+  isInspectingEvent,
+  type AuthSessionCookie,
+} from "@/core/auth/cookie";
 import { authJson, readJsonObject } from "@/core/auth/route-response";
 import { getEventWorkspace } from "@/services/event/workspace";
 import { getSubUsers, inviteSubUser } from "@/services/event/sub-users";
 import type { InviteSubUserInput } from "@/types/event/permissions";
 import type { NextRequest } from "next/server";
 
-function workspaceOptions(session: {
-  inspectedEventId: string | null;
-  impersonating: boolean;
-  realRole: string;
-}) {
+function workspaceOptions(
+  session: Pick<
+    AuthSessionCookie,
+    "realRole" | "impersonating" | "inspectedEventId"
+  >,
+) {
   return {
     inspectedEventId: isInspectingEvent(session)
       ? session.inspectedEventId
