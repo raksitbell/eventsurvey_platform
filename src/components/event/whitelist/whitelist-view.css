@@ -45,13 +45,15 @@
 .es-list-private {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-block-start: 8px;
   margin-inline-start: auto;
+  width: fit-content;
   border-radius: 999px;
-  padding: 6px 14px;
+  padding: 4px 10px;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.25;
   font-weight: 600;
   background: var(--es-brand-secondary);
   color: var(--es-banner-text);
@@ -283,8 +285,5 @@
   }
   .es-list-tools .es-list-add {
     min-width: 156px;
-  }
-  .es-list-private {
-    min-width: 171px;
   }
 }

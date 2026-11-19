@@ -18,6 +18,9 @@ import PublicationIcon from "./PublicationIcon";
 import PublishedEventSummary, {
   PublicationHeading,
 } from "./PublishedEventSummary";
+import QrLoadingSkeleton, {
+  QrShareLinksSkeleton,
+} from "./QrLoadingSkeleton";
 
 type FormShareKind = "registration" | "survey";
 
@@ -227,11 +230,7 @@ function ShareLinksSection() {
   }, [attempt]);
 
   if (result?.attempt !== attempt) {
-    return (
-      <p role="status" aria-busy="true" className="published-qr__card">
-        {common("loading")}
-      </p>
-    );
+    return <QrShareLinksSkeleton label={t("loading")} />;
   }
   if (result.failed) {
     return (
@@ -323,6 +322,16 @@ function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
   );
 }
 
+function QrBoundaryLoading() {
+  const t = useTranslations("eventPublishedView");
+  return <QrLoadingSkeleton label={t("loading")} />;
+}
+
 export default function PublishedQrPanel() {
-  return <EventSetupBoundary component={PublishedQr} />;
+  return (
+    <EventSetupBoundary
+      component={PublishedQr}
+      loadingFallback={<QrBoundaryLoading />}
+    />
+  );
 }

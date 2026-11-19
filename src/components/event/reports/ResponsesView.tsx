@@ -11,6 +11,7 @@ import Button from "@/components/ui/button/Button";
 import ReportShell, { panelClass } from "./ReportShell";
 import { download, responseCsv } from "@/core/event/export";
 import type { ReportingData } from "@/types/event/reporting";
+import { showToast } from "@/utils/toast";
 export default function ResponsesView() {
   const { data, identityKey, errorStatus, reload } = useEventReporting();
   const tErrors = useTranslations("errors");
@@ -109,12 +110,22 @@ function ResponseTable({
             variant="outline"
             size="sm"
             disabled={!data.canExport || !rows.length}
-            onClick={() =>
-              download(
-                responseCsv(rows, [t("id"), t("respondent"), t("submitted")]),
-                `responses-${data.eventId}.csv`,
-              )
-            }
+            onClick={() => {
+              try {
+                const name = `responses-${data.eventId}.csv`;
+                download(
+                  responseCsv(rows, [
+                    t("id"),
+                    t("respondent"),
+                    t("submitted"),
+                  ]),
+                  name,
+                );
+                void showToast(t("exports.generated", { name }));
+              } catch {
+                void showToast(t("exports.failed"), "error");
+              }
+            }}
           >
             {t("export")}
           </Button>

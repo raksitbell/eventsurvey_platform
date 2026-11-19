@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { Link } from "@/i18n/navigation";
+import ReportLoadingSkeleton from "@/components/event/reports/ReportLoadingSkeleton";
+import Skeleton from "@/components/ui/skeleton/Skeleton";
 import styles from "./dashboard-theme.module.css";
 
 const sections = [
@@ -67,7 +69,9 @@ export default function ReportShell({
               <h1 className="text-title-sm font-bold">
                 {t(`${section}.title`)}
               </h1>
-              {!loading && errorStatus === null && (
+              {loading && errorStatus === null ? (
+                <Skeleton className="h-6 w-28 rounded-full" />
+              ) : !loading && errorStatus === null ? (
                 <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full bg-brand-100 px-3 py-1 text-theme-xs font-semibold text-brand-600 dark:bg-brand-500/25 dark:text-brand-200">
                   <span
                     aria-hidden="true"
@@ -75,7 +79,7 @@ export default function ReportShell({
                   />
                   {t("publishedEvent")}
                 </span>
-              )}
+              ) : null}
             </div>
             {!accessIssue && (
               <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
@@ -124,9 +128,7 @@ export default function ReportShell({
             )}
           </div>
         ) : loading ? (
-          <p role="status" className={panelClass}>
-            {t("loading")}
-          </p>
+          <ReportLoadingSkeleton section={section} label={t("loading")} />
         ) : (
           children
         )}

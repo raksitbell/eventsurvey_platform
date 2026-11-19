@@ -15,6 +15,7 @@ import {
   TableCellsIcon,
 } from "@heroicons/react/24/outline";
 import type { ReportingData } from "@/types/event/reporting";
+import { showToast } from "@/utils/toast";
 import ReportShell, { panelClass } from "./ReportShell";
 
 const formats = [
@@ -55,25 +56,50 @@ function ExportPanel({ data }: { data: ReportingData }) {
   } | null>(null);
   const forms = data.forms.filter((form) => form.approved);
   const rows = approvedResponses(data);
+
   function generate(kind: "responses" | "summary") {
-    const content =
-      kind === "responses"
-        ? responseCsv(rows, [t("id"), t("respondent"), t("submitted")])
-        : csv([
-            [t("item"), t("count")],
-            ...forms.map((f) => [
-              f.title,
-              rows.filter((r) => r.formId === f.id).length,
-            ]),
-          ]);
-    const name = `${kind}-${data.eventId}.csv`;
-    setLast({
-      content,
-      name,
-      at: new Date().toLocaleString(locale, { timeZone: "Asia/Bangkok" }),
-    });
-    download(content, name);
+    try {
+      const content =
+        kind === "responses"
+          ? responseCsv(rows, [t("id"), t("respondent"), t("submitted")])
+          : csv([
+              [t("item"), t("count")],
+              ...forms.map((f) => [
+                f.title,
+                rows.filter((r) => r.formId === f.id).length,
+              ]),
+            ]);
+      const name = `${kind}-${data.eventId}.csv`;
+      setLast({
+        content,
+        name,
+        at: new Date().toLocaleString(locale, { timeZone: "Asia/Bangkok" }),
+      });
+      download(content, name);
+      void showToast(t("exports.generated", { name }));
+    } catch {
+      void showToast(t("exports.failed"), "error");
+    }
   }
+
+  function redownload(content: string, name: string) {
+    try {
+      download(content, name);
+      void showToast(t("exports.downloaded", { name }));
+    } catch {
+      void showToast(t("exports.failed"), "error");
+    }
+  }
+
+  function printReport() {
+    try {
+      globalThis.print();
+      void showToast(t("exports.printReady"), "info");
+    } catch {
+      void showToast(t("exports.failed"), "error");
+    }
+  }
+
   return (
     <>
       <div className="space-y-5">
@@ -105,7 +131,7 @@ function ExportPanel({ data }: { data: ReportingData }) {
               <Button
                 disabled={!rows.length}
                 onClick={() =>
-                  kind === "pdf" ? globalThis.print() : generate(kind)
+                  kind === "pdf" ? printReport() : generate(kind)
                 }
               >
                 {t(kind === "pdf" ? "exports.print" : "generate")}
@@ -133,7 +159,7 @@ function ExportPanel({ data }: { data: ReportingData }) {
             </span>
             <Button
               variant="outline"
-              onClick={() => download(last.content, last.name)}
+              onClick={() => redownload(last.content, last.name)}
             >
               {t("download")}
             </Button>
