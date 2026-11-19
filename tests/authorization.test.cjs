@@ -133,7 +133,7 @@ test("proxy routes the full auth-state matrix before forwarding to localization"
 test("proxy passes through the localized Full Preview rewrite after checking the event session", () => {
   const owner = sessionCookie("event_owner");
   for (const prefix of ["/th", "/en"]) {
-    const path = `${prefix}/preview/event?device=desktop&from=branding`;
+    const path = `${prefix}/preview/event?from=publish&tab=form&form=survey`;
     const allowed = navigate(path, owner);
     assert.equal(allowed.headers.get("x-middleware-next"), "1", path);
     assert.equal(allowed.headers.get("x-test-intl"), null, path);

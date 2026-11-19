@@ -271,7 +271,6 @@ export default function PublicParticipantForm({
       <ParticipantHeader
         branding={branding}
         readOnly={readOnly}
-        device="desktop"
         contentLocale={locale}
       />
       <div

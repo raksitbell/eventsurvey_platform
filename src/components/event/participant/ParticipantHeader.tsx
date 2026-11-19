@@ -7,18 +7,15 @@ import { GlobeAltIcon } from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import { useId, useRef, useState } from "react";
-import type { ParticipantDevice } from "@/types/event/participant";
 import type { EventBranding } from "@/types/event/branding";
 
 interface ParticipantHeaderProps {
   branding: EventBranding;
-  device: ParticipantDevice;
   readOnly?: boolean;
   contentLocale?: string;
 }
 export default function ParticipantHeader({
   branding,
-  device,
   readOnly = false,
   contentLocale,
 }: ParticipantHeaderProps) {
@@ -102,12 +99,7 @@ export default function ParticipantHeader({
                 aria-pressed={locale === language.id}
                 onClick={() => {
                   setOpen(false);
-                  router.replace(
-                    pathname === "/preview/event"
-                      ? `${pathname}?device=${device}`
-                      : pathname,
-                    { locale: language.id },
-                  );
+                  router.replace(pathname, { locale: language.id });
                 }}
                 className="block w-full rounded-lg px-3 py-2 text-start text-theme-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
               >
