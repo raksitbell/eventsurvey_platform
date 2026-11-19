@@ -134,6 +134,8 @@
   color: var(--review-muted);
 }
 .publish-checklist__row {
+  --review-status-text: var(--review-muted);
+  --review-status-bg: var(--review-tag);
   display: flex;
   align-items: center;
   min-width: 0;
@@ -199,7 +201,7 @@
   --review-status-text: var(--color-success-700);
   --review-status-bg: var(--color-success-50);
 }
-.publish-checklist__row[data-status="needs-edit"] {
+.publish-checklist__row:is([data-status="needs-edit"], [data-status="blocked"], [data-status="unverified"]) {
   --review-status-text: var(--color-orange-800);
   --review-status-bg: var(--color-orange-50);
 }
@@ -211,7 +213,7 @@
   --review-status-text: var(--color-success-300);
   --review-status-bg: var(--color-success-950);
 }
-.dark .publish-checklist__row[data-status="needs-edit"] {
+.dark .publish-checklist__row:is([data-status="needs-edit"], [data-status="blocked"], [data-status="unverified"]) {
   --review-status-text: var(--color-orange-300);
   --review-status-bg: var(--color-orange-950);
 }

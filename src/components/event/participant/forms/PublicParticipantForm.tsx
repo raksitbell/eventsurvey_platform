@@ -19,7 +19,7 @@ import {
   type PublicFormAnswerIssue,
 } from "@/core/event/public-form-response";
 import { Link } from "@/i18n/navigation";
-import type { FormLocale } from "@/types/event/form";
+import { completeFormLocale } from "@/core/forms/content";
 import type { ParticipantFormKind } from "@/types/event/participant";
 import type { PublicForm, PublicFormStatus } from "@/types/event/public-event";
 import { useLocale, useTranslations } from "next-intl";
@@ -79,11 +79,9 @@ export default function PublicParticipantForm({
   const requestInFlight = useRef(false);
   const status = readOnly ? result.status : liveStatus;
   const form = result.status === "open" ? result.form : null;
-  const locale: FormLocale = !form || form.head[preferredLocale].title.trim()
-    ? preferredLocale
-    : preferredLocale === "th"
-      ? "en"
-      : "th";
+  const legacyLocale = !form || form.head[preferredLocale].title.trim()
+    ? preferredLocale : preferredLocale === "th" ? "en" : "th";
+  const locale = form ? completeFormLocale(form, preferredLocale) ?? legacyLocale : preferredLocale;
   const heading = form?.head[locale].title.trim() || participant(kind);
 
   function clearAnswerError(id: string) {

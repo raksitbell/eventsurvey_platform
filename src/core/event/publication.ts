@@ -5,9 +5,12 @@ import {
   legacyEventSetupLocales,
 } from "@/core/event/draft";
 import { eventBrandingSchema } from "@/core/event/branding";
+import { surveyClosingTime } from "@/core/event/schedule";
+import { whitelistUniqueField } from "@/core/event/whitelist";
 import { uniqueFieldIssue } from "@/core/forms/unique-field";
+import { validatePublishReady } from "@/core/forms/content";
 import type { EventDraft } from "@/types/event/setup";
-import type { FormType } from "@/types/event/form";
+import type { FormRecord, FormType, PublishFormReadiness, QuestionType, RestrictedFormReview } from "@/types/event/form";
 
 /** Minimal form shape accepted by publicationIssues; validated by Zod inside. */
 interface MinimalChoice {
@@ -18,8 +21,9 @@ interface MinimalLabel {
   choices: Record<string, MinimalChoice[]>;
 }
 interface MinimalQuestion {
+  id?: string;
   is_unique?: boolean;
-  type: string;
+  type: QuestionType;
   label: Record<string, MinimalLabel[]>;
   min_length: number;
   max_length: number;
@@ -27,7 +31,7 @@ interface MinimalQuestion {
   max_number: number;
 }
 interface MinimalForm {
-  type: string;
+  type: FormType;
   questions: Array<{ question: MinimalQuestion }>;
   head: Record<string, { title: string; description: string }>;
   opensAt?: string | null;
@@ -45,8 +49,10 @@ const label = z.object({
   placeholder: z.string(),
   scale_min_label: z.string().optional(),
   scale_max_label: z.string().optional(),
-  choices: z.object({ th: z.array(choice), en: z.array(choice) }),
+  choices: z.object({ th: z.array(choice).default([]), en: z.array(choice).default([]) }),
 });
+const heading = z.object({ title: z.string(), description: z.string() })
+  .default({ title: "", description: "" });
 const form = z.object({
   id: z.string(),
   eventId: z.string(),
@@ -70,8 +76,8 @@ const form = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   head: z.object({
-    th: z.object({ title: z.string(), description: z.string() }),
-    en: z.object({ title: z.string(), description: z.string() }),
+    th: heading,
+    en: heading,
   }),
   questions: z.array(
     z.object({
@@ -104,9 +110,9 @@ const form = z.object({
           rating_display: z.enum(["icon", "linear_scale"]).optional(),
           rating_icon: z.enum(["star", "heart", "like"]).optional(),
           label: z.object({
-            th: z.array(label).min(1),
-            en: z.array(label).min(1),
-          }),
+            th: z.array(label).default([]),
+            en: z.array(label).default([]),
+          }).refine((labels) => labels.th.length > 0 || labels.en.length > 0),
         })
         .refine(
           (q) =>
@@ -203,11 +209,27 @@ export type PublishIssue =
 type FormProblem = "formContent" | "formStatus";
 type FormProblems = Record<FormType, FormProblem[]>;
 
-/** Supply the current form list to include lifecycle and participant eligibility checks at publish time. */
+function hasPublishableStatus(type: FormType, list: readonly { type: string; status: string }[]) {
+  const matches = list.filter((item) => item.type === type);
+  return matches.length === 1 && ["draft", "scheduled", "open", "published"].includes(matches[0].status);
+}
+
+export function publishFormReadiness(type: FormType, list: readonly FormRecord[]): PublishFormReadiness {
+  const definition = list.find((item) => item.type === type) ?? null;
+  return {
+    present: definition !== null,
+    contentReady: !!definition && hasCompleteContent(type, definition),
+    statusReady: hasPublishableStatus(type, list),
+    hasUniqueField: !!whitelistUniqueField(definition),
+  };
+}
+
+/** The current form list adds lifecycle checks. Participant eligibility applies to every draft review. */
 export function reviewPublication(
   draft: EventDraft,
   forms: MinimalForms,
   formList?: readonly { type: string; status: string }[],
+  restrictedForms?: RestrictedFormReview,
 ) {
   const issues = new Set<SharedPublishIssue>();
   const languageIssues: PublishIssue[] = [];
@@ -241,47 +263,41 @@ export function reviewPublication(
     if (!(type === "registration" ? draft.hasRegistration : draft.hasSurvey))
       continue;
     const definition = forms[type];
-    if (formList) {
-      const matches = formList.filter((item) => item.type === type);
-      if (
-        matches.length !== 1 ||
-        !["draft", "scheduled", "open", "published"].includes(matches[0].status)
-      ) {
-        formProblems[type].push("formStatus");
-        issues.add("formStatus");
-      }
+    const hidden = restrictedForms?.[type];
+    const invalidStatus = hidden
+      ? !hidden.statusReady
+      : formList && !hasPublishableStatus(type, formList);
+    if (invalidStatus) {
+      formProblems[type].push("formStatus");
+      issues.add("formStatus");
     }
-    if (!definition || !hasCompleteContent(type, definition)) {
+    const contentReady = hidden?.contentReady ??
+      (!!definition && hasCompleteContent(type, definition));
+    if (!contentReady) {
       formProblems[type].push("formContent");
       issues.add("formContent");
     }
-    if (!definition) continue;
+    if (type !== "survey") continue;
+    const opensAt = definition ? definition.opensAt : draft.startsAt;
+    const closesAt = definition ? definition.closesAt : surveyClosingTime(draft);
     if (
-      type === "survey" &&
-      (!definition.opensAt ||
-        !definition.closesAt ||
-        !Number.isFinite(Date.parse(definition.opensAt)) ||
-        !Number.isFinite(Date.parse(definition.closesAt)) ||
-        Date.parse(definition.closesAt) <= Date.parse(definition.opensAt) ||
-        (draft.endsAt &&
-          Date.parse(definition.closesAt) < Date.parse(draft.endsAt)))
+      !opensAt || !closesAt ||
+      !Number.isFinite(Date.parse(opensAt)) ||
+      !Number.isFinite(Date.parse(closesAt)) ||
+      Date.parse(closesAt) <= Date.parse(opensAt) ||
+      (draft.endsAt && Date.parse(closesAt) < Date.parse(draft.endsAt))
     )
       issues.add("surveySchedule");
   }
-  const unique =
-    forms.registration?.questions.filter(
-      ({ question }) => question.is_unique,
-    ) ?? [];
-  if (
-    (draft.isPrivate ||
-      (draft.hasSurvey && draft.surveyAccess === "registered_only")) &&
-    (!draft.hasRegistration ||
-      unique.length !== 1 ||
-      !["email", "short_text", "number"].includes(unique[0].question.type))
-  )
+  const registeredSurvey = draft.hasSurvey && draft.surveyAccess === "registered_only";
+  const validIdentifier = draft.hasRegistration &&
+    (restrictedForms?.registration?.hasUniqueField ?? !!whitelistUniqueField(forms.registration));
+  if ((draft.isPrivate || registeredSurvey) && !validIdentifier) {
     issues.add("uniqueField");
-  // Local email staging alone does not establish validated registration access.
+  }
+  // Both participant flows are restricted until they can verify the visitor on the server.
   if (draft.isPrivate) issues.add("whitelist");
+  if (registeredSurvey) issues.add("registeredEligibility");
   for (const capacity of [
     draft.hasRegistration ? draft.registrationCapacity : null,
     draft.hasSurvey && draft.surveyAccess === "public"
@@ -290,14 +306,6 @@ export function reviewPublication(
   ])
     if (capacity != null && (!Number.isInteger(capacity) || capacity <= 0))
       issues.add("capacity");
-  if (
-    formList &&
-    !draft.isPrivate &&
-    draft.hasSurvey &&
-    draft.surveyAccess === "registered_only"
-  ) {
-    issues.add("registeredEligibility");
-  }
   return { issues: [...languageIssues, ...issues], formProblems };
 }
 
@@ -310,32 +318,6 @@ export function publicationIssues(
 
 function hasCompleteContent(type: FormType, definition: MinimalForm): boolean {
   const parsed = form.safeParse(definition);
-  if (
-    definition.type !== type ||
-    !parsed.success ||
-    !parsed.data.questions.length ||
-    uniqueFieldIssue(parsed.data.questions)
-  ) {
-    return false;
-  }
-  for (const locale of ["th", "en"] as const) {
-    if (!definition.head[locale].title.trim()) return false;
-    for (const { question } of definition.questions) {
-      const label = question.label[locale][0];
-      if (!label?.label.trim()) return false;
-      if (
-        ["multiple_choice", "checkbox", "dropdown"].includes(question.type) &&
-        (!label.choices[locale]?.length ||
-          label.choices[locale].some((choice) => !choice.label.trim()))
-      )
-        return false;
-      if (
-        (question.max_length > 0 &&
-          question.min_length > question.max_length) ||
-        question.min_number > question.max_number
-      )
-        return false;
-    }
-  }
-  return true;
+  return parsed.success && parsed.data.type === type &&
+    !uniqueFieldIssue(parsed.data.questions) && !validatePublishReady(parsed.data);
 }

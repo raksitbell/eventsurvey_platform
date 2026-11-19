@@ -8,6 +8,13 @@ export function isPastScheduleMinute(value: string | null | undefined, now = Dat
   return !!value && Date.parse(value) < scheduleMinuteFloor(now);
 }
 
+export function publicationPastDates(draft: Pick<EventDraft, "startsAt" | "endsAt">, now: number) {
+  return {
+    pastStart: isPastScheduleMinute(draft.startsAt, now),
+    pastEnd: Date.parse(draft.endsAt ?? "") <= now,
+  };
+}
+
 export function surveyClosingTime(draft: EventDraft): string | null {
   if (!draft.endsAt) return null;
   if (draft.surveyCloseMode === "custom")

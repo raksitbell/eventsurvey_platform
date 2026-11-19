@@ -5,6 +5,73 @@ const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
 const { loadSource } = require("./support/load-source.cjs");
+const { randomUUID } = require("node:crypto");
+
+test("single-language drafts retain all option IDs and schedule only with one complete translation", async (t) => {
+  const eventId = randomUUID();
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "event-form-languages-"));
+  t.after(() => fs.rmSync(cacheDir, { recursive: true, force: true }));
+  const rows = { events: [{ id: eventId, has_registration: true, has_survey: true }], forms: [], form_fields: [], form_translations: [], field_options: [], field_option_translations: [], field_translations: [] };
+  function matching(resource) {
+    const url = new URL(resource, "https://fixture.example.test");
+    const [, table, id] = url.pathname.split("/");
+    const filters = [...url.searchParams].filter(([name]) => !name.startsWith("_"));
+    return id ? rows[table].find((row) => row.id === id) :
+      rows[table].filter((row) => filters.every(([key, value]) => row[key] === value));
+  }
+  const load = loadSource({
+    "node:os": { tmpdir: () => cacheDir },
+    "@/core/audit/write": { writeAuditLog: async () => {} },
+    "@/core/api/mock-client": { mockApi: {
+      get: async (resource) => structuredClone(matching(resource)),
+      getFresh: async (resource) => structuredClone(matching(resource)),
+      post: async (resource, body) => { rows[resource.slice(1)].push(body); return body; },
+      put: async (resource, body) => Object.assign(matching(resource), body),
+    } },
+  });
+  const { createFormBodySchema } = load("src/core/validation/forms.ts");
+  const { completeFormLocale } = load("src/core/forms/content.ts");
+  const { createForm, updateFormStatus } = load("src/services/event/forms.ts");
+  const opensAt = new Date(Date.now() + 3_600_000).toISOString();
+  for (const [type, locale, other] of [["registration", "th", "en"], ["survey", "en", "th"]]) {
+    const input = createFormBodySchema.parse({
+      eventId, type, head: { [locale]: { title: "Title", description: "" } },
+      questions: [{ question: {
+        type: "dropdown", display_order: 1, min_number: 0, max_number: 0, min_length: 0, max_length: 0, is_required: true,
+        label: { [locale]: [{ label: "Pick", placeholder: "", choices: { [locale]: [{ label: "One", display_order: 1 }, { label: "Two", display_order: 2 }] } }] },
+      } }],
+    });
+    const saved = await createForm(input, "owner");
+    for (const [bounds, path] of [
+      [{ type: "number", min_value: 5, max_value: 0 }, "min_value"],
+      [{ type: "rating", min_number: 5, max_number: 2 }, "min_number"],
+      [{ type: "short_text", min_length: 5, max_length: 2 }, "min_length"],
+    ]) {
+      const result = createFormBodySchema.safeParse({
+        ...input, questions: [{ question: { ...input.questions[0].question, ...bounds } }],
+      });
+      assert.equal(result.success, false);
+      assert.deepEqual(result.error.issues[0].path, ["questions", 0, "question", path]);
+    }
+    const options = saved.questions[0].question.label[locale][0].choices;
+    assert.deepEqual(options[locale].map((c) => c.label), ["One", "Two"]);
+    assert.deepEqual(options[other].map((c) => c.label), ["", ""]);
+    assert.deepEqual(options[locale].map((c) => c.id), options[other].map((c) => c.id));
+    assert.equal(completeFormLocale(saved, other), locale);
+    assert.equal((await updateFormStatus(saved.id, { status: "scheduled", opensAt }, "owner")).status, "scheduled");
+  }
+  const otherEvent = randomUUID();
+  rows.events.push({ id: otherEvent, has_survey: true });
+  const mixed = await createForm(createFormBodySchema.parse({
+    eventId: otherEvent, type: "survey", head: { th: { title: "Thai heading", description: "" } },
+    questions: [{ question: {
+      type: "dropdown", display_order: 1, min_number: 0, max_number: 0, min_length: 0, max_length: 0, is_required: true,
+      label: { en: [{ label: "English question", placeholder: "", choices: { en: [{ label: "First", display_order: 1 }] } }] },
+    } }],
+  }), "owner");
+  await assert.rejects(updateFormStatus(mixed.id, { status: "scheduled", opensAt }, "owner"), { code: "FORM_NOT_READY", status: 400 });
+  assert.equal(rows.forms.find((form) => form.id === mixed.id).status, "draft");
+});
 
 test("the form service rejects new past dates and invalid merged windows while preserving saved schedules", async (t) => {
   const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "event-form-schedule-"));

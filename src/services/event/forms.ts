@@ -19,7 +19,7 @@ import {
   withPublishedFormSchedule,
 } from "@/core/forms/published-schedule";
 import { uniqueFieldIssue } from "@/core/forms/unique-field";
-import { validatePublishReady } from "@/core/validation/forms";
+import { validatePublishReady } from "@/core/forms/content";
 import type {
   Choice,
   Form,
@@ -495,12 +495,12 @@ async function loadChoices(
     const thRow = translations.find((t) => t.locale_code === "th");
     en.push({
       id: option.id,
-      label: enRow?.label ?? thRow?.label ?? "",
+      label: enRow?.label ?? "",
       display_order: option.display_order,
     });
     th.push({
       id: option.id,
-      label: thRow?.label ?? enRow?.label ?? "",
+      label: thRow?.label ?? "",
       display_order: option.display_order,
     });
   }
@@ -566,31 +566,16 @@ async function loadQuestions(formId: string): Promise<Question[]> {
   return questions;
 }
 
-function headFromTranslations(
-  rows: MockFormTranslation[],
-  fallbackType?: FormType,
-): Form["head"] {
+function headFromTranslations(rows: MockFormTranslation[]): Form["head"] {
   const en = rows.find((r) => r.locale_code === "en");
   const th = rows.find((r) => r.locale_code === "th");
-  const defaultEnTitle =
-    rows.length === 0 && fallbackType
-      ? fallbackType === "registration"
-        ? "Registration"
-        : "Survey"
-      : "";
-  const defaultThTitle =
-    rows.length === 0 && fallbackType
-      ? fallbackType === "registration"
-        ? "ฟอร์มลงทะเบียน"
-        : "แบบสำรวจ"
-      : "";
   return {
     en: {
-      title: en?.title ?? defaultEnTitle,
+      title: en?.title ?? "",
       description: en?.description ?? "",
     },
     th: {
-      title: th?.title ?? defaultThTitle,
+      title: th?.title ?? "",
       description: th?.description ?? "",
     },
   };
@@ -728,10 +713,7 @@ async function toFormRecord(
     closesAt: form.closes_at,
     createdAt: form.created_at,
     updatedAt: form.updated_at,
-    head: headFromTranslations(
-      translationRows,
-      cached ? undefined : form.type,
-    ),
+    head: headFromTranslations(translationRows),
     questions,
     canEdit: flags.canEdit,
     canDelete: flags.canDelete,
@@ -796,10 +778,7 @@ async function softDeleteFieldTree(
   });
 }
 
-/**
- * Builder keeps primary choice edits under `label.en[0].choices.en`.
- * Thai labels prefer matching id in `choices.th`, else same index.
- */
+/** Options share IDs/order; a missing translation stays blank. */
 function resolveOptionLocales(
   enLabel: Label | undefined,
   thLabel?: Label,
@@ -807,22 +786,24 @@ function resolveOptionLocales(
   en: Choice[];
   th: Choice[];
 } {
-  const enChoices = enLabel?.choices.en ?? [];
-  const thChoices =
-    (thLabel?.choices.th?.length ? thLabel.choices.th : enLabel?.choices.th) ??
-    [];
-  const thById = new Map(thChoices.filter((c) => c.id).map((c) => [c.id!, c]));
+  const en = enLabel?.choices.en.length ? enLabel.choices.en : thLabel?.choices.en ?? [];
+  const th = thLabel?.choices.th.length ? thLabel.choices.th : enLabel?.choices.th ?? [];
+  const thById = new Map(th.map((choice) => [choice.id, choice]));
+  const thByOrder = new Map(th.map((choice) => [choice.display_order, choice]));
+  const paired = new Set<Choice>();
+  const pairs = en.map((choice) => {
+    const translation = (choice.id ? thById.get(choice.id) : undefined) ?? thByOrder.get(choice.display_order);
+    if (translation) paired.add(translation);
+    return { id: choice.id ?? translation?.id, display_order: choice.display_order, en: choice.label, th: translation?.label ?? "" };
+  });
+  for (const choice of th) {
+    if (!paired.has(choice))
+      pairs.push({ id: choice.id, display_order: choice.display_order, en: "", th: choice.label });
+  }
+  pairs.sort((a, b) => a.display_order - b.display_order);
   return {
-    en: enChoices,
-    th: enChoices.map((c, index) => {
-      const byId = c.id ? thById.get(c.id) : undefined;
-      const byIndex = thChoices[index];
-      return {
-        id: c.id,
-        display_order: c.display_order,
-        label: byId?.label || byIndex?.label || c.label,
-      };
-    }),
+    en: pairs.map(({ id, display_order, en }) => ({ id, display_order, label: en })),
+    th: pairs.map(({ id, display_order, th }) => ({ id, display_order, label: th })),
   };
 }
 
@@ -1128,7 +1109,7 @@ async function replaceQuestionTree(
     for (const [index, enChoice] of enChoices.entries()) {
       const optionId = enChoice.id ?? newId();
       const thChoice = thChoices[index];
-      const thChoiceLabel = thChoice?.label || enChoice.label;
+      const thChoiceLabel = thChoice.label;
       const prevOption = existingOptions.find((o) => o.id === optionId);
       const optionBody: MockFieldOption = {
         id: optionId,

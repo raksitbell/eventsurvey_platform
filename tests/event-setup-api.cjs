@@ -217,6 +217,42 @@ test("Publishing enabled draft forms freezes their Event Setup schedule in the e
   assert.equal(writes(), 2);
 });
 
+test("Setup publication accepts a complete TH or EN form and rejects options split between translations", async (t) => {
+  for (const locale of ["th", "en"]) {
+    const other = locale === "th" ? "en" : "th";
+    const choices = [{ label: "First", display_order: 1 }, { label: "Second", display_order: 2 }];
+    const question = {
+      type: "dropdown", display_order: 1, min_number: 0, max_number: 0,
+      min_length: 0, max_length: 0, is_required: true,
+      label: { [locale]: [{ label: "Choose", placeholder: "", choices: { [locale]: choices } }] },
+    };
+    const registration = {
+      id: "registration-a", eventId: "event-a", type: "registration", status: "draft",
+      opensAt: null, closesAt: null, createdAt: "", updatedAt: "",
+      head: { [locale]: { title: "Form", description: "" } }, questions: [{ question }],
+    };
+    const { service, draft, writes } = fixture(t, { forms: [registration] });
+    const context = await service.getSetupContext("owner");
+    const { revision } = await service.saveSetupDraft(context, {
+      revision: 0, draft: { ...draft, hasRegistration: true },
+    });
+    // A heading in one language cannot make the other language's options publishable.
+    question.label[locale][0].choices = { [other]: choices };
+    question.label[other] = [{ label: "Choose", placeholder: "", choices: { [other]: choices } }];
+    await assert.rejects(service.publishSetup(context, { revision, locale: other }), {
+      code: "SETUP_PUBLISH_INVALID", status: 422,
+    });
+    assert.equal(writes(), 1);
+    delete question.label[other];
+    question.label[locale][0].choices = { [locale]: choices };
+    const result = await service.publishSetup(context, { revision, locale: other });
+    const form = result.publication.forms.registration;
+    assert.equal(form.head[locale].title, "Form");
+    assert.equal(form.head[other].title, "");
+    assert.deepEqual(form.questions[0].question.label[locale][0].choices[locale], choices);
+  }
+});
+
 test("Whitelist reads require registration management and an editable private event with registration", async (t) => {
   const { service, draft } = fixture(t);
   const context = await service.getSetupContext("owner");

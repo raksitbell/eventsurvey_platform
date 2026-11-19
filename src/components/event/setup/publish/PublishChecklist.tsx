@@ -1,12 +1,13 @@
 import { useLocale, useTranslations } from "next-intl";
 import { bannerLayouts } from "@/core/event/banner-layout";
 import { contentLanguageName } from "@/core/event/content";
-import { formBuilderEntryHref, whitelistEntryHref } from "@/core/event/form-builder-navigation";
+import { eventSetupStepHref, formBuilderEntryHref, whitelistEntryHref } from "@/core/event/form-builder-navigation";
+import { surveyClosingTime } from "@/core/event/schedule";
 import { toBangkokInput } from "@/core/i18n/bangkok-datetime";
 import type { PublishIssue, reviewPublication } from "@/core/event/publication";
 import type { EventDraft } from "@/types/event/setup";
 import type { EventBranding } from "@/types/event/branding";
-import { useSearchParams } from "next/navigation";
+import type useParticipantPreviewLanguage from "@/hooks/useParticipantPreviewLanguage";
 import "./publish-view.css";
 
 interface Props {
@@ -14,8 +15,12 @@ interface Props {
   branding: EventBranding;
   issues: PublishIssue[];
   forms: Parameters<typeof reviewPublication>[1];
+  restrictedForms?: Parameters<typeof reviewPublication>[3];
+  unreviewable?: { registration: boolean; survey: boolean };
+  language: Pick<ReturnType<typeof useParticipantPreviewLanguage>, "contentLocale" | "translation">;
   formProblems: ReturnType<typeof reviewPublication>["formProblems"];
   checking: boolean;
+  loadFailed: boolean;
   mediaWarning?: string;
   startWarning?: string;
   endWarning?: string;
@@ -41,6 +46,7 @@ interface ChecklistRow {
   permitted?: boolean;
   checking?: boolean;
   missing?: boolean;
+  status?: "off" | "blocked" | "unverified";
 }
 
 export default function PublishChecklist({
@@ -48,8 +54,12 @@ export default function PublishChecklist({
   branding,
   issues,
   forms,
+  restrictedForms,
+  unreviewable,
+  language,
   formProblems,
   checking,
+  loadFailed,
   mediaWarning,
   startWarning,
   endWarning,
@@ -63,7 +73,8 @@ export default function PublishChecklist({
   const publish = useTranslations("eventPublish");
   const labels = useTranslations("eventPublishedView");
   const locale = useLocale();
-  const contentLocale = useSearchParams().getAll("lang");
+  const { contentLocale, translation } = language;
+  const detailsPath = eventSetupStepHref("details", contentLocale);
   const issueText = (issue: PublishIssue) =>
     typeof issue === "string"
       ? publish(`issues.${issue}`)
@@ -102,7 +113,7 @@ export default function PublishChecklist({
         value,
         missing: !value?.trim(),
         warnings: warnings(key),
-        href: `/event/details#${id}`,
+        href: `${detailsPath}#${id}`,
       });
     }
   }
@@ -111,7 +122,7 @@ export default function PublishChecklist({
     "contentTitle",
     details("name"),
     "event-name",
-    draft.eventName,
+    translation.title,
   );
   const start = dateLabel(draft.startsAt);
   const end = dateLabel(draft.endsAt);
@@ -121,7 +132,7 @@ export default function PublishChecklist({
       label: details("startsAt"),
       value: start ?? draft.startsAt,
       missing: !draft.startsAt?.trim(),
-      href: "/event/details#event-start",
+      href: `${detailsPath}#event-start`,
       warnings: startWarning
         ? [startWarning]
         : !start
@@ -138,7 +149,7 @@ export default function PublishChecklist({
         : !end || start
           ? warnings("eventSchedule")
           : [],
-      href: "/event/details#event-end",
+      href: `${detailsPath}#event-end`,
     },
   );
   addTranslatedField(
@@ -146,44 +157,59 @@ export default function PublishChecklist({
     "contentVenue",
     details("location"),
     "event-location",
-    draft.locationName,
+    translation.locationName,
   );
   rows.push(
     {
       key: "banner",
       label: setup("bannerRatio"),
       value: bannerLayouts[branding.layout ?? "portrait"].ratio,
-      warnings: mediaWarning ? [mediaWarning] : [],
-      href: "/event/details#event-media",
+      href: `${detailsPath}#event-media`,
     },
     {
       key: "access",
       label: setup("access"),
       value: details(draft.isPrivate ? "private" : "public"),
-      href: "/event/details#event-access",
-      warnings: warnings("registeredEligibility"),
+      href: `${detailsPath}#event-access`,
     },
   );
+  if (mediaWarning)
+    rows.push({
+      key: "media",
+      label: publish("brandingMedia"),
+      href: `${detailsPath}#event-media`,
+      warnings: [mediaWarning],
+    });
+  if (issues.includes("registeredEligibility"))
+    rows.push({
+      key: "surveyAccess",
+      label: details("surveyAccess"),
+      warnings: warnings("registeredEligibility"),
+      status: "blocked",
+      href: `${detailsPath}#survey-on`,
+    });
   if (issues.includes("uniqueField"))
     rows.push({
       key: "uniqueField",
       label: "Unique ID",
-      warnings: warnings("uniqueField"),
+      warnings: draft.hasRegistration && (checking || loadFailed || unreviewable?.registration) ? [] : warnings("uniqueField"),
       href: draft.hasRegistration
         ? formBuilderEntryHref("/event/setup/registration", "publish", contentLocale)
-        : "/event/details#registration-on",
+        : `${detailsPath}#registration-on`,
       permitted: !draft.hasRegistration || canManageRegistration,
-      checking,
-      missing: !forms.registration?.questions.some(({ question }) => question.is_unique),
+      checking: draft.hasRegistration && checking,
+      status: draft.hasRegistration && (loadFailed || unreviewable?.registration) ? "unverified" : undefined,
+      missing: !restrictedForms?.registration?.present && !forms.registration?.questions.some(({ question }) => question.is_unique),
     });
   if (issues.includes("whitelist"))
     rows.push({
       key: "whitelist",
       label: details("manageWhitelist"),
       warnings: warnings("whitelist"),
+      status: "blocked",
       href: draft.hasRegistration
         ? whitelistEntryHref("publish", contentLocale)
-        : "/event/details#registration-on",
+        : `${detailsPath}#registration-on`,
       permitted: !draft.hasRegistration || canManageRegistration,
     });
   if (issues.includes("capacity"))
@@ -191,48 +217,69 @@ export default function PublishChecklist({
       key: "capacity",
       label: details("capacity.title"),
       warnings: warnings("capacity"),
-      href: "/event/details#event-access",
+      href: `${detailsPath}#event-access`,
     });
-  if (issues.includes("surveySchedule"))
+  if (issues.includes("surveySchedule") && (!issues.includes("eventSchedule") || (draft.surveyCloseMode === "custom" && !draft.surveyCustomClose)))
     rows.push({
       key: "surveySchedule",
       label: setup("surveyWindow"),
       warnings: warnings("surveySchedule"),
-      href: "/event/details#survey-schedule",
-      missing: !forms.survey?.opensAt || !forms.survey?.closesAt,
+      href: `${detailsPath}#survey-schedule`,
+      missing: !draft.startsAt || !surveyClosingTime(draft),
     });
 
   for (const kind of ["registration", "survey"] as const) {
     const enabled =
       kind === "registration" ? draft.hasRegistration : draft.hasSurvey;
-    const problems = formProblems[kind];
+    const form = forms[kind];
+    const exists = restrictedForms?.[kind]?.present ?? !!form;
+    const noQuestions = !!form && !form.questions.length;
+    const unverified = loadFailed || unreviewable?.[kind];
+    const title = form?.head[contentLocale ?? locale]?.title.trim() ||
+      form?.head.th?.title.trim() || form?.head.en?.title.trim();
+    const formWarnings = !exists ? [publish("saveForm")] : formProblems[kind].map((issue) => {
+      if (issue === "formContent" && noQuestions) return publish("addQuestion");
+      if (issue === "formContent" && form && !title)
+        return publish("addFormTitle");
+      return issueText(issue);
+    });
     rows.push({
       key: kind,
-      label: labels(kind),
-      value: enabled ? setup("enabled") : labels("off"),
-      missing: enabled && !forms[kind]?.questions.length,
-      warnings: !checking && enabled ? problems.map(issueText) : [],
+      label: setup(kind),
+      value: enabled ? title || setup("enabled") : undefined,
+      missing: enabled && (!exists || noQuestions),
+      status: !enabled ? "off" : unverified ? "unverified" : undefined,
+      warnings: enabled && !checking && !unverified ? formWarnings : [],
       checking: enabled && checking,
       href: enabled
         ? formBuilderEntryHref(`/event/setup/${kind}`, "publish", contentLocale)
-        : `/event/details#${kind}-on`,
+        : `${detailsPath}#${kind}-on`,
       permitted:
         !enabled ||
         (kind === "registration" ? canManageRegistration : canManageSurvey),
     });
   }
+  const badges = {
+    complete: { text: setup("ready"), icon: "✓" },
+    "needs-edit": { text: labels("needsEdit"), icon: "!" },
+    missing: { text: labels("missing"), icon: "○" },
+    checking: { text: labels("checking"), icon: "○" },
+    off: { text: labels("off"), icon: "–" },
+    blocked: { text: publish("blocked"), icon: "!" },
+    unverified: { text: publish("unverified"), icon: "!" },
+  };
   return (
     <section className="publish-card publish-checklist" aria-busy={checking}>
       <h2>{setup("checklist")}</h2>
       <p className="publish-checklist__hint">{labels("checklistHint")}</p>
       {rows.map((row) => {
-        const status = row.checking
+        const status = row.status ?? (row.checking
           ? "checking"
           : row.missing
             ? "missing"
             : row.warnings?.length
               ? "needs-edit"
-              : "complete";
+              : "complete");
         return (
           <button
             type="button"
@@ -243,7 +290,7 @@ export default function PublishChecklist({
             onClick={() => onEdit(row.href)}
           >
             <span className="publish-checklist__icon" aria-hidden="true">
-              {status === "complete" ? "✓" : status === "needs-edit" ? "!" : "○"}
+              {badges[status].icon}
             </span>
             <span className="publish-checklist__value">
               <strong>{row.label}</strong>
@@ -255,11 +302,7 @@ export default function PublishChecklist({
               ))}
             </span>
             <span className="publish-checklist__badge">
-              {status === "complete"
-                ? setup("ready")
-                : status === "needs-edit"
-                  ? labels("needsEdit")
-                  : labels(status)}
+              {badges[status].text}
             </span>
           </button>
         );

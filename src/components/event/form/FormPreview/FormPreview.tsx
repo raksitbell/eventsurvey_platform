@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 import { useTranslations } from "next-intl";
+import { completeFormLocale, hasCompleteFormTranslation } from "@/core/forms/content";
 import { Form, FormLocale, Question, QuestionType } from "@/types/event/form";
 import PreviewTopBar from "./PreviewTopBar";
 import PreviewHeaderCard from "./PreviewHeaderCard";
@@ -46,8 +47,11 @@ export default function FormPreview({
 }: FormPreviewProps) {
   const tPreview = useTranslations("form.preview");
 
-  const [previewLocale, setPreviewLocale] = useState<FormLocale>("th");
+  const [previewLocale, setPreviewLocale] = useState<FormLocale>(() => completeFormLocale(form, "th") ?? "th");
   const activeLocale: FormLocale = hasEnglish ? previewLocale : "th";
+  // Incomplete drafts can still be inspected in either language.
+  const canSwitchLanguage = hasEnglish &&
+    (allowEdit || hasCompleteFormTranslation(form, "th") === hasCompleteFormTranslation(form, "en"));
   const currentHead = form.head[activeLocale];
 
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
@@ -246,7 +250,7 @@ export default function FormPreview({
     return (
       <PreviewSubmittedCard
         title={currentHead.title}
-        hasEnglish={hasEnglish}
+        hasEnglish={canSwitchLanguage}
         previewLocale={activeLocale}
         onChangeLocale={setPreviewLocale}
         onResetForm={clearForm}
@@ -265,7 +269,7 @@ export default function FormPreview({
           onExitPreview={onExitPreview}
           allowEdit={allowEdit}
           backLabel={backLabel}
-          hasEnglish={hasEnglish}
+          hasEnglish={canSwitchLanguage}
           previewLocale={activeLocale}
           onChangeLocale={setPreviewLocale}
         />

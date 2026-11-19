@@ -151,6 +151,7 @@ async function loadActiveEventUser(
 }
 
 export type EventFormAccessLevels = {
+  event: ModuleAccessLevel;
   registrationForm: ModuleAccessLevel;
   surveyForm: ModuleAccessLevel;
 };
@@ -175,6 +176,7 @@ export async function resolveEventFormAccess(
     return {
       ok: true,
       access: {
+        event: DEFAULT_ADMIN_MATRIX.event,
         registrationForm: DEFAULT_ADMIN_MATRIX.registrationForm,
         surveyForm: DEFAULT_ADMIN_MATRIX.surveyForm,
       },
@@ -192,6 +194,7 @@ export async function resolveEventFormAccess(
     return {
       ok: true,
       access: {
+        event: access.matrix.event,
         registrationForm: access.matrix.registrationForm,
         surveyForm: access.matrix.surveyForm,
       },

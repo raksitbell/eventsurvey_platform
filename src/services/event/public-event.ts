@@ -79,7 +79,7 @@ function needsEligibility(
   kind: ParticipantFormKind,
   publication: LocalPublication | null,
 ) {
-  // The local Whitelist prototype and preview answers are not shared eligibility records.
+  // The saved whitelist and form definitions cannot establish the identity of this visitor.
   return kind === "registration"
     ? publication?.draft.isPrivate ?? event.is_private
     : (publication ? publication.draft.surveyAccess : event.survey_access) ===

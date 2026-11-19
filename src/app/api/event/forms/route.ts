@@ -8,7 +8,8 @@ import { satisfiesAccessLevel } from "@/core/auth/event-permissions";
 import { ServiceError } from "@/core/api/service-error";
 import { createFormBodySchema, formatZodError } from "@/core/validation/forms";
 import { createForm, listForms } from "@/services/event/forms";
-import type { FormType } from "@/types/event/form";
+import { publishFormReadiness } from "@/core/event/publication";
+import type { FormType, RestrictedFormReview } from "@/types/event/form";
 import { NextRequest, NextResponse } from "next/server";
 
 /** GET /api/event/forms?eventId= — list live forms for an event */
@@ -42,7 +43,9 @@ export async function GET(request: NextRequest) {
     resolved.access.surveyForm,
     "view_only",
   );
-  if (!canViewRegistration && !canViewSurvey) {
+  const publishReview = request.nextUrl.searchParams.get("publishReview") === "1" &&
+    resolved.access.event === "can_edit";
+  if (!canViewRegistration && !canViewSurvey && !publishReview) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
 
@@ -51,12 +54,23 @@ export async function GET(request: NextRequest) {
   if (canViewSurvey) allowedTypes.push("survey");
 
   try {
-    const data = await listForms(eventId, allowedTypes);
+    const allTypes: FormType[] = ["registration", "survey"];
+    const data = await listForms(eventId, publishReview ? allTypes : allowedTypes);
+    const restrictedForms: RestrictedFormReview = {};
+    if (publishReview) {
+      for (const type of allTypes) {
+        if (!allowedTypes.includes(type)) restrictedForms[type] = publishFormReadiness(type, data.forms);
+      }
+    }
     return NextResponse.json({
-      ...data,
+      eventId: data.eventId,
+      hasRegistration: data.hasRegistration,
+      hasSurvey: data.hasSurvey,
+      forms: data.forms.filter((form) => allowedTypes.includes(form.type)),
+      ...(publishReview ? { restrictedForms } : {}),
       registrationFormAccess: resolved.access.registrationForm,
       surveyFormAccess: resolved.access.surveyForm,
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof ServiceError) {
       return NextResponse.json(

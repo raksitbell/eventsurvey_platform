@@ -15,6 +15,7 @@ import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
 import { canToggleUniqueField, supportsUniqueField } from "@/core/forms/unique-field";
+import { completeFormLocale } from "@/core/forms/content";
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
 import {
   Choice,
@@ -248,10 +249,11 @@ export default function FormBuilder({
     (record: FormRecord, preserveHasEnglish = false) => {
       const qIds = new Set<string>();
       const cIds = new Set<string>();
+      const hasEnglishTranslation = (en?: string, th?: string) =>
+        Boolean(en?.trim()) && en?.trim() !== th?.trim();
       let detectedEnglishDiff =
-        record.head.en.title.trim() !== record.head.th.title.trim() ||
-        record.head.en.description.trim() !==
-          record.head.th.description.trim();
+        hasEnglishTranslation(record.head.en.title, record.head.th.title) ||
+        hasEnglishTranslation(record.head.en.description, record.head.th.description);
 
       const normalizedQuestions: Question[] = (
         record.questions.length > 0 ? record.questions : [createQuestion(1)]
@@ -263,9 +265,10 @@ export default function FormBuilder({
         const enLbl = q.label.en[0];
         const thLbl = q.label.th[0];
         if (
-          (enLbl?.label ?? "").trim() !== (thLbl?.label ?? "").trim() ||
-          (enLbl?.scale_min_label ?? "") !== (thLbl?.scale_min_label ?? "") ||
-          (enLbl?.scale_max_label ?? "") !== (thLbl?.scale_max_label ?? "")
+          hasEnglishTranslation(enLbl?.label, thLbl?.label) ||
+          hasEnglishTranslation(enLbl?.placeholder, thLbl?.placeholder) ||
+          hasEnglishTranslation(enLbl?.scale_min_label, thLbl?.scale_min_label) ||
+          hasEnglishTranslation(enLbl?.scale_max_label, thLbl?.scale_max_label)
         ) {
           detectedEnglishDiff = true;
         }
@@ -288,9 +291,9 @@ export default function FormBuilder({
             const enC = rawEnChoices[i];
             const thC = rawThChoices[i];
             const sharedId = enC?.id || thC?.id || crypto.randomUUID();
-            const thText = thC?.label ?? enC?.label ?? `Option ${i + 1}`;
-            const enText = enC?.label ?? thC?.label ?? `Option ${i + 1}`;
-            if (thText !== enText) detectedEnglishDiff = true;
+            const thText = thC?.label ?? "";
+            const enText = enC?.label ?? "";
+            if (hasEnglishTranslation(enText, thText)) detectedEnglishDiff = true;
             thList.push({
               id: sharedId,
               label: thText,
@@ -329,7 +332,7 @@ export default function FormBuilder({
               ],
               en: [
                 {
-                  label: enLbl?.label ?? thLbl?.label ?? "",
+                  label: enLbl?.label ?? "",
                   placeholder: enLbl?.placeholder ?? thLbl?.placeholder ?? "",
                   scale_min_label:
                     enLbl?.scale_min_label ?? thLbl?.scale_min_label ?? "",
@@ -351,15 +354,14 @@ export default function FormBuilder({
       setCanEdit(record.canEdit);
       if (!preserveHasEnglish) {
         setHasEnglish(detectedEnglishDiff);
+        setMobileTab(completeFormLocale(record, "th") ?? "th");
       }
 
       const defaultTitle =
         record.type === "registration" ? t("registration") : t("survey");
-      const thTitle =
-        record.head.th.title.trim() ||
-        record.head.en.title.trim() ||
-        defaultTitle;
-      const enTitle = record.head.en.title.trim() || thTitle;
+      const thTitle = record.head.th.title.trim() ||
+        (record.head.en.title.trim() ? "" : defaultTitle);
+      const enTitle = record.head.en.title.trim();
 
       setForm({
         id: record.id,
@@ -465,10 +467,9 @@ export default function FormBuilder({
   ): Omit<Form, "opens_at" | "closes_at"> => {
     const fallbackTitle =
       type === "registration" ? t("registration") : t("survey");
-    const thTitle = currentForm.head.th.title.trim() || fallbackTitle;
-    const enTitle = hasEnglish
-      ? currentForm.head.en.title.trim() || thTitle
-      : thTitle;
+    const englishTitle = hasEnglish ? currentForm.head.en.title.trim() : "";
+    const thTitle = currentForm.head.th.title.trim() || (englishTitle ? "" : fallbackTitle);
+    const enTitle = hasEnglish ? englishTitle : thTitle;
     const thDesc = currentForm.head.th.description;
     const enDesc = hasEnglish ? currentForm.head.en.description : thDesc;
 

@@ -1429,6 +1429,47 @@ test("Publication reports each form's validation at its own checklist row", () =
   assert.ok(registeredOnly.issues.includes("registeredEligibility"));
   assert.ok(!registeredOnly.issues.includes("whitelist"));
 });
+test("private registration and registered-only survey report independent gates with or without form lifecycle data", () => {
+  const { reviewPublication } = load("src/core/event/publication.ts");
+  const { whitelistUniqueField } = load("src/core/event/whitelist.ts");
+  const registration = formSummary("registration");
+  const forms = { registration, survey: formSummary("survey") };
+  const draft = { ...publishDraft, isPrivate: true, surveyAccess: "registered_only" };
+  const field = registration.questions[0].question;
+  field.is_unique = true;
+  for (const [id, type, valid] of [
+    ["field-1", "email", true], ["field-1", "number", true], ["field-1", "short_text", true],
+    [undefined, "email", false], ["  ", "number", false], ["field-1", "long_text", false],
+  ]) {
+    Object.assign(field, { id, type });
+    assert.equal(Boolean(whitelistUniqueField(registration)), valid);
+    for (const list of [undefined, Object.values(forms)]) {
+      const { issues } = reviewPublication(draft, forms, list);
+      assert.equal(issues.includes("uniqueField"), !valid);
+      assert.ok(issues.includes("whitelist"));
+      assert.ok(issues.includes("registeredEligibility"));
+    }
+  }
+});
+test("Publish resolves the same form issues with full definitions or a restricted readiness summary", () => {
+  const { reviewPublication, publishFormReadiness } = load("src/core/event/publication.ts");
+  const registration = formSummary("registration");
+  registration.questions[0].question.is_unique = true;
+  const survey = formSummary("survey");
+  const absent = { registration: null, survey: null };
+  for (const records of [[registration, survey], [registration, survey, survey], [], [registration]]) {
+    const restricted = Object.fromEntries(["registration", "survey"].map((type) =>
+      [type, publishFormReadiness(type, records)]));
+    for (const close of [publishDraft.endsAt, publishDraft.startsAt, null]) {
+      const draft = { ...publishDraft, surveyCloseMode: "custom", surveyCustomClose: close };
+      const forms = {
+        registration: records.find((f) => f.type === "registration") ?? null,
+        survey: records.includes(survey) ? { ...survey, opensAt: draft.startsAt, closesAt: close } : null,
+      };
+      assert.deepEqual(reviewPublication(draft, absent, [], restricted), reviewPublication(draft, forms, records));
+    }
+  }
+});
 test("SRS permits no forms and blocks enabled forms with incomplete metadata or schedules", () => {
   assert.deepEqual(
     publicationIssues(
@@ -1479,6 +1520,31 @@ test("SRS permits no forms and blocks enabled forms with incomplete metadata or 
       forms,
     ).includes("capacity"),
   );
+});
+test("participant forms use a whole complete translation and validate only applicable bounds", () => {
+  const { completeFormLocale, validatePublishReady } = load("src/core/forms/content.ts");
+  const survey = formSummary("survey");
+  const q = survey.questions[0].question;
+  q.type = "dropdown";
+  const options = (labels) => labels.map((label, i) => ({ label, display_order: i + 1 }));
+  for (const locale of ["en", "th"]) {
+    const other = locale === "th" ? "en" : "th";
+    q.label = {
+      [locale]: [{ label: "Question", choices: { [locale]: options(["One", "Two"]) } }],
+      [other]: [{ label: "Partial", choices: { [other]: options(["One"]) } }],
+    };
+    assert.equal(completeFormLocale(survey, other), locale);
+    assert.equal(validatePublishReady(survey), null);
+    q.label[locale][0].choices[locale][0].label = " ";
+    assert.equal(completeFormLocale(survey, other), null);
+    assert.ok(validatePublishReady(survey));
+  }
+  Object.assign(q, { type: "number", min_number: 5, max_number: 0, min_value: 5, max_value: null });
+  assert.equal(validatePublishReady(survey), null);
+  q.max_value = 0;
+  assert.ok(validatePublishReady(survey));
+  Object.assign(q, { type: "rating", min_number: 5, max_number: 3 });
+  assert.ok(validatePublishReady(survey));
 });
 test("local publication is a validated immutable snapshot and cannot alter server lifecycle", (t) => {
   storage(t);
@@ -2404,6 +2470,7 @@ function setupStep(kind, options = {}) {
     },
     "@heroicons/react/24/outline": { ArrowRightIcon: () => null },
     "next-intl": {
+      useNow: () => new Date(options.now ?? "2026-11-19T16:00:00Z"),
       useTranslations: (namespace) => {
         const dictionary = namespace
           .split(".")
@@ -2701,6 +2768,7 @@ test("Publish checklist distinguishes absent values from existing invalid values
       "@/core/event/banner-layout": load("src/core/event/banner-layout.ts"),
       "@/core/event/content": load("src/core/event/content.ts"),
       "@/core/event/form-builder-navigation": load("src/core/event/form-builder-navigation.ts"),
+      "@/core/event/schedule": load("src/core/event/schedule.ts"),
       "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
       "./publish-view.css": {},
       "next/navigation": { useSearchParams: () => new URLSearchParams("lang=en") },
@@ -2718,23 +2786,30 @@ test("Publish checklist distinguishes absent values from existing invalid values
   const navigation = [];
   const recheck = load("src/core/event/publication.ts").reviewPublication;
   const { issues, formProblems } = recheck(draft, forms);
-  const checklist = Checklist({
+  const props = {
     draft,
     branding: defaultEventBranding,
     issues,
     forms,
     formProblems,
+    language: { contentLocale: "en", translation: { title: draft.eventName, locationName: draft.locationName } },
     canEdit: true,
     canManageRegistration: true,
     onEdit: (href) => navigation.push(href),
-  });
-  const rows = checklist.props.children.flat().filter((node) => node.type === "button");
+  };
+  const rowList = (overrides = {}) => Checklist({ ...props, ...overrides }).props.children.flat().filter((node) => node.type === "button");
+  const rows = rowList();
   const status = Object.fromEntries(rows.map((node) => [node.key, node.props["data-status"]]));
   assert.equal(status.eventName, "missing");
   assert.equal(status.location, "complete");
   assert.equal(status.start, "complete");
   assert.equal(status.end, "needs-edit");
   assert.equal(status.registration, "missing");
+  const registrationRow = rows.find((node) => node.key === "registration");
+  assert.ok(findSetupElement(registrationRow, (node) => node.type === "small" && node.props.children === "saveForm"));
+  assert.equal(findSetupElement(registrationRow, (node) => node.props?.children === "issues.formContent"), null);
+  assert.equal(rowList({ loadFailed: true }).find((node) => node.key === "registration").props["data-status"], "unverified");
+  assert.equal(rowList({ draft: { ...draft, hasRegistration: false } }).find((node) => node.key === "registration").props["data-status"], "off");
   rows.find((node) => node.key === "registration").props.onClick();
   assert.deepEqual(navigation, ["/event/setup/registration?from=publish&lang=en"]);
 });
@@ -2898,7 +2973,7 @@ test("Publication reads the team Builder email question and its actual unique fi
   delete q.required;
   Object.assign(q, { type: "email", is_required: true, is_unique: true });
   const forms = { registration, survey: formSummary("survey") };
-  assert.deepEqual(publicationIssues(publishDraft, forms), []);
+  assert.deepEqual(publicationIssues(publishDraft, forms), ["registeredEligibility"]);
   assert.ok(
     publicationIssues({ ...publishDraft, locationName: "  " }, forms).includes(
       "location",

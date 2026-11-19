@@ -7,21 +7,26 @@ import type {
   WhitelistUniqueField,
   WhitelistUniqueKind,
 } from "@/types/event/whitelist";
-import type { FormRecord } from "@/types/event/form";
+import type { FormType, Question } from "@/types/event/form";
 import type { EventWorkspace } from "@/types/event/workspace";
 
 const email = z.email().max(500);
 const decimal = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const legacyField = { id: "legacy", type: "email" } as const;
 
+type UniqueFieldQuestion = Pick<
+  Question["question"],
+  "id" | "type" | "min_length" | "max_length" | "min_value" | "max_value"
+> & { is_unique?: boolean };
+
 export function whitelistUniqueField(
-  form: FormRecord,
+  form: { type: FormType; questions: readonly { question: UniqueFieldQuestion }[] } | null,
 ): WhitelistUniqueField | null {
-  if (form.type !== "registration") return null;
+  if (form?.type !== "registration") return null;
   const fields = form.questions.filter(({ question }) => question.is_unique);
   if (fields.length !== 1) return null;
   const { question } = fields[0];
-  if (!question.id || !supportsUniqueField(question.type)) return null;
+  if (!question.id?.trim() || !supportsUniqueField(question.type)) return null;
   const field: WhitelistUniqueField = { id: question.id, type: question.type };
   if (question.type === "short_text") {
     field.minLength = question.min_length;

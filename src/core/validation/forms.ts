@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { invalidQuestionRange } from "@/core/forms/content";
+export { validatePublishReady } from "@/core/forms/content";
 
 const formTypeSchema = z.enum(["registration", "survey"]);
 
@@ -29,8 +31,8 @@ const labelSchema = z.object({
   scale_min_label: z.string().optional(),
   scale_max_label: z.string().optional(),
   choices: z.object({
-    en: z.array(choiceSchema),
-    th: z.array(choiceSchema),
+    en: z.array(choiceSchema).default([]),
+    th: z.array(choiceSchema).default([]),
   }),
 });
 
@@ -55,8 +57,8 @@ const rawQuestionInnerSchema = z
     rating_icon: ratingIconSchema.default("star"),
     rating_max: z.number().default(5),
     label: z.object({
-      en: z.array(labelSchema).min(1),
-      th: z.array(labelSchema).min(1),
+      en: z.array(labelSchema).default([]),
+      th: z.array(labelSchema).default([]),
     }),
   })
   .superRefine((q, ctx) => {
@@ -82,39 +84,18 @@ const questionSchema = z
   })
   .superRefine((item, ctx) => {
     const q = item.question;
-    if (
-      q.min_value !== undefined &&
-      q.min_value !== null &&
-      q.max_value !== undefined &&
-      q.max_value !== null &&
-      q.min_value > q.max_value
-    ) {
+    const field = invalidQuestionRange(q);
+    if (field) {
       ctx.addIssue({
         code: "custom",
-        message: "min_value must be <= max_value",
-        path: ["question", "min_value"],
-      });
-    } else if (
-      (q.type === "rating" || q.max_number !== 0) &&
-      q.min_number > q.max_number
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "min_number must be <= max_number",
-        path: ["question", "min_number"],
-      });
-    }
-    if (q.min_length > 0 && q.max_length > 0 && q.min_length > q.max_length) {
-      ctx.addIssue({
-        code: "custom",
-        message: "min_length must be <= max_length",
-        path: ["question", "min_length"],
+        message: "Question minimum must be <= maximum",
+        path: ["question", field],
       });
     }
   });
 
 const headLocaleSchema = z.object({
-  title: z.string().trim().min(1).max(240),
+  title: z.string().trim().max(240),
   description: z.string().max(5000),
 });
 
@@ -148,8 +129,10 @@ const formShapeSchema = z
   .object({
     id: z.uuid().optional(),
     head: z.object({
-      en: headLocaleSchema,
-      th: headLocaleSchema,
+      en: headLocaleSchema.default({ title: "", description: "" }),
+      th: headLocaleSchema.default({ title: "", description: "" }),
+    }).refine((head) => Boolean(head.th.title || head.en.title), {
+      message: "A form title is required in at least one language",
     }),
     type: formTypeSchema,
     opens_at: z.string().nullable().optional(),
@@ -174,28 +157,19 @@ function refineQuestions(
     }
     orders.add(order);
 
-    const enChoices = item.question.label.en[0]?.choices.en ?? [];
-    const choiceOrders = new Set<number>();
-    for (const [ci, choice] of enChoices.entries()) {
-      if (choiceOrders.has(choice.display_order)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "choice display_order must be unique",
-          path: [
-            "questions",
-            index,
-            "question",
-            "label",
-            "en",
-            0,
-            "choices",
-            "en",
-            ci,
-            "display_order",
-          ],
-        });
+    for (const locale of ["th", "en"] as const) {
+      const choices = item.question.label[locale][0]?.choices[locale] ?? [];
+      const choiceOrders = new Set<number>();
+      for (const [ci, choice] of choices.entries()) {
+        if (choiceOrders.has(choice.display_order)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "choice display_order must be unique",
+            path: ["questions", index, "question", "label", locale, 0, "choices", locale, ci, "display_order"],
+          });
+        }
+        choiceOrders.add(choice.display_order);
       }
-      choiceOrders.add(choice.display_order);
     }
   }
 }
@@ -224,34 +198,6 @@ export const formStatusPatchSchema = z.object({
 export type CreateFormBody = z.infer<typeof createFormBodySchema>;
 export type UpdateFormBody = z.infer<typeof updateFormBodySchema>;
 export type FormStatusPatchBody = z.infer<typeof formStatusPatchSchema>;
-
-const CHOICE_TYPES = new Set(["multiple_choice", "checkbox", "dropdown"]);
-
-/** Extra checks when opening / scheduling a form. */
-export function validatePublishReady(input: {
-  head: { en: { title: string }; th: { title: string } };
-  questions: {
-    question: {
-      type: string;
-      label: { en: { choices: { en: unknown[] } }[] };
-    };
-  }[];
-}): string | null {
-  if (input.questions.length < 1) {
-    return "Form requires at least one question";
-  }
-  if (!input.head.en.title.trim() || !input.head.th.title.trim()) {
-    return "Form requires th and en titles";
-  }
-  for (const item of input.questions) {
-    const type = item.question.type;
-    const options = item.question.label.en[0]?.choices.en ?? [];
-    if (CHOICE_TYPES.has(type) && options.length < 1) {
-      return `Choice question type "${type}" requires at least one option`;
-    }
-  }
-  return null;
-}
 
 export function formatZodError(error: z.ZodError): {
   error: string;

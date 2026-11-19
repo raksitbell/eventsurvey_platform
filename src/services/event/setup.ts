@@ -6,7 +6,7 @@ import { defaultEventBranding } from "@/core/event/branding";
 import { projectEventContent } from "@/core/event/content";
 import { selectSetupForms } from "@/core/event/form-summary";
 import { reviewPublication, publicationSchema } from "@/core/event/publication";
-import { isPastScheduleMinute, surveyClosingTime } from "@/core/event/schedule";
+import { isPastScheduleMinute, publicationPastDates, surveyClosingTime } from "@/core/event/schedule";
 import { writeSerially } from "@/core/event/serial-write";
 import type { SetupRecord } from "@/core/event/setup-state";
 import { encodeSetupRecord, readSetupRecord, readSetupState } from "@/core/event/setup-storage";
@@ -361,7 +361,8 @@ export async function publishSetup(
     if (issues.length) throw new ServiceError("SETUP_PUBLISH_INVALID", 422, undefined, issues);
     await Promise.all(Object.values(setup.branding).map((branding) => checkBranding(event.id, branding)));
     const now = Date.now();
-    if (isPastScheduleMinute(draft.startsAt, now) || Date.parse(draft.endsAt ?? "") <= now) {
+    const { pastStart, pastEnd } = publicationPastDates(draft, now);
+    if (pastStart || pastEnd) {
       throw new ServiceError("SETUP_PUBLISH_IN_PAST", 422);
     }
     const publishedAt = new Date(now).toISOString();

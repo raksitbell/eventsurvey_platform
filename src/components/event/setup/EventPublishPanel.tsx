@@ -3,7 +3,7 @@ import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import PublishChecklist from "./publish/PublishChecklist";
 import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
-import { isPastScheduleMinute, surveyClosingTime } from "@/core/event/schedule";
+import { publicationPastDates, surveyClosingTime } from "@/core/event/schedule";
 import { api, ApiError } from "@/core/api";
 import {
   eventSetupStateKey,
@@ -26,7 +26,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import useEventDraft from "@/hooks/useEventDraft";
 import useEventBranding from "@/hooks/useEventBranding";
 import { useRouter } from "@/i18n/navigation";
-import { useTranslations } from "next-intl";
+import { useNow, useTranslations } from "next-intl";
 import { useState } from "react";
 function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventPublish");
@@ -46,10 +46,13 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     pendingMediaMessage,
   } = useEventBranding(workspace, userId, locale, setupApi);
   const receipt = workspace.setup?.publication ?? null;
+  const now = useNow({ updateInterval: receipt ? undefined : 30_000 });
+  const pastDates = publicationPastDates(draft, now.getTime());
   const previewLanguage = useParticipantPreviewLanguage(draft);
   const formState = useEventFormSummaries(
     workspace.eventId,
     !receipt && (draft.hasRegistration || draft.hasSurvey),
+    !!workspace.canEditEvent,
   );
   const { registration, survey } = selectSetupForms(formState.forms);
   const forms = receipt?.forms ?? {
@@ -70,6 +73,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
     draft,
     forms,
     receipt ? undefined : formState.forms,
+    formState.restrictedForms,
   );
   const [validation, setValidation] = useState<{
     revision: number;
@@ -105,11 +109,12 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       ))
       ? s(pendingMediaMessage ?? "mediaAnotherBrowser")
       : undefined;
+  const pastStart = !receipt && (pastDates.pastStart || currentValidation?.pastStart);
+  const pastEnd = !receipt && (pastDates.pastEnd || currentValidation?.pastEnd);
   const blocked =
     reviewIssues.length > 0 ||
     !!mediaWarning ||
-    !!currentValidation?.pastStart ||
-    !!currentValidation?.pastEnd;
+    pastStart || pastEnd;
   const published = !!receipt;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +146,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       if (blocked) {
         globalThis.document
           ?.querySelector<HTMLElement>(
-            ".publish-checklist :is([data-status='missing'], [data-status='needs-edit']):enabled",
+            ".publish-checklist :is([data-status='missing'], [data-status='needs-edit'], [data-status='blocked']):enabled",
           )
           ?.focus();
         return;
@@ -182,11 +187,9 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         cause instanceof ApiError &&
         cause.code === "SETUP_PUBLISH_IN_PAST"
       ) {
-        const now = Date.now();
         setValidation({
           revision: setupApi.getRevision(),
-          pastStart: isPastScheduleMinute(draft.startsAt, now),
-          pastEnd: Date.parse(draft.endsAt ?? "") <= now,
+          ...publicationPastDates(draft, Date.now()),
         });
       } else if (
         cause instanceof ApiError &&
@@ -198,7 +201,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         setValidation({
           revision: setupApi.getRevision(),
           issues: issues.filter(
-            (issue) => issue !== "formStatus" && issue !== "formContent",
+            (issue) => issue !== "formStatus" && issue !== "formContent" && issue !== "uniqueField",
           ),
         });
         formState.retry();
@@ -242,15 +245,15 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           branding={branding}
           issues={reviewIssues}
           forms={forms}
+          restrictedForms={formState.restrictedForms}
+          unreviewable={formState.unreviewable}
+          language={previewLanguage}
           mediaWarning={mediaWarning}
-          startWarning={
-            currentValidation?.pastStart ? dates("pastDate") : undefined
-          }
-          endWarning={
-            currentValidation?.pastEnd ? dates("pastDate") : undefined
-          }
+          startWarning={pastStart ? dates("pastDate") : undefined}
+          endWarning={pastEnd ? dates("pastDate") : undefined}
           formProblems={formProblems}
-          checking={formState.loading || formState.error}
+          checking={formState.loading}
+          loadFailed={formState.error}
           canManageRegistration={!!workspace.canManageWhitelist}
           canManageSurvey={!!workspace.canManageSurveyForm}
           canEdit={canEdit}
