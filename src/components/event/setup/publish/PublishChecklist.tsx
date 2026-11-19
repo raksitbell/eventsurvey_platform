@@ -1,10 +1,12 @@
 import { useLocale, useTranslations } from "next-intl";
 import { bannerLayouts } from "@/core/event/banner-layout";
 import { contentLanguageName } from "@/core/event/content";
+import { formBuilderEntryHref } from "@/core/event/form-builder-navigation";
 import { toBangkokInput } from "@/core/i18n/bangkok-datetime";
 import type { PublishIssue, reviewPublication } from "@/core/event/publication";
 import type { EventDraft } from "@/types/event/setup";
 import type { EventBranding } from "@/types/event/branding";
+import { useSearchParams } from "next/navigation";
 import "./publish-view.css";
 
 interface Props {
@@ -61,6 +63,7 @@ export default function PublishChecklist({
   const publish = useTranslations("eventPublish");
   const labels = useTranslations("eventPublishedView");
   const locale = useLocale();
+  const contentLocale = useSearchParams().getAll("lang");
   const issueText = (issue: PublishIssue) =>
     typeof issue === "string"
       ? publish(`issues.${issue}`)
@@ -167,7 +170,7 @@ export default function PublishChecklist({
       label: "Unique ID",
       warnings: warnings("uniqueField"),
       href: draft.hasRegistration
-        ? "/event/setup/registration"
+        ? formBuilderEntryHref("/event/setup/registration", "publish", contentLocale)
         : "/event/details#registration-on",
       permitted: !draft.hasRegistration || canManageRegistration,
       checking,
@@ -210,7 +213,9 @@ export default function PublishChecklist({
       missing: enabled && !forms[kind]?.questions.length,
       warnings: !checking && enabled ? problems.map(issueText) : [],
       checking: enabled && checking,
-      href: enabled ? `/event/setup/${kind}` : `/event/details#${kind}-on`,
+      href: enabled
+        ? formBuilderEntryHref(`/event/setup/${kind}`, "publish", contentLocale)
+        : `/event/details#${kind}-on`,
       permitted:
         !enabled ||
         (kind === "registration" ? canManageRegistration : canManageSurvey),

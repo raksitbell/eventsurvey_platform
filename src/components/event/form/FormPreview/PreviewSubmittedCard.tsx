@@ -13,6 +13,7 @@ interface PreviewSubmittedCardProps {
   onResetForm: () => void;
   onExitPreview: () => void;
   allowEdit?: boolean;
+  backLabel?: string;
 }
 
 export default function PreviewSubmittedCard({
@@ -23,6 +24,7 @@ export default function PreviewSubmittedCard({
   onResetForm,
   onExitPreview,
   allowEdit = true,
+  backLabel,
 }: PreviewSubmittedCardProps) {
   const tPreview = useTranslations("form.preview");
 
@@ -32,6 +34,7 @@ export default function PreviewSubmittedCard({
         <PreviewTopBar
           onExitPreview={onExitPreview}
           allowEdit={allowEdit}
+          backLabel={backLabel}
           showBadge={false}
           hasEnglish={hasEnglish}
           previewLocale={previewLocale}

@@ -1940,7 +1940,7 @@ function setupActionButtons(form) {
     feedback: element.props.error,
   };
 }
-function detailsActions(save) {
+function detailsActions(save, query = new URLSearchParams()) {
   const navigation = [];
   const noop = { default: () => null };
   const messages = JSON.parse(
@@ -1966,6 +1966,7 @@ function detailsActions(save) {
       },
       "@/utils/alert": { showToast() {} },
       "@/core/event/draft": load("src/core/event/draft.ts"),
+      "@/core/event/form-builder-navigation": load("src/core/event/form-builder-navigation.ts"),
       "@/core/event/workspace": load("src/core/event/workspace.ts"),
       "@/hooks/useEventDraft": {
         default: () => ({
@@ -1979,6 +1980,8 @@ function detailsActions(save) {
       "@/i18n/navigation": {
         useRouter: () => ({ push: (href) => navigation.push(href) }),
       },
+      "next/navigation": { useSearchParams: () => query },
+      react: { useState: (initial) => [initial, () => {}] },
       "next-intl": { useTranslations: () => (key) => messages[key] ?? key },
     },
   );
@@ -1991,6 +1994,33 @@ function detailsActions(save) {
   const form = findSetupElement(view, (n) => n.type === "form");
   return { form, ...setupActionButtons(form), navigation };
 }
+
+test("Form Editor returns to an allowlisted entry and keeps valid content language", async () => {
+  const { formBuilderEntryHref, formBuilderReturn } = load("src/core/event/form-builder-navigation.ts");
+  const entries = [
+    [true, { from: "details", lang: " EN " }, "details", "/event/details?lang=en"],
+    [true, { from: "forms", lang: "en" }, "forms", "/event/forms"],
+    [true, { from: "publish", lang: ["ja"] }, "publish", "/event/publish?lang=ja"],
+    [true, { from: ["publish", "forms"], lang: ["ja", "en"] }, "details", "/event/details"],
+    [true, { from: "//attacker.test", lang: "zz" }, "details", "/event/details"],
+    [true, {}, "details", "/event/details"],
+    [false, { from: "forms" }, "management", "/event/form"],
+    [false, { from: "whitelist", lang: "en" }, "whitelist", "/event/whitelist"],
+    [false, {}, "management", "/event/form"],
+  ];
+  for (const [insideSetup, query, origin, href] of entries) {
+    assert.deepEqual(formBuilderReturn(query, insideSetup), { origin, href });
+  }
+  assert.equal(
+    formBuilderEntryHref("/event/setup/survey", "publish", ["ja", "en"]),
+    "/event/setup/survey?from=publish",
+  );
+  const details = detailsActions(async () => true, new URLSearchParams("lang=en"));
+  findSetupElement(details.form, (node) => node.props.onOpenBuilder).props.onOpenBuilder("survey");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(details.navigation, ["/event/setup/survey?from=details&lang=en"]);
+});
+
 test("Details Back and Next await the draft save before navigation; native submit follows Next", async (t) => {
   storage(t);
   const key = eventDraftKey("owner", seed.eventId, "th");
@@ -2154,6 +2184,7 @@ function setupStep(kind, options = {}) {
     "@/components/event/setup/EventSetupActions": { default: setupActions },
     "@/components/event/setup/EventSetupPendingMedia": noop,
     "@/components/ui/button/Button": { default: setupButton },
+    "@/core/event/form-builder-navigation": load("src/core/event/form-builder-navigation.ts"),
     "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
     "@/core/event/content": load("src/core/event/content.ts"),
     "@/core/event/draft": load("src/core/event/draft.ts"),
@@ -2471,8 +2502,10 @@ test("Publish checklist distinguishes absent values from existing invalid values
     {
       "@/core/event/banner-layout": load("src/core/event/banner-layout.ts"),
       "@/core/event/content": load("src/core/event/content.ts"),
+      "@/core/event/form-builder-navigation": load("src/core/event/form-builder-navigation.ts"),
       "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
       "./publish-view.css": {},
+      "next/navigation": { useSearchParams: () => new URLSearchParams("lang=en") },
       "next-intl": { useLocale: () => "th", useTranslations: () => (key) => key },
     },
   );
@@ -2484,6 +2517,7 @@ test("Publish checklist distinguishes absent values from existing invalid values
     hasRegistration: true,
   };
   const forms = { registration: null, survey: null };
+  const navigation = [];
   const recheck = load("src/core/event/publication.ts").reviewPublication;
   const { issues, formProblems } = recheck(draft, forms);
   const checklist = Checklist({
@@ -2494,6 +2528,7 @@ test("Publish checklist distinguishes absent values from existing invalid values
     formProblems,
     canEdit: true,
     canManageRegistration: true,
+    onEdit: (href) => navigation.push(href),
   });
   const rows = checklist.props.children.flat().filter((node) => node.type === "button");
   const status = Object.fromEntries(rows.map((node) => [node.key, node.props["data-status"]]));
@@ -2502,11 +2537,12 @@ test("Publish checklist distinguishes absent values from existing invalid values
   assert.equal(status.start, "complete");
   assert.equal(status.end, "needs-edit");
   assert.equal(status.registration, "missing");
+  rows.find((node) => node.key === "registration").props.onClick();
+  assert.deepEqual(navigation, ["/event/setup/registration?from=publish&lang=en"]);
 });
 
 test("Event information configuration preserves field bindings, limits, labels, null values and read-only state", () => {
   const placeholder = () => null;
-  const query = new URLSearchParams();
   const Fields = compileSetupComponent(
     "src/components/event/setup/details/EventInformationFields.tsx",
     {
@@ -2518,8 +2554,6 @@ test("Event information configuration preserves field bindings, limits, labels, 
       "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
       "@/components/form/Label": { default: placeholder },
       "@/components/form/input/InputField": { default: placeholder },
-      "next/navigation": { useSearchParams: () => query },
-      react: { useState: (v) => [v, () => {}] },
       "next-intl": {
         useLocale: () => "th",
         useTranslations: () => (key) => key,
@@ -2531,6 +2565,8 @@ test("Event information configuration preserves field bindings, limits, labels, 
     const screen = Fields({
       draft: seed,
       uiLocale: "th",
+      selectedLocale: null,
+      onSelectLocale() {},
       readOnly,
       onChange: (value) => changes.push(value),
     });
@@ -2573,16 +2609,20 @@ test("Event information configuration preserves field bindings, limits, labels, 
     },
   };
   for (const lang of ["th", "en"]) {
-    query.set("lang", lang);
-    const screen = Fields({ draft: translated, uiLocale: "th", readOnly: false, onChange() {} });
+    const screen = Fields({
+      draft: translated, uiLocale: "th", selectedLocale: lang,
+      onSelectLocale() {}, readOnly: false, onChange() {},
+    });
     for (const id of ["event-name", "event-location"]) {
       const field = findSetupElement(screen, (node) => node.props?.id === id);
       assert.equal(field.props.lang, lang);
     }
   }
   const changes = [];
+  const selections = [];
   const screen = Fields({
-    draft: translated, uiLocale: "th", readOnly: false,
+    draft: translated, uiLocale: "th", selectedLocale: "en", readOnly: false,
+    onSelectLocale: (locale) => selections.push(locale),
     onChange: (value) => changes.push(value),
   });
   const languageMenu = findSetupElement(screen, (node) => typeof node.props?.onRemove === "function");
@@ -2592,6 +2632,7 @@ test("Event information configuration preserves field bindings, limits, labels, 
   assert.deepEqual(changes, [{
     content: { defaultLocale: "th", translations: [translated.content.translations[0]] },
   }]);
+  assert.deepEqual(selections, ["th"]);
 });
 
 test("Post Survey closes at the selected offset from the event end in Bangkok", () => {

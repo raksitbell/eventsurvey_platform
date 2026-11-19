@@ -12,6 +12,7 @@ import useEventDraft from "@/hooks/useEventDraft";
 import useSetupApiState from "@/hooks/useSetupApiState";
 import { useRouter } from "@/i18n/navigation";
 import { createSavedNavigation } from "@/core/event/draft";
+import { formBuilderEntryHref } from "@/core/event/form-builder-navigation";
 import { selectSetupForms } from "@/core/event/form-summary";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
@@ -59,7 +60,7 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
             enabled={draft.hasRegistration}
             onOpen={
               !readOnly && !setup.pending && workspace.canManageWhitelist
-                ? () => void navigate("/event/setup/registration")
+                ? () => void navigate(formBuilderEntryHref("/event/setup/registration", "forms"))
                 : undefined
             }
             status={registration?.status}
@@ -80,7 +81,7 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
             enabled={draft.hasSurvey}
             onOpen={
               !readOnly && !setup.pending && workspace.canManageSurveyForm
-                ? () => void navigate("/event/setup/survey")
+                ? () => void navigate(formBuilderEntryHref("/event/setup/survey", "forms"))
                 : undefined
             }
             status={survey?.status}

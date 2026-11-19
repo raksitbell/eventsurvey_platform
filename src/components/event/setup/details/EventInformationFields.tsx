@@ -11,13 +11,13 @@ import { shiftBangkokMinute } from "@/core/i18n/bangkok-datetime";
 import type { EventContentTranslation } from "@/types/event/content";
 import type { EventDraft } from "@/types/event/setup";
 import { useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 
 interface Props {
   statusLabel: string;
   draft: EventDraft;
   uiLocale: string;
+  selectedLocale: string | null;
+  onSelectLocale: (locale: string) => void;
   readOnly: boolean;
   onChange: (changes: Partial<EventDraft>) => void;
 }
@@ -25,16 +25,16 @@ export default function EventInformationFields({
   draft,
   statusLabel,
   uiLocale,
+  selectedLocale,
+  onSelectLocale,
   readOnly,
   onChange,
 }: Props) {
   const t = useTranslations("eventHome.details");
   const s = useTranslations("eventSetup");
   const v = useTranslations("eventSetupDesign");
-  const [selectedLocale, setSelectedLocale] = useState<string>();
-  const requestedLocale = useSearchParams().get("lang");
   const content = getEventContent(draft, uiLocale);
-  const translation = resolveEventTranslation(content, selectedLocale ?? requestedLocale);
+  const translation = resolveEventTranslation(content, selectedLocale);
   const range = { start: draft.startsAt, end: draft.endsAt };
   const localizedInput = {
     lang: translation.localeCode,
@@ -74,7 +74,7 @@ export default function EventInformationFields({
         ],
       },
     });
-    setSelectedLocale(localeCode);
+    onSelectLocale(localeCode);
   }
   function remove(localeCode: string) {
     if (readOnly || localeCode === content.defaultLocale) return;
@@ -84,7 +84,7 @@ export default function EventInformationFields({
         translations: content.translations.filter((item) => item.localeCode !== localeCode),
       },
     });
-    if (translation.localeCode === localeCode) setSelectedLocale(content.defaultLocale);
+    if (translation.localeCode === localeCode) onSelectLocale(content.defaultLocale);
   }
   return (
     <section className="es-info">
@@ -95,7 +95,7 @@ export default function EventInformationFields({
           selected={translation.localeCode}
           uiLocale={uiLocale}
           readOnly={readOnly}
-          onSelect={setSelectedLocale}
+          onSelect={onSelectLocale}
           onAdd={add}
           onRemove={remove}
         />

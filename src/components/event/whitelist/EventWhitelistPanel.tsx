@@ -10,6 +10,7 @@ import type { WhitelistRowIssue } from "@/types/event/whitelist";
 import WhitelistImportDialog from "@/components/event/whitelist/WhitelistImportDialog";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
+import { formBuilderEntryHref } from "@/core/event/form-builder-navigation";
 import {
   whitelistRegistrationBuilderHref,
   replaceWhitelist,
@@ -23,7 +24,7 @@ import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { useCallback, useId, useRef, useState } from "react";
-type WhitelistPageProps = EventSetupPageProps & { onClose?: () => void };
+type WhitelistPageProps = EventSetupPageProps & { onClose?: () => void; contentLocale?: string | null };
 
 export function WhitelistPage(props: WhitelistPageProps) {
   const { userId, workspace, locale } = props;
@@ -40,6 +41,7 @@ function WhitelistPageContent({
   userId,
   locale,
   onClose,
+  contentLocale,
 }: WhitelistPageProps) {
   const t = useTranslations("eventWhitelist"),
     router = useRouter();
@@ -223,11 +225,12 @@ function WhitelistPageContent({
     return skeleton;
   }
 
+  const builderPath = whitelistRegistrationBuilderHref(workspace);
   const content = missingUniqueField ? (
     <WhitelistPrerequisite
       inDialog={!!onClose}
       onBack={() => void back()}
-      builderHref={whitelistRegistrationBuilderHref(workspace)}
+      builderHref={builderPath && formBuilderEntryHref(builderPath, onClose ? "details" : "whitelist", contentLocale)}
     />
   ) : (
     <div className="es-list-page" data-inline-edit={entry ? true : undefined}>

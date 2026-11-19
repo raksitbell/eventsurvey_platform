@@ -9,7 +9,7 @@ import styles from "./EventWorkspacePageHeader.module.css";
 interface EventWorkspacePageHeaderProps {
   title: string;
   description: string;
-  back?: false | { onClick: () => void; disabled?: boolean };
+  back?: false | { label?: string; onClick: () => void; disabled?: boolean };
 }
 
 export default function EventWorkspacePageHeader({
@@ -27,7 +27,7 @@ export default function EventWorkspacePageHeader({
         height={18}
         className="rtl:rotate-180"
       />
-      {t("backToOverview")}
+      {back && back.label ? back.label : t("backToOverview")}
     </>
   );
 

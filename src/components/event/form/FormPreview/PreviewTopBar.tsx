@@ -10,8 +10,8 @@ import { FormLocale } from "@/types/event/form";
 
 interface PreviewTopBarProps {
   onExitPreview: () => void;
-  /** When false, exit returns to the forms list instead of the editor. */
   allowEdit?: boolean;
+  backLabel?: string;
   showBadge?: boolean;
   hasEnglish?: boolean;
   previewLocale?: FormLocale;
@@ -21,6 +21,7 @@ interface PreviewTopBarProps {
 export default function PreviewTopBar({
   onExitPreview,
   allowEdit = true,
+  backLabel,
   showBadge = true,
   hasEnglish = false,
   previewLocale = "th",
@@ -40,7 +41,7 @@ export default function PreviewTopBar({
         </span>
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {hasEnglish && onChangeLocale && (
           <div className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white p-1 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <button
@@ -84,7 +85,7 @@ export default function PreviewTopBar({
             <ArrowLeftIcon className="h-4 w-4 rtl:rotate-180" />
           )}
           <span>
-            {allowEdit ? tPreview("editForm") : tPreview("backToForms")}
+            {allowEdit ? tPreview("editForm") : backLabel ?? tPreview("backToForms")}
           </span>
         </button>
       </div>

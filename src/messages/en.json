@@ -874,6 +874,13 @@
       "MOCK_API_ERROR": "Unable to save to the Mock API server",
       "GENERIC": "Failed to save form. Please try again."
     },
+    "editorBack": {
+      "details": "Back to event settings",
+      "forms": "Back to form setup",
+      "publish": "Back to preview",
+      "whitelist": "Back to the whitelist",
+      "management": "Back to form management"
+    },
     "builder": {
       "formTitlePlaceholder": "Form title",
       "workspaceDescription": "Edit the form title, description, and questions.",

@@ -11,6 +11,7 @@ import EventSetupPendingMedia from "@/components/event/setup/EventSetupPendingMe
 import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
 import { WhitelistPage } from "@/components/event/whitelist/EventWhitelistPanel";
 import { afterSaved, createSavedNavigation } from "@/core/event/draft";
+import { formBuilderContentLocale, formBuilderEntryHref } from "@/core/event/form-builder-navigation";
 import { eventWorkspaceDisplayStatus } from "@/core/event/workspace";
 import useEventDraft from "@/hooks/useEventDraft";
 import useEventBranding from "@/hooks/useEventBranding";
@@ -19,7 +20,9 @@ import useSetupApiState from "@/hooks/useSetupApiState";
 import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
 import { showToast } from "@/utils/alert";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useState } from "react";
 
 function focusChecklistTarget(form: HTMLFormElement | null) {
   if (!form || !globalThis.location.hash) return;
@@ -37,6 +40,9 @@ function DetailsForm(props: EventSetupPageProps) {
   const dates = useTranslations("datePicker");
   const home = useTranslations("eventHome");
   const overview = useTranslations("eventOverview");
+  const query = useSearchParams();
+  const [language, setLanguage] = useState<string>();
+  const contentLocale = language ?? formBuilderContentLocale(query.getAll("lang"));
   const statusName = eventWorkspaceDisplayStatus(workspace);
   const statusLabel = workspace.setup?.publication || workspace.localPublishedAt
     ? t("published")
@@ -94,6 +100,7 @@ function DetailsForm(props: EventSetupPageProps) {
         <div className="event-details-sheet">
           <SetupMediaPanel
             workspace={workspace}
+            contentLocale={contentLocale}
             draft={draft}
             branding={media.branding}
             bannerUrl={workspace.bannerUrl}
@@ -105,6 +112,8 @@ function DetailsForm(props: EventSetupPageProps) {
               statusLabel={statusLabel}
               draft={draft}
               uiLocale={locale}
+              selectedLocale={contentLocale}
+              onSelectLocale={setLanguage}
               readOnly={readOnly || pending}
               onChange={change}
             />
@@ -117,7 +126,7 @@ function DetailsForm(props: EventSetupPageProps) {
                 void afterSaved(persist, list.openModal);
               }}
               onOpenBuilder={(kind) => {
-                void navigate(`/event/setup/${kind}`);
+                void navigate(formBuilderEntryHref(`/event/setup/${kind}`, "details", contentLocale));
               }}
             />
             <EventFormSchedule
@@ -156,6 +165,7 @@ function DetailsForm(props: EventSetupPageProps) {
         <WhitelistPage
           {...props}
           workspace={{ ...workspace, ...draft }}
+          contentLocale={contentLocale}
           onClose={list.closeModal}
         />
       )}

@@ -260,7 +260,8 @@ export default function FormHomePage() {
                       {statusLabel}
                     </span>
 
-                    {canEditAccess && record && record.canChangeStatus && (
+                    {canEditAccess && record?.canChangeStatus &&
+                      (record.status === "scheduled" || record.opensAt || record.closesAt) && (
                       <button
                         type="button"
                         disabled={isBusy}

@@ -145,14 +145,21 @@ function createQuestion(order: number): Question {
 export default function FormBuilder({
   type,
   insideSetup = false,
-}: { type: FormType; insideSetup?: boolean }) {
+  backHref,
+  backLabel,
+}: {
+  type: FormType;
+  insideSetup?: boolean;
+  backHref?: string;
+  backLabel?: string;
+}) {
   const t = useTranslations("form");
   const tbuilder = useTranslations("form.builder");
   const terrors = useTranslations("form.errors");
-  const tcommon = useTranslations("common");
   const tSetup = useTranslations("eventSetup");
   const router = useRouter();
   const { user } = useAuth();
+  const returnHref = backHref ?? (insideSetup ? "/event/details" : "/event/form");
 
   const resolveErrorMessage = useCallback(
     (err: unknown, fallback: string): string => {
@@ -1399,9 +1406,10 @@ export default function FormBuilder({
         form={form}
         hasEnglish={hasEnglish}
         allowEdit={!previewOnly}
+        backLabel={backLabel}
         onExitPreview={() => {
           if (previewOnly) {
-            router.push("/event/form");
+            router.push(returnHref);
             return;
           }
           setIsPreview(false);
@@ -1410,11 +1418,15 @@ export default function FormBuilder({
     );
   }
 
-  const title = insideSetup ? t(type) : tSetup(type);
-  const pageHeader = !insideSetup && (
+  const pageHeader = (
     <EventWorkspacePageHeader
-      title={title}
+      title={tSetup(type)}
       description={tbuilder("workspaceDescription")}
+      back={{
+        label: backLabel ?? (insideSetup ? tSetup("backSetup") : t("preview.backToForms")),
+        onClick: () => router.push(returnHref),
+        disabled: isSaving,
+      }}
     />
   );
   const surfaceClassName = `${builderSurface} ${insideSetup ? "pt-4 sm:pt-6 md:pt-10" : "pt-5"}`;
@@ -1422,10 +1434,7 @@ export default function FormBuilder({
     return (
       <>
         {pageHeader}
-        <FormBuilderSkeleton
-          title={insideSetup ? title : undefined}
-          className={surfaceClassName}
-        />
+        <FormBuilderSkeleton className={surfaceClassName} />
       </>
     );
   }
@@ -1443,11 +1452,6 @@ export default function FormBuilder({
         className={`mx-auto mb-6 flex ${containerWidthClass} flex-wrap items-center justify-between gap-3 md:mb-8`}
       >
         <div className="flex flex-wrap items-center gap-3">
-          {insideSetup && (
-            <h1 className="text-xl font-bold text-white sm:text-2xl md:text-3xl">
-              {title}
-            </h1>
-          )}
           <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
             {formId ? t(`status.${formStatus}`) : t("status.draft")}
           </span>
@@ -1485,14 +1489,6 @@ export default function FormBuilder({
           >
             <EyeIcon className="h-4 w-4" />
             <span>{t("preview.button")}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            {tcommon("back")}
           </button>
         </div>
       </div>
@@ -1799,21 +1795,11 @@ export default function FormBuilder({
   );
 }
 
-function FormBuilderSkeleton({
-  title,
-  className,
-}: { title?: string; className: string }) {
+function FormBuilderSkeleton({ className }: { className: string }) {
   return (
     <div className={className} aria-busy="true">
       <div className="mx-auto mb-6 flex max-w-4xl flex-wrap items-center justify-between gap-3 md:mb-8">
-        <div className="flex flex-wrap items-center gap-3">
-          {title && (
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl md:text-3xl dark:text-white">
-              {title}
-            </h1>
-          )}
-          <Skeleton className="h-6 w-20 rounded-full" />
-        </div>
+        <Skeleton className="h-6 w-20 rounded-full" />
 
         <div className="flex flex-wrap items-center gap-2 md:me-16">
           <Skeleton className="h-9 w-28 rounded-lg" />

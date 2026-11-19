@@ -4,16 +4,20 @@ import EventSetupBoundary, {
   type EventSetupPageProps,
 } from "@/components/event/setup/EventSetupBoundary";
 import { canEditLocalEventSetup } from "@/core/event/draft";
+import { formBuilderReturn } from "@/core/event/form-builder-navigation";
 import { Link } from "@/i18n/navigation";
 import type { FormType } from "@/types/event/form";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 function Builder({
   workspace,
   type,
 }: EventSetupPageProps & { type: FormType }) {
-  const t = useTranslations("eventSetup");
+  const t = useTranslations("form.editorBack");
+  const query = useSearchParams();
+  const back = formBuilderReturn({ from: query.getAll("from"), lang: query.getAll("lang") }, true);
   const enabled =
     type === "registration" ? workspace.hasRegistration : workspace.hasSurvey;
   const permitted =
@@ -22,15 +26,16 @@ function Builder({
       : workspace.canManageSurveyForm;
   return (
     <section className="es-builder-frame">
-      {enabled && permitted && canEditLocalEventSetup(workspace) && (
+      {enabled && permitted && canEditLocalEventSetup(workspace) ? (
         <div className="es-builder-canvas">
-          <FormBuilder type={type} insideSetup />
+          <FormBuilder type={type} insideSetup backHref={back.href} backLabel={t(back.origin)} />
         </div>
+      ) : (
+        <Link href={back.href} className="es-builder-back">
+          <ArrowLeftIcon className="size-4 rtl:rotate-180" aria-hidden="true" />
+          {t(back.origin)}
+        </Link>
       )}
-      <Link href="/event/details" className="es-builder-back">
-        <ArrowLeftIcon className="size-4 rtl:rotate-180" />
-        {t("backSetup")}
-      </Link>
     </section>
   );
 }
