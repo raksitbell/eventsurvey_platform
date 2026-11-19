@@ -8,7 +8,7 @@ import type { ReportingData } from "@/types/event/reporting";
 
 export function useEventReporting() {
   const locale = useLocale();
-  const { user, realUser, isImpersonating } = useAuth();
+  const { user, realUser, isInspectingEvent } = useAuth();
   const [state, setState] = useState<{
     key: string;
     data: ReportingData | null;
@@ -19,7 +19,7 @@ export function useEventReporting() {
     user?.id,
     user?.role,
     realUser?.id,
-    isImpersonating,
+    isInspectingEvent,
   ]);
   const key = JSON.stringify([identityKey, locale, version]);
 

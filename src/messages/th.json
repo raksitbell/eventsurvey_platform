@@ -30,16 +30,28 @@
     "ok": "ตกลง",
     "signOutTitle": "ออกจากระบบ",
     "impersonateTitle": "สวมสิทธิ์ผู้ใช้",
-    "stopImpersonateTitle": "หยุดสวมสิทธิ์"
+    "stopImpersonateTitle": "หยุดสวมสิทธิ์",
+    "stopInspectTitle": "ออกจากพื้นที่อีเวนต์",
+    "inspectTitle": "เปิดพื้นที่อีเวนต์"
+  },
+  "eventInspection": {
+    "banner": "กำลังดู “{event}” ด้วยสิทธิ์แพลตฟอร์มเต็มรูปแบบ ลงชื่อเข้าใช้ในฐานะ {admin}",
+    "stop": "กลับไปหน้าอีเวนต์",
+    "stopFailed": "ไม่สามารถออกจากพื้นที่อีเวนต์ได้ กรุณาลองอีกครั้ง",
+    "confirmStop": "ออกจากพื้นที่อีเวนต์นี้แล้วกลับไปที่การจัดการอีเวนต์หรือไม่?",
+    "confirmStart": "เปิด “{event}” ด้วยสิทธิ์แพลตฟอร์มเต็มรูปแบบหรือไม่?",
+    "unnamedEvent": "อีเวนต์นี้"
   },
   "sidebar": {
     "groups": {
       "workspace": "พื้นที่ทำงาน",
       "event": "EVENT"
     },
+    "appSubtitle": "ลงทะเบียนและแบบสอบถามกิจกรรม",
     "items": {
       "overview": "ภาพรวมระบบ",
       "owners": "จัดการผู้ใช้",
+      "activity": "กิจกรรมผู้ใช้",
       "eventHome": "ภาพรวม",
       "eventWorkspace": "Event Workspace",
       "dashboard": "แดชบอร์ด",
@@ -83,31 +95,20 @@
     "confirmStopImpersonating": "ต้องการหยุดสวมสิทธิ์และกลับไปบัญชีผู้ดูแลระบบหรือไม่?"
   },
   "auth": {
-    "title": "เข้าสู่ระบบ",
-    "subtitle": "กรอกอีเมลและรหัสผ่านเพื่อเข้าใช้งาน EventSurvey",
+    "title": "เข้าสู่ระบบ EventSurvey",
     "email": "อีเมล",
-    "emailPlaceholder": "info@company.com",
+    "emailPlaceholder": "admin@email.com",
     "password": "รหัสผ่าน",
     "passwordPlaceholder": "กรอกรหัสผ่าน",
-    "keepLoggedIn": "ให้ฉันอยู่ในระบบต่อไป",
+    "keepLoggedIn": "จดจำการเข้าสู่ระบบ",
     "forgotPassword": "ลืมรหัสผ่าน?",
     "signIn": "เข้าสู่ระบบ",
     "signingIn": "กำลังเข้าสู่ระบบ...",
     "showPassword": "แสดงรหัสผ่าน",
     "hidePassword": "ซ่อนรหัสผ่าน",
-    "noAccount": "ยังไม่มีบัญชี?",
-    "contactAdmin": "ติดต่อผู้ดูแลระบบ",
-    "brandHeadline": "สร้างอีเวนต์ที่ดีกว่า รวบรวมคำติชมที่ดีขึ้น",
-    "brandSubtext": "สร้างฟอร์ม เผยแพร่แบบสำรวจ และเปลี่ยนทุกการตอบกลับให้เป็นข้อมูลเชิงลึกที่นำไปใช้ได้จริง",
+    "privacy": "นโยบายความเป็นส่วนตัว",
+    "brandHeadline": "จัดการระบบอีเวนต์ สร้างแบบฟอร์มลงทะเบียนและแบบสอบถาม",
     "language": "ภาษา",
-    "demoTitle": "บัญชีทดลอง",
-    "demoPassword": "รหัสผ่านทุกบัญชี: password123",
-    "demoHint": "คลิกบัญชีเพื่อกรอกให้อัตโนมัติ",
-    "demoAccounts": {
-      "admin": "ผู้ดูแลระบบ → /admin",
-      "owner": "เจ้าของอีเวนต์ → /event",
-      "subUser": "ผู้ใช้ย่อย → /event"
-    },
     "errors": {
       "invalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
       "unsupportedRole": "บัญชีนี้ไม่มีสิทธิ์เข้าใช้งานพอร์ทัล",
@@ -391,6 +392,8 @@
     "endDate": "วันสิ้นสุด",
     "manage": "จัดการ",
     "view": "ดูรายละเอียด",
+    "openWorkspace": "เปิดพื้นที่อีเวนต์",
+    "openWorkspaceError": "ไม่สามารถเปิดพื้นที่อีเวนต์ได้",
     "edit": "แก้ไข",
     "start": "เริ่มงาน",
     "startWaiting": "รอถึงเวลาเริ่ม",
@@ -549,6 +552,7 @@
     "open": "เปิด",
     "create": "สร้างฟอร์ม",
     "edit": "แก้ไขฟอร์ม",
+    "view": "ดูฟอร์ม",
     "delete": "ลบฟอร์ม",
     "deleteConfirmTitle": "ยืนยันการลบฟอร์ม",
     "deleteConfirmMessage": "คุณต้องการลบฟอร์มนี้ใช่หรือไม่?",
@@ -662,6 +666,7 @@
     "preview": {
       "button": "ดูตัวอย่าง",
       "editForm": "กลับไปแก้ไขฟอร์ม",
+      "backToForms": "กลับไปหน้าฟอร์ม",
       "langThai": "ภาษาไทย",
       "langEnglish": "English",
       "requiredNote": "* ระบุว่าเป็นคำถามที่จำเป็น",
@@ -706,7 +711,7 @@
   "errors": {
     "403": {
       "title": "ไม่มีสิทธิ์เข้าถึง",
-      "message": "คุณไม่มีสิทธิ์เข้าถึงหน้านี้ หรือต้องสวมสิทธิ์ก่อนเข้าพื้นที่อีเวนต์",
+      "message": "คุณไม่มีสิทธิ์เข้าถึงหน้านี้",
       "backHome": "กลับหน้าหลัก"
     },
     "404": {
@@ -935,31 +940,39 @@
     "submissionsSectionTitle": "สิทธิ์ข้อมูลคำตอบและการส่งออก",
     "submissionsSectionDesc": "กำหนดแยกจาก Dashboard และจากระดับการเข้าถึงแบบฟอร์ม",
     "levels": {
-      "restricted": "Restricted",
-      "view_only": "View Only",
-      "can_edit": "Can Edit"
+      "restricted": "จำกัดสิทธิ์",
+      "view_only": "ดูได้อย่างเดียว",
+      "can_edit": "แก้ไขได้"
     },
     "modules": {
-      "event": "Event",
+      "event": "อีเวนต์",
       "eventDesc": "รายละเอียดอีเวนต์",
-      "registrationForm": "Registration Form",
+      "registrationForm": "ฟอร์มลงทะเบียน",
       "registrationFormDesc": "แบบฟอร์มลงทะเบียน",
-      "surveyForm": "Survey Form",
+      "surveyForm": "ฟอร์มแบบสอบถาม",
       "surveyFormDesc": "แบบสอบถาม",
-      "dashboard": "Dashboard",
+      "dashboard": "แดชบอร์ด",
       "dashboardDesc": "แดชบอร์ด"
     },
+    "badgeEvent": "อีเวนต์: {level}",
+    "badgeRegistration": "ลงทะเบียน: {level}",
+    "badgeSurvey": "แบบสอบถาม: {level}",
+    "badgeDashboard": "แดชบอร์ด: {level}",
+    "badgeSubmissions": "คำตอบ",
+    "badgeExport": "ส่งออก",
+    "eventAdminRole": "ผู้ดูแลอีเวนต์",
+    "workspaceEyebrow": "พื้นที่ทำงานอีเวนต์",
     "toggles": {
-      "viewSubmissions": "View Submission",
+      "viewSubmissions": "ดูคำตอบ",
       "viewSubmissionsDesc": "ดูคำตอบที่ส่งสำเร็จ",
-      "manageSubmissions": "Manage Submission",
-      "manageSubmissionsDesc": "จัดการ / ลบคำตอบ (ต้องเปิด View)",
-      "exportData": "Export",
+      "manageSubmissions": "จัดการคำตอบ",
+      "manageSubmissionsDesc": "จัดการ / ลบคำตอบ (ต้องเปิดสิทธิ์ดู)",
+      "exportData": "ส่งออก",
       "exportDataDesc": "ส่งออกข้อมูล / รายงาน"
     },
     "rules": {
-      "rule1": "Manage Submission → เปิด View Submission อัตโนมัติ",
-      "rule2": "ปิด View Submission → ปิด Manage Submission ด้วย • Export แยกอิสระ"
+      "rule1": "เปิดจัดการคำตอบ → เปิดดูคำตอบอัตโนมัติ",
+      "rule2": "ปิดดูคำตอบ → ปิดจัดการคำตอบด้วย • ส่งออกแยกอิสระ"
     },
     "savePermissions": "บันทึกสิทธิ์",
     "colMember": "สมาชิก",
@@ -979,7 +992,10 @@
     "removeButton": "นำออก",
     "removeTooltip": "นำออกจากอีเวนต์",
     "saving": "กำลังบันทึก...",
-    "updateError": "ไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง"
+    "updateSuccess": "บันทึกสิทธิ์แล้ว",
+    "updateError": "ไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง",
+    "inviteSuccess": "เชิญ Sub-User แล้ว",
+    "removeSuccess": "นำสมาชิกออกจากอีเวนต์แล้ว"
   },
   "eventBranding": {
     "step": "ตั้งค่าอีเวนต์ / ขั้นตอนที่ 2 จาก 4",
@@ -1326,7 +1342,7 @@
     "start": "เริ่มตั้งค่าอีเวนต์",
     "backSummary": "กลับไปหน้าสรุป",
     "previewTitle": "ตัวอย่างหน้าผู้เข้าร่วม",
-    "team": "Event User Management",
+    "team": "จัดการผู้ใช้ในอีเวนต์",
     "activity": "User Activity",
     "overview": "ภาพรวม",
     "dashboard": "แดชบอร์ด",

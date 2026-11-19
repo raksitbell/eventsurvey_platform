@@ -1,4 +1,5 @@
 import { isAuthSession, requireEventSession } from "@/core/auth/api-guard";
+import { isInspectingEvent } from "@/core/auth/cookie";
 import { authJson } from "@/core/auth/route-response";
 import { routing, type Locale } from "@/i18n/routing";
 import { getEventWorkspace } from "@/services/event/workspace";
@@ -13,7 +14,11 @@ export async function GET(request: NextRequest) {
     const locale = routing.locales.includes(requestedLocale as Locale)
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
-    const data = await getEventWorkspace(session.userId, locale);
+    const data = await getEventWorkspace(session.userId, locale, {
+      inspectedEventId: isInspectingEvent(session)
+        ? session.inspectedEventId
+        : null,
+    });
     return authJson(data);
   } catch {
     return authJson({ error: "Failed to load workspace" }, 502);

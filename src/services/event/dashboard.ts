@@ -7,8 +7,9 @@ export async function publishDashboard(
   userId: string,
   locale: Locale,
   input: unknown,
+  options?: { inspectedEventId?: string | null },
 ) {
-  const data = await getReportingData(userId, locale);
+  const data = await getReportingData(userId, locale, undefined, options);
   if (!data.canManage) throw new ReportingError(403, "Forbidden");
   if (!Array.isArray(input) || input.length > 24)
     throw new ReportingError(400, "Invalid widgets");

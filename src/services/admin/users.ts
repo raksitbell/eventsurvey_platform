@@ -10,62 +10,56 @@ import {
   isActiveMockUser,
   mapMockUserToUser,
 } from "@/core/mock/map-user";
+import { getRolePermissions } from "@/core/mock/role-permissions";
 import { getActivePortalAccount } from "@/services/auth/session";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
 } from "@/types/admin/users";
-import type {
-  MockEvent,
-  MockEventTranslation,
-  MockPermissionCode,
-  MockRole,
-  MockRolePermission,
-  MockUser,
-} from "@/types/mock";
+import type { MockEvent, MockEventAccess, MockEventTranslation, MockUser } from "@/types/mock";
 import type { User, UserRole } from "@/types/user";
 
 const PORTAL_ROLES: UserRole[] = ["super_admin", "event_owner", "sub_user"];
 
-function permissionsByRoleId(
-  rows: MockRolePermission[],
-): Map<string, MockPermissionCode[]> {
-  const map = new Map<string, MockPermissionCode[]>();
-  for (const row of rows) {
-    const list = map.get(row.role_id) ?? [];
-    list.push(row.permission);
-    map.set(row.role_id, list);
-  }
-  return map;
-}
-
-/** Bind users + events + event_translations + roles for the admin users table */
+/** Bind users + events + event_translations + event_access for the admin users table */
 export async function getBoundAdminUsers(
   role?: string,
   locale: Locale = routing.defaultLocale,
   viewer?: PiiViewer,
 ): Promise<AdminUsersResponse> {
-  const [mockUsers, events, translations, roles, rolePermissions] =
-    await Promise.all([
-      mockApi.get<MockUser[]>("/users?_sort=created_at&_order=asc"),
-      mockApi.get<MockEvent[]>("/events"),
-      mockApi.get<MockEventTranslation[]>("/event_translations"),
-      mockApi.get<MockRole[]>("/roles"),
-      mockApi.get<MockRolePermission[]>("/role_permissions"),
-    ]);
+  const [mockUsers, events, translations, eventAccess] = await Promise.all([
+    mockApi.get<MockUser[]>("/users?_sort=created_at&_order=asc"),
+    mockApi.get<MockEvent[]>("/events"),
+    mockApi.get<MockEventTranslation[]>("/event_translations"),
+    mockApi.get<MockEventAccess[]>("/event_access"),
+  ]);
 
   const liveEvents = new Set(events.map((event) => event.id));
-  const rolesById = new Map(roles.map((item) => [item.id, item]));
-  const permsByRole = permissionsByRoleId(rolePermissions);
+  const accessByUser = new Map(
+    eventAccess
+      .filter((row) => !row.deleted_at)
+      .map((row) => [row.user_id, row]),
+  );
+
+  const permissionsByUserId = new Map<string, Awaited<ReturnType<typeof getRolePermissions>>>();
+  await Promise.all(
+    mockUsers.map(async (mock) => {
+      if (mock.system_role !== "event_user") {
+        permissionsByUserId.set(mock.id, []);
+        return;
+      }
+      permissionsByUserId.set(
+        mock.id,
+        await getRolePermissions(mock.id, mock.event_id),
+      );
+    }),
+  );
 
   const usersById = new Map(
     mockUsers
       .map((mock) =>
-        mapMockUserToUser(
-          mock,
-          mock.role_id ? (permsByRole.get(mock.role_id) ?? []) : [],
-        ),
+        mapMockUserToUser(mock, permissionsByUserId.get(mock.id) ?? []),
       )
       .filter((user): user is User => Boolean(user))
       .map((user) => [user.id, user]),
@@ -74,10 +68,7 @@ export async function getBoundAdminUsers(
   let portalUsers = mockUsers
     .filter(isActiveMockUser)
     .map((mock) =>
-      mapMockUserToUser(
-        mock,
-        mock.role_id ? (permsByRole.get(mock.role_id) ?? []) : [],
-      ),
+      mapMockUserToUser(mock, permissionsByUserId.get(mock.id) ?? []),
     )
     .filter(
       (user): user is User =>
@@ -98,10 +89,9 @@ export async function getBoundAdminUsers(
         ? resolveEventTitle(translations, eventId, locale)
         : null;
 
-    /** Custom role name from `/roles` via `users.role_id` (sub_user / optional admin) */
     const customRoleName =
-      mock?.role_id && user.role === "sub_user"
-        ? (rolesById.get(mock.role_id)?.name ?? null)
+      user.role === "sub_user"
+        ? (accessByUser.get(user.id)?.role_name ?? null)
         : null;
 
     return {
@@ -113,9 +103,12 @@ export async function getBoundAdminUsers(
       status: safe.status,
       ownerId: safe.ownerId,
       ownerName: owner
-        ? mayViewPii(viewer, owner.id) ? owner.name : maskName(owner.name)
+        ? mayViewPii(viewer, owner.id)
+          ? owner.name
+          : maskName(owner.name)
         : null,
       canViewSensitiveData: safe.canViewSensitiveData,
+      eventId: eventId && liveEvents.has(eventId) ? eventId : null,
       eventName,
       customRoleName,
       createdAt: safe.createdAt,

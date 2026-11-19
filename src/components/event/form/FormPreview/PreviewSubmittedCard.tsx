@@ -12,6 +12,7 @@ interface PreviewSubmittedCardProps {
   onChangeLocale?: (locale: FormLocale) => void;
   onResetForm: () => void;
   onExitPreview: () => void;
+  allowEdit?: boolean;
 }
 
 export default function PreviewSubmittedCard({
@@ -21,6 +22,7 @@ export default function PreviewSubmittedCard({
   onChangeLocale,
   onResetForm,
   onExitPreview,
+  allowEdit = true,
 }: PreviewSubmittedCardProps) {
   const tPreview = useTranslations("form.preview");
 
@@ -29,6 +31,7 @@ export default function PreviewSubmittedCard({
       <div className="mx-auto max-w-2xl">
         <PreviewTopBar
           onExitPreview={onExitPreview}
+          allowEdit={allowEdit}
           showBadge={false}
           hasEnglish={hasEnglish}
           previewLocale={previewLocale}

@@ -2,6 +2,11 @@
 
 import AuthGuard from "@/components/auth/AuthGuard";
 import ImpersonationBanner from "@/components/auth/ImpersonationBanner";
+import {
+  eventInter,
+  eventThai,
+} from "@/components/event/setup/event-admin-fonts";
+import "@/components/event/setup/event-admin-design.css";
 import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
@@ -25,7 +30,9 @@ export default function AdminLayout({
 
   return (
     <AuthGuard area="admin">
-      <div className="min-h-screen bg-gray-50 xl:flex dark:bg-gray-950">
+      <div
+        className={`min-h-screen xl:flex dark:bg-gray-950 ${eventInter.variable} ${eventThai.variable} event-admin-shell`}
+      >
         <AppSidebar />
         <Backdrop />
         <div

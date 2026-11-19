@@ -12,7 +12,10 @@ type SessionIdentity = {
   userId: string;
   realRole: UserRole;
   role: UserRole;
+  /** @deprecated Prefer inspectedEventId — kept false for new sessions. */
   impersonating: boolean;
+  /** Platform admin inspecting a specific event workspace (no role swap). */
+  inspectedEventId: string | null;
 };
 
 export type AuthSessionCookie = SessionIdentity & { expiresAt: number };
@@ -38,14 +41,35 @@ function sign(value: string, secret: string) {
 
 function isValidIdentity(data: Partial<AuthSessionCookie>) {
   if (
-    typeof data.realUserId !== "string" || !data.realUserId ||
-    typeof data.userId !== "string" || !data.userId ||
-    !data.role || !PORTAL_ROLES.includes(data.role) ||
-    !data.realRole || !PORTAL_ROLES.includes(data.realRole) ||
+    typeof data.realUserId !== "string" ||
+    !data.realUserId ||
+    typeof data.userId !== "string" ||
+    !data.userId ||
+    !data.role ||
+    !PORTAL_ROLES.includes(data.role) ||
+    !data.realRole ||
+    !PORTAL_ROLES.includes(data.realRole) ||
     typeof data.impersonating !== "boolean"
   ) {
     return false;
   }
+
+  const inspected =
+    data.inspectedEventId === null ||
+    data.inspectedEventId === undefined ||
+    (typeof data.inspectedEventId === "string" &&
+      data.inspectedEventId.length > 0);
+  if (!inspected) return false;
+
+  if (data.inspectedEventId) {
+    return (
+      data.realRole === "super_admin" &&
+      data.role === "super_admin" &&
+      data.realUserId === data.userId &&
+      !data.impersonating
+    );
+  }
+
   if (data.impersonating) {
     return (
       data.realRole === "super_admin" &&
@@ -82,11 +106,15 @@ export function parseAuthSessionCookie(
       !data ||
       typeof data.expiresAt !== "number" ||
       !Number.isSafeInteger(data.expiresAt) ||
-      data.expiresAt <= now ||
-      !isValidIdentity(data)
+      data.expiresAt <= now
     ) {
       return null;
     }
+    // Older cookies omit inspectedEventId — treat as null.
+    if (data.inspectedEventId === undefined) {
+      data.inspectedEventId = null;
+    }
+    if (!isValidIdentity(data)) return null;
     return data as AuthSessionCookie;
   } catch {
     return null;
@@ -105,7 +133,11 @@ export function setAuthSessionCookie(
   const secret = getAuthSessionSecret();
   if (!secret) throw new Error("AUTH_SESSION_SECRET is missing or too short");
 
-  const claims = { ...identity, expiresAt };
+  const claims = {
+    ...identity,
+    inspectedEventId: identity.inspectedEventId ?? null,
+    expiresAt,
+  };
   if (!isValidIdentity(claims)) throw new Error("Invalid session identity");
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
   const value = `v1.${payload}`;
@@ -117,4 +149,16 @@ export function setAuthSessionCookie(
 
 export function clearAuthSessionCookie(response: NextResponse) {
   response.cookies.set(AUTH_SESSION_COOKIE, "", { ...cookieOptions, maxAge: 0 });
+}
+
+/** Platform admin currently inspecting an event workspace. */
+export function isInspectingEvent(
+  session: Pick<AuthSessionCookie, "realRole" | "impersonating" | "inspectedEventId"> | null,
+): session is AuthSessionCookie & { inspectedEventId: string } {
+  return Boolean(
+    session &&
+      session.realRole === "super_admin" &&
+      !session.impersonating &&
+      session.inspectedEventId,
+  );
 }

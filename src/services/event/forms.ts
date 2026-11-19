@@ -16,7 +16,7 @@ import type {
   Form,
   FormCreateBody,
   FormCronResult,
-  FormListResponse,
+  FormListData,
   FormRecord,
   FormStatus,
   FormStatusPatchInput,
@@ -1319,7 +1319,7 @@ async function compensateOrThrow(
 export async function listForms(
   eventId: string,
   allowedTypes: readonly FormType[],
-): Promise<FormListResponse> {
+): Promise<FormListData> {
   const event = await loadEvent(eventId);
   const forms = await mockApi.get<MockForm[]>(
     `/forms?event_id=${encodeURIComponent(eventId)}`,

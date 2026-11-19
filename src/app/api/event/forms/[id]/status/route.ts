@@ -46,6 +46,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     sessionOrDeny.userId,
     existing.type,
     existing.eventId,
+    sessionOrDeny,
   );
   if (denied) return denied;
 

@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     if (
       !(await hasPlatformPermission(
         realAccount.platformRoleId,
-        "impersonate_event_user",
+        "inspect_event",
       ))
     ) {
       return authJson({ error: "FORBIDDEN" }, 403);
@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
         userId: target.user.id,
         role: target.user.role,
         impersonating: true,
+        inspectedEventId: null,
       },
       session.expiresAt,
     );
@@ -76,7 +77,7 @@ export async function DELETE(request: NextRequest) {
     realUser: projectUserPii(realAccount.user, true),
     impersonatedUser: null,
   });
-  if (session.impersonating) {
+  if (session.impersonating || session.inspectedEventId) {
     setAuthSessionCookie(
       response,
       {
@@ -84,6 +85,7 @@ export async function DELETE(request: NextRequest) {
         userId: session.realUserId,
         role: session.realRole,
         impersonating: false,
+        inspectedEventId: null,
       },
       session.expiresAt,
     );

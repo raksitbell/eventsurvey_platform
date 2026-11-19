@@ -78,19 +78,18 @@ export default function PermissionModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (subUser) {
-      setPermissions({
-        event: subUser.permissions.event ?? "view_only",
-        registrationForm: subUser.permissions.registrationForm ?? "view_only",
-        surveyForm: subUser.permissions.surveyForm ?? "view_only",
-        dashboard: subUser.permissions.dashboard ?? "view_only",
-        canViewSubmissions: Boolean(subUser.permissions.canViewSubmissions),
-        canManageSubmissions: Boolean(subUser.permissions.canManageSubmissions),
-        canExport: Boolean(subUser.permissions.canExport),
-      });
-      setError(null);
-    }
-  }, [subUser]);
+    if (!isOpen || !subUser) return;
+    setPermissions({
+      event: subUser.permissions.event ?? "view_only",
+      registrationForm: subUser.permissions.registrationForm ?? "view_only",
+      surveyForm: subUser.permissions.surveyForm ?? "view_only",
+      dashboard: subUser.permissions.dashboard ?? "view_only",
+      canViewSubmissions: Boolean(subUser.permissions.canViewSubmissions),
+      canManageSubmissions: Boolean(subUser.permissions.canManageSubmissions),
+      canExport: Boolean(subUser.permissions.canExport),
+    });
+    setError(null);
+  }, [isOpen, subUser]);
 
   const handleModuleChange = (
     moduleKey: keyof Pick<

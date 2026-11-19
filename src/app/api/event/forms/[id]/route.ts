@@ -1,5 +1,5 @@
 import {
-  denyUnlessEventFormManager,
+  denyUnlessEventFormAccess,
   isAuthSession,
   requireEventSession,
 } from "@/core/auth/api-guard";
@@ -13,6 +13,7 @@ import {
   getForm,
   updateForm,
 } from "@/services/event/forms";
+import type { ModuleAccessLevel } from "@/types/event/permissions";
 import { NextRequest, NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -20,6 +21,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 async function authorizeForForm(
   userId: string,
   formId: string,
+  required: ModuleAccessLevel,
+  session?: Parameters<typeof denyUnlessEventFormAccess>[4],
 ): Promise<
   | { ok: true; form: Awaited<ReturnType<typeof getForm>> }
   | { ok: false; response: NextResponse }
@@ -46,10 +49,12 @@ async function authorizeForForm(
     };
   }
 
-  const denied = await denyUnlessEventFormManager(
+  const denied = await denyUnlessEventFormAccess(
     userId,
     form.type,
+    required,
     form.eventId,
+    session,
   );
   if (denied) return { ok: false, response: denied };
   return { ok: true, form };
@@ -62,7 +67,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const { id } = await context.params;
   try {
-    const auth = await authorizeForForm(sessionOrDeny.userId, id);
+    const auth = await authorizeForForm(sessionOrDeny.userId, id, "view_only", sessionOrDeny);
     if (!auth.ok) return auth.response;
     return NextResponse.json(auth.form);
   } catch (error) {
@@ -82,7 +87,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   const { id } = await context.params;
-  const auth = await authorizeForForm(sessionOrDeny.userId, id);
+  const auth = await authorizeForForm(sessionOrDeny.userId, id, "can_edit", sessionOrDeny);
   if (!auth.ok) return auth.response;
 
   let json: unknown;
@@ -123,7 +128,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
 
   const { id } = await context.params;
-  const auth = await authorizeForForm(sessionOrDeny.userId, id);
+  const auth = await authorizeForForm(sessionOrDeny.userId, id, "can_edit", sessionOrDeny);
   if (!auth.ok) return auth.response;
 
   try {

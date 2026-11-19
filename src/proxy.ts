@@ -63,6 +63,7 @@ function authRedirect(
         session.role,
         session.realRole,
         session.impersonating,
+        session.inspectedEventId,
       )
     ) {
       return NextResponse.redirect(new URL("/error/403", request.url));

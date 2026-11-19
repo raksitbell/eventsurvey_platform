@@ -11,6 +11,8 @@ export interface AdminUserListItem {
   ownerId: string | null;
   ownerName: string | null;
   canViewSensitiveData: boolean;
+  /** Assigned event id when the account belongs to an event */
+  eventId: string | null;
   /** Single event name (1 owner / sub_user ↔ 1 event) */
   eventName: string | null;
   /** Custom role within that event (sub_user only) */

@@ -1,20 +1,24 @@
-import { mockApi } from "@/core/api/mock-client";
+import {
+  eventMatrixToLegacyCodes,
+  getEventAccessForUser,
+  hasPlatformPermission as hasPlatformAccessPermission,
+} from "@/core/mock/access";
 import type {
   MockPermissionCode,
-  MockRolePermission,
   MockPlatformPermissionCode,
-  MockPlatformRolePermission,
 } from "@/types/mock";
 
-/** Load permission codes granted to a role (empty when no role). */
+/**
+ * Load legacy manage_* codes derived from `event_access` for a user.
+ * Prefer `getEventAccessForUser` for new call sites.
+ */
 export async function getRolePermissions(
-  roleId: string | null | undefined,
+  userId: string | null | undefined,
+  eventId?: string | null,
 ): Promise<MockPermissionCode[]> {
-  if (!roleId) return [];
-  const rows = await mockApi.get<MockRolePermission[]>(
-    `/role_permissions?role_id=${encodeURIComponent(roleId)}`,
-  );
-  return rows.filter((row) => row.role_id === roleId).map((row) => row.permission);
+  if (!userId) return [];
+  const access = await getEventAccessForUser(userId, eventId);
+  return eventMatrixToLegacyCodes(access.matrix, access.canManageSubUsers);
 }
 
 export function hasPermission(
@@ -24,15 +28,10 @@ export function hasPermission(
   return permissions.includes(code);
 }
 
+/** Platform checks now key off `platform_access.user_id`. */
 export async function hasPlatformPermission(
-  platformRoleId: string | null | undefined,
+  userId: string | null | undefined,
   permission: MockPlatformPermissionCode,
 ): Promise<boolean> {
-  if (!platformRoleId) return false;
-  const rows = await mockApi.get<MockPlatformRolePermission[]>(
-    `/platform_role_permissions?platform_role_id=${encodeURIComponent(platformRoleId)}`,
-  );
-  return rows.some(
-    (row) => row.platform_role_id === platformRoleId && row.permission === permission,
-  );
+  return hasPlatformAccessPermission(userId, permission);
 }

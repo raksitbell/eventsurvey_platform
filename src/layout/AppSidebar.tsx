@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { api } from "@/core/api";
@@ -7,22 +9,20 @@ import { canEnterAdminArea, canEnterEventArea } from "@/core/auth";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
-import dashboardTheme from "@/components/event/reports/dashboard-theme.module.css";
-import { cn } from "@/utils";
+import styles from "@/components/event/workspace/EventWorkspaceChrome.module.css";
 import {
   ChartPieIcon,
-  EllipsisHorizontalIcon,
+  ClockIcon,
   Squares2X2Icon,
   UserGroupIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import type React from "react";
 
 type NavItem = {
   key: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   path?: string;
   disabled?: boolean;
 };
@@ -31,20 +31,21 @@ export default function AppSidebar() {
   const t = useTranslations("sidebar");
   const pathname = usePathname();
   const locale = useLocale();
-  const { user, realUser, isImpersonating } = useAuth();
+  const { user, realUser, isImpersonating, inspectedEventId } = useAuth();
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
 
   const isAdminArea = pathname.startsWith("/admin");
   const isEventArea = pathname === "/event" || pathname.startsWith("/event/");
   const isFormArea = pathname === "/form" || pathname.startsWith("/form/");
   const isDashboardPath = isEventReportingPath(pathname);
-  const showExpanded = isExpanded || isHovered || isMobileOpen;
+  const expanded = isExpanded || isHovered || isMobileOpen;
 
   const allowAdmin = canEnterAdminArea(realUser?.role, isImpersonating);
   const allowEvent = canEnterEventArea(
     user?.role,
     realUser?.role,
     isImpersonating,
+    inspectedEventId,
   );
 
   const dashboardAccessKey =
@@ -54,6 +55,7 @@ export default function AppSidebar() {
           user?.role,
           realUser?.id,
           isImpersonating,
+          inspectedEventId,
           locale,
           pathname,
         ])
@@ -86,24 +88,49 @@ export default function AppSidebar() {
   }, [dashboardAccessKey, locale]);
 
   const adminNav: NavItem[] = [
-    { key: "overview", icon: <Squares2X2Icon />, path: "/admin" },
-    { key: "events", icon: <Squares2X2Icon />, path: "/admin/events" },
-    { key: "owners", icon: <UsersIcon />, path: "/admin/users" },
+    { key: "overview", icon: <Squares2X2Icon className="size-5" />, path: "/admin" },
+    {
+      key: "events",
+      icon: <Squares2X2Icon className="size-5" />,
+      path: "/admin/events",
+    },
+    {
+      key: "owners",
+      icon: <UsersIcon className="size-5" />,
+      path: "/admin/users",
+    },
+    {
+      key: "activity",
+      icon: <ClockIcon className="size-5" />,
+      disabled: true,
+    },
   ];
 
   const eventNav: NavItem[] = [
-    { key: "eventHome", icon: <Squares2X2Icon />, path: "/event" },
-    { key: "Form", icon: <Squares2X2Icon />, path: "/form" },
+    {
+      key: "eventHome",
+      icon: <Squares2X2Icon className="size-5" />,
+      path: "/event",
+    },
+    {
+      key: "Form",
+      icon: <Squares2X2Icon className="size-5" />,
+      path: "/event/form",
+    },
   ];
 
   if (user?.role === "event_owner") {
-    eventNav.push({ key: "eventTeam", icon: <UserGroupIcon />, path: "/event/team" });
+    eventNav.push({
+      key: "eventTeam",
+      icon: <UserGroupIcon className="size-5" />,
+      path: "/event/team",
+    });
   }
 
   if (dashboardAccess?.key === dashboardAccessKey && dashboardAccess?.allowed) {
     eventNav.push({
       key: "dashboard",
-      icon: <ChartPieIcon />,
+      icon: <ChartPieIcon className="size-5" />,
       path: "/event/dashboard",
     });
   }
@@ -131,153 +158,73 @@ export default function AppSidebar() {
     return pathname === path || pathname.startsWith(`${path}/`);
   };
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "ES";
-
-  const roleLabel =
-    user?.role === "super_admin"
-      ? t("roles.superAdmin")
-      : user?.role === "event_owner"
-        ? t("roles.eventOwner")
-        : user?.role === "sub_user"
-          ? t("roles.subUser")
-          : user?.role;
-
-  const roleHint =
-    user?.role === "super_admin" ? t("roles.systemOwner") : (user?.email ?? "");
-
   return (
     <aside
-      className={cn(
-        "fixed top-0 z-99999 flex h-screen flex-col bg-gray-950 px-4 text-white transition-all duration-300 ease-in-out",
-        isDashboardPath && allowEvent && dashboardTheme.sidebar,
-        showExpanded ? "w-[280px]" : "w-[90px]",
-        isMobileOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
-        "rtl:translate-x-full xl:rtl:translate-x-0",
-        isMobileOpen && "rtl:translate-x-0",
-      )}
+      id="app-sidebar"
+      data-expanded={expanded}
       onMouseEnter={() => {
         if (!isExpanded) setIsHovered(true);
       }}
       onMouseLeave={() => setIsHovered(false)}
+      className={`${styles.sidebar} ${isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full xl:visible xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
     >
-      <div
-        className={cn(
-          "flex items-center gap-3 py-7",
-          !showExpanded ? "xl:justify-center" : "justify-start",
-        )}
-      >
-        <Link href={homePath} className="flex items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white">
-            E
+      <Link href={homePath} className={styles.brand} aria-label="EventSurvey">
+        <span className={styles.mark}>
+          <Image
+            alt=""
+            width={27}
+            height={26}
+            src="/images/event-workspace/ticket-speech-symbol.svg"
+          />
+        </span>
+        {expanded && (
+          <span className={styles.wordmark}>
+            <strong>EventSurvey</strong>
+            <small>{t("appSubtitle")}</small>
           </span>
-          {showExpanded ? (
-            <span className="text-sm font-semibold tracking-[0.18em] text-white">
-              EVENTSURVEY
-            </span>
-          ) : null}
-        </Link>
-      </div>
+        )}
+      </Link>
 
-      <div className="no-scrollbar flex flex-1 flex-col overflow-y-auto pb-6">
-        <div className="mb-3">
-          <h2
-            className={cn(
-              "mb-3 flex px-3 text-[11px] font-semibold tracking-[0.16em] uppercase",
-              isDashboardPath ? "text-brand-200" : "text-gray-500",
-              !showExpanded ? "xl:justify-center" : "justify-start",
-            )}
-          >
-            {showExpanded ? t("groups.workspace") : <EllipsisHorizontalIcon />}
-          </h2>
+      <nav aria-label={t("groups.workspace")}>
+        <h2 className={expanded ? styles.section : "sr-only"}>WORKSPACE</h2>
+        <ul className="space-y-1">
+          {navItems.map((item) => {
+            const label = t(`items.${item.key}`);
+            const active = isActive(item.path);
+            const content = (
+              <>
+                {item.icon}
+                {expanded && <span>{label}</span>}
+              </>
+            );
 
-          <ul className="flex flex-col gap-1.5">
-            {navItems.map((item) => {
-              const active = isActive(item.path);
-              const className = cn(
-                "group flex w-full items-center gap-3 rounded-full px-3 py-2.5 text-theme-sm font-medium transition",
-                active
-                  ? "bg-brand-500 text-white"
-                  : isDashboardPath
-                    ? "text-brand-50 hover:bg-white/10"
-                    : "text-gray-400 hover:bg-white/5 hover:text-white",
-                item.disabled &&
-                  "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-gray-400",
-                !showExpanded && "justify-center px-0",
-              );
-
-              if (item.disabled || !item.path) {
-                return (
-                  <li key={item.key}>
-                    <span className={className} title={t(`items.${item.key}`)}>
-                      <span className="flex size-5 items-center justify-center [&_svg]:size-5">
-                        {item.icon}
-                      </span>
-                      {showExpanded ? (
-                        <span>{t(`items.${item.key}`)}</span>
-                      ) : null}
-                    </span>
-                  </li>
-                );
-              }
-
-              return (
-                <li key={item.key}>
+            return (
+              <li key={item.key}>
+                {item.disabled || !item.path ? (
+                  <button
+                    type="button"
+                    disabled
+                    className={styles.item}
+                    aria-label={label}
+                    title={label}
+                  >
+                    {content}
+                  </button>
+                ) : (
                   <Link
                     href={item.path}
-                    className={className}
+                    className={styles.item}
+                    aria-label={label}
                     aria-current={active ? "page" : undefined}
-                    aria-label={t(`items.${item.key}`)}
                   >
-                    <span className="flex size-5 items-center justify-center [&_svg]:size-5">
-                      {item.icon}
-                    </span>
-                    {showExpanded ? (
-                      <span>{t(`items.${item.key}`)}</span>
-                    ) : null}
+                    {content}
                   </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </div>
-
-      {user ? (
-        <div
-          className={cn(
-            "mb-5 rounded-2xl border border-white/10 bg-white/5 p-3",
-            !showExpanded && "flex justify-center p-2",
-          )}
-        >
-          <div
-            className={cn(
-              "flex items-center gap-3",
-              !showExpanded && "justify-center",
-            )}
-          >
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-theme-sm font-semibold text-white">
-              {initials}
-            </span>
-            {showExpanded ? (
-              <div className="min-w-0">
-                <p className="truncate text-theme-sm font-medium text-white">
-                  {roleLabel}
-                </p>
-                <p className="truncate text-theme-xs text-gray-400">
-                  {roleHint}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
     </aside>
   );
 }

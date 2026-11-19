@@ -22,7 +22,7 @@ export default function EventWorkspaceHeader() {
   const a = useTranslations("userDropdown");
   const tc = useTranslations("confirm");
   const common = useTranslations("common");
-  const { user, isImpersonating, stopImpersonating, logout } = useAuth();
+  const { user, isInspectingEvent, stopInspectingEvent, logout } = useAuth();
   const { toggleSidebar, toggleMobileSidebar } = useSidebar();
   const { confirm } = useConfirm();
   const pathname = usePathname();
@@ -43,12 +43,12 @@ export default function EventWorkspaceHeader() {
     );
   }
 
-  async function leaveAccount(impersonation: boolean) {
+  async function leaveAccount(inspecting: boolean) {
     const approved = await confirm({
-      title: tc(impersonation ? "stopImpersonateTitle" : "signOutTitle"),
-      message: a(impersonation ? "confirmStopImpersonating" : "confirmSignOut"),
-      confirmLabel: a(impersonation ? "stopImpersonating" : "signOut"),
-      variant: impersonation ? "warning" : "danger",
+      title: tc(inspecting ? "stopInspectTitle" : "signOutTitle"),
+      message: a(inspecting ? "confirmStopImpersonating" : "confirmSignOut"),
+      confirmLabel: a(inspecting ? "stopImpersonating" : "signOut"),
+      variant: inspecting ? "warning" : "danger",
     });
     if (!approved) return;
     const confirmLeave = navigationGuard?.current;
@@ -56,11 +56,11 @@ export default function EventWorkspaceHeader() {
 
     setOpen(false);
     try {
-      if (impersonation) await stopImpersonating();
+      if (inspecting) await stopInspectingEvent();
       else await logout();
     } catch {
       showToast({
-        title: a(impersonation ? "stopImpersonatingFailed" : "signOutFailed"),
+        title: a(inspecting ? "stopImpersonatingFailed" : "signOutFailed"),
         variant: "error",
       });
     }
@@ -151,7 +151,7 @@ export default function EventWorkspaceHeader() {
                   {user.email}
                 </span>
               </div>
-              {isImpersonating && (
+              {isInspectingEvent && (
                 <DropdownItem
                   tag="button"
                   className="rounded-lg text-warning-700 dark:text-warning-400"

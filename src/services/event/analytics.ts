@@ -38,12 +38,17 @@ const q = encodeURIComponent;
 const timezone = "Asia/Bangkok";
 type AnalyticsSubmission = MockFormSubmission & { deleted_at?: string | null };
 async function scope(session: AuthSessionCookie) {
-  const scoped = await getDashboardScope(session.userId);
+  const scoped = await getDashboardScope(session.userId, {
+    inspectedEventId: session.inspectedEventId,
+  });
   if (!scoped) throw new AnalyticsError(403, "FORBIDDEN");
   return {
     ...scoped,
     session,
-    manage: !session.impersonating,
+    // Platform inspection keeps full manage; legacy impersonation stays read-only.
+    manage:
+      (!session.impersonating || Boolean(session.inspectedEventId)) &&
+      scoped.canManageDashboard,
   };
 }
 

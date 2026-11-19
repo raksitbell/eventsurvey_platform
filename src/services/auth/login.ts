@@ -33,7 +33,7 @@ export async function loginWithMockCredentials(
     return { ok: false, error: "INVALID_CREDENTIALS" };
   }
 
-  const permissions = await getRolePermissions(matched.role_id);
+  const permissions = await getRolePermissions(matched.id, matched.event_id);
   const user = mapMockUserToUser(matched, permissions);
   if (!user) {
     return { ok: false, error: "UNSUPPORTED_ROLE" };

@@ -195,6 +195,8 @@ export default function FormBuilder({ type }: { type: FormType }) {
   const [formId, setFormId] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<FormStatus>("draft");
   const [canEdit, setCanEdit] = useState<boolean>(true);
+  /** Permission matrix is view_only — stay in FormPreview; never reopen editor. */
+  const [previewOnly, setPreviewOnly] = useState<boolean>(false);
   const [canChangeStatus, setCanChangeStatus] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -406,7 +408,29 @@ export default function FormBuilder({ type }: { type: FormType }) {
         );
         if (cancelled) return;
 
+        const formAccess =
+          type === "registration"
+            ? listRes.registrationFormAccess
+            : listRes.surveyFormAccess;
         const existing = listRes.forms.find((f) => f.type === type);
+
+        if (formAccess === "restricted") {
+          router.replace("/event/form");
+          return;
+        }
+
+        if (formAccess === "view_only") {
+          if (!existing) {
+            router.replace("/event/form");
+            return;
+          }
+          applyServerRecord(existing);
+          setCanEdit(false);
+          setPreviewOnly(true);
+          setIsPreview(true);
+          return;
+        }
+
         if (existing) {
           applyServerRecord(existing);
         }
@@ -426,7 +450,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     return () => {
       cancelled = true;
     };
-  }, [applyServerRecord, resolveErrorMessage, t, type, user]);
+  }, [applyServerRecord, resolveErrorMessage, router, t, type, user]);
 
   useEffect(() => {
     const updatePosition = () => {
@@ -1459,7 +1483,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   };
 
   if (isLoading) {
-    return <FormBuilderSkeleton title={t("title")} />;
+    return <FormBuilderSkeleton title={t("title") + t(type)} />;
   }
 
   if (isPreview) {
@@ -1467,7 +1491,14 @@ export default function FormBuilder({ type }: { type: FormType }) {
       <FormPreview
         form={form}
         hasEnglish={hasEnglish}
-        onExitPreview={() => setIsPreview(false)}
+        allowEdit={!previewOnly}
+        onExitPreview={() => {
+          if (previewOnly) {
+            router.push("/event/form");
+            return;
+          }
+          setIsPreview(false);
+        }}
       />
     );
   }
@@ -1478,14 +1509,14 @@ export default function FormBuilder({ type }: { type: FormType }) {
     : "max-w-4xl";
 
   return (
-    <div className="font-outfit min-h-screen bg-gray-50 px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100">
+    <div className="font-outfit min-h-screen px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100">
       {/* Header Area */}
       <div
         className={`mx-auto mb-6 flex ${containerWidthClass} flex-wrap items-center justify-between gap-3 md:mb-8`}
       >
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl md:text-3xl dark:text-white">
-            {t("title")}
+          <h1 className="text-xl font-bold sm:text-2xl md:text-3xl text-white">
+            {t("title") + t(type)}
           </h1>
           <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
             {formId ? t(`status.${formStatus}`) : t("status.draft")}
@@ -1853,12 +1884,12 @@ export default function FormBuilder({ type }: { type: FormType }) {
 function FormBuilderSkeleton({ title }: { title: string }) {
   return (
     <div
-      className="font-outfit min-h-screen bg-gray-50 px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100"
+      className="font-outfit min-h-screen px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100"
       aria-busy="true"
     >
       <div className="mx-auto mb-6 flex max-w-4xl flex-wrap items-center justify-between gap-3 md:mb-8">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl md:text-3xl dark:text-white">
+          <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">
             {title}
           </h1>
           <Skeleton className="h-6 w-20 rounded-full" />

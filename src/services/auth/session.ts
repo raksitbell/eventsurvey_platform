@@ -16,10 +16,11 @@ export async function getActivePortalAccount(id: string) {
   if (!mockUser || mockUser.id !== id || !isActiveMockUser(mockUser)) return null;
   const permissions =
     mockUser.system_role === "event_user"
-      ? await getRolePermissions(mockUser.role_id)
+      ? await getRolePermissions(mockUser.id, mockUser.event_id)
       : [];
   const user = mapMockUserToUser(mockUser, permissions);
   if (!user) return null;
 
-  return { user, platformRoleId: mockUser.platform_role_id };
+  // platformRoleId kept for session shape; platform checks use user.id → platform_access
+  return { user, platformRoleId: mockUser.id };
 }

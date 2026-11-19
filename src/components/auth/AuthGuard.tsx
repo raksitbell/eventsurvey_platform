@@ -37,7 +37,14 @@ function HoldScreen() {
 }
 
 export default function AuthGuard({ area, children }: AuthGuardProps) {
-  const { user, realUser, isImpersonating, isLoading, authUnavailable } = useAuth();
+  const {
+    user,
+    realUser,
+    isImpersonating,
+    inspectedEventId,
+    isLoading,
+    authUnavailable,
+  } = useAuth();
   const router = useRouter();
   const t = useTranslations("errors.403");
 
@@ -72,6 +79,7 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
     user.role,
     realUser.role,
     isImpersonating,
+    inspectedEventId,
   );
 
   if (
