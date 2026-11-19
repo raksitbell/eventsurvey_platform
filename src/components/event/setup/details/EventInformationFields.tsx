@@ -8,6 +8,7 @@ import {
   resolveEventTranslation,
 } from "@/core/event/content";
 import { shiftBangkokMinute } from "@/core/i18n/bangkok-datetime";
+import type { EventDetailIssue } from "@/core/event/draft";
 import type { EventContentTranslation } from "@/types/event/content";
 import type { EventDraft } from "@/types/event/setup";
 import { useTranslations } from "next-intl";
@@ -15,17 +16,21 @@ import { useTranslations } from "next-intl";
 interface Props {
   statusLabel: string;
   draft: EventDraft;
+  savedSchedule?: Pick<EventDraft, "startsAt" | "endsAt">;
   uiLocale: string;
   selectedLocale: string | null;
+  detailIssue?: EventDetailIssue | null;
   onSelectLocale: (locale: string) => void;
   readOnly: boolean;
   onChange: (changes: Partial<EventDraft>) => void;
 }
 export default function EventInformationFields({
   draft,
+  savedSchedule,
   statusLabel,
   uiLocale,
   selectedLocale,
+  detailIssue,
   onSelectLocale,
   readOnly,
   onChange,
@@ -33,6 +38,10 @@ export default function EventInformationFields({
   const t = useTranslations("eventHome.details");
   const s = useTranslations("eventSetup");
   const v = useTranslations("eventSetupDesign");
+  const dates = useTranslations("datePicker");
+  const issueMessage = detailIssue?.issue === "invalidOrder"
+    ? dates("invalidOrder")
+    : detailIssue && detailIssue.field !== "surveyCustomClose" ? t(`requiredFields.${detailIssue.field}`) : undefined;
   const content = getEventContent(draft, uiLocale);
   const translation = resolveEventTranslation(content, selectedLocale);
   const range = { start: draft.startsAt, end: draft.endsAt };
@@ -114,8 +123,13 @@ export default function EventInformationFields({
           maxLength={255}
           {...localizedInput}
           aria-required="true"
+          aria-invalid={detailIssue?.field === "eventName"}
+          aria-describedby={detailIssue?.field === "eventName" ? "event-name-error" : undefined}
           onChange={(e) => edit("title", e.target.value)}
         />
+        {detailIssue?.field === "eventName" && (
+          <span id="event-name-error" role="alert" className="text-theme-xs text-error-600 dark:text-error-400">{issueMessage}</span>
+        )}
       </label>
       <label className="es-field es-description" htmlFor="event-description">
         {v("description")}
@@ -136,6 +150,8 @@ export default function EventInformationFields({
             <DateTimePicker
               key={key}
               id={key === "startsAt" ? "event-start" : "event-end"}
+              validationError={detailIssue?.field === key ? issueMessage : undefined}
+              savedValue={savedSchedule?.[key]}
               label={v(key === "startsAt" ? "start" : "end")}
               placeholder={v("datePlaceholder")}
               value={draft[key]}
@@ -160,9 +176,14 @@ export default function EventInformationFields({
             maxLength={500}
             {...localizedInput}
             aria-required="true"
+            aria-invalid={detailIssue?.field === "locationName"}
+            aria-describedby={detailIssue?.field === "locationName" ? "event-location-error" : undefined}
             value={translation.locationName ?? ""}
             onChange={(e) => edit("locationName", e.target.value)}
           />
+          {detailIssue?.field === "locationName" && (
+            <span id="event-location-error" role="alert" className="text-theme-xs text-error-600 dark:text-error-400">{issueMessage}</span>
+          )}
         </label>
         <label className="es-field" htmlFor="event-zone">
           {s("zone")}

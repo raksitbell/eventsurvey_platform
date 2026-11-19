@@ -4,9 +4,9 @@ import { ServiceError } from "@/core/api/service-error";
 import { writeAuditLog } from "@/core/audit/write";
 import { defaultEventBranding } from "@/core/event/branding";
 import { projectEventContent } from "@/core/event/content";
-import { selectSetupForms } from "@/core/event/form-summary";
-import { reviewPublication, publicationSchema } from "@/core/event/publication";
-import { isPastScheduleMinute, publicationPastDates, surveyClosingTime } from "@/core/event/schedule";
+import { requiredEventDetail } from "@/core/event/draft";
+import { formForPublication, publicationSchema, type PublicationForm, type PublicationForms } from "@/core/event/publication";
+import { invalidCustomSurveyClose, isPastScheduleMinute, surveyClosingTime } from "@/core/event/schedule";
 import { writeSerially } from "@/core/event/serial-write";
 import type { SetupRecord } from "@/core/event/setup-state";
 import { encodeSetupRecord, readSetupRecord, readSetupState } from "@/core/event/setup-storage";
@@ -17,7 +17,7 @@ import { getForm, listForms } from "@/services/event/forms";
 import { assertEventSetupMedia } from "@/services/event/setup-media";
 import { getEventWorkspace } from "@/services/event/workspace";
 import type { EventBranding } from "@/types/event/branding";
-import type { FormRecord } from "@/types/event/form";
+import type { FormType } from "@/types/event/form";
 import type { EventDraft, EventSetupMediaKind, EventSetupState } from "@/types/event/setup";
 import type { WhitelistEntry, WhitelistUniqueField } from "@/types/event/whitelist";
 import type { MockEvent, MockForm, MockWhitelistEntry } from "@/types/mock";
@@ -122,10 +122,7 @@ function assertDraftSchedule(draft: EventDraft, previous: EventDraft | null, eve
   ) {
     throw new ServiceError("SETUP_DATE_ORDER", 422);
   }
-  if (
-    usesCustomClose && (endsChanged || closeChanged) &&
-    (!draft.surveyCustomClose || (draft.endsAt && Date.parse(draft.surveyCustomClose) < Date.parse(draft.endsAt)))
-  ) {
+  if ((endsChanged || closeChanged) && invalidCustomSurveyClose(draft)) {
     throw new ServiceError("SETUP_SURVEY_CLOSE_INVALID", 422);
   }
 }
@@ -219,7 +216,7 @@ function whitelistForField(setup: SetupRecord, form: Awaited<ReturnType<typeof r
   return [...merged.values()];
 }
 
-async function whitelistForPublication(eventId: string, setup: SetupRecord, registration: FormRecord | null) {
+async function whitelistForPublication(eventId: string, setup: SetupRecord, registration: PublicationForm | null) {
   const field = whitelistUniqueField(registration);
   if (!registration || registration.eventId !== eventId || !field) return null;
   const saved = setup.whitelist;
@@ -229,20 +226,11 @@ async function whitelistForPublication(eventId: string, setup: SetupRecord, regi
   const form = { formId: registration.id, field, existing: await legacyWhitelistEntries(eventId, field) };
   const list = { formId: registration.id, fieldId: field.id, kind: field.type, entries: whitelistForField(setup, form) };
   const access = boundWhitelistAccess(list, registration);
-  return access?.entries.some((entry) => entry.status === "available") ? { ...list, entries: access.entries } : null;
-}
-
-/** Return a preparation result for the checklist without sending identities to the browser. */
-export async function getPublishWhitelistReadiness(eventId: string, registration: FormRecord | null) {
-  const event = await loadSetupEvent(eventId);
-  const setup = readSetupRecord(event);
-  if (!(setup.draft?.isPrivate ?? event.is_private) ||
-      !(setup.draft?.hasRegistration ?? event.has_registration)) return undefined;
-  return Boolean(await whitelistForPublication(eventId, setup, registration));
+  return access ? { ...list, entries: access.entries } : null;
 }
 
 function assertWhitelistEnabled(event: MockEvent, setup: SetupRecord) {
-  if (!((setup.draft?.isPrivate ?? event.is_private) && (setup.draft?.hasRegistration ?? event.has_registration))) {
+  if (!(setup.draft?.isPrivate ?? event.is_private)) {
     throw new ServiceError("SETUP_WHITELIST_UNAVAILABLE", 409);
   }
 }
@@ -349,10 +337,6 @@ export async function recoverSetupDraft(
   });
 }
 
-function snapshotForm(form: FormRecord | null): FormRecord | null {
-  return form?.status === "draft" ? { ...form, status: "scheduled" } : form;
-}
-
 export async function publishSetup(
   context: SetupContext,
   input: { revision: number; locale: Locale },
@@ -371,27 +355,31 @@ export async function publishSetup(
     }
 
     const draft = setup.draft;
-    const types = [
-      ...(draft.hasRegistration ? ["registration" as const] : []),
-      ...(draft.hasSurvey ? ["survey" as const] : []),
-    ];
+    const detailIssue = requiredEventDetail(draft);
+    if (detailIssue) throw new ServiceError("SETUP_EVENT_DETAILS_REQUIRED", 422, undefined, detailIssue);
+    const types: FormType[] = [];
+    if (draft.hasRegistration) types.push("registration");
+    if (draft.hasSurvey) types.push("survey");
     const { forms } = types.length ? await listForms(event.id, types) : { forms: [] };
-    const { registration, survey } = selectSetupForms(forms);
-    const definitions = {
-      registration: draft.hasRegistration && registration
-        ? { ...registration, opensAt: draft.startsAt, closesAt: draft.endsAt } : null,
-      survey: draft.hasSurvey && survey
-        ? { ...survey, opensAt: draft.startsAt, closesAt: surveyClosingTime(draft) } : null,
-    };
+    const definitions: PublicationForms = { registration: null, survey: null };
+    for (const type of types) {
+      const form = formForPublication(type, forms);
+      if (!form || form.eventId !== event.id) {
+        const code = type === "registration" ? "SETUP_REGISTRATION_FORM_REQUIRED" : "SETUP_SURVEY_FORM_REQUIRED";
+        throw new ServiceError(code, 422);
+      }
+      definitions[type] = {
+        ...form,
+        opensAt: draft.startsAt,
+        closesAt: type === "registration" ? draft.endsAt : surveyClosingTime(draft),
+      };
+    }
     const whitelist = draft.isPrivate ? await whitelistForPublication(event.id, setup, definitions.registration) : null;
-    const { issues } = reviewPublication(draft, definitions, forms, undefined, Boolean(whitelist));
-    if (issues.length) throw new ServiceError("SETUP_PUBLISH_INVALID", 422, undefined, issues);
+    if (draft.isPrivate && !whitelist) {
+      throw new ServiceError("SETUP_WHITELIST_REQUIRED", 422);
+    }
     await Promise.all(Object.values(setup.branding).map((branding) => checkBranding(event.id, branding)));
     const now = Date.now();
-    const { pastStart, pastEnd } = publicationPastDates(draft, now);
-    if (pastStart || pastEnd) {
-      throw new ServiceError("SETUP_PUBLISH_IN_PAST", 422);
-    }
     const publishedAt = new Date(now).toISOString();
     const branding =
       setup.branding[input.locale] ??
@@ -401,10 +389,7 @@ export async function publishSetup(
       publishedAt,
       draft,
       branding,
-      forms: {
-        registration: snapshotForm(definitions.registration),
-        survey: snapshotForm(definitions.survey),
-      },
+      forms: definitions,
     });
     const next = {
       ...setup,
@@ -413,8 +398,12 @@ export async function publishSetup(
       ...(whitelist ? { whitelist } : {}),
       publishedBranding: setup.branding,
     };
+    const hasStarted = Date.parse(draft.startsAt!) <= now;
+    const hasEnded = Date.parse(draft.endsAt!) <= now;
     const saved = await persistSetup(event, next, {
-      status: "scheduled",
+      status: hasEnded ? "closed" : hasStarted ? "open" : "scheduled",
+      ...(hasStarted && !hasEnded ? { opens_at: publishedAt } : {}),
+      ...(hasEnded ? { closes_at: publishedAt } : {}),
       start_at: draft.startsAt,
       end_at: draft.endsAt,
       is_private: draft.isPrivate,

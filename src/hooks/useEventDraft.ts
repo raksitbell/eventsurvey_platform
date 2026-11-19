@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { normalizeEventAccess } from "@/core/event/access";
 import { projectEventContent } from "@/core/event/content";
-import { eventDraftSchema } from "@/core/event/draft";
+import { eventDraftFieldsSchema, eventDraftSchema } from "@/core/event/draft";
 import useSetupApiState, { type SetupDraftApi } from "@/hooks/useSetupApiState";
 import type { DraftSaveStatus, EventDraft } from "@/types/event/setup";
 import type { EventWorkspace } from "@/types/event/workspace";
@@ -31,7 +31,8 @@ export default function useEventDraft(
       ? acknowledged.value
       : setup?.draft);
   const value = readOnly ? stored ?? workspace : edit?.value ?? stored ?? workspace;
-  const parsed = eventDraftSchema.safeParse(value);
+  const schema = setup?.publication || workspace.eventStatus !== "draft" ? eventDraftFieldsSchema : eventDraftSchema;
+  const parsed = schema.safeParse(value);
   const draft = parsed.success
     ? projectEventContent(parsed.data, locale)
     : (value as EventDraft);

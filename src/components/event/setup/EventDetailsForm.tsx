@@ -8,8 +8,8 @@ import EventSetupBoundary, {
 import EventSetupActions from "./EventSetupActions";
 import EventSetupPendingMedia from "@/components/event/setup/EventSetupPendingMedia";
 import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
-import { afterSaved, createSavedNavigation } from "@/core/event/draft";
-import { eventSetupStepHref, formBuilderContentLocale, formBuilderEntryHref, whitelistEntryHref } from "@/core/event/form-builder-navigation";
+import { afterSaved, createSavedNavigation, requiredEventDetail, type EventDetailIssue } from "@/core/event/draft";
+import { detailInputIds, eventSetupStepHref, formBuilderContentLocale, formBuilderEntryHref, whitelistEntryHref } from "@/core/event/form-builder-navigation";
 import { eventWorkspaceDisplayStatus } from "@/core/event/workspace";
 import useEventDraft from "@/hooks/useEventDraft";
 import useEventBranding from "@/hooks/useEventBranding";
@@ -19,9 +19,9 @@ import { useRouter } from "@/i18n/navigation";
 import { showToast } from "@/utils/alert";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-function focusChecklistTarget(form: HTMLFormElement | null) {
+function focusLinkedField(form: HTMLFormElement | null) {
   if (!form || !globalThis.location.hash) return;
   const target = globalThis.document.getElementById(globalThis.location.hash.slice(1));
   if (!target || !form.contains(target)) return;
@@ -39,6 +39,7 @@ function DetailsForm(props: EventSetupPageProps) {
   const overview = useTranslations("eventOverview");
   const query = useSearchParams();
   const [language, setLanguage] = useState<string>();
+  const [detailIssue, setDetailIssue] = useState<EventDetailIssue | null>(null);
   const contentLocale = language ?? formBuilderContentLocale(query.getAll("lang"));
   const statusName = eventWorkspaceDisplayStatus(workspace);
   const statusLabel = workspace.setup?.publication || workspace.localPublishedAt
@@ -59,6 +60,9 @@ function DetailsForm(props: EventSetupPageProps) {
   const navigate = createSavedNavigation(persist, router.push);
   const pending = setup.pending || media.saving;
   useWhitelistNavigationGuard(dirty || media.dirty, persist);
+  useEffect(() => {
+    if (detailIssue) globalThis.document.getElementById(detailInputIds[detailIssue.field])?.focus();
+  }, [detailIssue]);
   const scheduleErrors: Record<string, string> = {
     SETUP_DATE_IN_PAST: dates("pastDate"),
     SETUP_DATE_ORDER: dates("invalidOrder"),
@@ -78,11 +82,17 @@ function DetailsForm(props: EventSetupPageProps) {
           : media.pendingMediaMessage ? t(media.pendingMediaMessage) : undefined);
   return (
     <form
-      ref={focusChecklistTarget}
+      ref={focusLinkedField}
       className="es-setup-form event-details-page gap-4"
       aria-busy={pending}
       onSubmit={(e) => {
         e.preventDefault();
+        const issue = readOnly ? null : requiredEventDetail(draft);
+        if (issue) {
+          if (issue.localeCode) setLanguage(issue.localeCode);
+          setDetailIssue(issue);
+          return;
+        }
         void navigate(eventSetupStepHref("publish", contentLocale));
       }}
     >
@@ -105,11 +115,19 @@ function DetailsForm(props: EventSetupPageProps) {
           <EventInformationFields
             statusLabel={statusLabel}
             draft={draft}
+            savedSchedule={workspace.setup?.draft ?? workspace}
             uiLocale={locale}
             selectedLocale={contentLocale}
-            onSelectLocale={setLanguage}
+            detailIssue={detailIssue}
+            onSelectLocale={(value) => {
+              setDetailIssue(null);
+              setLanguage(value);
+            }}
             readOnly={readOnly || pending}
-            onChange={change}
+            onChange={(changes) => {
+              setDetailIssue(null);
+              change(changes);
+            }}
           />
           <EventAccessSettings
             workspace={workspace}

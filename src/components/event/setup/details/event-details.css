@@ -131,10 +131,10 @@
   font-weight: 400;
   padding-inline: 13px;
 }
-.es-info .es-field-pair input[aria-invalid="true"] {
+.es-info input[aria-invalid="true"] {
   border-color: var(--color-error-500);
 }
-.dark .es-info .es-field-pair input[aria-invalid="true"] {
+.dark .es-info input[aria-invalid="true"] {
   border-color: var(--color-error-400);
 }
 .es-info textarea.event-input {

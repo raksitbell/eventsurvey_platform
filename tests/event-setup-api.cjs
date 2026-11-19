@@ -123,7 +123,7 @@ test("Setup rejects new past dates, reversed times, and custom Survey closes bef
   assert.equal(writes(), 1);
 });
 
-test("Existing historical dates survive recovery and unrelated draft edits, with a future start required to publish", async (t) => {
+test("A saved event start may pass before publication without invalidating its draft", async (t) => {
   const { service, draft, event, writes } = fixture(t);
   const context = await service.getSetupContext("owner");
   const startsAt = "2001-01-01T10:00:00.000Z";
@@ -135,11 +135,36 @@ test("Existing historical dates survive recovery and unrelated draft edits, with
   });
   assert.equal(saved.draft.startsAt, startsAt);
   assert.equal(saved.revision, 2);
-  await assert.rejects(service.publishSetup(context, { revision: saved.revision, locale: "en" }), {
-    code: "SETUP_PUBLISH_IN_PAST",
+  const published = await service.publishSetup(context, { revision: saved.revision, locale: "en" });
+  assert.equal(published.publication.draft.startsAt, startsAt);
+  assert.equal(event().status, "open");
+  assert.equal(event().opens_at, published.publication.publishedAt);
+  assert.equal(writes(), 3);
+});
+
+test("Publishing after the saved event end preserves the original dates and records a closed event", async (t) => {
+  const { service, draft, event } = fixture(t);
+  const context = await service.getSetupContext("owner");
+  const endsAt = "2001-01-02T10:00:00.000Z";
+  const { revision } = await service.recoverSetupDraft(context, {
+    revision: 0, replace: false, draft: { ...draft, startsAt: "2001-01-01T10:00:00.000Z", endsAt },
   });
+  const { publication } = await service.publishSetup(context, { revision, locale: "en" });
+  assert.equal(publication.draft.endsAt, endsAt);
+  assert.equal(event().status, "closed");
+  assert.equal(event().closes_at, publication.publishedAt);
+});
+
+test("An incomplete draft can be saved and corrected after a direct publication attempt", async (t) => {
+  const { service, draft, event } = fixture(t);
+  const context = await service.getSetupContext("owner");
+  const { revision } = await service.saveSetupDraft(context, { revision: 0, draft: { ...draft, endsAt: null } });
+  await assert.rejects(service.publishSetup(context, { revision, locale: "en" }), {
+    code: "SETUP_EVENT_DETAILS_REQUIRED", details: { field: "endsAt", issue: "required" },
+  });
+  const corrected = await service.saveSetupDraft(context, { revision, draft: { ...draft, hasSurvey: true, surveyAccess: "public" } });
+  await assert.rejects(service.publishSetup(context, { revision: corrected.revision, locale: "en" }), { code: "SETUP_SURVEY_FORM_REQUIRED" });
   assert.equal(event().status, "draft");
-  assert.equal(writes(), 2);
 });
 
 test("Legacy recovery keeps a private receipt and Publish schedules an immutable revision", async (t) => {
@@ -182,7 +207,7 @@ test("Legacy recovery keeps a private receipt and Publish schedules an immutable
   });
 });
 
-test("Publishing enabled draft forms freezes their Event Setup schedule in the event snapshot", async (t) => {
+test("Publishing a public event freezes only its enabled forms and their schedules", async (t) => {
   const label = { label: "Name", placeholder: "", choices: { th: [], en: [] } };
   const forms = ["registration", "survey"].map((type) => ({
     id: `${type}-a`, eventId: "event-a", type, status: "draft",
@@ -194,27 +219,34 @@ test("Publishing enabled draft forms freezes their Event Setup schedule in the e
       min_length: 0, max_length: 255, is_required: true, label: { th: [label], en: [label] },
     } }],
   }));
-  const { service, draft, event, writes } = fixture(t, { forms });
-  const context = await service.getSetupContext("owner");
-  const surveyClose = new Date(Date.parse(draft.endsAt) + 60_000).toISOString();
-  const saved = await service.saveSetupDraft(context, {
-    revision: 0,
-    draft: {
-      ...draft, hasRegistration: true, hasSurvey: true, surveyAccess: "public",
-      surveyCloseMode: "custom", surveyCustomClose: surveyClose,
-    },
-  });
-  const published = await service.publishSetup(context, { revision: saved.revision, locale: "en" });
-  const snapshot = published.publication.forms;
-  assert.equal(snapshot.registration.status, "scheduled");
-  assert.equal(snapshot.registration.opensAt, draft.startsAt);
-  assert.equal(snapshot.registration.closesAt, draft.endsAt);
-  assert.equal(snapshot.survey.status, "scheduled");
-  assert.equal(snapshot.survey.opensAt, draft.startsAt);
-  assert.equal(snapshot.survey.closesAt, surveyClose);
-  assert.ok(forms.every((form) => form.status === "draft" && form.opensAt === null && form.closesAt === null));
-  assert.equal(event().status, "scheduled");
-  assert.equal(writes(), 2);
+  for (const [hasRegistration, hasSurvey] of [[false, false], [true, false], [false, true], [true, true]]) {
+    await t.test(`registration=${hasRegistration}, survey=${hasSurvey}`, async (t) => {
+      const { service, draft, event, writes } = fixture(t, { forms });
+      const context = await service.getSetupContext("owner");
+      const surveyClose = new Date(Date.parse(draft.endsAt) + 60_000).toISOString();
+      const saved = await service.saveSetupDraft(context, {
+        revision: 0,
+        draft: {
+          ...draft, hasRegistration, hasSurvey, surveyAccess: hasSurvey ? "public" : null,
+          surveyCloseMode: "custom", surveyCustomClose: surveyClose,
+        },
+      });
+      const published = await service.publishSetup(context, { revision: saved.revision, locale: "en" });
+      const snapshot = published.publication.forms;
+      for (const [type, enabled, close] of [["registration", hasRegistration, draft.endsAt], ["survey", hasSurvey, surveyClose]]) {
+        if (!enabled) {
+          assert.equal(snapshot[type], null);
+          continue;
+        }
+        assert.equal(snapshot[type].status, "scheduled");
+        assert.equal(snapshot[type].opensAt, draft.startsAt);
+        assert.equal(snapshot[type].closesAt, close);
+      }
+      assert.ok(forms.every((form) => form.status === "draft" && form.opensAt === null && form.closesAt === null));
+      assert.equal(event().status, "scheduled");
+      assert.equal(writes(), 2);
+    });
+  }
 });
 
 test("Setup publication accepts a complete TH or EN form and rejects options split between translations", async (t) => {
@@ -240,7 +272,7 @@ test("Setup publication accepts a complete TH or EN form and rejects options spl
     question.label[locale][0].choices = { [other]: choices };
     question.label[other] = [{ label: "Choose", placeholder: "", choices: { [other]: choices } }];
     await assert.rejects(service.publishSetup(context, { revision, locale: other }), {
-      code: "SETUP_PUBLISH_INVALID", status: 422,
+      code: "SETUP_REGISTRATION_FORM_REQUIRED", status: 422,
     });
     assert.equal(writes(), 1);
     delete question.label[other];
@@ -256,12 +288,13 @@ test("Setup publication accepts a complete TH or EN form and rejects options spl
 test("Whitelist reads require registration management and an editable private event with registration", async (t) => {
   const { service, draft } = fixture(t);
   const context = await service.getSetupContext("owner");
-  for (const [is_private, has_registration] of [[false, true], [true, false]]) {
-    await assert.rejects(
-      service.getSetupWhitelist({ ...context, event: { ...context.event, is_private, has_registration } }),
-      { message: "SETUP_WHITELIST_UNAVAILABLE" },
-    );
-  }
+  await assert.rejects(service.getSetupWhitelist({
+    ...context, event: { ...context.event, is_private: false, has_registration: true },
+  }), { message: "SETUP_WHITELIST_UNAVAILABLE" });
+  const legacyPrivate = await service.getSetupWhitelist({
+    ...context, event: { ...context.event, is_private: true, has_registration: false },
+  });
+  assert.equal(legacyPrivate.uniqueField, null);
   await service.saveSetupDraft(context, {
     revision: 0, draft: { ...draft, isPrivate: true, hasRegistration: true },
   });
@@ -325,7 +358,8 @@ test("Parallel edits to the same base revision allow exactly one write", async (
   assert.equal(result[1].reason.code, "SETUP_CONFLICT");
 });
 
-test("Private publication requires a prepared list bound to the current registration field and keeps its entries server-side", async (t) => {
+test("Private publication requires a guest on the current registration field regardless of prior participation", async (t) => {
+  const { publishedWhitelistAccess } = loadSource()("src/core/event/whitelist.ts");
   const label = { label: "Email", placeholder: "", choices: { en: [], th: [] } };
   const question = {
     id: "email-field", type: "email", is_unique: true, is_required: true,
@@ -337,31 +371,47 @@ test("Private publication requires a prepared list bound to the current registra
     status: "draft", opensAt: null, closesAt: null, createdAt: "", updatedAt: "",
     head: { en: { title: "Register", description: "" } }, questions: [{ question }],
   };
-  const legacy = [];
-  const { service, store, draft, event } = fixture(t, { registration, forms: [registration], whitelist: legacy });
-  const context = await service.getSetupContext("owner");
-  const input = { revision: 1, locale: "en" };
-  await service.saveSetupDraft(context, { revision: 0, draft: { ...draft, isPrivate: true, hasRegistration: true } });
+  const survey = {
+    ...registration, id: "survey-a", type: "survey",
+    questions: [{ question: { ...question, id: "survey-field", is_unique: false } }],
+  };
+  const used = { id: "used", event_id: "event-a", access_code: "used@example.test", username: "Used", status: "joined" };
+  const guest = { id: "guest", uniqueId: "Guest@example.test", name: "Guest", status: "available" };
 
-  const blocked = () => assert.rejects(service.publishSetup(context, input), { code: "SETUP_PUBLISH_INVALID" });
-  assert.equal(await service.getPublishWhitelistReadiness("event-a", registration), false);
-  await blocked();
-  legacy.push({ id: "used", event_id: "event-a", access_code: "used@example.test", username: "Used", status: "joined" });
-  await blocked();
-  const entry = { id: "guest", uniqueId: "Guest@example.test", name: "Guest", status: "available" };
-  const saved = await service.updateSetupWhitelist(context, { revision: 1, entries: [entry] });
-  input.revision = saved.revision;
-  question.id = "different-field";
-  assert.equal(await service.getPublishWhitelistReadiness("event-a", registration), false);
-  await blocked();
-  question.id = "email-field";
-  assert.equal(await service.getPublishWhitelistReadiness("event-a", registration), true);
-  const published = await service.publishSetup(context, input);
-  assert.equal(event().status, "scheduled");
-  assert.equal(published.whitelistReady, true);
-  assert.ok(!JSON.stringify(published).includes("guest@example.test"));
-  assert.deepEqual(store.readSetupRecord(event()).whitelist.entries, [
-    { id: "used", uniqueId: "used@example.test", name: "Used", status: "joined" },
-    { ...entry, uniqueId: "guest@example.test" },
-  ]);
+  for (const scenario of ["empty", "used-only", "current", "first-guest", "replaced-field"]) {
+    await t.test(scenario, async (t) => {
+      const current = structuredClone(registration);
+      const { service, store, draft, event } = fixture(t, {
+        registration: current, forms: [current, survey], whitelist: ["empty", "first-guest"].includes(scenario) ? [] : [used],
+      });
+      const context = await service.getSetupContext("owner");
+      const saved = await service.saveSetupDraft(context, {
+        revision: 0,
+        draft: { ...draft, isPrivate: true, hasRegistration: true, hasSurvey: true, surveyAccess: "registered_only" },
+      });
+      let revision = saved.revision;
+      if (["current", "first-guest", "replaced-field"].includes(scenario)) {
+        const list = await service.updateSetupWhitelist(context, { revision, entries: [guest] });
+        revision = list.revision;
+      }
+      if (scenario === "replaced-field") current.questions[0].question.id = "different-field";
+      const input = { revision, locale: "en" };
+      if (scenario === "empty" || scenario === "replaced-field") {
+        await assert.rejects(service.publishSetup(context, input), { code: "SETUP_WHITELIST_REQUIRED" });
+        assert.equal(event().status, "draft");
+        assert.equal(store.readSetupRecord(event()).publication, null);
+        return;
+      }
+      const published = await service.publishSetup(context, input);
+      assert.equal(event().status, "scheduled");
+      assert.equal(published.publication.draft.surveyAccess, "registered_only");
+      assert.doesNotMatch(JSON.stringify(published), /guest@example\.test|used@example\.test/i);
+      const record = store.readSetupRecord(event());
+      const allowed = publishedWhitelistAccess(record);
+      assert.deepEqual(allowed.entries, [
+        ...(scenario === "first-guest" ? [] : [{ id: "used", uniqueId: "used@example.test", name: "Used", status: "joined" }]),
+        ...(scenario === "used-only" ? [] : [{ ...guest, uniqueId: "guest@example.test" }]),
+      ]);
+    });
+  }
 });

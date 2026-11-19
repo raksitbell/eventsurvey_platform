@@ -29,6 +29,7 @@ export default function EventAccessSettings({
   const s = useTranslations("eventSetup");
   const { confirm } = useConfirm();
   async function toggleRegistration(value: boolean) {
+    if (draft.isPrivate) return;
     if (
       !value &&
       draft.surveyAccess === "registered_only" &&
@@ -83,7 +84,7 @@ export default function EventAccessSettings({
                 id={kind + "-on"}
                 label={label}
                 checked={enabled}
-                disabled={readOnly}
+                disabled={readOnly || (registration && draft.isPrivate)}
                 onChange={(value) =>
                   registration
                     ? void toggleRegistration(value)
@@ -91,6 +92,11 @@ export default function EventAccessSettings({
                 }
               />
             </div>
+            {registration && draft.isPrivate && enabled && !workspace.setup?.publication && (
+              <p className="text-theme-xs text-gray-600 dark:text-gray-400">
+                {t("privateRegistrationHint")}
+              </p>
+            )}
             {!registration && enabled && (
               <label className="es-survey-requirement">
                 <input
@@ -144,11 +150,6 @@ export default function EventAccessSettings({
               )}
             {enabled && (
               <EventFormSchedule kind={kind} draft={draft} readOnly={readOnly} onChange={onChange} />
-            )}
-            {registration && draft.isPrivate && !enabled && (
-              <p className="text-theme-xs text-gray-600 dark:text-gray-400">
-                {t("privateRegistrationHint")}
-              </p>
             )}
             {registration && draft.isPrivate && enabled && (
               <Button

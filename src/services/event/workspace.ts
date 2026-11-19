@@ -12,6 +12,7 @@ import {
 import { readSetupState } from "@/core/event/setup-storage";
 import { savedFormBranding } from "@/core/event/branding";
 import { canAccessEventDashboard } from "@/core/event/dashboard-policy";
+import { normalizeEventAccess } from "@/core/event/access";
 import { getEventAccessForUser } from "@/core/mock/access";
 import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
@@ -144,10 +145,19 @@ async function loadWorkspacePayload(
   const { primary, secondary, accent, backgroundMode, gradientEnd, gradientAngle, banner } =
     savedFormBranding(setup, locale, content.defaultLocale);
   const canManageWhitelist = matrix.registrationForm === "can_edit";
+  const eventAccess = {
+    isPrivate: event.is_private,
+    hasRegistration: event.has_registration,
+    hasSurvey: event.has_survey,
+    surveyAccess: event.survey_access,
+  };
+  const access = event.status === "draft" && !setup.publication
+    ? normalizeEventAccess(eventAccess)
+    : eventAccess;
   const whitelistEnabledForSetup =
     canManageWhitelist &&
-    (setup.draft?.isPrivate ?? event.is_private) &&
-    (setup.draft?.hasRegistration ?? event.has_registration);
+    (setup.draft?.isPrivate ?? access.isPrivate) &&
+    (setup.draft?.hasRegistration ?? access.hasRegistration);
 
   return {
     setup: showSetup ? setup : readSetupState({}),
@@ -165,16 +175,13 @@ async function loadWorkspacePayload(
     canManageSurveyForm: matrix.surveyForm === "can_edit",
     canManageWhitelist,
     canEditEvent,
-    surveyAccess: event.survey_access,
     content,
     description: translation.description,
     locationName: translation.locationName,
     locationDetail: translation.floorZone ?? undefined,
     startsAt: event.start_at,
     endsAt: event.end_at,
-    isPrivate: event.is_private,
-    hasRegistration: event.has_registration,
-    hasSurvey: event.has_survey,
+    ...access,
     bannerUrl:
       banners.find((banner) => banner.event_id === eventId)?.banner_url ?? null,
     subUserCount: subUsers.length,

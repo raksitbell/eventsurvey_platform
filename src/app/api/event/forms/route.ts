@@ -8,9 +8,7 @@ import { satisfiesAccessLevel } from "@/core/auth/event-permissions";
 import { ServiceError } from "@/core/api/service-error";
 import { createFormBodySchema, formatZodError } from "@/core/validation/forms";
 import { createForm, listForms } from "@/services/event/forms";
-import { getPublishWhitelistReadiness } from "@/services/event/setup";
-import { publishFormReadiness } from "@/core/event/publication";
-import type { FormType, RestrictedFormReview } from "@/types/event/form";
+import type { FormType } from "@/types/event/form";
 import { NextRequest, NextResponse } from "next/server";
 
 /** GET /api/event/forms?eventId= — list live forms for an event */
@@ -44,39 +42,17 @@ export async function GET(request: NextRequest) {
     resolved.access.surveyForm,
     "view_only",
   );
-  const wantsReview = request.nextUrl.searchParams.get("publishReview") === "1";
-  const publishReview = wantsReview && resolved.access.event === "can_edit";
-  if (!canViewRegistration && !canViewSurvey && !publishReview) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
-
   const allowedTypes: FormType[] = [];
   if (canViewRegistration) allowedTypes.push("registration");
   if (canViewSurvey) allowedTypes.push("survey");
+  if (!allowedTypes.length) {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
 
   try {
-    const allTypes: FormType[] = ["registration", "survey"];
-    const data = await listForms(eventId, publishReview ? allTypes : allowedTypes);
-    const restrictedForms: RestrictedFormReview = {};
-    if (publishReview) {
-      for (const type of allTypes) {
-        if (!allowedTypes.includes(type)) restrictedForms[type] = publishFormReadiness(type, data.forms);
-      }
-    }
-    const reviewWhitelist = wantsReview && request.nextUrl.searchParams.get("whitelist") === "1" &&
-      (canViewRegistration || publishReview);
-    let whitelistReady: boolean | undefined;
-    if (reviewWhitelist) {
-      const registrations = data.forms.filter((form) => form.type === "registration");
-      whitelistReady = await getPublishWhitelistReadiness(eventId, registrations.length === 1 ? registrations[0] : null);
-    }
+    const data = await listForms(eventId, allowedTypes);
     return NextResponse.json({
-      eventId: data.eventId,
-      hasRegistration: data.hasRegistration,
-      hasSurvey: data.hasSurvey,
-      forms: data.forms.filter((form) => allowedTypes.includes(form.type)),
-      ...(publishReview ? { restrictedForms } : {}),
-      whitelistReady,
+      ...data,
       registrationFormAccess: resolved.access.registrationForm,
       surveyFormAccess: resolved.access.surveyForm,
     }, { headers: { "Cache-Control": "private, no-store" } });

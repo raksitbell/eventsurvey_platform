@@ -1,43 +1,13 @@
 import { z } from "zod";
 import {
-  eventDraftSchema,
+  eventDraftFieldsSchema,
   legacyDraftContent,
   legacyEventSetupLocales,
 } from "@/core/event/draft";
 import { eventBrandingSchema } from "@/core/event/branding";
-import { surveyClosingTime } from "@/core/event/schedule";
-import { whitelistUniqueField } from "@/core/event/whitelist";
 import { uniqueFieldIssue } from "@/core/forms/unique-field";
 import { validatePublishReady } from "@/core/forms/content";
-import type { EventDraft } from "@/types/event/setup";
-import type { FormRecord, FormType, PublishFormReadiness, QuestionType, RestrictedFormReview } from "@/types/event/form";
-
-/** Minimal form shape accepted by publicationIssues; validated by Zod inside. */
-interface MinimalChoice {
-  label: string;
-}
-interface MinimalLabel {
-  label: string;
-  choices: Record<string, MinimalChoice[]>;
-}
-interface MinimalQuestion {
-  id?: string;
-  is_unique?: boolean;
-  type: QuestionType;
-  label: Record<string, MinimalLabel[]>;
-  min_length: number;
-  max_length: number;
-  min_number: number;
-  max_number: number;
-}
-interface MinimalForm {
-  type: FormType;
-  questions: Array<{ question: MinimalQuestion }>;
-  head: Record<string, { title: string; description: string }>;
-  opensAt?: string | null;
-  closesAt?: string | null;
-}
-type MinimalForms = Record<FormType, MinimalForm | null>;
+import type { FormRecord, FormType } from "@/types/event/form";
 
 const choice = z.object({
   id: z.string().optional(),
@@ -130,7 +100,7 @@ export type PublicationForms = {
 export const publicationSchema = z.object({
   // Zod v4: z.string().datetime() is deprecated; use z.iso.datetime() instead.
   publishedAt: z.iso.datetime(),
-  draft: eventDraftSchema,
+  draft: eventDraftFieldsSchema,
   branding: eventBrandingSchema,
   forms: z.object({ registration: form.nullable(), survey: form.nullable() }),
 });
@@ -192,132 +162,13 @@ export function loadEventPublication(
   };
 }
 
-type SharedPublishIssue =
-  | "eventName"
-  | "location"
-  | "eventSchedule"
-  | "formContent"
-  | "formStatus"
-  | "surveySchedule"
-  | "uniqueField"
-  | "registeredEligibility"
-  | "whitelist"
-  | "capacity";
-export type PublishIssue =
-  | SharedPublishIssue
-  | { key: "contentTitle" | "contentVenue"; localeCode: string };
-type FormProblem = "formContent" | "formStatus";
-type FormProblems = Record<FormType, FormProblem[]>;
-
-function hasPublishableStatus(type: FormType, list: readonly { type: string; status: string }[]) {
-  const matches = list.filter((item) => item.type === type);
-  return matches.length === 1 && ["draft", "scheduled", "open", "published"].includes(matches[0].status);
-}
-
-export function publishFormReadiness(type: FormType, list: readonly FormRecord[]): PublishFormReadiness {
-  const definition = list.find((item) => item.type === type) ?? null;
-  return {
-    present: definition !== null,
-    contentReady: !!definition && hasCompleteContent(type, definition),
-    statusReady: hasPublishableStatus(type, list),
-    hasUniqueField: !!whitelistUniqueField(definition),
-  };
-}
-
-/** The current form list adds lifecycle checks. Participant eligibility applies to every draft review. */
-export function reviewPublication(
-  draft: EventDraft,
-  forms: MinimalForms,
-  formList?: readonly { type: string; status: string }[],
-  restrictedForms?: RestrictedFormReview,
-  whitelistReady = false,
-) {
-  const issues = new Set<SharedPublishIssue>();
-  const languageIssues: PublishIssue[] = [];
-  const formProblems: FormProblems = { registration: [], survey: [] };
-  if (draft.content) {
-    for (const row of draft.content.translations) {
-      if (!row.title.trim())
-        languageIssues.push({
-          key: "contentTitle",
-          localeCode: row.localeCode,
-        });
-      if (!row.locationName?.trim())
-        languageIssues.push({
-          key: "contentVenue",
-          localeCode: row.localeCode,
-        });
-    }
-  } else {
-    if (!draft.locationName?.trim()) issues.add("location");
-    if (!draft.eventName.trim()) issues.add("eventName");
-  }
-  if (
-    !draft.startsAt ||
-    !draft.endsAt ||
-    !Number.isFinite(Date.parse(draft.startsAt)) ||
-    !Number.isFinite(Date.parse(draft.endsAt)) ||
-    Date.parse(draft.endsAt) <= Date.parse(draft.startsAt)
-  )
-    issues.add("eventSchedule");
-  for (const type of ["registration", "survey"] as const) {
-    if (!(type === "registration" ? draft.hasRegistration : draft.hasSurvey))
-      continue;
-    const definition = forms[type];
-    const hidden = restrictedForms?.[type];
-    const invalidStatus = hidden
-      ? !hidden.statusReady
-      : formList && !hasPublishableStatus(type, formList);
-    if (invalidStatus) {
-      formProblems[type].push("formStatus");
-      issues.add("formStatus");
-    }
-    const contentReady = hidden?.contentReady ??
-      (!!definition && hasCompleteContent(type, definition));
-    if (!contentReady) {
-      formProblems[type].push("formContent");
-      issues.add("formContent");
-    }
-    if (type !== "survey") continue;
-    const opensAt = definition ? definition.opensAt : draft.startsAt;
-    const closesAt = definition ? definition.closesAt : surveyClosingTime(draft);
-    if (
-      !opensAt || !closesAt ||
-      !Number.isFinite(Date.parse(opensAt)) ||
-      !Number.isFinite(Date.parse(closesAt)) ||
-      Date.parse(closesAt) <= Date.parse(opensAt) ||
-      (draft.endsAt && Date.parse(closesAt) < Date.parse(draft.endsAt))
-    )
-      issues.add("surveySchedule");
-  }
-  const registeredSurvey = draft.hasSurvey && draft.surveyAccess === "registered_only";
-  const validIdentifier = draft.hasRegistration &&
-    (restrictedForms?.registration?.hasUniqueField ?? !!whitelistUniqueField(forms.registration));
-  if ((draft.isPrivate || registeredSurvey) && !validIdentifier) {
-    issues.add("uniqueField");
-  }
-  if (draft.isPrivate && !whitelistReady) issues.add("whitelist");
-  if (registeredSurvey) issues.add("registeredEligibility");
-  for (const capacity of [
-    draft.hasRegistration ? draft.registrationCapacity : null,
-    draft.hasSurvey && draft.surveyAccess === "public"
-      ? draft.surveyCapacity
-      : null,
-  ])
-    if (capacity != null && (!Number.isInteger(capacity) || capacity <= 0))
-      issues.add("capacity");
-  return { issues: [...languageIssues, ...issues], formProblems };
-}
-
-export function publicationIssues(
-  draft: EventDraft,
-  forms: MinimalForms,
-): PublishIssue[] {
-  return reviewPublication(draft, forms).issues;
-}
-
-function hasCompleteContent(type: FormType, definition: MinimalForm): boolean {
-  const parsed = form.safeParse(definition);
-  return parsed.success && parsed.data.type === type &&
-    !uniqueFieldIssue(parsed.data.questions) && !validatePublishReady(parsed.data);
+/** Freeze one enabled form. Activating a draft uses the Form Builder's own validator. */
+export function formForPublication(type: FormType, records: readonly FormRecord[]): PublicationForm | null {
+  const matches = records.filter((record) => record.type === type);
+  if (matches.length !== 1 || !["draft", "scheduled", "open", "published"].includes(matches[0].status)) return null;
+  const parsed = form.safeParse(matches[0]);
+  if (!parsed.success) return null;
+  if (parsed.data.status !== "draft") return parsed.data;
+  if (uniqueFieldIssue(parsed.data.questions) || validatePublishReady(parsed.data)) return null;
+  return { ...parsed.data, status: "scheduled" };
 }

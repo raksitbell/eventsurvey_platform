@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizeEventAccess } from "@/core/event/access";
+import { invalidCustomSurveyClose } from "@/core/event/schedule";
 import {
   eventContentSchema,
   getEventContent,
@@ -35,7 +36,7 @@ export function createSavedNavigation<Path extends string>(
   return (href: Path) => afterSaved(save, () => navigate(href));
 }
 
-export const eventDraftSchema = z
+export const eventDraftFieldsSchema = z
   .object({
     eventName: z.string().max(255),
     description: z.string().max(5000).nullable(),
@@ -63,8 +64,34 @@ export const eventDraftSchema = z
     registrationCapacity: z.number().int().positive().nullable().optional(),
     surveyCapacity: z.number().int().positive().nullable().optional(),
     surveyAccess: z.enum(["public", "registered_only"]).nullable(),
-  })
-  .transform(normalizeEventAccess);
+  });
+
+export const eventDraftSchema = eventDraftFieldsSchema.transform(normalizeEventAccess);
+
+export interface EventDetailIssue {
+  field: "eventName" | "locationName" | "startsAt" | "endsAt" | "surveyCustomClose";
+  localeCode?: string;
+  issue: "required" | "invalidDate" | "invalidOrder";
+}
+
+export function requiredEventDetail(draft: EventDraft): EventDetailIssue | null {
+  const translations = draft.content?.translations ?? [
+    { title: draft.eventName, locationName: draft.locationName, localeCode: undefined },
+  ];
+  for (const { title, locationName, localeCode } of translations) {
+    if (!title.trim()) return { field: "eventName", localeCode, issue: "required" };
+    if (!locationName?.trim()) return { field: "locationName", localeCode, issue: "required" };
+  }
+  for (const field of ["startsAt", "endsAt"] as const) {
+    const value = draft[field];
+    if (!value) return { field, issue: "required" };
+    if (!eventDraftFieldsSchema.shape[field].safeParse(value).success) return { field, issue: "invalidDate" };
+  }
+  if (Date.parse(draft.endsAt!) <= Date.parse(draft.startsAt!))
+    return { field: "endsAt", issue: "invalidOrder" };
+  if (invalidCustomSurveyClose(draft)) return { field: "surveyCustomClose", issue: "invalidDate" };
+  return null;
+}
 
 export function eventDraftKey(userId: string, eventId: string, locale: string) {
   return `eventsurvey:event-draft:v1:${userId}:${eventId}:${locale}`;

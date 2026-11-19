@@ -27,7 +27,7 @@ function load(relative) {
   return mod.exports;
 }
 const { normalizeEventAccess } = load("src/core/event/access.ts");
-const { eventDraftKey, eventDraftV2Key, eventDraftSchema, restoreEventDraft } =
+const { eventDraftKey, eventDraftV2Key, eventDraftSchema, requiredEventDetail, restoreEventDraft } =
   load("src/core/event/draft.ts");
 const {
   emptyEventTranslation,
@@ -72,20 +72,25 @@ function storage(t) {
   });
   return values;
 }
-test("Registration off resets Required, and re-enabling does not silently restore it", () => {
-  for (const isPrivate of [false, true]) {
-    const off = normalizeEventAccess({
-      ...seed,
-      isPrivate,
-      hasRegistration: false,
-    });
-    assert.equal(off.surveyAccess, "public");
-    assert.equal(off.isPrivate, isPrivate);
-    assert.equal(
-      normalizeEventAccess({ ...off, hasRegistration: true }).surveyAccess,
-      "public",
-    );
-  }
+test("Public events can disable registration and re-enabling it keeps direct survey access", () => {
+  const off = normalizeEventAccess({ ...seed, hasRegistration: false });
+  assert.equal(off.hasRegistration, false);
+  assert.equal(off.surveyAccess, "public");
+  assert.equal(normalizeEventAccess({ ...off, hasRegistration: true }).surveyAccess, "public");
+});
+
+test("Private draft loads and updates always include registration, while published snapshots retain their saved selection", () => {
+  const legacy = { ...seed, isPrivate: true, hasRegistration: false, hasSurvey: false, surveyAccess: null };
+  const draft = eventDraftSchema.parse(legacy);
+  assert.equal(draft.hasRegistration, true);
+  assert.equal(draft.hasSurvey, false);
+  assert.equal(normalizeEventAccess({ ...draft, hasRegistration: false }).hasRegistration, true);
+  assert.equal(normalizeEventAccess({ ...draft, hasSurvey: true }).surveyAccess, "public");
+  const snapshot = publicationSchema.parse({
+    publishedAt: "2026-11-01T00:00:00Z", draft: legacy, branding: defaultEventBranding,
+    forms: { registration: null, survey: null },
+  });
+  assert.equal(snapshot.draft.hasRegistration, false);
 });
 test("Survey off/on resets access and preserves configured limits", () => {
   const off = normalizeEventAccess({
@@ -335,7 +340,7 @@ test("workspace binding returns localized safe DTOs and only active assistants",
         start_at: "2026-11-09T02:00:00Z",
         end_at: "2026-11-09T10:00:00Z",
         is_private: true,
-        has_registration: true,
+        has_registration: false,
         has_survey: true,
         survey_access: "registered_only",
       };
@@ -390,6 +395,8 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   );
   assert.equal(workspace.content.translations[1].floorZone, "2e étage");
   assert.equal(workspace.registrationCapacity, 200);
+  assert.equal(workspace.hasRegistration, true);
+  assert.equal(workspace.whitelistEnabledForSetup, true);
   assert.equal(workspace.canEditEvent, true);
   assert.equal(workspace.canAccessDashboard, false);
   assert.equal(workspace.canAccessForms, true);
@@ -408,7 +415,9 @@ test("workspace binding returns localized safe DTOs and only active assistants",
   assert.deepEqual(assistant.subUsers, []);
   assert.equal(await getEventWorkspace("unassigned", "th"), null);
   status = "open";
-  assert.equal((await getEventWorkspace("owner", "en")).canAccessDashboard, true);
+  const open = await getEventWorkspace("owner", "en");
+  assert.equal(open.canAccessDashboard, true);
+  assert.equal(open.hasRegistration, false);
   assert.equal((await getEventWorkspace("assistant", "en")).canAccessDashboard, false);
 });
 
@@ -1285,7 +1294,7 @@ test("cached branding dialogs can resolve their picker labels after a dictionary
 });
 
 const {
-  publicationSchema, publicationIssues, publicationKey, publicationV2Key,
+  publicationSchema, publicationKey, publicationV2Key, formForPublication,
   loadEventPublication, loadPublication,
 } = load("src/core/event/publication.ts");
 /** Fixture writers for v1/v2 data from the previous browser-only implementation. */
@@ -1321,7 +1330,7 @@ function savePublication(key, value) {
   const parsed = publicationSchema.safeParse(value);
   if (
     !parsed.success ||
-    publicationIssues(parsed.data.draft, parsed.data.forms).length ||
+    requiredEventDetail(parsed.data.draft) ||
     loadPublication(key)
   )
     return false;
@@ -1417,109 +1426,38 @@ test("Raksit summaries adapt existing BFF statuses without mutating definitions"
   assert.equal(setupFormStatus("closed"), "closed");
   assert.equal(rows[0].status, "draft");
 });
-test("Publication reports each form's validation at its own checklist row", () => {
-  const { reviewPublication } = load("src/core/event/publication.ts");
-  const registration = { ...formSummary("registration"), questions: [], status: "scheduled" };
-  const survey = { ...formSummary("survey"), status: "archived" };
-  const draft = { ...publishDraft, surveyAccess: "public" };
-  const review = reviewPublication(draft, { registration, survey }, [registration, survey]);
-  assert.deepEqual(review.formProblems, { registration: ["formContent"], survey: ["formStatus"] });
-  assert.deepEqual(review.issues.sort(), ["formContent", "formStatus"]);
-  const registeredOnly = reviewPublication({ ...draft, surveyAccess: "registered_only" }, { registration, survey }, [registration, survey]);
-  assert.ok(registeredOnly.issues.includes("registeredEligibility"));
-  assert.ok(!registeredOnly.issues.includes("whitelist"));
+test("publication freezes a single enabled form of the selected type and an allowed status", () => {
+  const registration = formSummary("registration");
+  const survey = formSummary("survey");
+  assert.equal(formForPublication("registration", [registration, survey]).id, registration.id);
+  assert.equal(formForPublication("registration", [survey]), null);
+  assert.equal(formForPublication("registration", [registration, { ...registration, id: "another-form" }]), null);
+  assert.equal(formForPublication("survey", [{ ...survey, status: "closed" }]), null);
 });
-test("private registration and registered-only survey report independent gates with or without form lifecycle data", () => {
-  const { reviewPublication } = load("src/core/event/publication.ts");
+test("registration identifiers require one supported question with a stable ID", () => {
   const { whitelistUniqueField } = load("src/core/event/whitelist.ts");
   const registration = formSummary("registration");
-  const forms = { registration, survey: formSummary("survey") };
-  const draft = { ...publishDraft, isPrivate: true, surveyAccess: "registered_only" };
-  const field = registration.questions[0].question;
-  field.is_unique = true;
+  const question = registration.questions[0].question;
+  delete question.required;
+  Object.assign(question, { is_unique: true, is_required: true });
   for (const [id, type, valid] of [
     ["field-1", "email", true], ["field-1", "number", true], ["field-1", "short_text", true],
     [undefined, "email", false], ["  ", "number", false], ["field-1", "long_text", false],
   ]) {
-    Object.assign(field, { id, type });
-    assert.equal(Boolean(whitelistUniqueField(registration)), valid);
-    for (const list of [undefined, Object.values(forms)]) {
-      const { issues } = reviewPublication(draft, forms, list);
-      assert.equal(issues.includes("uniqueField"), !valid);
-      assert.ok(issues.includes("whitelist"));
-      assert.ok(issues.includes("registeredEligibility"));
+    Object.assign(question, { id, type });
+    const field = whitelistUniqueField(registration);
+    if (valid) {
+      assert.equal(field.id, id);
+      assert.equal(field.type, type);
+    } else {
+      assert.equal(field, null);
     }
   }
-});
-test("Publish resolves the same form issues with full definitions or a restricted readiness summary", () => {
-  const { reviewPublication, publishFormReadiness } = load("src/core/event/publication.ts");
-  const registration = formSummary("registration");
-  registration.questions[0].question.is_unique = true;
-  const survey = formSummary("survey");
-  const absent = { registration: null, survey: null };
-  for (const records of [[registration, survey], [registration, survey, survey], [], [registration]]) {
-    const restricted = Object.fromEntries(["registration", "survey"].map((type) =>
-      [type, publishFormReadiness(type, records)]));
-    for (const close of [publishDraft.endsAt, publishDraft.startsAt, null]) {
-      const draft = { ...publishDraft, surveyCloseMode: "custom", surveyCustomClose: close };
-      const forms = {
-        registration: records.find((f) => f.type === "registration") ?? null,
-        survey: records.includes(survey) ? { ...survey, opensAt: draft.startsAt, closesAt: close } : null,
-      };
-      assert.deepEqual(reviewPublication(draft, absent, [], restricted), reviewPublication(draft, forms, records));
-    }
-  }
-});
-test("SRS permits no forms and blocks enabled forms with incomplete metadata or schedules", () => {
-  assert.deepEqual(
-    publicationIssues(
-      {
-        ...publishDraft,
-        hasRegistration: false,
-        hasSurvey: false,
-        surveyAccess: null,
-      },
-      { registration: null, survey: null },
-    ),
-    [],
-  );
-  const forms = {
-    registration: formSummary("registration"),
-    survey: formSummary("survey"),
-  };
-  const { reviewPublication } = load("src/core/event/publication.ts");
-  assert.deepEqual(
-    reviewPublication({ ...publishDraft, surveyAccess: "public" }, forms, Object.values(forms)).issues,
-    [],
-  );
-  assert.deepEqual(
-    publicationIssues({ ...publishDraft, surveyAccess: "public" }, forms),
-    [],
-  );
-  const incomplete = structuredClone(forms);
-  incomplete.survey.questions[0].question.label.th[0].label = " ";
-  assert.ok(
-    publicationIssues(
-      { ...publishDraft, surveyAccess: "public" },
-      incomplete,
-    ).includes("formContent"),
-  );
-  incomplete.survey.closesAt = incomplete.survey.opensAt;
-  assert.ok(
-    publicationIssues(publishDraft, incomplete).includes("surveySchedule"),
-  );
-  assert.ok(publicationIssues(publishDraft, forms).includes("uniqueField"));
-  assert.ok(
-    publicationIssues({ ...publishDraft, isPrivate: true }, forms).includes(
-      "whitelist",
-    ),
-  );
-  assert.ok(
-    publicationIssues(
-      { ...publishDraft, registrationCapacity: 0 },
-      forms,
-    ).includes("capacity"),
-  );
+  Object.assign(question, { id: "email-1", type: "email", is_unique: false });
+  assert.equal(whitelistUniqueField(registration), null);
+  question.is_unique = true;
+  registration.questions.push({ question: { ...question, id: "email-2" } });
+  assert.equal(whitelistUniqueField(registration), null);
 });
 test("participant forms use a whole complete translation and validate only applicable bounds", () => {
   const { completeFormLocale, validatePublishReady } = load("src/core/forms/content.ts");
@@ -2120,6 +2058,7 @@ test("Branding preview tabs show the selected participant surface and implement 
   );
   const forms = ["registration", "survey"].map((type) => ({ id: type, type }));
   let selection;
+  let formResponse;
   const Preview = compileSetupComponent(
     "src/components/event/setup/branding/BrandingPreviewGallery.tsx",
     {
@@ -2130,7 +2069,7 @@ test("Branding preview tabs show the selected participant surface and implement 
       "@/hooks/useEventFormSummaries": {
         default: (id, enabled) => {
           assert.equal(id, seed.eventId);
-          return { forms: enabled ? forms : [] };
+          return enabled ? formResponse : { forms: [] };
         },
       },
       "next-intl": { useTranslations: () => (key) => key },
@@ -2147,7 +2086,10 @@ test("Branding preview tabs show the selected participant surface and implement 
     bannerUrl: null,
     children: "participant display",
   };
-  const render = (overrides = {}) => Preview({ ...props, ...overrides });
+  const render = ({ formState = { forms }, ...overrides } = {}) => {
+    formResponse = formState;
+    return Preview({ ...props, ...overrides });
+  };
   function tab(view, id) {
     return findSetupElement(view, (n) => n.props?.id === "test-gallery-tab-" + id);
   }
@@ -2252,8 +2194,10 @@ function setupActionButtons(form) {
     feedback: element.props.error,
   };
 }
-function detailsActions(save, query = new URLSearchParams(), saveBranding = () => true) {
+function detailsActions(save, query = new URLSearchParams(), saveBranding = () => true, draft = publishDraft) {
   const navigation = [];
+  const state = [];
+  let hookIndex;
   const noop = { default: () => null };
   const messages = JSON.parse(
     fs.readFileSync(path.join(root, "src/messages/th.json")),
@@ -2279,7 +2223,7 @@ function detailsActions(save, query = new URLSearchParams(), saveBranding = () =
       "@/core/event/workspace": load("src/core/event/workspace.ts"),
       "@/hooks/useEventDraft": {
         default: () => ({
-          draft: seed,
+          draft,
           status: "idle",
           readOnly: false,
           change() {},
@@ -2290,19 +2234,67 @@ function detailsActions(save, query = new URLSearchParams(), saveBranding = () =
         useRouter: () => ({ push: (href) => navigation.push(href) }),
       },
       "next/navigation": { useSearchParams: () => query },
-      react: { useState: (initial) => [initial, () => {}] },
+      react: {
+        useEffect() {},
+        useState(initial) {
+          const index = hookIndex++;
+          if (index === state.length) state.push(initial);
+          return [state[index], (next) => { state[index] = next; }];
+        },
+      },
       "next-intl": { useTranslations: () => (key) => messages[key] ?? key },
     },
   );
   const entry = Details();
-  const view = entry.props.component({
-    workspace: seed,
-    userId: "owner",
-    locale: "th",
-  });
-  const form = findSetupElement(view, (n) => n.type === "form");
-  return { form, ...setupActionButtons(form), navigation };
+  function render() {
+    hookIndex = 0;
+    const view = entry.props.component({ workspace: seed, userId: "owner", locale: "th" });
+    return findSetupElement(view, (n) => n.type === "form");
+  }
+  const form = render();
+  return { form, ...setupActionButtons(form), navigation, render };
 }
+
+test("Continuing from Details identifies the missing translation and still allows an incomplete draft to be saved", async () => {
+  const draft = {
+    ...publishDraft,
+    content: { defaultLocale: "th", translations: [
+      { ...emptyEventTranslation("th"), title: "อีเวนต์", locationName: "กรุงเทพฯ" },
+      { ...emptyEventTranslation("en"), title: "Event", locationName: " " },
+    ] },
+  };
+  let saves = 0;
+  const ui = detailsActions(() => { saves++; return true; }, new URLSearchParams("lang=th"), () => true, draft);
+  ui.form.props.onSubmit({ preventDefault() {} });
+  const fields = findSetupElement(ui.render(), (node) => node.props.onSelectLocale);
+  assert.equal(fields.props.selectedLocale, "en");
+  assert.deepEqual(fields.props.detailIssue, { field: "locationName", localeCode: "en", issue: "required" });
+  assert.equal(saves, 0);
+  assert.deepEqual(ui.navigation, []);
+  ui.saveDraft.props.onClick();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(saves, 1);
+  assert.deepEqual(ui.navigation, []);
+});
+
+test("Event detail validation checks each translation and schedule without requiring future dates or forms", () => {
+  const { requiredEventDetail } = load("src/core/event/draft.ts");
+  const draft = { ...publishDraft, startsAt: "2023-01-01T00:00:00Z", endsAt: "2023-01-02T00:00:00Z",
+    hasSurvey: false, hasRegistration: false, surveyAccess: null };
+  assert.equal(requiredEventDetail(draft), null);
+  assert.equal(requiredEventDetail({ ...draft, eventName: " " }).field, "eventName");
+  assert.equal(requiredEventDetail({ ...draft, locationName: null }).field, "locationName");
+  for (const field of ["startsAt", "endsAt"]) {
+    assert.deepEqual(requiredEventDetail({ ...draft, [field]: null }), { field, issue: "required" });
+    assert.deepEqual(requiredEventDetail({ ...draft, [field]: "bad" }), { field, issue: "invalidDate" });
+  }
+  assert.deepEqual(requiredEventDetail({ ...draft, endsAt: draft.startsAt }), { field: "endsAt", issue: "invalidOrder" });
+  const custom = { ...draft, hasSurvey: true, surveyCloseMode: "custom" };
+  for (const surveyCustomClose of [null, "bad", custom.startsAt])
+    assert.deepEqual(requiredEventDetail({ ...custom, surveyCustomClose }), { field: "surveyCustomClose", issue: "invalidDate" });
+  assert.equal(requiredEventDetail({ ...custom, surveyCustomClose: custom.endsAt }), null);
+  assert.equal(requiredEventDetail({ ...custom, hasSurvey: false, surveyCustomClose: null }), null);
+});
 
 test("Form Editor returns to an allowlisted entry and keeps valid content language", async () => {
   const { formBuilderEntryHref, formBuilderReturn } = load("src/core/event/form-builder-navigation.ts");
@@ -2504,13 +2496,12 @@ function setupStep(kind, options = {}) {
   );
   const noop = { default: () => null };
   const mocks = {
-    "./publish/PublishChecklist": noop,
     "../workspace/EventWorkspacePageHeader": noop,
     "@/core/api": {
       ApiError: Error,
       api: { post: async (path, input) => {
         publishRequests.push({ path, input });
-        if (options.publishFail) throw Error("API failure");
+        if (options.publishError) throw Object.assign(new Error("API failure"), options.publishError);
         return { publication: { draft, branding } };
       } },
     },
@@ -2518,7 +2509,6 @@ function setupStep(kind, options = {}) {
       eventSetupStateKey: () => "setup-state",
       notifyEventSetupSaved() {},
     },
-    "@/core/event/schedule": load("src/core/event/schedule.ts"),
     "@/utils/alert": { showToast() {} },
     "@/components/event/setup/EventSetupBoundary": noop,
     "@/components/event/setup/EventSetupSteps": noop,
@@ -2529,7 +2519,6 @@ function setupStep(kind, options = {}) {
     "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
     "@/core/event/content": load("src/core/event/content.ts"),
     "@/core/event/draft": load("src/core/event/draft.ts"),
-    "@/core/event/publication": load("src/core/event/publication.ts"),
     "@/hooks/useEventDraft": {
       default: () => ({
         draft,
@@ -2564,7 +2553,6 @@ function setupStep(kind, options = {}) {
     "@/hooks/useParticipantPreviewLanguage": {
       default: () => ({ contentLocale: options.previewLocale ?? null }),
     },
-    "@/hooks/usePublishChecklistPending": { default: (loading) => loading || !!options.minimumPending },
     "@/hooks/useSetupApiState": { default: () => ({ pending: !!options.pending, getRevision: () => 3 }) },
     "@/hooks/useWhitelistNavigationGuard": noop,
     "@/hooks/useConfirm": {
@@ -2582,7 +2570,6 @@ function setupStep(kind, options = {}) {
     },
     "@heroicons/react/24/outline": { ArrowRightIcon: () => null },
     "next-intl": {
-      useNow: () => new Date(options.now ?? "2026-11-19T16:00:00Z"),
       useTranslations: (namespace) => {
         const dictionary = namespace
           .split(".")
@@ -2605,7 +2592,6 @@ function setupStep(kind, options = {}) {
     "branding/BrandingPreview",
     "forms/SetupFormCard",
     "forms/SetupFormsLoadingSkeleton",
-    "publish/PublishFormSummary",
     "publish/PublishParticipantPreview",
   ])
     mocks[`@/components/event/setup/${component}`] = noop;
@@ -2710,45 +2696,17 @@ test("Branding and Forms block both directions on validation/quota failures and 
   await forms.submit();
   assert.deepEqual(forms.navigation, []);
 });
-test("Publish keeps the initial checklist pending for five seconds and waits for any unfinished form checks", (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  let elapsed = false;
-  let cleanup;
-  const usePending = loadSource({
-    react: {
-      useState: (initial) => [elapsed || initial, (next) => { elapsed = next; }],
-      useEffect: (effect, deps) => {
-        assert.deepEqual(deps, []);
-        cleanup ??= effect();
-      },
-    },
-  })("src/hooks/usePublishChecklistPending.ts").default;
-  assert.equal(usePending(false), true);
-  t.mock.timers.tick(4_999);
-  assert.equal(usePending(false), true);
-  t.mock.timers.tick(1);
-  assert.equal(usePending(true), true);
-  assert.equal(usePending(false), false);
-  assert.equal(usePending(true), true);
-  assert.equal(usePending(false), false);
-  cleanup();
-  elapsed = false;
-  cleanup = undefined;
-  assert.equal(usePending(false), true);
-  cleanup();
-  t.mock.timers.tick(5_000);
-  assert.equal(elapsed, false, "leaving the page cancels the pending timer");
-});
-
-test("Publish blocks both the submit button and implicit form submission until checks have completed successfully", async (t) => {
+test("Publish is immediately available to an owner for all four public form combinations", async (t) => {
   storage(t);
-  for (const options of [{ minimumPending: true }, { formsLoading: true }, { formsError: true }]) {
-    const ui = setupStep("publish", options);
-    assert.equal(ui.next.props.disabled, true);
-    await ui.submit();
-    assert.deepEqual(ui.saves, []);
-    assert.deepEqual(ui.confirmations, []);
-    assert.deepEqual(ui.publishRequests, []);
+  for (const hasRegistration of [false, true]) {
+    for (const hasSurvey of [false, true]) {
+      const ui = setupStep("publish", { draft: { hasRegistration, hasSurvey } });
+      assert.equal(ui.next.props.disabled, false);
+      await ui.submit();
+      assert.deepEqual(ui.saves, ["draft", "branding"]);
+      assert.equal(ui.publishRequests.length, 1);
+      assert.deepEqual(ui.navigation, ["/event/qr"]);
+    }
   }
 });
 
@@ -2808,12 +2766,16 @@ test("Publish does not create a receipt or report success after cancellation, st
   const key = publicationKey("owner", seed.eventId, "th");
   for (const options of [
     { confirm: false },
-    { draft: { eventName: " " } },
-    { formsError: true },
+    { publishError: { code: "SETUP_EVENT_DETAILS_REQUIRED" } },
     { readOnly: true },
     { workspace: { userRole: "sub_user" } },
   ]) {
     const ui = setupStep("publish", options);
+    if (options.workspace?.userRole === "sub_user") {
+      assert.equal(ui.next.props.disabled, true);
+      assert.ok(findSetupElement(ui.form, (node) =>
+        node.props?.role === "status" && node.props.children === "เฉพาะเจ้าของอีเวนต์เท่านั้นที่เผยแพร่ได้"));
+    }
     await ui.submit();
     assert.equal(loadPublication(key), null);
     assert.ok(
@@ -2920,75 +2882,43 @@ test("Publish and Branding open the selected preview page only after a successfu
   }
 });
 
-test("Publish checklist distinguishes absent values from existing invalid values", () => {
-  const Checklist = compileSetupComponent(
-    "src/components/event/setup/publish/PublishChecklist.tsx",
-    {
-      "@/core/event/banner-layout": load("src/core/event/banner-layout.ts"),
-      "@/core/event/content": load("src/core/event/content.ts"),
-      "@/core/event/form-builder-navigation": load("src/core/event/form-builder-navigation.ts"),
-      "@/core/event/schedule": load("src/core/event/schedule.ts"),
-      "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
-      "./publish-view.css": {},
-      "next/navigation": { useSearchParams: () => new URLSearchParams("lang=en") },
-      "next-intl": {
-        useLocale: () => "th",
-        useTranslations: () => (key, values) => key === "checkCount" ? String(values.count) : key,
-      },
-    },
-  );
-  const draft = {
-    ...publishDraft,
-    eventName: "",
-    startsAt: "2027-01-01T10:00:00.000Z",
-    endsAt: "2027-01-01T09:00:00.000Z",
-    hasRegistration: true,
-  };
-  const forms = { registration: null, survey: null };
-  const navigation = [];
-  const recheck = load("src/core/event/publication.ts").reviewPublication;
-  const { issues, formProblems } = recheck(draft, forms);
-  const props = {
-    draft,
-    branding: defaultEventBranding,
-    issues,
-    forms,
-    formProblems,
-    language: { contentLocale: "en", translation: { title: draft.eventName, locationName: draft.locationName } },
-    canEdit: true,
-    canManageRegistration: true,
-    onEdit: (href) => navigation.push(href),
-  };
-  const rowList = (overrides = {}) => Checklist({ ...props, ...overrides }).props.children.flat().filter((node) => node.type === "button");
-  const rows = rowList();
-  const pending = Checklist({ ...props, checking: true });
-  assert.ok(rowList({ checking: true }).every((row) => row.props["data-status"] === "checking"));
-  assert.equal(findSetupElement(pending, (node) => node.props?.role === "status").props.children.at(-1), "checking");
-  const count = (overrides) => findSetupElement(Checklist({ ...props, ...overrides }), (node) => node.props?.role === "status").props.children.at(-1);
-  assert.equal(count({}), String(rows.length));
-  assert.equal(count({ issues: [...issues, "capacity"] }), String(rows.length + 1));
-  const status = Object.fromEntries(rows.map((node) => [node.key, node.props["data-status"]]));
-  assert.equal(status.eventName, "missing");
-  assert.equal(status.location, "complete");
-  assert.equal(status.start, "complete");
-  assert.equal(status.end, "needs-edit");
-  assert.equal(status.registration, "missing");
-  const registrationRow = rows.find((node) => node.key === "registration");
-  assert.ok(findSetupElement(registrationRow, (node) => node.type === "small" && node.props.children === "saveForm"));
-  assert.equal(findSetupElement(registrationRow, (node) => node.props?.children === "issues.formContent"), null);
-  assert.equal(rowList({ loadFailed: true }).find((node) => node.key === "registration").props["data-status"], "unverified");
-  assert.equal(rowList({ draft: { ...draft, hasRegistration: false } }).find((node) => node.key === "registration").props["data-status"], "off");
-  const privateDraft = { ...draft, isPrivate: true };
-  const privateRow = (overrides) => rowList({ draft: privateDraft, ...overrides }).find((node) => node.key === "whitelist");
-  assert.equal(privateRow({ whitelistReady: true }).props["data-status"], "complete");
-  assert.equal(privateRow({ whitelistReady: false }).props["data-status"], "missing");
-  assert.equal(privateRow({}).props["data-status"], "unverified");
-  assert.equal(privateRow({ whitelistReady: true, checking: true }).props["data-status"], "checking");
-  assert.equal(privateRow({ whitelistReady: false, loadFailed: true }).props["data-status"], "unverified");
-  assert.equal(privateRow({ whitelistReady: true, canEdit: false }).props.disabled, true);
-  assert.equal(rowList({ loadFailed: true, issues: ["uniqueField"] }).some((node) => node.key === "uniqueField"), false);
-  rows.find((node) => node.key === "registration").props.onClick();
-  assert.deepEqual(navigation, ["/event/setup/registration?from=publish&lang=en"]);
+test("Publish reports the server prerequisite and links to the editor permitted to correct it", async (t) => {
+  storage(t);
+  const workspace = { canManageWhitelist: true, canManageSurveyForm: true };
+  for (const [code, href] of [
+    ["SETUP_EVENT_DETAILS_REQUIRED", "/event/details?lang=en"],
+    ["SETUP_REGISTRATION_FORM_REQUIRED", "/event/setup/registration?from=publish&lang=en"],
+    ["SETUP_SURVEY_FORM_REQUIRED", "/event/setup/survey?from=publish&lang=en"],
+    ["SETUP_WHITELIST_REQUIRED", "/event/whitelist?from=publish&lang=en"],
+    ["SETUP_MEDIA_PENDING", "/event/details?lang=en#event-media"],
+  ]) {
+    const ui = setupStep("publish", { publishError: { code }, workspace, previewLocale: "en" });
+    await ui.submit();
+    assert.equal(ui.publishRequests.length, 1);
+    assert.equal(ui.confirmations.length, 1);
+    assert.deepEqual(ui.navigation, []);
+    assert.ok(ui.states.some((state) => state?.message && state.href === href), code);
+  }
+  const messages = JSON.parse(fs.readFileSync(path.join(root, "src/messages/th.json")));
+  const required = messages.eventHome.details.requiredFields;
+  for (const [issues, anchor, message] of [
+    [{ field: "eventName", localeCode: "ja", issue: "required" }, "lang=ja#event-name", required.eventName],
+    [{ field: "locationName", localeCode: "th", issue: "required" }, "lang=th#event-location", required.locationName],
+    [{ field: "startsAt", issue: "required" }, "lang=en#event-start", required.startsAt],
+    [{ field: "endsAt", issue: "invalidDate" }, "lang=en#event-end", required.endsAt],
+    [{ field: "endsAt", issue: "invalidOrder" }, "lang=en#event-end", messages.datePicker.invalidOrder],
+    [{ field: "surveyCustomClose", issue: "invalidDate" }, "lang=en#post-survey-close", messages.eventSetup.closeError],
+  ]) {
+    const ui = setupStep("publish", {
+      publishError: { code: "SETUP_EVENT_DETAILS_REQUIRED", body: { issues } },
+      workspace, previewLocale: "en",
+    });
+    await ui.submit();
+    assert.ok(ui.states.some((state) => state?.message?.includes(message) && state.href === "/event/details?" + anchor));
+  }
+  const restricted = setupStep("publish", { publishError: { code: "SETUP_WHITELIST_REQUIRED" } });
+  await restricted.submit();
+  assert.ok(restricted.states.some((state) => state?.message && !state.href));
 });
 
 test("Event information configuration preserves field bindings, limits, labels, null values and read-only state", () => {
@@ -3014,6 +2944,7 @@ test("Event information configuration preserves field bindings, limits, labels, 
     const changes = [];
     const screen = Fields({
       draft: seed,
+      savedSchedule: publishDraft,
       uiLocale: "th",
       selectedLocale: null,
       onSelectLocale() {},
@@ -3041,6 +2972,7 @@ test("Event information configuration preserves field bindings, limits, labels, 
         assert.equal(changes.at(-1).content.translations[0].localeCode, "th");
       } else {
         assert.equal(input.props.value, null);
+        assert.equal(input.props.savedValue, publishDraft[field]);
         assert.equal(input.props.blockPast, true);
         assert.equal(input.props.showBoundsHint, false);
         input.props.onChange("2027-01-01T03:00:00.000Z");
@@ -3152,50 +3084,6 @@ test("the survey closing picker can restore a linked event end after a custom da
   assert.equal(picker().value, draft.endsAt);
 });
 
-test("Publication reads the team Builder email question and its actual unique field", () => {
-  const registration = formSummary("registration");
-  const q = registration.questions[0].question;
-  delete q.required;
-  Object.assign(q, { type: "email", is_required: true, is_unique: true });
-  const forms = { registration, survey: formSummary("survey") };
-  assert.deepEqual(publicationIssues(publishDraft, forms), ["registeredEligibility"]);
-  assert.ok(
-    publicationIssues({ ...publishDraft, locationName: "  " }, forms).includes(
-      "location",
-    ),
-  );
-  q.is_unique = false;
-  assert.ok(publicationIssues(publishDraft, forms).includes("uniqueField"));
-  assert.ok(
-    publicationIssues({ ...publishDraft, isPrivate: true }, forms).includes(
-      "whitelist",
-    ),
-  );
-});
-
-test("All enabled-form combinations use only the definitions selected in Event Setup", () => {
-  const forms = {
-    registration: formSummary("registration"),
-    survey: formSummary("survey"),
-  };
-  for (const hasRegistration of [false, true])
-    for (const hasSurvey of [false, true]) {
-      const draft = {
-        ...publishDraft,
-        hasRegistration,
-        hasSurvey,
-        surveyAccess: hasSurvey ? "public" : null,
-      };
-      assert.deepEqual(publicationIssues(draft, forms), []);
-      assert.equal(
-        publicationIssues(draft, { registration: null, survey: null }).includes(
-          "formContent",
-        ),
-        hasRegistration || hasSurvey,
-      );
-    }
-});
-
 test("Banner orientation and branding material survive reload and invalid saves keep the previous version", (t) => {
   storage(t);
   const key = eventBrandingKey("owner", seed.eventId, "th");
@@ -3255,10 +3143,9 @@ test("Registration and Survey capacity accept only positive whole digits, with b
   }
 });
 
-test("Private access leaves the Registration switch editable and shows the relevant Whitelist action", () => {
+test("Private enables and locks registration, shows its Whitelist action and keeps survey optional", () => {
   const noop = { default: () => null };
   const Schedule = () => null;
-  const changes = [];
   const Access = compileSetupComponent(
     "src/components/event/setup/details/EventAccessSettings.tsx",
     {
@@ -3266,78 +3153,42 @@ test("Private access leaves the Registration switch editable and shows the relev
       "./EventFormSchedule": { default: Schedule },
       "@/components/form/switch/Switch": noop,
       "@/components/ui/button/Button": noop,
-      "@/hooks/useConfirm": {
-        useConfirm: () => ({ confirm: async () => true }),
-      },
+      "@/hooks/useConfirm": { useConfirm: () => ({ confirm: async () => true }) },
       "next-intl": { useTranslations: () => (key) => key },
     },
   );
-  const render = (isPrivate, hasRegistration, readOnly = false) =>
-    Access({
-      draft: { ...seed, isPrivate, hasRegistration, surveyAccess: "public" },
-      workspace: { canManageWhitelist: true },
-      readOnly,
-      onChange: (value) => changes.push(value),
-      onOpenWhitelist: () => {},
-    });
-  const publicView = render(false, false);
-  const privateOption = findSetupElement(
-    publicView,
-    (node) => node.type === "button" && node.props.children === "private",
-  );
-  privateOption.props.onClick();
-  assert.deepEqual(changes.pop(), { isPrivate: true });
-  assert.equal(
-    findSetupElement(
-      publicView,
-      (node) => node.props.children === "privateRegistrationHint",
-    ),
-    null,
-  );
-
-  const noRegistration = render(true, false);
-  assert.equal(findSetupElement(noRegistration, (node) => node.type === Schedule && node.props.kind === "registration"), null);
-  assert.ok(
-    findSetupElement(
-      noRegistration,
-      (node) => node.props.children === "privateRegistrationHint",
-    ),
-  );
-  assert.equal(
-    findSetupElement(
-      noRegistration,
-      (node) => node.props.children === "manageWhitelist",
-    ),
-    null,
-  );
-
-  const enabled = render(true, true);
-  for (const kind of ["registration", "survey"]) {
-    const card = findSetupElement(enabled, (node) => node.props["aria-labelledby"] === kind + "-label");
-    assert.ok(findSetupElement(card, (node) => node.type === Schedule && node.props.kind === kind));
-  }
-  const registrationToggle = findSetupElement(
-    enabled,
-    (node) => node.props.id === "registration-on",
-  );
-  assert.equal(registrationToggle.props.disabled, false);
-  registrationToggle.props.onChange(false);
-  assert.deepEqual(changes.pop(), { hasRegistration: false });
-  assert.equal(
-    findSetupElement(
-      enabled,
-      (node) => node.props.children === "manageWhitelist",
-    ).props.disabled,
-    false,
-  );
-  const readOnly = render(true, true, true);
-  assert.equal(
-    findSetupElement(
-      readOnly,
-      (node) => node.props.children === "manageWhitelist",
-    ).props.disabled,
-    true,
-  );
+  let draft = { ...seed, hasRegistration: false, hasSurvey: false, surveyAccess: null };
+  const render = (readOnly = false, canManageWhitelist = true) => Access({
+    draft, workspace: { eventStatus: "draft", canManageWhitelist }, readOnly,
+    onChange: (changes) => { draft = normalizeEventAccess({ ...draft, ...changes }); },
+    onOpenWhitelist: () => {},
+  });
+  const findText = (view, text) => findSetupElement(view, (node) => node.props.children === text);
+  const findSwitch = (view, id) => findSetupElement(view, (node) => node.props.id === id);
+  const publicView = render();
+  assert.equal(findText(publicView, "manageWhitelist"), null);
+  assert.equal(findText(publicView, "privateRegistrationHint"), null);
+  findText(publicView, "private").props.onClick();
+  const privateView = render();
+  assert.ok(findText(privateView, "privateRegistrationHint"));
+  const toggle = findSwitch(privateView, "registration-on");
+  assert.ok(toggle.props.checked);
+  assert.ok(toggle.props.disabled);
+  toggle.props.onChange(false);
+  assert.equal(draft.hasRegistration, true);
+  const surveyToggle = findSwitch(privateView, "survey-on");
+  assert.equal(surveyToggle.props.disabled, false);
+  assert.equal(surveyToggle.props.checked, false);
+  assert.ok(findSetupElement(privateView, (node) => node.type === Schedule && node.props.kind === "registration"));
+  assert.equal(findText(privateView, "manageWhitelist").props.disabled, false);
+  assert.equal(findText(render(true), "manageWhitelist").props.disabled, true);
+  assert.equal(findText(render(false, false), "manageWhitelist").props.disabled, true);
+  findText(privateView, "public").props.onClick();
+  const unlocked = findSwitch(render(), "registration-on");
+  assert.equal(unlocked.props.disabled, false);
+  unlocked.props.onChange(false);
+  assert.equal(draft.hasRegistration, false);
+  assert.equal(findText(render(), "manageWhitelist"), null);
 });
 
 test("workspace navigation preserves form management, guards dirty Whitelist links and highlights the active page", async () => {
@@ -3714,7 +3565,7 @@ test("Legacy bilingual records restore their actual alternate text and floor or 
   assert.equal(explicit.locationDetail, "Hall B");
 });
 
-test("Publishing reports missing fields per language and freezes the full multilingual content", async (t) => {
+test("Legacy publication receipts require complete event details and preserve multilingual content", async (t) => {
   storage(t);
   const base = multilingualDraft();
   const forms = { registration: null, survey: null };
@@ -3725,10 +3576,19 @@ test("Publishing reports missing fields per language and freezes the full multil
       translations: [...base.content.translations, emptyEventTranslation("de")],
     },
   };
-  assert.deepEqual(publicationIssues(incomplete, forms), [
-    { key: "contentTitle", localeCode: "de" },
-    { key: "contentVenue", localeCode: "de" },
-  ]);
+  assert.deepEqual(requiredEventDetail(incomplete), {
+    field: "eventName", localeCode: "de", issue: "required",
+  });
+  const missingVenue = {
+    ...incomplete,
+    content: {
+      ...base.content,
+      translations: [...base.content.translations, { ...emptyEventTranslation("de"), title: "Titel" }],
+    },
+  };
+  assert.deepEqual(requiredEventDetail(missingVenue), {
+    field: "locationName", localeCode: "de", issue: "required",
+  });
   const receipt = {
     publishedAt: "2027-01-01T01:00:00.000Z",
     draft: base,

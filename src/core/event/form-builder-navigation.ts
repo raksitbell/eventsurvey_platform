@@ -1,5 +1,14 @@
 import { normalizeContentLocale } from "@/core/event/content";
+import type { EventDetailIssue } from "@/core/event/draft";
 import type { FormType } from "@/types/event/form";
+
+export const detailInputIds = {
+  eventName: "event-name",
+  locationName: "event-location",
+  startsAt: "event-start",
+  endsAt: "event-end",
+  surveyCustomClose: "post-survey-close",
+} as const satisfies Record<EventDetailIssue["field"], string>;
 
 const destinations = {
   details: "/event/details",

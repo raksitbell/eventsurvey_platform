@@ -10,6 +10,7 @@ interface Props {
   endsAt: string | null;
   displayValue: string;
   readOnly: boolean;
+  validationError?: string;
   onSelectCustom: (value: string) => void;
   onUseEventEnd: () => void;
 }
@@ -19,6 +20,7 @@ export default function SurveyClosePicker({
   endsAt,
   displayValue,
   readOnly,
+  validationError,
   onSelectCustom,
   onUseEventEnd,
 }: Props) {
@@ -38,6 +40,7 @@ export default function SurveyClosePicker({
       min={min}
       value={selection ?? initial}
       readOnly={readOnly}
+      validationError={validationError}
       onChange={setSelection}
       popover={{
         displayValue: selection ? undefined : displayValue,

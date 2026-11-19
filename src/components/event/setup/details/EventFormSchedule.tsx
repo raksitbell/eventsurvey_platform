@@ -1,6 +1,6 @@
 import SurveyClosePicker from "./SurveyClosePicker";
 import { toBangkokInput } from "@/core/i18n/bangkok-datetime";
-import { surveyClosingTime } from "@/core/event/schedule";
+import { invalidCustomSurveyClose, surveyClosingTime } from "@/core/event/schedule";
 import type { EventDraft } from "@/types/event/setup";
 import { useTranslations } from "next-intl";
 
@@ -48,6 +48,7 @@ export default function EventFormSchedule({
           endsAt={draft.endsAt}
           displayValue={end}
           readOnly={readOnly}
+          validationError={invalidCustomSurveyClose(draft) ? t("closeError") : undefined}
           onSelectCustom={(surveyCustomClose) => onChange({ surveyCloseMode: "custom", surveyCustomClose })}
           onUseEventEnd={() => onChange({ surveyCloseMode: "event" })}
         />
@@ -57,12 +58,6 @@ export default function EventFormSchedule({
           <dd>{v("withEvent")}</dd>
         </dl>
       )}
-      {survey && selected === "custom" && draft.endsAt &&
-        (!closesAt || Date.parse(closesAt) < Date.parse(draft.endsAt)) && (
-          <p role="alert" className="col-span-full text-theme-sm text-error-600 dark:text-error-400">
-            {t("closeError")}
-          </p>
-        )}
     </div>
   );
 }

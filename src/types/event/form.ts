@@ -134,19 +134,8 @@ export interface FormListData {
   forms: FormRecord[];
 }
 
-/** Publish checklist facts for a form whose definition the event editor cannot view. */
-export interface PublishFormReadiness {
-  present: boolean;
-  contentReady: boolean;
-  statusReady: boolean;
-  hasUniqueField: boolean;
-}
-export type RestrictedFormReview = Partial<Record<FormType, PublishFormReadiness>>;
-
 /** GET /api/event/forms?eventId= — list + event form capability flags */
 export interface FormListResponse extends FormListData {
-  whitelistReady?: boolean;
-  restrictedForms?: RestrictedFormReview;
   /** Permission matrix levels for this caller (restricted / view_only / can_edit). */
   registrationFormAccess: ModuleAccessLevel;
   surveyFormAccess: ModuleAccessLevel;

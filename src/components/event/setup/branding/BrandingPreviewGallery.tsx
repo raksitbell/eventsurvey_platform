@@ -33,7 +33,6 @@ interface Props extends ParticipantEventData {
   className?: string;
   viewportClassName?: string;
   contentLocale?: string | null;
-  formState?: ReturnType<typeof useEventFormSummaries>;
   selectionState?: [
     ParticipantPreviewSelection,
     (next: ParticipantPreviewSelection) => void,
@@ -51,7 +50,6 @@ export default function BrandingPreviewGallery({
   className = "",
   viewportClassName = "",
   workspace,
-  formState,
   selectionState,
   fullPreview,
   pageHeader,
@@ -68,13 +66,12 @@ export default function BrandingPreviewGallery({
   const localSelection = useState(initialPreviewSelection);
   const [selection, setSelection] = selectionState ?? localSelection;
   const { tab, formKind } = selection;
-  const ownFormState = useEventFormSummaries(
+  const { forms, error, loading, retry } = useEventFormSummaries(
     workspace.eventId,
-    !formState &&
+    tab === "form" &&
       workspace.canAccessForms &&
       (draft.hasRegistration || draft.hasSurvey),
   );
-  const { forms, error, loading, retry } = formState ?? ownFormState;
   const available = selectSetupForms(forms);
   const kind =
     draft.hasRegistration && draft.hasSurvey

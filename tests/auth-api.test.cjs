@@ -151,7 +151,7 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
     ["/api/admin/events/assignable-users", ["GET"]],
     ["/api/admin/events/cron", ["POST"]],
     ["/api/event/workspace", ["GET"]],
-    ["/api/event/workspace/submit-approval", ["PATCH"]],
+    ["/api/event/setup/publish", ["POST"]],
     ["/api/event/setup/whitelist", ["GET", "PATCH"]],
     ["/api/event/forms?eventId=event-a", ["GET", "POST"], "/api/event/forms"],
     ["/api/event/forms/form-a", ["GET", "PUT", "DELETE"], "/api/event/forms/[id]"],
@@ -178,75 +178,43 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
   await assertDenied(await getForms(request("/api/event/forms?eventId=event-b", { cookie: own })), 403);
 });
 
-test("Publish review shares only readiness for restricted forms with the event editor", async (t) => {
-  const { owner, assistant, collections, calls } = setupMockData(t);
-  Object.assign(collections.events[0], { is_private: true, has_registration: true });
-  collections.whitelist_entries = [{ id: "private-row", event_id: "event-a", access_code: "member@example.test", username: "Private name", status: "available" }];
-  const restricted = "hidden-registration";
+test("Event form lists load only the definitions permitted by the caller's form access", async (t) => {
+  const { owner, collections, calls } = setupMockData(t);
+  const access = collections.event_access.find((row) => row.user_id === owner.id);
+  access.can_manage_sub_users = false;
+  access.matrix.registrationForm = "restricted";
+  access.matrix.surveyForm = "restricted";
   const stamp = "2026-01-01T12:00:00.000Z";
-  collections.forms.push({
-    id: restricted, event_id: "event-a", type: "registration", status: "draft",
-    opens_at: null, closes_at: null, created_at: stamp, updated_at: stamp, deleted_at: null,
-  });
-  Object.assign(collections, {
-    form_translations: [{ form_id: restricted, locale_code: "en", title: "Confidential registration title" }],
-    form_fields: [{ id: "sensitive-field", form_id: restricted, type: "email", display_order: 1, is_required: true, is_unique: true }],
-    field_translations: [{ field_id: "sensitive-field", locale_code: "en", label: "Confidential question" }],
-    field_options: [],
-  });
-  const editorAccess = collections.event_access.find((r) => r.user_id === owner.id);
-  editorAccess.can_manage_sub_users = false;
-  const editorMatrix = editorAccess.matrix;
-  const viewerMatrix = collections.event_access.find((r) => r.user_id === assistant.id).matrix;
-  editorMatrix.registrationForm = viewerMatrix.registrationForm = "restricted";
-  editorMatrix.surveyForm = viewerMatrix.surveyForm = "restricted";
-  const { cookie: editor } = await signIn(owner);
-  const { cookie: viewer } = await signIn(assistant);
+  for (const type of ["registration", "survey"]) {
+    collections.forms.push({
+      id: type + "-id", event_id: "event-a", type, status: "draft",
+      opens_at: null, closes_at: null, created_at: stamp, updated_at: stamp, deleted_at: null,
+    });
+  }
+  collections.form_translations = [];
+  collections.form_fields = [];
+  const { cookie } = await signIn(owner);
   const list = "/api/event/forms?eventId=event-a";
-  const review = list + "&publishReview=1";
-  await assertDenied(await getForms(request(list, { cookie: editor })), 403, list);
-  await assertDenied(await getForms(request(review, { cookie: viewer })), 403, review);
-  await assertDenied(await getForms(request(review.replace("event-a", "event-b"), { cookie: editor })), 403, "other event");
-  const response = await getForms(request(review, { cookie: editor }));
-  assert.equal(response.status, 200);
-  assertNoStore(response);
-  const data = await response.json();
-  assert.deepEqual(data.forms, []);
-  assert.deepEqual(data.restrictedForms, {
-    registration: { present: true, contentReady: true, statusReady: true, hasUniqueField: true },
-    survey: { present: false, contentReady: false, statusReady: false, hasUniqueField: false },
-  });
-  for (const value of [restricted, "sensitive-field", "Confidential"]) {
-    assert.ok(!JSON.stringify(data).includes(value));
+  // Cached clients may still send the retired query flag.
+  const previousQuery = list + "&publishReview=1";
+  for (const url of [list, previousQuery]) {
+    await assertDenied(await getForms(request(url, { cookie })), 403);
   }
-  assert.equal(data.whitelistReady, undefined);
-  assert.ok(!calls.some(({ url }) => url.pathname === "/whitelist_entries"));
-  const reviewWhitelist = review + "&whitelist=1";
-  const ready = await (await getForms(request(reviewWhitelist, { cookie: editor }))).json();
-  assert.equal(ready.whitelistReady, true);
-  assert.deepEqual(ready.forms, []);
-  for (const value of [restricted, "sensitive-field", "private-row", "member@example.test", "Private name"]) {
-    assert.ok(!JSON.stringify(ready).includes(value));
-  }
-  viewerMatrix.surveyForm = "view_only";
-  const unauthorized = await (await getForms(request(reviewWhitelist, { cookie: viewer }))).json();
-  assert.equal(unauthorized.whitelistReady, undefined);
-  viewerMatrix.surveyForm = "restricted";
-  editorMatrix.registrationForm = viewerMatrix.registrationForm = "view_only";
-  collections.whitelist_entries[0].status = "joined";
-  const noUnused = await (await getForms(request(reviewWhitelist, { cookie: viewer }))).json();
-  assert.equal(noUnused.whitelistReady, false);
-  assert.ok(!JSON.stringify(noUnused).includes("member@example.test"));
+  assert.ok(!calls.some(({ url }) => url.pathname === "/forms"));
 
-  for (const [cookie, url] of [[editor, list], [viewer, review]]) {
-    const visible = await (await getForms(request(url, { cookie }))).json();
-    assert.equal(visible.forms[0].id, restricted);
-    assert.equal(visible.restrictedForms, undefined);
-    assert.equal(visible.whitelistReady, undefined);
+  access.matrix.surveyForm = "view_only";
+  for (const url of [list, previousQuery]) {
+    const response = await getForms(request(url, { cookie }));
+    assert.equal(response.status, 200);
+    assertNoStore(response);
+    const data = await response.json();
+    assert.deepEqual(data.forms.map((form) => form.id), ["survey-id"]);
+    assert.equal(data.surveyFormAccess, "view_only");
+    assert.equal(data.registrationFormAccess, "restricted");
+    assert.equal(data.restrictedForms, undefined);
   }
-  const mixed = await (await getForms(request(review, { cookie: editor }))).json();
-  assert.equal(mixed.forms[0].id, restricted);
-  assert.deepEqual(Object.keys(mixed.restrictedForms), ["survey"]);
+  assert.ok(calls.some(({ url }) => url.searchParams.get("form_id") === "survey-id"));
+  assert.ok(!calls.some(({ url }) => url.searchParams.get("form_id") === "registration-id"));
 });
 
 test("Setup Whitelist rejects other-event IDs and requires Registration permission", async (t) => {

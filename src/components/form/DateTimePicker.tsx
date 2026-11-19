@@ -21,7 +21,9 @@ interface DateTimePickerProps {
   placeholder?: string;
   dateOnly?: boolean;
   blockPast?: boolean;
+  savedValue?: string | null;
   showBoundsHint?: boolean;
+  validationError?: string | null;
   min?: string | null;
   max?: string | null;
   range?: { start: string | null; end: string | null };
@@ -152,7 +154,9 @@ export default function DateTimePicker({
   placeholder,
   dateOnly = false,
   blockPast = false,
+  savedValue,
   showBoundsHint = true,
+  validationError,
   min = null,
   max = null,
   range,
@@ -358,11 +362,15 @@ export default function DateTimePicker({
     if (inputRef.current) inputRef.current.value = formatWallTime(wallTime);
   }, [dateOnly, id, locale, lowerDay, readOnly, upperDay, wallTime]);
 
-  const error = readOnly || !wallTime ? null
-    : current && wallTime < current ? t("pastDate")
-    : lower && wallTime < lower ? t(dateOnly ? "minDate" : "minDateTime", { value: formatWallTime(lower) })
-    : upper && wallTime > upper ? t(dateOnly ? "maxDate" : "maxDateTime", { value: formatWallTime(upper) })
-    : null;
+  // A saved time may have elapsed since the last visit. New selections still use the current bounds.
+  const valueBounds = blockPast && value && savedValue && Date.parse(value) === Date.parse(savedValue)
+    ? scheduleBounds(min, max, false, dateOnly, now)
+    : { current, lower, upper };
+  const error = validationError ?? (readOnly || !wallTime ? null
+    : valueBounds.current && wallTime < valueBounds.current ? t("pastDate")
+    : valueBounds.lower && wallTime < valueBounds.lower ? t(dateOnly ? "minDate" : "minDateTime", { value: formatWallTime(valueBounds.lower) })
+    : valueBounds.upper && wallTime > valueBounds.upper ? t(dateOnly ? "maxDate" : "maxDateTime", { value: formatWallTime(valueBounds.upper) })
+    : null);
   const notice = lower > current
     ? t(dateOnly ? "minDate" : "minDateTime", { value: formatWallTime(lower) })
     : blockPast ? t(dateOnly ? "pastDay" : "pastDate") : null;
@@ -395,6 +403,7 @@ export default function DateTimePicker({
             disabled={readOnly}
             aria-label={`${label}, ${popoverDisplayValue}`}
             aria-haspopup="dialog"
+            aria-describedby={validationError ? id + "-error" : undefined}
             aria-expanded={!readOnly && open}
             aria-controls={readOnly ? undefined : id + "-calendar"}
             onClick={() => {
@@ -455,7 +464,9 @@ export default function DateTimePicker({
           </button>
         </div>
       )}
-      {error && !popover && <p id={id + "-error"} className="mt-1.5 text-xs font-medium text-error-600 dark:text-error-400" role="alert">{error}</p>}
+      {error && (!popover || validationError) && (
+        <p id={id + "-error"} className="mt-1.5 text-xs font-medium text-error-600 dark:text-error-400" role="alert">{error}</p>
+      )}
       {footer && !readOnly && createPortal(
         <>
           {!dateOnly && (

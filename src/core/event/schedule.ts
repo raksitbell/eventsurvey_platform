@@ -8,13 +8,6 @@ export function isPastScheduleMinute(value: string | null | undefined, now = Dat
   return !!value && Date.parse(value) < scheduleMinuteFloor(now);
 }
 
-export function publicationPastDates(draft: Pick<EventDraft, "startsAt" | "endsAt">, now: number) {
-  return {
-    pastStart: isPastScheduleMinute(draft.startsAt, now),
-    pastEnd: Date.parse(draft.endsAt ?? "") <= now,
-  };
-}
-
 export function surveyClosingTime(draft: EventDraft): string | null {
   if (!draft.endsAt) return null;
   if (draft.surveyCloseMode === "custom")
@@ -24,4 +17,10 @@ export function surveyClosingTime(draft: EventDraft): string | null {
   return Number.isFinite(end)
     ? new Date(end + days * 86_400_000).toISOString()
     : null;
+}
+
+export function invalidCustomSurveyClose(draft: EventDraft): boolean {
+  if (!draft.hasSurvey || draft.surveyCloseMode !== "custom") return false;
+  const close = Date.parse(draft.surveyCustomClose ?? "");
+  return !Number.isFinite(close) || (!!draft.endsAt && close < Date.parse(draft.endsAt));
 }
