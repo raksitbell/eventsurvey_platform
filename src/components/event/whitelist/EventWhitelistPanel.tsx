@@ -20,20 +20,42 @@ import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { useCallback, useId, useRef, useState } from "react";
-export function WhitelistPage({
+type WhitelistPageProps = EventSetupPageProps & { onClose?: () => void };
+
+export function WhitelistPage(props: WhitelistPageProps) {
+  const { userId, workspace, locale } = props;
+  return (
+    <WhitelistPageContent
+      key={JSON.stringify([userId, workspace.eventId, locale])}
+      {...props}
+    />
+  );
+}
+
+function WhitelistPageContent({
   workspace,
   userId,
   locale,
   onClose,
-}: EventSetupPageProps & { onClose?: () => void }) {
+}: WhitelistPageProps) {
   const t = useTranslations("eventWhitelist"),
     router = useRouter();
   const view = useTranslations("eventWhitelistDesign");
-  const { entries, change, save, readOnly, dirty, error } = useEventWhitelist(
-    workspace,
-    userId,
-    locale,
-  );
+  const {
+    entries,
+    change,
+    save,
+    reload,
+    readOnly,
+    dirty,
+    error,
+    loading,
+    uniqueField,
+    missingUniqueField,
+    recovery,
+    recovering,
+    restore,
+  } = useEventWhitelist(workspace, userId, locale);
   const upload = useModal();
   const formId = useId();
   const [entry, setEntry] = useState<WhitelistEntryDraft | null>(null);
@@ -42,15 +64,15 @@ export function WhitelistPage({
   const labels = useTranslations("eventWhitelistImport");
   const hasChanges = dirty || Boolean(entry?.uniqueId || entry?.name);
   const stageEntry = () => {
-    if (!entry || readOnly) return;
-    const issue = whitelistEntryIssue(entry.uniqueId, entries);
+    if (!entry || readOnly || !uniqueField) return;
+    const issue = whitelistEntryIssue(entry.uniqueId, entries, uniqueField);
     setEntryIssue(issue);
     if (issue) return;
     change([
       ...entries,
       {
         id: crypto.randomUUID(),
-        uniqueId: normalizeWhitelistId(entry.uniqueId),
+        uniqueId: normalizeWhitelistId(entry.uniqueId, uniqueField.type),
         name: entry.name.trim(),
         status: "available",
       },
@@ -100,7 +122,9 @@ export function WhitelistPage({
           title: labels("deleteTitle"),
           subtitle: target.name,
           message: target.uniqueId,
-          note: labels("deleteBody"),
+          note: labels(
+            uniqueField?.type === "email" ? "deleteBody" : "deleteBodyUniqueId",
+          ),
           confirmLabel: labels("delete"),
           cancelLabel: t("cancel"),
         })
@@ -114,7 +138,7 @@ export function WhitelistPage({
     if (busy || readOnly) return;
     setBusy(true);
     try {
-      if (save()) {
+      if (await save()) {
         if (onClose) {
           onClose();
           return;
@@ -131,11 +155,39 @@ export function WhitelistPage({
       setBusy(false);
     }
   };
+  const reloadSavedEntries = async () => {
+    if (hasChanges && !(await confirmDiscard())) return;
+    setEntry(null);
+    setEntryIssue(null);
+    reload();
+  };
+  const stageRecovery = async () => {
+    if (pendingDialog.current || !recovery || readOnly) return;
+    pendingDialog.current = true;
+    try {
+      if (
+        await confirm({
+          appearance: "event",
+          title: t("recoverTitle"),
+          message: t("recoverBody", {
+            count: recovery.matches,
+            unresolved: recovery.unresolved,
+          }),
+          confirmLabel: t("recover"),
+          cancelLabel: t("cancel"),
+        })
+      )
+        restore();
+    } finally {
+      pendingDialog.current = false;
+    }
+  };
   const dialogs = (
     <>
-      {upload.isOpen && !readOnly && (
+      {upload.isOpen && !readOnly && uniqueField && (
         <WhitelistImportDialog
           entries={entries}
+          uniqueField={uniqueField}
           onClose={upload.closeModal}
           onUse={(incoming) => {
             change(replaceWhitelist(entries, incoming));
@@ -151,7 +203,13 @@ export function WhitelistPage({
         <header className="es-list-heading">
           <div>
             <h1 id="setup-whitelist-title">{view("title")}</h1>
-            <p>{view("description")}</p>
+            <p>
+              {view(
+                uniqueField?.type === "email"
+                  ? "description"
+                  : "descriptionUniqueId",
+              )}
+            </p>
           </div>
           <span className="es-list-private">{view("private")}</span>
           {onClose && (
@@ -165,6 +223,7 @@ export function WhitelistPage({
         </header>
         <WhitelistTable
           entries={entries}
+          uniqueKind={uniqueField?.type}
           readOnly={readOnly || busy || !!entry}
           onImport={upload.openModal}
           onAdd={() => {
@@ -172,11 +231,13 @@ export function WhitelistPage({
             setEntry({ uniqueId: "", name: "" });
           }}
           editor={
-            entry && (
+            entry &&
+            uniqueField && (
               <WhitelistEntryRow
                 formId={formId}
                 value={entry}
                 issue={entryIssue}
+                uniqueKind={uniqueField.type}
                 onChange={(value) => {
                   setEntry(value);
                   setEntryIssue(null);
@@ -188,13 +249,34 @@ export function WhitelistPage({
         />
         <p className="es-list-policy">{view("policy")}</p>
       </div>
-      {error && (
-        <p
-          role="alert"
-          className="text-theme-sm text-error-600 dark:text-error-400"
-        >
-          {t("storageError")}
-        </p>
+      {recovery &&
+        !readOnly &&
+        !busy &&
+        !recovering &&
+        !entry &&
+        (recovery.matches > 0 ? (
+          <Button variant="outline" onClick={() => void stageRecovery()}>
+            {t("recover")}
+          </Button>
+        ) : (
+          <p role="status">{t("recoverNoMatch")}</p>
+        ))}
+      {recovering && <p role="status">{t("recoverStaged")}</p>}
+      {loading && <p role="status">{t("loading")}</p>}
+      {(error || missingUniqueField) && (
+        <div>
+          <p
+            role="alert"
+            className="text-theme-sm text-error-600 dark:text-error-400"
+          >
+            {t(error ?? "missingUniqueField")}
+          </p>
+          {(error === "loadError" || error === "conflict") && (
+            <Button variant="outline" onClick={() => void reloadSavedEntries()}>
+              {t("reload")}
+            </Button>
+          )}
+        </div>
       )}
       {entry ? (
         <form

@@ -2,9 +2,10 @@
 
 import ParticipantPreviewLanguage from "@/components/event/participant/ParticipantPreviewLanguage";
 import ParticipantPreviewViewport from "@/components/event/participant/ParticipantPreviewViewport";
+import { afterSaved } from "@/core/event/draft";
 import { participantPreviewHref } from "@/core/event/participant";
 import useParticipantPreviewLanguage from "@/hooks/useParticipantPreviewLanguage";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import type {
   ParticipantEventData,
   ParticipantDevice,
@@ -13,16 +14,18 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 interface BrandingPreviewProps extends ParticipantEventData {
-  onOpen: () => boolean;
+  onOpen: () => boolean | Promise<boolean>;
 }
 export default function BrandingPreview({
   onOpen,
   ...data
 }: BrandingPreviewProps) {
   const t = useTranslations("eventBranding");
+  const router = useRouter();
   const [device, setDevice] = useState<ParticipantDevice>("desktop");
   const { content, translation, contentLocale, selectLanguage } =
     useParticipantPreviewLanguage(data.draft);
+  const href = participantPreviewHref(device, "branding", contentLocale);
   return (
     <section className="min-w-0 space-y-4 p-6 lg:border-s lg:border-event-border dark:lg:border-gray-700">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">
@@ -67,9 +70,10 @@ export default function BrandingPreview({
           />
         </div>
         <Link
-          href={participantPreviewHref(device, "branding", contentLocale)}
-          onClick={(event) => {
-            if (!onOpen()) event.preventDefault();
+          href={href}
+          onNavigate={(event) => {
+            event.preventDefault();
+            void afterSaved(onOpen, () => router.push(href));
           }}
           aria-label={t("fullPreview")}
           className="absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-event-action"

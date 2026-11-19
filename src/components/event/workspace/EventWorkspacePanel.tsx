@@ -12,7 +12,7 @@ import { useTranslations } from "next-intl";
 
 function WorkspaceCard({ workspace, userId, locale }: EventSetupPageProps) {
   const { branding } = useEventBranding(workspace, userId, locale);
-  if (workspace.localPublishedAt)
+  if (workspace.setup?.publication || workspace.localPublishedAt)
     return <PublishedOverview workspace={workspace} branding={branding} />;
   return <EventWorkspaceCard workspace={workspace} banner={branding.banner} />;
 }

@@ -3,28 +3,88 @@ import type {
   WhitelistEntry,
   WhitelistImportPreview,
   WhitelistRowIssue,
+  WhitelistUniqueField,
+  WhitelistUniqueKind,
 } from "@/types/event/whitelist";
+import type { FormRecord } from "@/types/event/form";
 import type { EventWorkspace } from "@/types/event/workspace";
 
-// Email is the supplied Figma prototype's Unique ID kind. The current BFF does
-// not expose the Registration Unique Field; this local list cannot attest to it.
 const email = z.email().max(500);
-export function normalizeWhitelistId(value: string): string {
-  return value.trim().toLowerCase();
+const decimal = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+const legacyField = { id: "legacy", type: "email" } as const;
+
+export function whitelistUniqueField(
+  form: FormRecord,
+): WhitelistUniqueField | null {
+  if (form.type !== "registration") return null;
+  const fields = form.questions.filter(({ question }) => question.is_unique);
+  if (fields.length !== 1) return null;
+  const { question } = fields[0];
+  if (
+    !question.id ||
+    (question.type !== "email" &&
+      question.type !== "short_text" &&
+      question.type !== "number")
+  )
+    return null;
+  const field: WhitelistUniqueField = { id: question.id, type: question.type };
+  if (question.type === "short_text") {
+    field.minLength = question.min_length;
+    field.maxLength = question.max_length || 255;
+  } else if (question.type === "number") {
+    field.min = question.min_value ?? undefined;
+    field.max = question.max_value ?? undefined;
+  }
+  return field;
 }
+
+export function normalizeWhitelistId(
+  value: string,
+  kind: WhitelistUniqueKind = "email",
+): string {
+  const trimmed = value.trim();
+  if (kind === "email") return trimmed.toLowerCase();
+  if (kind !== "number" || !decimal.test(trimmed)) return trimmed;
+  const number = Number(trimmed);
+  return Number.isFinite(number) ? String(number) : trimmed;
+}
+
 const entrySchema = z.object({
-  id: z.string().min(1),
-  uniqueId: z.string().transform(normalizeWhitelistId).pipe(email),
+  id: z.string().min(1).max(255),
+  uniqueId: z.string().min(1).max(500),
   name: z.string().trim().max(500),
   status: z.enum(["available", "joined"]),
 });
-export const whitelistSchema = z
-  .array(entrySchema)
-  .refine(
-    (entries) =>
-      new Set(entries.map((e) => e.uniqueId)).size === entries.length &&
-      new Set(entries.map((e) => e.id)).size === entries.length,
-  );
+export const whitelistEntriesSchema = z.array(entrySchema).max(5000);
+const legacyWhitelistSchema = whitelistEntriesSchema.transform(
+  (entries, context) => {
+    const parsed = parseWhitelistEntries(entries, legacyField);
+    if (parsed) return parsed;
+    context.addIssue({ code: "custom", message: "Invalid legacy Whitelist" });
+    return z.NEVER;
+  },
+);
+
+export function parseWhitelistEntries(
+  value: unknown,
+  field: WhitelistUniqueField,
+): WhitelistEntry[] | null {
+  const parsed = whitelistEntriesSchema.safeParse(value);
+  if (!parsed.success) return null;
+  const result: WhitelistEntry[] = [];
+  const seenIds = new Set<string>();
+  const seenValues = new Set<string>();
+  for (const entry of parsed.data) {
+    if (seenIds.has(entry.id) || whitelistEntryIssue(entry.uniqueId, [], field))
+      return null;
+    const uniqueId = normalizeWhitelistId(entry.uniqueId, field.type);
+    if (seenValues.has(uniqueId)) return null;
+    seenIds.add(entry.id);
+    seenValues.add(uniqueId);
+    result.push({ ...entry, uniqueId });
+  }
+  return result;
+}
 export function whitelistKey(userId: string, eventId: string, locale: string) {
   return `eventsurvey:event-whitelist:v1:${userId}:${eventId}:${locale}`;
 }
@@ -32,47 +92,130 @@ export function canEditWhitelist(workspace: EventWorkspace): boolean {
   return (
     !!workspace.canManageWhitelist &&
     !workspace.localPublishedAt &&
-    (workspace.eventStatus === "draft" ||
-      workspace.userRole === "event_owner") &&
-    workspace.isPrivate &&
-    workspace.hasRegistration
+    workspace.eventStatus === "draft" &&
+    (workspace.whitelistEnabledForSetup ?? (workspace.isPrivate && workspace.hasRegistration))
   );
 }
-export function loadWhitelist(key: string): {
+interface LegacyWhitelist {
+  key: string;
+  raw: string;
   entries: WhitelistEntry[];
-  error: boolean;
-} {
-  try {
-    const raw = globalThis.localStorage.getItem(key);
-    if (!raw) return { entries: [], error: false };
-    const parsed = whitelistSchema.safeParse(JSON.parse(raw));
-    return parsed.success
-      ? { entries: parsed.data, error: false }
-      : { entries: [], error: true };
-  } catch {
-    return { entries: [], error: true };
+}
+
+export function readLegacyWhitelists(
+  userId: string,
+  eventId: string,
+): LegacyWhitelist[] {
+  const result: LegacyWhitelist[] = [];
+  for (const locale of ["th", "en"]) {
+    const key = whitelistKey(userId, eventId, locale);
+    try {
+      const raw = globalThis.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = legacyWhitelistSchema.safeParse(JSON.parse(raw));
+      if (parsed.success && parsed.data.length)
+        result.push({ key, raw, entries: parsed.data });
+    } catch {
+      // Existing data remains available when the browser or stored file can be repaired.
+    }
+  }
+  return result;
+}
+
+function matchingRecoveredEntry(
+  entry: WhitelistEntry,
+  candidate: WhitelistEntry,
+): boolean {
+  return (
+    candidate.name === entry.name &&
+    (entry.status === "available" || candidate.status === "joined")
+  );
+}
+
+export function mergeLegacyWhitelist(
+  active: WhitelistEntry[],
+  legacy: readonly LegacyWhitelist[],
+  field: WhitelistUniqueField,
+): { entries: WhitelistEntry[]; matches: number; unresolved: number } {
+  const merged = new Map(active.map((entry) => [entry.uniqueId, entry]));
+  const ids = new Set(active.map((entry) => entry.id));
+  let matches = 0;
+  let unresolved = 0;
+  for (const { entries } of legacy) {
+    for (const entry of entries) {
+      if (whitelistEntryIssue(entry.uniqueId, [], field)) {
+        unresolved++;
+        continue;
+      }
+      const uniqueId = normalizeWhitelistId(entry.uniqueId, field.type);
+      const existing = merged.get(uniqueId);
+      if (existing) {
+        if (matchingRecoveredEntry(entry, existing)) matches++;
+        else unresolved++;
+        continue;
+      }
+      if (entry.status === "joined" || ids.has(entry.id)) {
+        unresolved++;
+        continue;
+      }
+      merged.set(uniqueId, { ...entry, uniqueId });
+      ids.add(entry.id);
+      matches++;
+    }
+  }
+  return { entries: [...merged.values()], matches, unresolved };
+}
+
+export function removeVerifiedLegacyWhitelists(
+  active: WhitelistEntry[],
+  legacy: readonly LegacyWhitelist[],
+  field: WhitelistUniqueField,
+): void {
+  const byValue = new Map(active.map((entry) => [entry.uniqueId, entry]));
+  for (const { entries, key, raw } of legacy) {
+    const verified = entries.every((entry) => {
+      if (whitelistEntryIssue(entry.uniqueId, [], field)) return false;
+      const candidate = byValue.get(
+        normalizeWhitelistId(entry.uniqueId, field.type),
+      );
+      return !!candidate && matchingRecoveredEntry(entry, candidate);
+    });
+    if (!verified) continue;
+    try {
+      if (globalThis.localStorage.getItem(key) === raw) {
+        globalThis.localStorage.removeItem(key);
+      }
+    } catch {
+      // Keep the legacy source if the browser does not allow deletion.
+    }
   }
 }
-export function saveWhitelist(
-  key: string,
-  entries: WhitelistEntry[],
-): "saved" | "invalid" | "error" {
-  const parsed = whitelistSchema.safeParse(entries);
-  if (!parsed.success) return "invalid";
-  try {
-    globalThis.localStorage.setItem(key, JSON.stringify(parsed.data));
-    return "saved";
-  } catch {
-    return "error";
-  }
-}
+
 export function whitelistEntryIssue(
   value: string,
   existing: WhitelistEntry[],
+  field: WhitelistUniqueField = legacyField,
 ): WhitelistRowIssue | null {
-  const id = normalizeWhitelistId(value);
+  const id = normalizeWhitelistId(value, field.type);
   if (!id) return "emptyId";
-  if (!email.safeParse(id).success) return "invalidEmail";
+  if (field.type === "email" && !email.safeParse(id).success)
+    return "invalidEmail";
+  if (
+    field.type === "short_text" &&
+    (id.length < (field.minLength ?? 0) ||
+      id.length > Math.min(field.maxLength ?? 255, 500))
+  )
+    return "invalidText";
+  if (field.type === "number") {
+    const number = Number(id);
+    if (
+      !decimal.test(id) ||
+      !Number.isFinite(number) ||
+      (field.min != null && number < field.min) ||
+      (field.max != null && number > field.max)
+    )
+      return "invalidNumber";
+  }
   const match = existing.find((e) => e.uniqueId === id);
   return match ? (match.status === "joined" ? "used" : "duplicate") : null;
 }
@@ -123,6 +266,7 @@ export function previewWhitelistImport(
   rows: unknown[][],
   fileName: string,
   existing: WhitelistEntry[],
+  field: WhitelistUniqueField = legacyField,
 ): WhitelistImportPreview {
   const headers = (rows[0] ?? []).map((v) => String(v ?? "").trim());
   const normalized = headers.map((v) => v.toLowerCase().replace(/\s/g, ""));
@@ -143,10 +287,13 @@ export function previewWhitelistImport(
         )
       )
         continue;
-      const uniqueId = normalizeWhitelistId(String(row[idIndex] ?? ""));
+      const uniqueId = normalizeWhitelistId(
+        String(row[idIndex] ?? ""),
+        field.type,
+      );
       const name = nameIndex < 0 ? "" : String(row[nameIndex] ?? "").trim();
       if (
-        whitelistEntryIssue(uniqueId, []) ||
+        whitelistEntryIssue(String(row[idIndex] ?? ""), [], field) ||
         seen.has(uniqueId) ||
         name.length > 500 ||
         row.length > headers.length
@@ -177,11 +324,15 @@ export function replaceWhitelist(
   incoming: WhitelistEntry[],
 ): WhitelistEntry[] {
   const used = current.filter((e) => e.status === "joined");
-  const usedIds = new Set(used.map((e) => e.uniqueId));
+  const usedIds = new Set(used.map((e) => e.id));
+  const usedValues = new Set(used.map((e) => e.uniqueId));
   return [
     ...used,
     ...incoming.filter(
-      (e) => !usedIds.has(e.uniqueId) && e.status === "available",
+      (e) =>
+        !usedIds.has(e.id) &&
+        !usedValues.has(e.uniqueId) &&
+        e.status === "available",
     ),
   ];
 }

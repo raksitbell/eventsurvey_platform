@@ -151,6 +151,7 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
     ["/api/admin/events/cron", ["POST"]],
     ["/api/event/workspace", ["GET"]],
     ["/api/event/workspace/submit-approval", ["PATCH"]],
+    ["/api/event/setup/whitelist", ["GET", "PATCH"]],
     ["/api/event/forms?eventId=event-a", ["GET", "POST"], "/api/event/forms"],
     ["/api/event/forms/form-a", ["GET", "PUT", "DELETE"], "/api/event/forms/[id]"],
     ["/api/event/forms/form-a/status", ["PATCH"], "/api/event/forms/[id]/status"],
@@ -170,6 +171,21 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
   await assertDenied(await getWorkspace(request("/api/event/workspace", { cookie: adm })), 403);
   await assertDenied(await getForms(request("/api/event/forms?eventId=event-a", { cookie: team })), 403);
   await assertDenied(await getForms(request("/api/event/forms?eventId=event-b", { cookie: own })), 403);
+});
+
+test("Setup Whitelist rejects other-event IDs and requires Registration permission", async (t) => {
+  const { owner, assistant, calls } = setupMockData(t);
+  const { GET, PATCH } = load("src/app/api/event/setup/whitelist/route.ts");
+  const { cookie } = await signIn(owner);
+  const { cookie: team } = await signIn(assistant);
+  const endpoint = "/api/event/setup/whitelist";
+  await assertDenied(await GET(request(endpoint + "?eventId=event-b", { cookie })), 409);
+  await assertDenied(await PATCH(request(endpoint, {
+    method: "PATCH", cookie,
+    body: { eventId: "event-b", revision: 0, entries: [] },
+  })), 409);
+  await assertDenied(await GET(request(endpoint + "?eventId=event-a", { cookie: team })), 403);
+  assert.ok(!calls.some(({ method, url }) => method === "PATCH" || url.pathname === "/events/event-b"));
 });
 
 test("workspace follows the authenticated account and suspended accounts lose access", async (t) => {

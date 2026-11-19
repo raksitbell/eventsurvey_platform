@@ -17,17 +17,20 @@ import {
 import type {
   WhitelistEntry,
   WhitelistImportPreview,
+  WhitelistUniqueField,
 } from "@/types/event/whitelist";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 interface WhitelistImportDialogProps {
   entries: WhitelistEntry[];
+  uniqueField: WhitelistUniqueField;
   onUse: (entries: WhitelistEntry[]) => void;
   onClose: () => void;
 }
 export default function WhitelistImportDialog({
   entries,
+  uniqueField,
   onUse,
   onClose,
 }: WhitelistImportDialogProps) {
@@ -51,7 +54,9 @@ export default function WhitelistImportDialog({
     try {
       const rows = await readWhitelistFile(file);
       if (request === sequence.current)
-        setPreview(previewWhitelistImport(rows, file.name, entries));
+        setPreview(
+          previewWhitelistImport(rows, file.name, entries, uniqueField),
+        );
     } catch {
       if (request === sequence.current) setFailedFile(file.name);
     } finally {
@@ -103,7 +108,11 @@ export default function WhitelistImportDialog({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableCell isHeader>{view("email")}</TableCell>
+                    <TableCell isHeader>
+                      {uniqueField.type === "email"
+                        ? view("email")
+                        : t("uniqueId")}
+                    </TableCell>
                     <TableCell isHeader>{view("name")}</TableCell>
                   </TableRow>
                 </TableHeader>

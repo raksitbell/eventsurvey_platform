@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { useTranslations } from "next-intl";
 import type { ComponentType } from "react";
+import EventSetupRecovery from "./EventSetupRecovery";
 
 export interface EventSetupPageProps {
   workspace: EventWorkspace;
@@ -14,8 +15,10 @@ export interface EventSetupPageProps {
 }
 export default function EventSetupBoundary({
   component: Component,
+  recoverDraft = false,
 }: {
   component: ComponentType<EventSetupPageProps>;
+  recoverDraft?: boolean;
 }) {
   const t = useTranslations("eventHome");
   const { workspace, userId, locale, identity, loading, error, retry } =
@@ -48,11 +51,9 @@ export default function EventSetupBoundary({
       </div>
     );
   return (
-    <Component
-      key={identity}
-      workspace={workspace}
-      userId={userId}
-      locale={locale}
-    />
+    <>
+      {recoverDraft && <EventSetupRecovery key={`recovery:${identity}`} workspace={workspace} userId={userId} locale={locale} />}
+      <Component key={identity} workspace={workspace} userId={userId} locale={locale} />
+    </>
   );
 }

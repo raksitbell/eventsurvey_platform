@@ -37,3 +37,11 @@ export function restoreLocalEventWorkspace(
       )
     : restoreEventDraft(workspace, userId, locale);
 }
+
+export function applyEventSetup(workspace: EventWorkspace, locale: string): EventWorkspace {
+  const setup = workspace.setup;
+  const saved = setup?.publication?.draft ?? setup?.draft;
+  return saved
+    ? projectEventContent({ ...workspace, ...saved }, locale)
+    : workspace;
+}

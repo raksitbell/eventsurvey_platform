@@ -3,7 +3,10 @@
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { TableCell, TableRow } from "@/components/ui/table/Table";
-import type { WhitelistRowIssue } from "@/types/event/whitelist";
+import type {
+  WhitelistRowIssue,
+  WhitelistUniqueKind,
+} from "@/types/event/whitelist";
 import "./whitelist-dialog.css";
 
 export interface WhitelistEntryDraft {
@@ -16,6 +19,7 @@ interface WhitelistEntryRowProps {
   value: WhitelistEntryDraft;
   onChange: (value: WhitelistEntryDraft) => void;
   issue: WhitelistRowIssue | null;
+  uniqueKind: WhitelistUniqueKind;
 }
 
 export default function WhitelistEntryRow({
@@ -23,24 +27,28 @@ export default function WhitelistEntryRow({
   value,
   onChange,
   issue,
+  uniqueKind,
 }: WhitelistEntryRowProps) {
   const t = useTranslations("eventWhitelist"),
     view = useTranslations("eventWhitelistImport");
-  const email = useRef<HTMLInputElement>(null);
+  const uniqueInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    email.current?.focus();
+    uniqueInput.current?.focus();
   }, [issue]);
   return (
     <TableRow className="whitelist-inline-row">
       <TableCell>
         <input
-          ref={email}
+          ref={uniqueInput}
           form={formId}
-          type="email"
+          type={uniqueKind === "email" ? "email" : "text"}
+          inputMode={uniqueKind === "number" ? "decimal" : undefined}
           required
           maxLength={500}
           aria-label={t("uniqueIdRequired")}
-          placeholder={view("enterEmail")}
+          placeholder={
+            uniqueKind === "email" ? view("enterEmail") : t("uniqueId")
+          }
           value={value.uniqueId}
           aria-invalid={!!issue}
           aria-describedby={issue ? formId + "-issue" : undefined}

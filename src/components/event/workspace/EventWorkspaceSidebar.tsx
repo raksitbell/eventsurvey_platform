@@ -14,6 +14,7 @@ export default function EventWorkspaceSidebar() {
   const { workspace, loading } = useEventWorkspace();
   const currentWorkspace = loading ? null : workspace;
   const published =
+    !!currentWorkspace?.setup?.publication ||
     !!currentWorkspace?.localPublishedAt ||
     currentWorkspace?.eventStatus === "open" ||
     currentWorkspace?.eventStatus === "closed";

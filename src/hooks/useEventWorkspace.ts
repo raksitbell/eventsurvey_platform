@@ -2,14 +2,8 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/core/api";
-import { publicationKey, publicationV2Key } from "@/core/event/publication";
-import {
-  eventDraftKey,
-  eventDraftV2Key,
-  legacyEventSetupLocales,
-} from "@/core/event/draft";
-import { subscribeToEventSetup } from "@/core/event/local-events";
-import { restoreLocalEventWorkspace } from "@/core/event/workspace";
+import { eventSetupStateKey, subscribeToEventSetup } from "@/core/event/local-events";
+import { applyEventSetup } from "@/core/event/workspace";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { useLocale } from "next-intl";
 import { useEffect, useState } from "react";
@@ -27,50 +21,41 @@ export default function useEventWorkspace() {
   const userId = user?.id;
   useEffect(() => {
     if (!userId) return;
-    let cancelled = false;
     let unsubscribe: (() => void) | undefined;
+    let subscribedEvent: string | undefined;
+    let sequence = 0;
     const controller = new AbortController();
-    api
-      .get<EventWorkspace | null>(
+    const refresh = () => {
+      const current = ++sequence;
+      void api.get<EventWorkspace | null>(
         `/event/workspace?locale=${encodeURIComponent(locale)}`,
         controller.signal,
-      )
-      .then((workspace) => {
-        if (cancelled) return;
-        const refreshLocalSetup = () => {
-          setResult({
-            workspace: workspace
-              ? restoreLocalEventWorkspace(workspace, userId, locale)
-              : null,
-            error: false,
-            identity,
-          });
-        };
-        if (workspace) {
-          const eventId = workspace.eventId;
-          const legacyLocales = workspace.content
-            ? legacyEventSetupLocales
-            : [locale];
-          unsubscribe = subscribeToEventSetup(
-            [
-              eventDraftV2Key(userId, eventId),
-              publicationV2Key(userId, eventId),
-              ...legacyLocales.flatMap((language) => [
-                eventDraftKey(userId, eventId, language),
-                publicationKey(userId, eventId, language),
-              ]),
-            ],
-            refreshLocalSetup,
-          );
+      ).then((workspace) => {
+        if (controller.signal.aborted || current !== sequence) return;
+        if (workspace?.eventId !== subscribedEvent) {
+          unsubscribe?.();
+          subscribedEvent = workspace?.eventId;
+          unsubscribe = subscribedEvent
+            ? subscribeToEventSetup([eventSetupStateKey(subscribedEvent)], refresh)
+            : undefined;
         }
-        refreshLocalSetup();
-      })
-      .catch(() => {
-        if (!cancelled) setResult({ workspace: null, error: true, identity });
+        setResult({
+          workspace: workspace ? applyEventSetup(workspace, locale) : null,
+          error: false,
+          identity,
+        });
+      }).catch(() => {
+        if (controller.signal.aborted || current !== sequence) return;
+        // A failed background refresh must not discard an open page's unsaved input.
+        setResult((previous) => previous.identity === identity && previous.workspace
+          ? previous : { workspace: null, error: true, identity });
       });
+    };
+    refresh();
+    globalThis.window.addEventListener("focus", refresh);
     return () => {
-      cancelled = true;
       unsubscribe?.();
+      globalThis.window.removeEventListener("focus", refresh);
       controller.abort();
     };
   }, [identity, locale, userId]);
@@ -79,7 +64,7 @@ export default function useEventWorkspace() {
     error: result.error,
     loading: result.identity !== identity,
     retry: () => setAttempt((value) => value + 1),
-    identity,
+    identity: `${identity}:${result.workspace?.eventId ?? ""}`,
     userId,
     locale,
   };

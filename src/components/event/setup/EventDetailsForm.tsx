@@ -7,12 +7,15 @@ import EventSetupBoundary, {
   type EventSetupPageProps,
 } from "./EventSetupBoundary";
 import EventSetupActions from "./EventSetupActions";
+import EventSetupPendingMedia from "@/components/event/setup/EventSetupPendingMedia";
 import { WhitelistPage } from "@/components/event/whitelist/EventWhitelistPanel";
-import { createSavedNavigation } from "@/core/event/draft";
+import { afterSaved, createSavedNavigation } from "@/core/event/draft";
 import { eventWorkspaceDisplayStatus } from "@/core/event/workspace";
 import useEventDraft from "@/hooks/useEventDraft";
 import useEventBranding from "@/hooks/useEventBranding";
 import { useModal } from "@/hooks/useModal";
+import useSetupApiState from "@/hooks/useSetupApiState";
+import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
 import { showToast } from "@/utils/alert";
 import { useTranslations } from "next-intl";
@@ -24,36 +27,52 @@ function DetailsForm(props: EventSetupPageProps) {
   const home = useTranslations("eventHome");
   const overview = useTranslations("eventOverview");
   const statusName = eventWorkspaceDisplayStatus(workspace);
-  const statusLabel = workspace.localPublishedAt
+  const statusLabel = workspace.setup?.publication || workspace.localPublishedAt
     ? t("published")
     : statusName === "draft"
       ? overview("draft")
       : home(`eventStatus.${statusName}`);
   const router = useRouter(),
     list = useModal();
-  const { draft, status, readOnly, change, save } = useEventDraft(
+  const setup = useSetupApiState(workspace);
+  const { draft, status, readOnly, change, save, dirty } = useEventDraft(
     workspace,
     userId,
     locale,
+    setup,
   );
-  const media = useEventBranding(workspace, userId, locale);
-  const persist = () => save() && media.save();
+  const media = useEventBranding(workspace, userId, locale, setup);
+  const persist = async () => (await save()) && (await media.save());
   const navigate = createSavedNavigation(persist, router.push);
+  const pending = setup.pending || media.saving;
+  useWhitelistNavigationGuard(!list.isOpen && (dirty || media.dirty), persist);
+  const feedback = setup.conflict
+    ? t("draftConflict")
+    : status === "invalid"
+      ? d(status)
+      : status === "error" || media.status === "error" || media.status === "invalid"
+        ? t("saveError")
+        : media.pendingMedia?.length
+          ? t(media.pendingMedia.every((kind) => media.branding[kind]?.url.startsWith("data:"))
+            ? "mediaLocalOnly"
+            : "mediaAnotherBrowser")
+          : undefined;
   return (
     <>
       <form
         className="event-details-page"
         inert={list.isOpen}
+        aria-busy={pending}
         onSubmit={(e) => {
           e.preventDefault();
-          navigate("/event/publish");
+          void navigate("/event/publish");
         }}
       >
         <div className="event-details-sheet">
           <SetupMediaPanel
             branding={media.branding}
             bannerUrl={workspace.bannerUrl}
-            readOnly={readOnly}
+            readOnly={readOnly || pending}
             onChange={media.change}
           />
           <div className="event-setup-controls">
@@ -61,22 +80,24 @@ function DetailsForm(props: EventSetupPageProps) {
               statusLabel={statusLabel}
               draft={draft}
               uiLocale={locale}
-              readOnly={readOnly}
+              readOnly={readOnly || pending}
               onChange={change}
             />
             <EventAccessSettings
               workspace={workspace}
               draft={draft}
-              readOnly={readOnly}
+              readOnly={readOnly || pending}
               onChange={change}
               onOpenWhitelist={() => {
-                if (persist()) list.openModal();
+                void afterSaved(persist, list.openModal);
               }}
-              onOpenBuilder={(kind) => navigate(`/event/setup/${kind}`)}
+              onOpenBuilder={(kind) => {
+                void navigate(`/event/setup/${kind}`);
+              }}
             />
             <EventFormSchedule
               draft={draft}
-              readOnly={readOnly}
+              readOnly={readOnly || pending}
               onChange={change}
             />
           </div>
@@ -84,24 +105,27 @@ function DetailsForm(props: EventSetupPageProps) {
         <EventSetupActions
           back={{
             label: t("backWorkspace"),
-            onClick: () => navigate("/event"),
+            onClick: () => void navigate("/event"),
+            disabled: pending,
           }}
-          primary={{ label: t("preview") }}
+          primary={{ label: t("preview"), disabled: pending }}
           saveDraft={{
             label: t("save"),
-            disabled: readOnly,
+            disabled: readOnly || pending,
             onClick: () => {
-              if (persist()) showToast({ title: t("saved") });
+              void afterSaved(persist, () => showToast({ title: t("saved") }));
             },
           }}
-          error={
-            status === "error" || status === "invalid"
-              ? d(status)
-              : media.status === "error" || media.status === "invalid"
-                ? t("saveError")
-                : undefined
-          }
-        />
+          error={feedback}
+        >
+          {!readOnly && !!media.pendingMedia?.length && (
+            <EventSetupPendingMedia
+              kinds={media.pendingMedia}
+              disabled={pending}
+              onDiscard={media.discardPendingMedia}
+            />
+          )}
+        </EventSetupActions>
       </form>
       {list.isOpen && (
         <WhitelistPage
@@ -114,5 +138,5 @@ function DetailsForm(props: EventSetupPageProps) {
   );
 }
 export default function EventDetailsForm() {
-  return <EventSetupBoundary component={DetailsForm} />;
+  return <EventSetupBoundary recoverDraft component={DetailsForm} />;
 }

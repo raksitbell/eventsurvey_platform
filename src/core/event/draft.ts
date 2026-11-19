@@ -6,22 +6,33 @@ import {
   projectEventContent,
   resolveEventTranslation,
 } from "@/core/event/content";
-import { notifyEventSetupSaved } from "@/core/event/local-events";
 import type {
   EventContent,
   EventContentTranslation,
 } from "@/types/event/content";
-import type { EventDraft, DraftSaveStatus } from "@/types/event/setup";
+import type { EventDraft } from "@/types/event/setup";
 import type { EventWorkspace } from "@/types/event/workspace";
 
-/** Create a navigation action that proceeds only after a successful synchronous local save. */
+/** Keep navigation on the current step until all requested writes succeed. */
+export function afterSaved(
+  save: () => boolean | Promise<boolean>,
+  proceed: () => void,
+) {
+  const result = save();
+  if (typeof result === "boolean") {
+    if (result) proceed();
+    return;
+  }
+  return result.then((saved) => {
+    if (saved) proceed();
+  });
+}
+
 export function createSavedNavigation<Path extends string>(
-  save: () => boolean,
+  save: () => boolean | Promise<boolean>,
   navigate: (href: Path) => void,
 ) {
-  return (href: Path) => {
-    if (save()) navigate(href);
-  };
+  return (href: Path) => afterSaved(save, () => navigate(href));
 }
 
 export const eventDraftSchema = z
@@ -192,24 +203,5 @@ function readEventDraft(key: string): EventDraft | null {
     return raw ? parseEventDraft(JSON.parse(raw)) : null;
   } catch {
     return null;
-  }
-}
-
-/** Store only valid draft fields; keep an earlier valid save when validation fails. */
-export function saveEventDraft(
-  key: string,
-  draft: EventDraft,
-): DraftSaveStatus {
-  const parsed = parseEventDraft(draft);
-  if (!parsed) return "invalid";
-  try {
-    globalThis.localStorage.setItem(
-      key,
-      JSON.stringify(projectEventContent(parsed)),
-    );
-    notifyEventSetupSaved(key);
-    return "saved";
-  } catch {
-    return "error";
   }
 }

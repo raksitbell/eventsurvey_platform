@@ -7,6 +7,7 @@ import EventSetupActions from "@/components/event/setup/EventSetupActions";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import Button from "@/components/ui/button/Button";
 import useEventDraft from "@/hooks/useEventDraft";
+import useSetupApiState from "@/hooks/useSetupApiState";
 import { useRouter } from "@/i18n/navigation";
 import { createSavedNavigation } from "@/core/event/draft";
 import { selectSetupForms } from "@/core/event/form-summary";
@@ -14,15 +15,18 @@ import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventForms");
+  const setupText = useTranslations("eventSetup");
   const router = useRouter();
+  const setup = useSetupApiState(workspace);
   const { draft, save, status, readOnly } = useEventDraft(
     workspace,
     userId,
     locale,
+    setup,
   );
   const { forms, loading, error, retry } = useEventFormSummaries(
     workspace.eventId,
-    workspace.hasRegistration || workspace.hasSurvey,
+    draft.hasRegistration || draft.hasSurvey,
   );
   const navigate = createSavedNavigation(save, router.push);
   const { registration, survey } = selectSetupForms(forms);
@@ -30,14 +34,15 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        navigate("/event/publish");
+        void navigate("/event/publish");
       }}
+      aria-busy={setup.pending}
       className="flex min-h-160 flex-col gap-6 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950"
     >
       <h1 className="text-title-sm font-bold text-gray-900 dark:text-white/90">
         {t("title")}
       </h1>
-      <EventSetupSteps current={3} onNavigate={save} />
+      <EventSetupSteps current={3} onNavigate={() => !setup.pending && save()} />
       <div
         aria-busy={loading}
         className="grid items-stretch gap-2 rounded-xl bg-white p-4 lg:grid-cols-[1fr_auto_1fr] lg:p-6 dark:bg-gray-900"
@@ -46,8 +51,8 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
           type="registration"
           enabled={draft.hasRegistration}
           onOpen={
-            !readOnly && workspace.canManageWhitelist
-              ? () => navigate("/event/setup/registration")
+            !readOnly && !setup.pending && workspace.canManageWhitelist
+              ? () => void navigate("/event/setup/registration")
               : undefined
           }
           status={registration?.status}
@@ -67,8 +72,8 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
           type="survey"
           enabled={draft.hasSurvey}
           onOpen={
-            !readOnly && workspace.canManageSurveyForm
-              ? () => navigate("/event/setup/survey")
+            !readOnly && !setup.pending && workspace.canManageSurveyForm
+              ? () => void navigate("/event/setup/survey")
               : undefined
           }
           status={survey?.status}
@@ -85,17 +90,23 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
         </div>
       )}
       <EventSetupActions
-        back={{ label: t("back"), onClick: () => navigate("/event/branding") }}
-        primary={{ label: t("next") }}
+        back={{
+          label: t("back"),
+          onClick: () => void navigate("/event/branding"),
+          disabled: setup.pending,
+        }}
+        primary={{ label: t("next"), disabled: setup.pending }}
         error={
-          status === "error" || status === "invalid"
-            ? t("storageError")
-            : undefined
+          setup.conflict
+            ? setupText("draftConflict")
+            : status === "error" || status === "invalid"
+              ? setupText("saveError")
+              : undefined
         }
       />
     </form>
   );
 }
 export default function EventFormsSetup() {
-  return <EventSetupBoundary component={FormsSetup} />;
+  return <EventSetupBoundary recoverDraft component={FormsSetup} />;
 }

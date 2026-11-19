@@ -58,7 +58,7 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 3. ตั้ง `MOCK_API_BASE_URL` ให้โฮสต์เข้าถึงได้ และใช้ Mock API ที่บันทึกข้อมูลได้หากต้องสร้างหรือแก้ไขอีเวนต์
 4. Deploy ด้วยค่าที่ตั้งไว้ การเปลี่ยน ENV บน Vercel มีผลกับ deployment ใหม่
 
-ลิงก์ที่เปิดข้ามเครื่องใช้อีเวนต์และฟอร์มจาก Mock API ส่วนค่าที่ผู้จัดบันทึกไว้ใน LocalStorage จะแสดงใน Preview ของเบราว์เซอร์นั้น
+ลิงก์ที่เปิดข้ามเครื่องใช้อีเวนต์และฟอร์มจาก Mock API สำหรับการตั้งค่าและเผยแพร่อีเวนต์ ดู [การบันทึก Event Setup](#การบันทึก-event-setup)
 
 ### Environment Variables
 
@@ -68,6 +68,8 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 | `MOCK_API_BASE_URL` | URL ของ Mock API ที่เซิร์ฟเวอร์ใช้ ค่าเริ่มต้นสำหรับข้อมูลจำลองคือ `https://eventmockapi.vercel.app` |
 | `NEXT_PUBLIC_API_BASE_URL` | URL สำรองเมื่อไม่มี `MOCK_API_BASE_URL` ใช้เฉพาะค่าที่เปิดเผยได้ |
 | `APP_URL` | Origin ของ EventSurvey สำหรับลิงก์ตั้งรหัสผ่าน ลิงก์อีเวนต์ และ QR ค่า local คือ `http://localhost:3000` ค่า hosting คือ HTTPS origin จริง |
+| `EVENT_SETUP_DATA_SECRET` | คีย์เข้ารหัสข้อมูล Event Setup อย่างน้อย 32 อักขระ ใช้ค่าคงที่แยกตาม environment แนะนำให้ตั้งแยกจาก `AUTH_SESSION_SECRET` บน hosting |
+| `EVENT_SETUP_MEDIA_DIR` | พาธแบบ absolute ไปยัง volume ที่เขียนได้และคงอยู่ข้ามการรีสตาร์ต หากไม่ตั้งค่า ไฟล์ Branding ที่อัปโหลดไม่ได้จะอยู่ในเบราว์เซอร์ |
 
 คุกกี้ session มีอายุ 8 ชั่วโมงและถูกล้างเมื่อออกจากระบบ เมื่อเปลี่ยน `AUTH_SESSION_SECRET` ผู้ใช้ต้องเข้าสู่ระบบใหม่ และต้องออกลิงก์ตั้งรหัสผ่านใหม่สำหรับคำเชิญที่ยังไม่ได้ใช้
 
@@ -83,6 +85,14 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 | `MAIL_FROM_NAME` | ชื่อผู้ส่ง เช่น `EventSurvey` |
 
 ตั้ง `APP_URL` ให้ผู้รับเปิดลิงก์ตั้งรหัสผ่านได้ เก็บค่า secret ไว้ใน `.env.local` หรือระบบ secrets ของโฮสต์ตามสภาพแวดล้อมที่ใช้
+
+## การบันทึก Event Setup
+
+- **Save Draft** เก็บ Event Details, Form Setup, Branding และ Whitelist ผ่าน Next.js API คำขอส่ง revision ของร่างเพื่อป้องกันการเขียนทับข้อมูลใหม่ การบันทึกร่างคงสถานะอีเวนต์เดิม
+- **กู้ร่างเดิม** เปิด Event Setup หรือ Whitelist จากโปรไฟล์เบราว์เซอร์และ URL เดิม แล้วเลือกกู้ข้อมูล หน้าจอขอยืนยันเมื่อจะใช้ร่างเบราว์เซอร์แทนร่างเซิร์ฟเวอร์ การกู้ snapshot เก่าเก็บไว้เป็นข้อมูลกู้คืนส่วนตัวและไม่เผยแพร่อัตโนมัติ ร่างจากโหมดทดลองของอีเวนต์ที่ปิดการแก้ไขแล้วยังเก็บอยู่ในเบราว์เซอร์เดิม
+- **Publish** ตรวจความพร้อมและบันทึก snapshot พร้อมสถานะ Scheduled ในรายการอีเวนต์เดียวกัน หน้า Participant อ่าน snapshot นั้น อีเวนต์ที่พึ่งการตรวจสิทธิ์ผู้ลงทะเบียนยังต้องมีระบบตรวจสิทธิ์ฝั่ง Participant ก่อนเผยแพร่
+- **รูป** ตั้ง `EVENT_SETUP_MEDIA_DIR` หากมี volume ถาวร ใช้ PNG, JPEG, WebP, AVIF, GIF หรือ BMP รูปที่อัปโหลดไม่ได้ยังเก็บในเบราว์เซอร์เดิมได้ ให้ลองอัปโหลดใหม่หรือนำรูปที่รออัปโหลดออกก่อนเผยแพร่
+- **การโฮสต์** ใช้ Mock API ที่เขียนลงที่เก็บถาวรได้ สำหรับ JSON Server ให้ใช้ Next.js หนึ่ง instance ที่เขียน Event Setup เพราะ JSON Server ไม่มีการเขียนแบบ compare-and-set ข้อมูล Event Setup ใน Mock API ถูกเข้ารหัสด้วย `EVENT_SETUP_DATA_SECRET` หรือ `AUTH_SESSION_SECRET` เมื่อไม่ตั้งคีย์แยก เก็บคีย์เดิมไว้เพื่อให้อ่านร่างและข้อมูลเผยแพร่หลังรีสตาร์ตหรือ deploy ใหม่ได้
 
 ## บัญชีทดลอง
 

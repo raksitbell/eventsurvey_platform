@@ -2,18 +2,21 @@
 
 import ParticipantPreviewLanguage from "@/components/event/participant/ParticipantPreviewLanguage";
 import ParticipantPreviewViewport from "@/components/event/participant/ParticipantPreviewViewport";
+import { afterSaved } from "@/core/event/draft";
 import { participantPreviewHref } from "@/core/event/participant";
 import useParticipantPreviewLanguage from "@/hooks/useParticipantPreviewLanguage";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import type { ParticipantEventData } from "@/types/event/participant";
 import { useTranslations } from "next-intl";
 export default function PublishParticipantPreview({
   onOpen,
   ...data
-}: ParticipantEventData & { onOpen: () => boolean }) {
+}: ParticipantEventData & { onOpen: () => boolean | Promise<boolean> }) {
   const t = useTranslations("eventSetup");
+  const router = useRouter();
   const { content, translation, contentLocale, selectLanguage } =
     useParticipantPreviewLanguage(data.draft);
+  const href = participantPreviewHref("desktop", "publish", contentLocale);
   return (
     <section className="publish-card publish-preview">
       <div className="flex w-full flex-wrap items-center justify-between gap-2">
@@ -36,9 +39,10 @@ export default function PublishParticipantPreview({
       </div>
       <Link
         className="publish-preview__link"
-        href={participantPreviewHref("desktop", "publish", contentLocale)}
+        href={href}
         onClick={(event) => {
-          if (!onOpen()) event.preventDefault();
+          event.preventDefault();
+          afterSaved(onOpen, () => router.push(href));
         }}
       >
         {t("fullscreen")}

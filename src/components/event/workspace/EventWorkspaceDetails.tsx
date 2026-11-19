@@ -18,7 +18,7 @@ export default function EventWorkspaceDetails({
   const home = useTranslations("eventHome");
   const setup = useTranslations("eventSetup");
   const formatter = useFormatter();
-  const published = Boolean(workspace.localPublishedAt);
+  const published = Boolean(workspace.setup?.publication || workspace.localPublishedAt);
   const status = eventWorkspaceDisplayStatus(workspace);
   const schedule = [workspace.startsAt, workspace.endsAt]
     .filter((date): date is string => Boolean(date))

@@ -1,16 +1,18 @@
 "use client";
-import { Link } from "@/i18n/navigation";
+import { afterSaved } from "@/core/event/draft";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 
 interface EventSetupStepsProps {
   current: 1 | 2 | 3 | 4;
-  onNavigate?: () => boolean;
+  onNavigate?: () => boolean | Promise<boolean>;
 }
 export default function EventSetupSteps({
   current,
   onNavigate,
 }: EventSetupStepsProps) {
   const t = useTranslations("eventHome.details");
+  const router = useRouter();
   return (
     <ol
       aria-label={t("stepsLabel")}
@@ -19,6 +21,7 @@ export default function EventSetupSteps({
       {(["details", "branding", "forms", "publish"] as const).map(
         (step, index) => {
           const active = index + 1 === current;
+          const href = `/event/${step}`;
           const content = (
             <>
               <span
@@ -34,16 +37,11 @@ export default function EventSetupSteps({
             <li key={step} aria-current={active ? "step" : undefined}>
               {!active ? (
                 <Link
-                  href={
-                    [
-                      "/event/details",
-                      "/event/branding",
-                      "/event/forms",
-                      "/event/publish",
-                    ][index]
-                  }
-                  onClick={(event) => {
-                    if (onNavigate && !onNavigate()) event.preventDefault();
+                  href={href}
+                  onNavigate={(event) => {
+                    if (!onNavigate) return;
+                    event.preventDefault();
+                    void afterSaved(onNavigate, () => router.push(href));
                   }}
                   className={classes}
                 >

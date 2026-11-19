@@ -4,42 +4,60 @@ import BrandingAppearance from "@/components/event/setup/branding/BrandingAppear
 import BrandingPreview from "@/components/event/setup/branding/BrandingPreview";
 import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
+import EventSetupPendingMedia from "@/components/event/setup/EventSetupPendingMedia";
 import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import { createSavedNavigation } from "@/core/event/draft";
 import useEventBranding from "@/hooks/useEventBranding";
 import useEventDraft from "@/hooks/useEventDraft";
+import useSetupApiState from "@/hooks/useSetupApiState";
+import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 
 function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventBranding");
-  const detailsText = useTranslations("eventHome.details");
+  const setupText = useTranslations("eventSetup");
   const router = useRouter();
+  const setup = useSetupApiState(workspace);
   const {
     draft,
     save: saveDetails,
     status: detailsStatus,
-  } = useEventDraft(workspace, userId, locale);
-  const { branding, status, readOnly, change, save } = useEventBranding(
-    workspace,
-    userId,
-    locale,
-  );
-  const saveAll = () => saveDetails() && save();
+    dirty: detailsDirty,
+  } = useEventDraft(workspace, userId, locale, setup);
+  const {
+    branding,
+    status,
+    readOnly,
+    change,
+    save,
+    saving,
+    pendingMedia,
+    discardPendingMedia,
+    dirty,
+  } = useEventBranding(workspace, userId, locale, setup);
+  const saveAll = async () => (await saveDetails()) && (await save());
   const navigate = createSavedNavigation(saveAll, router.push);
-  const error =
-    detailsStatus === "error" || detailsStatus === "invalid"
-      ? detailsText(detailsStatus)
-      : status === "error" || status === "invalid"
-        ? t(status)
+  const pending = setup.pending || saving;
+  useWhitelistNavigationGuard(detailsDirty || dirty, saveAll);
+  const error = setup.conflict
+    ? setupText("draftConflict")
+    : detailsStatus === "error" || detailsStatus === "invalid" ||
+        status === "error" || status === "invalid"
+      ? setupText("saveError")
+      : pendingMedia?.length
+        ? setupText(pendingMedia.every((kind) => branding[kind]?.url.startsWith("data:"))
+          ? "mediaLocalOnly"
+          : "mediaAnotherBrowser")
         : undefined;
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        navigate("/event/forms");
+        void navigate("/event/forms");
       }}
+      aria-busy={pending}
       className="flex min-h-160 flex-col gap-7 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950"
     >
       <header>
@@ -53,11 +71,11 @@ function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
           {t("description")}
         </p>
       </header>
-      <EventSetupSteps current={2} onNavigate={saveAll} />
+      <EventSetupSteps current={2} onNavigate={() => !pending && saveAll()} />
       <div className="grid rounded-2xl bg-white lg:grid-cols-3 dark:bg-gray-900">
         <BrandingAppearance
           branding={branding}
-          readOnly={readOnly}
+          readOnly={readOnly || pending}
           onChange={change}
         />
         <div className="min-w-0 lg:col-span-2">
@@ -65,19 +83,31 @@ function BrandingForm({ workspace, userId, locale }: EventSetupPageProps) {
             branding={branding}
             draft={draft}
             bannerUrl={workspace.bannerUrl}
-            onOpen={saveAll}
+            onOpen={() => !pending && saveAll()}
           />
         </div>
       </div>
       <EventSetupActions
-        back={{ label: t("back"), onClick: () => navigate("/event/details") }}
-        primary={{ label: t("next") }}
+        back={{
+          label: t("back"),
+          onClick: () => void navigate("/event/details"),
+          disabled: pending,
+        }}
+        primary={{ label: t("next"), disabled: pending }}
         error={error}
-      />
+      >
+        {!readOnly && !!pendingMedia?.length && (
+          <EventSetupPendingMedia
+            kinds={pendingMedia}
+            disabled={pending}
+            onDiscard={discardPendingMedia}
+          />
+        )}
+      </EventSetupActions>
     </form>
   );
 }
 
 export default function EventBrandingForm() {
-  return <EventSetupBoundary component={BrandingForm} />;
+  return <EventSetupBoundary recoverDraft component={BrandingForm} />;
 }

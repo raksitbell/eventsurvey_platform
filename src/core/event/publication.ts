@@ -5,8 +5,6 @@ import {
   legacyEventSetupLocales,
 } from "@/core/event/draft";
 import { eventBrandingSchema } from "@/core/event/branding";
-import { projectEventContent } from "@/core/event/content";
-import { notifyEventSetupSaved } from "@/core/event/local-events";
 import type { EventDraft } from "@/types/event/setup";
 import type { FormType } from "@/types/event/form";
 
@@ -187,59 +185,12 @@ export function loadEventPublication(
   };
 }
 
-export function savePublication(key: string, value: unknown): boolean {
-  const parsed = publicationSchema.safeParse(value);
-  if (
-    !parsed.success ||
-    publicationIssues(parsed.data.draft, parsed.data.forms).length ||
-    loadPublication(key)
-  )
-    return false;
-  try {
-    globalThis.localStorage.setItem(
-      key,
-      JSON.stringify({
-        ...parsed.data,
-        draft: projectEventContent(parsed.data.draft),
-      }),
-    );
-    notifyEventSetupSaved(key);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function saveEventPublication(
-  userId: string,
-  eventId: string,
-  locale: string,
-  value: Omit<LocalPublication, "forms"> & { forms: MinimalForms },
-): Promise<boolean> {
-  const sharedKey = publicationV2Key(userId, eventId);
-  const multilingual = !!value.draft.content;
-  const key = multilingual
-    ? sharedKey
-    : publicationKey(userId, eventId, locale);
-  const write = () =>
-    !loadEventPublication(userId, eventId, locale, multilingual) &&
-    savePublication(key, value);
-
-  // Hold a single browser lock across the receipt check and write when Web
-  // Locks are available. Both operations stay synchronous inside the lock.
-  try {
-    const locks = globalThis.navigator?.locks;
-    return locks ? await locks.request(sharedKey, write) : write();
-  } catch {
-    return false;
-  }
-}
-
 type SharedPublishIssue =
   | "eventName"
   | "location"
   | "eventSchedule"
   | "formContent"
+  | "formStatus"
   | "surveySchedule"
   | "uniqueField"
   | "whitelist"

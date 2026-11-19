@@ -112,6 +112,7 @@ export interface MockRolePermission {
 
 export interface MockEvent {
   id: string;
+  setup?: unknown;
   slug: string;
   status: MockEventStatus;
   default_locale: string;

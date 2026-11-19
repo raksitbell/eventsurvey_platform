@@ -3,6 +3,10 @@ import EventSetupBoundary from "@/components/event/setup/EventSetupBoundary";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import PublishChecklist from "./publish/PublishChecklist";
 import { surveyClosingTime } from "@/core/event/schedule";
+import { api, ApiError } from "@/core/api";
+import { eventSetupStateKey, notifyEventSetupSaved } from "@/core/event/local-events";
+import useSetupApiState from "@/hooks/useSetupApiState";
+import type { EventSetupState } from "@/types/event/setup";
 import { showToast } from "@/utils/alert";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
 
@@ -13,9 +17,8 @@ import { selectSetupForms } from "@/core/event/form-summary";
 import { createSavedNavigation } from "@/core/event/draft";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import {
-  loadEventPublication,
   publicationIssues,
-  saveEventPublication,
+  type PublishIssue,
 } from "@/core/event/publication";
 import { useConfirm } from "@/hooks/useConfirm";
 import useEventDraft from "@/hooks/useEventDraft";
@@ -28,24 +31,16 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
   const router = useRouter();
   const s = useTranslations("eventSetup");
   const { confirm } = useConfirm();
+  const setupApi = useSetupApiState(workspace);
   const {
     draft,
     save: saveDraft,
     readOnly,
-  } = useEventDraft(workspace, userId, locale);
+  } = useEventDraft(workspace, userId, locale, setupApi);
   const { branding, save: saveBranding } = useEventBranding(
-    workspace,
-    userId,
-    locale,
+    workspace, userId, locale, setupApi,
   );
-  const receipt = workspace.localPublishedAt
-    ? loadEventPublication(
-        userId,
-        workspace.eventId,
-        locale,
-        !!workspace.content,
-      )
-    : null;
+  const receipt = workspace.setup?.publication ?? null;
   const formState = useEventFormSummaries(
     workspace.eventId,
     !receipt && (draft.hasRegistration || draft.hasSurvey),
@@ -66,12 +61,12 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         : null,
   };
   const issues = publicationIssues(draft, forms);
-  const published = !!workspace.localPublishedAt;
+  const published = !!receipt;
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-  const save = () => {
-    const ok = saveDraft() && saveBranding();
-    setError(!ok);
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    const ok = (await saveDraft()) && (await saveBranding());
+    setError(ok ? null : s("saveError"));
     return ok;
   };
   const saveBeforeNavigation = () => !busy && save();
@@ -81,9 +76,9 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       return;
     setBusy(true);
     try {
-      if (!save()) return;
+      if (!(await save())) return;
       if (formState.loading || formState.error) {
-        setError(true);
+        setError(t("formsLoadError"));
         return;
       }
 
@@ -107,6 +102,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         });
         return;
       }
+      const revision = setupApi.getRevision();
       if (
         !(await confirm({
           appearance: "event",
@@ -119,18 +115,10 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         }))
       )
         return;
-      // Commit one complete local snapshot only after all checks and confirmation.
-      if (
-        !(await saveEventPublication(userId, workspace.eventId, locale, {
-          publishedAt: new Date().toISOString(),
-          draft,
-          branding,
-          forms,
-        }))
-      ) {
-        setError(true);
-        return;
-      }
+      await api.post<EventSetupState>("/event/setup/publish", {
+        eventId: workspace.eventId, revision, locale,
+      });
+      notifyEventSetupSaved(eventSetupStateKey(workspace.eventId));
       await confirm({
         appearance: "event",
         title: t("successTitle"),
@@ -141,6 +129,22 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
         confirmLabel: t("close"),
       });
       router.push("/event/qr");
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.code === "SETUP_MEDIA_PENDING") {
+        setError(s("mediaAnotherBrowser"));
+      } else if (cause instanceof ApiError && cause.code === "SETUP_PUBLISH_IN_PAST") {
+        setError(t("issues.eventSchedule"));
+      } else if (cause instanceof ApiError && cause.code === "SETUP_PUBLISH_INVALID") {
+        const issues = (cause.body as { issues?: PublishIssue[] } | undefined)?.issues ?? [];
+        setError(issues.map((issue) => typeof issue === "string"
+          ? t(`issues.${issue}`)
+          : t(`issues.${issue.key}`, { language: contentLanguageName(issue.localeCode, locale) })
+        ).join(" ") || t("publishError"));
+      } else if (cause instanceof ApiError && cause.status === 409) {
+        setError(s("draftConflict"));
+      } else {
+        setError(t("publishError"));
+      }
     } finally {
       setBusy(false);
     }
@@ -178,14 +182,14 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       <EventSetupActions
         back={{
           label: s("backSetup"),
-          disabled: busy,
+          disabled: busy || setupApi.pending,
           onClick: () => navigate("/event/details"),
         }}
         saveDraft={{
           label: s("save"),
-          disabled: busy || readOnly,
+          disabled: busy || readOnly || setupApi.pending,
           onClick: () => {
-            if (save()) showToast({ title: s("saved") });
+            void save().then((saved) => { if (saved) showToast({ title: s("saved") }); });
           },
         }}
         primary={{
@@ -193,6 +197,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
           wide: true,
           disabled:
             busy ||
+            setupApi.pending ||
             formState.loading ||
             formState.error ||
             published ||
@@ -200,9 +205,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
             workspace.userRole !== "event_owner",
         }}
         error={
-          error || formState.error
-            ? t(formState.error ? "formsLoadError" : "storageError")
-            : undefined
+          setupApi.conflict ? s("draftConflict") : formState.error ? t("formsLoadError") : error ?? undefined
         }
       >
         {formState.error && (
@@ -217,5 +220,5 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
   );
 }
 export default function EventPublishPanel() {
-  return <EventSetupBoundary component={PublishPage} />;
+  return <EventSetupBoundary recoverDraft component={PublishPage} />;
 }

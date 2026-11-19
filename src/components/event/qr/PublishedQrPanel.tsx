@@ -291,6 +291,7 @@ function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
       )
     : null;
   if (
+    !workspace.setup?.publication &&
     !local &&
     workspace.eventStatus !== "open" &&
     workspace.eventStatus !== "closed"
@@ -308,7 +309,7 @@ function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
       />
       <PublishedEventSummary
         draft={workspace}
-        branding={local?.branding}
+        branding={workspace.setup?.branding[locale] ?? workspace.setup?.publication?.branding ?? local?.branding}
         bannerUrl={workspace.bannerUrl}
       />
       {workspace.userRole === "event_owner" ? (

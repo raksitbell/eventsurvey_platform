@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
 import type { EventBranding } from "@/types/event/branding";
-import type { DraftSaveStatus } from "@/types/event/setup";
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i);
 const image = z.object({
@@ -8,7 +8,7 @@ const image = z.object({
   url: z
     .string()
     .max(1_500_000)
-    .regex(/^data:image\/(png|jpeg|webp|avif|gif|bmp|svg\+xml);base64,/),
+    .refine((url) => /^data:image\/(png|jpeg|webp|avif|gif|bmp|svg\+xml);base64,/.test(url) || isEventSetupMediaUrl(url)),
 });
 export const eventBrandingSchema = z.object({
   layout: z.enum(["portrait", "square", "landscape"]).optional(),
@@ -59,19 +59,6 @@ export function loadEventBranding(key: string): EventBranding {
     return parsed?.success ? parsed.data : { ...defaultEventBranding };
   } catch {
     return { ...defaultEventBranding };
-  }
-}
-export function saveEventBranding(
-  key: string,
-  branding: EventBranding,
-): DraftSaveStatus {
-  const parsed = eventBrandingSchema.safeParse(branding);
-  if (!parsed.success) return "invalid";
-  try {
-    globalThis.localStorage.setItem(key, JSON.stringify(parsed.data));
-    return "saved";
-  } catch {
-    return "error";
   }
 }
 /** Pick readable foreground text for a user-selected background. */

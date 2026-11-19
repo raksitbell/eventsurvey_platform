@@ -6,10 +6,14 @@ import Table, {
   TableHeader,
   TableRow,
 } from "@/components/ui/table/Table";
-import type { WhitelistEntry } from "@/types/event/whitelist";
+import type {
+  WhitelistEntry,
+  WhitelistUniqueKind,
+} from "@/types/event/whitelist";
 import { useTranslations } from "next-intl";
 export default function WhitelistTable({
   entries,
+  uniqueKind,
   onDelete,
   onAdd,
   onImport,
@@ -17,6 +21,7 @@ export default function WhitelistTable({
   editor,
 }: {
   entries: WhitelistEntry[];
+  uniqueKind?: WhitelistUniqueKind;
   onDelete: (id: string) => void;
   onAdd: () => void;
   onImport: () => void;
@@ -91,7 +96,9 @@ export default function WhitelistTable({
                   isHeader
                   className="h-12 px-3 text-start font-bold"
                 >
-                  {v(key)}
+                  {key === "email" && uniqueKind !== "email"
+                    ? t("uniqueId")
+                    : v(key)}
                 </TableCell>
               ))}
               <TableCell isHeader>{s("manage")}</TableCell>

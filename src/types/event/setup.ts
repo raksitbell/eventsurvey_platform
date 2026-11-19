@@ -27,3 +27,14 @@ export type EventDraft = Pick<
 };
 
 export type DraftSaveStatus = "saved" | "error" | "invalid";
+
+export type EventSetupMediaKind = "logo" | "banner" | "wordmark";
+
+export interface EventSetupState {
+  revision: number;
+  draft: EventDraft | null;
+  branding: Record<string, import("@/types/event/branding").EventBranding>;
+  pendingMedia: Record<string, EventSetupMediaKind[]>;
+  publication: import("@/core/event/publication").LocalPublication | null;
+  recoveredPublicationAt?: string;
+}

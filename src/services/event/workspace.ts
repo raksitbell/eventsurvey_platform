@@ -5,6 +5,7 @@ import {
   normalizeContentLocale,
   resolveEventTranslation,
 } from "@/core/event/content";
+import { readSetupState } from "@/core/event/setup-storage";
 import { canUseEventDashboard } from "@/core/event/dashboard-policy";
 import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
@@ -147,7 +148,15 @@ export async function getEventWorkspace(
   const surveySettings = settings.find(
     (row) => row.event_id === eventId && row.form_type === "survey",
   );
+  const canEditEvent = event.status === "draft" && permissions.includes("manage_event");
+  const setup = readSetupState(event);
+  const canManageWhitelist = permissions.includes("manage_registration_form");
+  const whitelistEnabledForSetup = canManageWhitelist &&
+    (setup.draft?.isPrivate ?? event.is_private) &&
+    (setup.draft?.hasRegistration ?? event.has_registration);
   return {
+    setup: canEditEvent || setup.publication ? setup : readSetupState({}),
+    whitelistEnabledForSetup,
     registrationCapacity: registrationSettings?.is_unlimited
       ? null
       : (registrationSettings?.capacity ?? null),
@@ -155,9 +164,8 @@ export async function getEventWorkspace(
       ? null
       : (surveySettings?.capacity ?? null),
     canManageSurveyForm: permissions.includes("manage_survey_form"),
-    canManageWhitelist: permissions.includes("manage_registration_form"),
-    canEditEvent:
-      event.status === "draft" && permissions.includes("manage_event"),
+    canManageWhitelist,
+    canEditEvent,
     surveyAccess: event.survey_access,
     content,
     description: translation.description,

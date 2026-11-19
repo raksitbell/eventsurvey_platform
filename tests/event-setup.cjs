@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const ts = require("typescript");
+const { loadSource } = require("./support/load-source.cjs");
 const root = path.resolve(__dirname, "..");
 const cache = new Map();
 function load(relative) {
@@ -26,13 +27,14 @@ function load(relative) {
   return mod.exports;
 }
 const { normalizeEventAccess } = load("src/core/event/access.ts");
-const { eventDraftKey, eventDraftV2Key, eventDraftSchema, restoreEventDraft, saveEventDraft } =
+const { eventDraftKey, eventDraftV2Key, eventDraftSchema, restoreEventDraft } =
   load("src/core/event/draft.ts");
 const {
   emptyEventTranslation,
   eventContentSchema,
   getEventContent,
   normalizeContentLocale,
+  projectEventContent,
   resolveEventTranslation,
 } = load("src/core/event/content.ts");
 const { fromBangkokInput, toBangkokInput } = load(
@@ -61,6 +63,7 @@ function storage(t) {
     value: {
       getItem: (key) => values.get(key) ?? null,
       setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key),
     },
   });
   t.after(() => {
@@ -344,7 +347,6 @@ const {
   eventBrandingKey,
   eventBrandingSchema,
   loadEventBranding,
-  saveEventBranding,
 } = load("src/core/event/branding.ts");
 test("branding saves are scoped and reject invalid colors or external media URLs", (t) => {
   storage(t);
@@ -383,6 +385,104 @@ test("branding storage failures and corrupt saved data are handled", (t) => {
     throw new Error("quota");
   };
   assert.equal(saveEventBranding(key, defaultEventBranding), "error");
+});
+test("Setup keeps a failed replacement local and clears it only after an accepted upload", async (t) => {
+  const values = storage(t);
+  const oldUrl = "/api/event/setup/media/11111111-1111-4111-8111-111111111111";
+  const newUrl = "/api/event/setup/media/22222222-2222-4222-8222-222222222222";
+  let uploadAvailable = false;
+  let attempts = 0;
+  const {
+    applySetupLocalMedia,
+    clearUnneededSetupLocalMedia,
+    prepareSetupBranding,
+    setupLocalMediaKey,
+  } = loadSource({
+    "@/core/api": {
+      api: {
+        async postForm(route, body) {
+          assert.equal(route, "/event/setup/media");
+          assert.equal(body.get("eventId"), "event-a");
+          assert.equal(body.get("file").type, "image/png");
+          attempts++;
+          if (!uploadAvailable) throw new Error("storage unavailable");
+          return { url: newUrl };
+        },
+      },
+    },
+  })("src/core/event/setup-media-local.ts");
+  const key = setupLocalMediaKey("owner", "event-a", "th");
+  const other = setupLocalMediaKey("owner", "event-a", "en");
+  const stored = {
+    ...defaultEventBranding,
+    banner: { name: "old.png", url: oldUrl, cropPosition: 25 },
+  };
+  const image = { name: "new.png", url: "data:image/png;base64,AA==", cropPosition: 70 };
+  const edited = { ...stored, primary: "#123456", banner: image };
+  const rejected = await prepareSetupBranding(edited, stored, [], new Set(["banner"]), key, "event-a");
+  assert.deepEqual(rejected.pendingMedia, ["banner"]);
+  assert.deepEqual(rejected.value.banner, stored.banner);
+  assert.equal(rejected.value.primary, "#123456");
+  assert.deepEqual(applySetupLocalMedia(rejected.value, key, rejected.pendingMedia).banner, image);
+  assert.deepEqual(applySetupLocalMedia(rejected.value, other, rejected.pendingMedia).banner, stored.banner);
+  assert.deepEqual(Object.keys(JSON.parse(values.get(key))), ["banner"]);
+
+  const fromAnotherBrowser = await prepareSetupBranding(rejected.value, stored, ["banner"], new Set(), other, "event-a");
+  assert.deepEqual(fromAnotherBrowser.pendingMedia, ["banner"]);
+  const discarded = await prepareSetupBranding(rejected.value, stored, ["banner"], new Set(["banner"]), other, "event-a");
+  assert.deepEqual(discarded.pendingMedia, []);
+  assert.deepEqual(discarded.value.banner, stored.banner);
+  assert.equal(attempts, 1);
+  uploadAvailable = true;
+  const accepted = await prepareSetupBranding(edited, stored, ["banner"], new Set(), key, "event-a");
+  assert.deepEqual(accepted.pendingMedia, []);
+  assert.deepEqual(accepted.value.banner, { ...image, url: newUrl });
+  assert.ok(values.has(key));
+  clearUnneededSetupLocalMedia(key, accepted.pendingMedia);
+  assert.ok(!values.has(key));
+});
+test("a successful same-tab save advances only local edits from its revision", async () => {
+  const cells = [];
+  let cursor = 0;
+  let serverRevision = 2;
+  const received = [];
+  class ApiError extends Error {
+    code = "SETUP_CONFLICT";
+  }
+  const useSetupApiState = loadSource({
+    react: {
+      useRef(initial) {
+        const index = cursor++;
+        return cells[index] ??= { current: initial };
+      },
+      useState(initial) {
+        const index = cursor++;
+        return [cells[index] ??= initial, (value) => { cells[index] = value; }];
+      },
+    },
+    "@/core/api": {
+      ApiError,
+      api: {
+        async patch(_url, body) {
+          received.push(body.revision);
+          if (serverRevision !== body.revision) throw new ApiError();
+          return { revision: ++serverRevision, savedFromRevision: body.revision };
+        },
+      },
+    },
+  })("src/hooks/useSetupApiState.ts").default;
+  const render = (revision) => {
+    cursor = 0;
+    return useSetupApiState({ ...seed, setup: { revision } });
+  };
+  const staleRevision = render(1).getRevision();
+  const current = render(2);
+  const freshRevision = current.getRevision();
+  assert.equal((await current.save({ draft: seed }, freshRevision)).revision, 3);
+  assert.equal(await current.save({ draft: seed }, staleRevision), null);
+  assert.equal(render(3).conflict, true);
+  assert.equal((await current.save({ draft: seed }, freshRevision)).revision, 4);
+  assert.deepEqual(received, [2, 1, 3]);
 });
 const {
   IMAGE_MAX_INPUT_BYTES,
@@ -898,9 +998,81 @@ test("Color Picker translations have matching nested keys", () => {
 });
 
 const {
-  publicationIssues, publicationKey, publicationV2Key, savePublication,
-  saveEventPublication, loadEventPublication, loadPublication,
+  publicationSchema, publicationIssues, publicationKey, publicationV2Key,
+  loadEventPublication, loadPublication,
 } = load("src/core/event/publication.ts");
+/** Fixture writers for v1/v2 data from the previous browser-only implementation. */
+/** Store only valid draft fields; keep an earlier valid save when validation fails. */
+function saveEventDraft(key, draft) {
+  const result = eventDraftSchema.safeParse(draft);
+  if (!result.success) return "invalid";
+  const parsed = result.data;
+  if (parsed.startsAt && parsed.endsAt && Date.parse(parsed.endsAt) <= Date.parse(parsed.startsAt)) return "invalid";
+  try {
+    globalThis.localStorage.setItem(
+      key,
+      JSON.stringify(projectEventContent(parsed)),
+    );
+    notifyEventSetupSaved(key);
+    return "saved";
+  } catch {
+    return "error";
+  }
+}
+
+function saveEventBranding(key, branding) {
+  const parsed = eventBrandingSchema.safeParse(branding);
+  if (!parsed.success) return "invalid";
+  try {
+    globalThis.localStorage.setItem(key, JSON.stringify(parsed.data));
+    return "saved";
+  } catch {
+    return "error";
+  }
+}
+function savePublication(key, value) {
+  const parsed = publicationSchema.safeParse(value);
+  if (
+    !parsed.success ||
+    publicationIssues(parsed.data.draft, parsed.data.forms).length ||
+    loadPublication(key)
+  )
+    return false;
+  try {
+    globalThis.localStorage.setItem(
+      key,
+      JSON.stringify({
+        ...parsed.data,
+        draft: projectEventContent(parsed.data.draft),
+      }),
+    );
+    notifyEventSetupSaved(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function saveEventPublication(userId, eventId, locale, value) {
+  const sharedKey = publicationV2Key(userId, eventId);
+  const multilingual = !!value.draft.content;
+  const key = multilingual
+    ? sharedKey
+    : publicationKey(userId, eventId, locale);
+  const write = () =>
+    !loadEventPublication(userId, eventId, locale, multilingual) &&
+    savePublication(key, value);
+
+  // Hold a single browser lock across the receipt check and write when Web
+  // Locks are available. Both operations stay synchronous inside the lock.
+  try {
+    const locks = globalThis.navigator?.locks;
+    return locks ? await locks.request(sharedKey, write) : write();
+  } catch {
+    return false;
+  }
+}
+
 const { canEditLocalEventSetup } = load("src/core/event/draft.ts");
 const { setupFormStatus, selectSetupForms } = load(
   "src/core/event/form-summary.ts",
@@ -1182,43 +1354,67 @@ test("Whitelist import replaces only unused entries and preserves used records",
   assert.equal(next[0], used);
   assert.equal(current.length, 2);
 });
-test("Whitelist storage is isolated and invalid saves, corrupt data or storage failures never overwrite valid entries", (t) => {
+test("Legacy Whitelist recovery reads valid entries only for the matching browser scope", (t) => {
   const values = storage(t);
   const key = whitelist.whitelistKey("owner", "event-a", "th");
   const entries = [whitelistEntry("one@example.com")];
-  assert.equal(whitelist.saveWhitelist(key, entries), "saved");
-  const before = values.get(key);
-  assert.equal(
-    whitelist.saveWhitelist(key, [
-      ...entries,
-      { ...entries[0], id: "another" },
-    ]),
-    "invalid",
-  );
-  assert.equal(values.get(key), before);
-  assert.deepEqual(whitelist.loadWhitelist(key).entries, entries);
-  assert.equal(
-    whitelist.loadWhitelist(whitelist.whitelistKey("other", "event-a", "th"))
-      .entries.length,
-    0,
-  );
-  assert.equal(
-    whitelist.loadWhitelist(whitelist.whitelistKey("owner", "event-b", "th"))
-      .entries.length,
-    0,
-  );
-  assert.equal(
-    whitelist.loadWhitelist(whitelist.whitelistKey("owner", "event-a", "en"))
-      .entries.length,
-    0,
-  );
-  values.set("corrupt", "{broken");
-  assert.equal(whitelist.loadWhitelist("corrupt").error, true);
-  globalThis.localStorage.setItem = () => {
-    throw Error("QuotaExceededError");
+  values.set(key, JSON.stringify(entries));
+  assert.deepEqual(whitelist.readLegacyWhitelists("owner", "event-a")[0].entries, entries);
+  for (const args of [
+    ["other", "event-a"],
+    ["owner", "event-b"],
+  ]) {
+    assert.deepEqual(whitelist.readLegacyWhitelists(...args), []);
+  }
+  values.set(key, JSON.stringify([...entries, { ...entries[0], id: "another" }]));
+  assert.deepEqual(whitelist.readLegacyWhitelists("owner", "event-a"), []);
+  values.set(key, "{broken");
+  assert.deepEqual(whitelist.readLegacyWhitelists("owner", "event-a"), []);
+  assert.equal(values.get(key), "{broken");
+});
+test("Legacy Whitelist recovery keeps unused evidence until the server verifies each source", (t) => {
+  const values = storage(t);
+  globalThis.localStorage.removeItem = (key) => values.delete(key);
+  const thai = whitelist.whitelistKey("owner", "event-a", "th");
+  const english = whitelist.whitelistKey("owner", "event-a", "en");
+  const added = whitelistEntry("one@example.com");
+  const used = whitelistEntry("used@example.com", "joined");
+  const mismatch = { ...whitelistEntry("member@example.com"), name: "Earlier name" };
+  const active = [{ ...mismatch, name: "Current name" }, used];
+  values.set(thai, JSON.stringify([added, used]));
+  values.set(english, JSON.stringify([mismatch]));
+  const savedSources = whitelist.readLegacyWhitelists("owner", "event-a");
+  const field = { id: "email-field", type: "email" };
+  const planned = whitelist.mergeLegacyWhitelist(active, savedSources, field);
+  assert.deepEqual(planned.entries, [...active, added]);
+  assert.equal(planned.matches, 2);
+  assert.equal(planned.unresolved, 1);
+  whitelist.removeVerifiedLegacyWhitelists(active, savedSources, field);
+  assert.equal(values.size, 2);
+  whitelist.removeVerifiedLegacyWhitelists(planned.entries, savedSources, field);
+  assert.equal(values.has(thai), false);
+  assert.equal(values.has(english), true);
+});
+test("Whitelist validation follows the configured registration field and preserves used IDs", () => {
+  const form = {
+    type: "registration",
+    questions: [{ question: { id: "member-number", type: "number", is_unique: true, min_value: 0, max_value: 100 } }],
   };
-  assert.equal(whitelist.saveWhitelist(key, []), "error");
-  assert.equal(values.get(key), before);
+  const field = whitelist.whitelistUniqueField(form);
+  assert.deepEqual(field, { id: "member-number", type: "number", min: 0, max: 100 });
+  assert.equal(whitelist.whitelistUniqueField({ ...form, type: "survey" }), null);
+  const first = whitelistEntry("001.0");
+  const normalized = whitelist.parseWhitelistEntries([first], field);
+  assert.equal(normalized[0].uniqueId, "1");
+  assert.equal(whitelist.parseWhitelistEntries([first, whitelistEntry("1e0")], field), null);
+  assert.equal(whitelist.parseWhitelistEntries([whitelistEntry("101")], field), null);
+  assert.equal(whitelist.parseWhitelistEntries([whitelistEntry("0x10")], field), null);
+  const fieldText = { id: "member-id", type: "short_text", minLength: 2, maxLength: 4 };
+  const textEntries = whitelist.parseWhitelistEntries([whitelistEntry(" Abc "), whitelistEntry("abc")], fieldText);
+  assert.deepEqual(textEntries.map(({ uniqueId }) => uniqueId), ["Abc", "abc"]);
+  assert.equal(whitelist.parseWhitelistEntries([whitelistEntry("A")], fieldText), null);
+  const used = { ...normalized[0], status: "joined" };
+  assert.deepEqual(whitelist.replaceWhitelist([used], [{ ...first, uniqueId: "2" }]), [used]);
 });
 test("Whitelist editing requires Registration permission and Private access, and local Publish locks it", () => {
   const workspace = { ...seed, isPrivate: true, canManageWhitelist: true };
@@ -1268,7 +1464,7 @@ test("Whitelist translations have complete matching TH/EN keys", () => {
 const { restoreLocalEventWorkspace, eventWorkspaceDisplayStatus } = load(
   "src/core/event/workspace.ts",
 );
-const { subscribeToEventSetup } = load("src/core/event/local-events.ts");
+const { notifyEventSetupSaved, subscribeToEventSetup } = load("src/core/event/local-events.ts");
 function setupWindow(t) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
   const target = new EventTarget();
@@ -1483,10 +1679,13 @@ function detailsActions(save) {
       "./details/EventFormSchedule": noop,
       "./details/EventInformationFields": noop,
       "./branding/SetupMediaPanel": noop,
+      "@/components/event/setup/EventSetupPendingMedia": noop,
       "./EventSetupBoundary": noop,
       "./EventSetupActions": { default: setupActions },
       "@/components/event/whitelist/EventWhitelistPanel": noop,
       "@/hooks/useModal": { useModal: () => ({ isOpen: false }) },
+      "@/hooks/useSetupApiState": { default: () => ({ pending: false }) },
+      "@/hooks/useWhitelistNavigationGuard": noop,
       "@/hooks/useEventBranding": {
         default: () => ({ branding: defaultEventBranding, save: () => true }),
       },
@@ -1517,7 +1716,7 @@ function detailsActions(save) {
   const form = findSetupElement(view, (n) => n.type === "form");
   return { form, ...setupActionButtons(form), navigation };
 }
-test("Details Back and Next save edited form choices before navigation; native submit follows Next", (t) => {
+test("Details Back and Next await the draft save before navigation; native submit follows Next", async (t) => {
   storage(t);
   const key = eventDraftKey("owner", seed.eventId, "th");
   const draft = { ...seed, eventName: "Latest edit", hasRegistration: false };
@@ -1542,6 +1741,8 @@ test("Details Back and Next save edited form choices before navigation; native s
       });
       assert.equal(prevented, true);
     }
+    assert.deepEqual(ui.navigation, []);
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(saves, 1);
     assert.deepEqual(ui.navigation, [
       direction === "back" ? "/event" : "/event/publish",
@@ -1552,7 +1753,7 @@ test("Details Back and Next save edited form choices before navigation; native s
     assert.equal(saved.surveyAccess, "public");
   }
 });
-test("Details Back and Next stay on the current page when validation or LocalStorage fails", (t) => {
+test("Details Back and Next stay on the current page when saving fails", async (t) => {
   const values = storage(t);
   const key = eventDraftKey("owner", seed.eventId, "th");
   saveEventDraft(key, seed);
@@ -1562,6 +1763,7 @@ test("Details Back and Next stay on the current page when validation or LocalSto
   );
   ui.back.props.onClick();
   ui.form.props.onSubmit({ preventDefault() {} });
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(ui.navigation, []);
   const quota = detailsActions(
     () => saveEventDraft(key, { ...seed, hasSurvey: false }) === "saved",
@@ -1571,6 +1773,7 @@ test("Details Back and Next stay on the current page when validation or LocalSto
   };
   quota.back.props.onClick();
   quota.form.props.onSubmit({ preventDefault() {} });
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(quota.navigation, []);
   assert.equal(values.get(key), previous);
 });
@@ -1646,6 +1849,7 @@ function setupStep(kind, options = {}) {
   const draftKey = eventDraftKey("owner", seed.eventId, "th");
   const brandingKey = eventBrandingKey("owner", seed.eventId, "th");
   const saves = [];
+  const publishRequests = [];
   const confirmations = [];
   const states = [];
   const messages = JSON.parse(
@@ -1654,11 +1858,24 @@ function setupStep(kind, options = {}) {
   const noop = { default: () => null };
   const mocks = {
     "./publish/PublishChecklist": noop,
+    "@/core/api": {
+      ApiError: Error,
+      api: { post: async (path, input) => {
+        publishRequests.push({ path, input });
+        if (options.publishFail) throw Error("API failure");
+        return { publication: { draft, branding } };
+      } },
+    },
+    "@/core/event/local-events": {
+      eventSetupStateKey: () => "setup-state",
+      notifyEventSetupSaved() {},
+    },
     "@/core/event/schedule": load("src/core/event/schedule.ts"),
     "@/utils/alert": { showToast() {} },
     "@/components/event/setup/EventSetupBoundary": noop,
     "@/components/event/setup/EventSetupSteps": noop,
     "@/components/event/setup/EventSetupActions": { default: setupActions },
+    "@/components/event/setup/EventSetupPendingMedia": noop,
     "@/components/ui/button/Button": { default: setupButton },
     "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
     "@/core/event/content": load("src/core/event/content.ts"),
@@ -1695,6 +1912,8 @@ function setupStep(kind, options = {}) {
         retry() {},
       }),
     },
+    "@/hooks/useSetupApiState": { default: () => ({ pending: false, getRevision: () => 3 }) },
+    "@/hooks/useWhitelistNavigationGuard": noop,
     "@/hooks/useConfirm": {
       useConfirm: () => ({
         confirm: async (value) => {
@@ -1763,6 +1982,7 @@ function setupStep(kind, options = {}) {
     navigation,
     saves,
     confirmations,
+    publishRequests,
     states,
     submit,
     draftKey,
@@ -1771,7 +1991,7 @@ function setupStep(kind, options = {}) {
     workspace,
   };
 }
-test("Branding and Forms Back/Next actions save current local data before following their bounded routes", async (t) => {
+test("Branding and Forms Back/Next actions await saves before following their bounded routes", async (t) => {
   storage(t);
   for (const [kind, back, next] of [
     ["branding", "/event/details", "/event/forms"],
@@ -1781,7 +2001,10 @@ test("Branding and Forms Back/Next actions save current local data before follow
       const ui = setupStep(kind);
       assert.equal(ui.back.props.type, "button");
       assert.equal(ui.next.props.type, "submit");
-      if (direction === "back") ui.back.props.onClick();
+      if (direction === "back") {
+        ui.back.props.onClick();
+        await new Promise((resolve) => setImmediate(resolve));
+      }
       else await ui.submit();
       assert.deepEqual(ui.navigation, [direction === "back" ? back : next]);
       assert.deepEqual(
@@ -1832,17 +2055,18 @@ test("Branding and Forms block both directions on validation/quota failures and 
   await forms.submit();
   assert.deepEqual(forms.navigation, []);
 });
-test("Publish Back and Preview save current data, while submit validates and confirms before a local receipt", async (t) => {
+test("Publish Back and Preview save the draft, while submit sends a separate confirmed API request", async (t) => {
   storage(t);
   const ui = setupStep("publish");
   ui.back.props.onClick();
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(ui.navigation, ["/event/details"]);
   assert.deepEqual(ui.saves, ["draft", "branding"]);
   const preview = findSetupElement(
     ui.form,
     (node) => typeof node.props?.onOpen === "function",
   );
-  assert.equal(preview.props.onOpen(), true);
+  assert.equal(await preview.props.onOpen(), true);
   assert.deepEqual(ui.saves, ["draft", "branding", "draft", "branding"]);
   assert.equal(
     loadPublication(publicationKey("owner", seed.eventId, "th")),
@@ -1850,10 +2074,11 @@ test("Publish Back and Preview save current data, while submit validates and con
   );
   await ui.submit();
   assert.equal(ui.confirmations.length, 2);
-  const receipt = loadPublication(publicationKey("owner", seed.eventId, "th"));
-  assert.equal(receipt.branding.primary, ui.branding.primary);
-  assert.equal(receipt.draft.hasRegistration, false);
-  assert.equal(receipt.draft.hasSurvey, false);
+  assert.deepEqual(ui.publishRequests, [{
+    path: "/event/setup/publish",
+    input: { eventId: ui.workspace.eventId, revision: 3, locale: "th" },
+  }]);
+  assert.equal(loadPublication(publicationKey("owner", seed.eventId, "th")), null);
   assert.equal(ui.workspace.eventStatus, "draft");
   assert.deepEqual(ui.navigation, ["/event/details", "/event/qr"]);
 });
@@ -1886,14 +2111,15 @@ test("Publish does not create a receipt or report success after cancellation, st
     failed.form,
     (node) => typeof node.props?.onOpen === "function",
   );
-  assert.equal(preview.props.onOpen(), false);
+  assert.equal(await preview.props.onOpen(), false);
   await failed.submit();
   assert.deepEqual(failed.navigation, []);
   assert.deepEqual(failed.confirmations, []);
   assert.equal(loadPublication(key), null);
 });
 
-test("Publish Full Preview link only navigates after its local save succeeds", () => {
+test("Publish Full Preview link only navigates after its API save succeeds", async () => {
+  const navigation = [];
   const Viewport = () => null;
   const content = getEventContent(seed, "th");
   const Preview = compileSetupComponent(
@@ -1903,6 +2129,7 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
         default: Viewport,
       },
       "@/components/event/participant/ParticipantPreviewLanguage": { default: () => null },
+      "@/core/event/draft": load("src/core/event/draft.ts"),
       "@/core/event/participant": load("src/core/event/participant.ts"),
       "@/hooks/useParticipantPreviewLanguage": {
         default: () => ({
@@ -1910,7 +2137,7 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
           selectLanguage() {},
         }),
       },
-      "@/i18n/navigation": { Link: () => null },
+      "@/i18n/navigation": { Link: () => null, useRouter: () => ({ push: (url) => navigation.push(url) }) },
       "next-intl": { useTranslations: () => (key) => key },
       react: { useState: (initial) => [initial, () => {}] },
     },
@@ -1923,7 +2150,7 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
       branding: defaultEventBranding,
       onOpen: () => {
         saves++;
-        return saved;
+        return Promise.resolve(saved);
       },
     });
     const viewport = findSetupElement(screen, (node) => node.type === Viewport);
@@ -1940,7 +2167,9 @@ test("Publish Full Preview link only navigates after its local save succeeds", (
       },
     });
     assert.equal(saves, 1);
-    assert.equal(prevented, !saved);
+    assert.equal(prevented, true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(navigation.length, saved ? 1 : 0);
   }
 });
 
