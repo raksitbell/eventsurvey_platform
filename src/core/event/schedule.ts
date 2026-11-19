@@ -1,5 +1,13 @@
 import type { EventDraft } from "@/types/event/setup";
 
+export function scheduleMinuteFloor(now = Date.now()): number {
+  return Math.floor(now / 60_000) * 60_000;
+}
+
+export function isPastScheduleMinute(value: string | null | undefined, now = Date.now()): boolean {
+  return !!value && Date.parse(value) < scheduleMinuteFloor(now);
+}
+
 export function surveyClosingTime(draft: EventDraft): string | null {
   if (!draft.endsAt) return null;
   if (draft.surveyCloseMode === "custom")

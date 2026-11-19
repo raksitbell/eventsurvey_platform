@@ -89,6 +89,52 @@ test("Setup draft is encrypted, round-trips, and protects revisions across saves
   assert.equal(writes(), 1);
 });
 
+test("Setup rejects new past dates, reversed times, and custom Survey closes before the event ends", async (t) => {
+  const { service, draft, writes } = fixture(t);
+  const context = await service.getSetupContext("owner");
+  const past = "2001-01-01T10:00:00.000Z";
+  const save = (changes, revision = 0) => service.saveSetupDraft(context, {
+    revision, draft: { ...draft, ...changes },
+  });
+
+  await assert.rejects(save({ startsAt: past }), { code: "SETUP_DATE_IN_PAST" });
+  await assert.rejects(save({ endsAt: draft.startsAt }), { code: "SETUP_DATE_ORDER" });
+  const customSurvey = { hasSurvey: true, surveyAccess: "public", surveyCloseMode: "custom" };
+  await assert.rejects(save({ ...customSurvey, surveyCustomClose: past }), { code: "SETUP_DATE_IN_PAST" });
+  await assert.rejects(save({ ...customSurvey, surveyCustomClose: draft.startsAt }), {
+    code: "SETUP_SURVEY_CLOSE_INVALID",
+  });
+  assert.equal(writes(), 0);
+
+  const saved = await save({ ...customSurvey, surveyCustomClose: draft.endsAt });
+  assert.equal(saved.revision, 1);
+  await assert.rejects(save({
+    ...customSurvey,
+    endsAt: new Date(Date.parse(draft.endsAt) + 60_000).toISOString(),
+    surveyCustomClose: draft.endsAt,
+  }, saved.revision), { code: "SETUP_SURVEY_CLOSE_INVALID" });
+  assert.equal(writes(), 1);
+});
+
+test("Existing historical dates survive recovery and unrelated draft edits, with a future start required to publish", async (t) => {
+  const { service, draft, event, writes } = fixture(t);
+  const context = await service.getSetupContext("owner");
+  const startsAt = "2001-01-01T10:00:00.000Z";
+  const recovered = await service.recoverSetupDraft(context, {
+    revision: 0, replace: false, draft: { ...draft, startsAt },
+  });
+  const saved = await service.saveSetupDraft(context, {
+    revision: recovered.revision, draft: { ...recovered.draft, registrationCapacity: 12 },
+  });
+  assert.equal(saved.draft.startsAt, startsAt);
+  assert.equal(saved.revision, 2);
+  await assert.rejects(service.publishSetup(context, { revision: saved.revision, locale: "en" }), {
+    code: "SETUP_PUBLISH_IN_PAST",
+  });
+  assert.equal(event().status, "draft");
+  assert.equal(writes(), 2);
+});
+
 test("Legacy recovery keeps a private receipt and Publish schedules an immutable revision", async (t) => {
   const { service, store, draft, writes, event } = fixture(t);
   const context = await service.getSetupContext("owner");

@@ -2,7 +2,8 @@
 
 import DateTimePicker from "@/components/form/DateTimePicker";
 import { Modal } from "@/components/ui/modal";
-import { fromBangkokInput, toBangkokInput } from "@/core/i18n/bangkok-datetime";
+import { isPastScheduleMinute } from "@/core/event/schedule";
+import { shiftBangkokMinute } from "@/core/i18n/bangkok-datetime";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 
@@ -21,6 +22,7 @@ export default function SurveyCloseDialog({
 }: Props) {
   const t = useTranslations("eventSetupDesign");
   const s = useTranslations("eventSetup");
+  const dates = useTranslations("datePicker");
   const common = useTranslations("eventHome.details.capacity");
   const locale = useLocale();
   const id = useId();
@@ -33,13 +35,11 @@ export default function SurveyCloseDialog({
         previous.focus({ preventScroll: true });
     };
   }, []);
-  const [date, setDate] = useState(
-    toBangkokInput(initial ?? endsAt).slice(0, 10),
-  );
-  const [time, setTime] = useState(
-    toBangkokInput(initial ?? endsAt).slice(11) || "00:00",
-  );
-  const [invalid, setInvalid] = useState(false);
+  const endMinute = shiftBangkokMinute(endsAt, 0);
+  const min = endsAt && endMinute && Date.parse(endMinute) < Date.parse(endsAt)
+    ? shiftBangkokMinute(endsAt, 1) : endMinute;
+  const [close, setClose] = useState(initial ?? min);
+  const [error, setError] = useState<string | null>(null);
   const endLabel = endsAt
     ? new Intl.DateTimeFormat(locale, {
         timeZone: "Asia/Bangkok",
@@ -49,9 +49,12 @@ export default function SurveyCloseDialog({
       }).format(new Date(endsAt))
     : "—";
   function apply() {
-    const close = fromBangkokInput(date + "T" + time);
+    if (isPastScheduleMinute(close)) {
+      setError(dates("pastDate"));
+      return;
+    }
     if (!close || (endsAt && Date.parse(close) < Date.parse(endsAt))) {
-      setInvalid(true);
+      setError(s("closeError"));
       return;
     }
     onApply(close);
@@ -71,7 +74,6 @@ export default function SurveyCloseDialog({
           const target = event.target;
           if (event.key === "Enter" && target instanceof HTMLInputElement) {
             event.preventDefault();
-            if (target.type === "time") apply();
             return;
           }
           if (event.key !== "Tab") return;
@@ -105,28 +107,17 @@ export default function SurveyCloseDialog({
           <DateTimePicker
             id={id + "-date"}
             label={t("closingDate")}
-            dateOnly
-            value={fromBangkokInput(date + "T00:00")}
+            blockPast
+            min={min}
+            value={close}
             onChange={(next) => {
-              setDate(toBangkokInput(next).slice(0, 10));
-              setInvalid(false);
+              setClose(next);
+              setError(null);
             }}
           />
-          <label htmlFor={id + "-time"}>
-            {t("time")}
-            <input
-              id={id + "-time"}
-              type="time"
-              value={time}
-              onChange={(event) => {
-                setTime(event.target.value);
-                setInvalid(false);
-              }}
-            />
-          </label>
         </div>
-        {invalid ? (
-          <p role="alert">{s("closeError")}</p>
+        {error ? (
+          <p role="alert">{error}</p>
         ) : (
           <p>{t("closingRule")}</p>
         )}

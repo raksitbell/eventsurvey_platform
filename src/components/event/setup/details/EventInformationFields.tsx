@@ -6,6 +6,7 @@ import {
   getEventContent,
   resolveEventTranslation,
 } from "@/core/event/content";
+import { shiftBangkokMinute } from "@/core/i18n/bangkok-datetime";
 import type { EventContentTranslation } from "@/types/event/content";
 import type { EventDraft } from "@/types/event/setup";
 import { useTranslations } from "next-intl";
@@ -31,6 +32,7 @@ export default function EventInformationFields({
   const [selectedLocale, setSelectedLocale] = useState<string>();
   const content = getEventContent(draft, uiLocale);
   const translation = resolveEventTranslation(content, selectedLocale);
+  const range = { start: draft.startsAt, end: draft.endsAt };
   const localizedInput = {
     lang: translation.localeCode,
     dir: "auto",
@@ -122,6 +124,10 @@ export default function EventInformationFields({
               placeholder={v("datePlaceholder")}
               value={draft[key]}
               readOnly={readOnly}
+              blockPast
+              min={key === "endsAt" ? shiftBangkokMinute(draft.startsAt, 1) : null}
+              max={key === "startsAt" ? shiftBangkokMinute(draft.endsAt, -1) : null}
+              range={range}
               onChange={(value) => onChange({ [key]: value })}
             />
           ))}

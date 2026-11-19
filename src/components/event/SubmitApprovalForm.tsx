@@ -1,17 +1,15 @@
+"use client";
+
+import DateTimePicker from "@/components/form/DateTimePicker";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { api } from "@/core/api";
+import { api, ApiError } from "@/core/api";
+import { isPastScheduleMinute } from "@/core/event/schedule";
+import { shiftBangkokMinute } from "@/core/i18n/bangkok-datetime";
 import type { AdminEventListItem } from "@/types/admin/events";
 import { useTranslations } from "next-intl";
-import { FormEvent, useState } from "react";
-
-function toIsoOrNull(localValue: string): string | null {
-  if (!localValue) return null;
-  const date = new Date(localValue);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
-}
+import { type FormEvent, useId, useState } from "react";
 
 export default function SubmitApprovalForm({
   onSubmitted,
@@ -19,23 +17,33 @@ export default function SubmitApprovalForm({
   onSubmitted: (event: AdminEventListItem) => void;
 }) {
   const t = useTranslations("eventHome.scheduleEvent");
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
+  const dates = useTranslations("datePicker");
+  const fieldId = useId();
+  const [startsAt, setStartsAt] = useState<string | null>(null);
+  const [endsAt, setEndsAt] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [locationName, setLocationName] = useState("");
   const [addressText, setAddressText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const range = { start: startsAt, end: endsAt };
+  const lastStart = shiftBangkokMinute(endsAt, -1);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     setSuccess(null);
-    const startsAtIso = toIsoOrNull(startsAt);
-    const endsAtIso = toIsoOrNull(endsAt);
-    if (!startsAtIso || !endsAtIso) {
+    if (!startsAt || !endsAt) {
       setError(t("error"));
+      return;
+    }
+    if (isPastScheduleMinute(startsAt) || isPastScheduleMinute(endsAt)) {
+      setError(dates("pastDate"));
+      return;
+    }
+    if (Date.parse(endsAt) <= Date.parse(startsAt)) {
+      setError(dates("invalidOrder"));
       return;
     }
     setIsSubmitting(true);
@@ -43,8 +51,8 @@ export default function SubmitApprovalForm({
       const result = await api.patch<AdminEventListItem>(
         "/event/workspace/submit-approval",
         {
-          startsAt: startsAtIso,
-          endsAt: endsAtIso,
+          startsAt,
+          endsAt,
           description: description.trim() || null,
           locationName: locationName.trim() || null,
           addressText: addressText.trim() || null,
@@ -52,8 +60,10 @@ export default function SubmitApprovalForm({
       );
       setSuccess(t("success"));
       onSubmitted(result);
-    } catch {
-      setError(t("error"));
+    } catch (cause) {
+      setError(cause instanceof ApiError && cause.code === "EVENT_SCHEDULE_IN_PAST"
+        ? dates("pastDate")
+        : t("error"));
     } finally {
       setIsSubmitting(false);
     }
@@ -74,22 +84,24 @@ export default function SubmitApprovalForm({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label>{t("startsAt")}</Label>
-          <Input
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label>{t("endsAt")}</Label>
-          <Input
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-          />
-        </div>
+        <DateTimePicker
+          id={`${fieldId}-start`}
+          label={t("startsAt")}
+          value={startsAt}
+          onChange={setStartsAt}
+          blockPast
+          max={isPastScheduleMinute(lastStart) ? null : lastStart}
+          range={range}
+        />
+        <DateTimePicker
+          id={`${fieldId}-end`}
+          label={t("endsAt")}
+          value={endsAt}
+          onChange={setEndsAt}
+          blockPast
+          min={shiftBangkokMinute(startsAt, 1)}
+          range={range}
+        />
       </div>
 
       <div>
@@ -120,7 +132,7 @@ export default function SubmitApprovalForm({
       </div>
 
       {error ? (
-        <p className="text-sm text-error-600 dark:text-error-400">{error}</p>
+        <p role="alert" className="text-sm text-error-600 dark:text-error-400">{error}</p>
       ) : null}
       {success ? (
         <p className="text-sm text-success-600 dark:text-success-400">

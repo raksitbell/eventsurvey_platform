@@ -174,11 +174,6 @@
   background: var(--es-background-surface-subtle);
   font-size: 13px;
 }
-.es-survey-close-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 264fr) minmax(100px, 152fr);
-  gap: 16px;
-}
 .es-survey-close-fields label {
   display: block;
   font-size: 12px;
@@ -196,9 +191,6 @@
   padding-inline: 11px;
   color: var(--es-text-primary);
   font-weight: 600;
-}
-.es-survey-close-fields input[type="time"] {
-  margin-top: 6px;
 }
 body:has(.es-survey-close-dialog) .event-datetime-calendar.open {
   z-index: 100000;
@@ -231,7 +223,4 @@ body:has(.es-survey-close-dialog) .event-datetime-calendar.open {
     font-size: 12px;
     line-height: 15px;
   }
-}
-.es-survey-close-fields > label {
-  margin-block-end: 0;
 }

@@ -2274,6 +2274,7 @@ test("Event information configuration preserves field bindings, limits, labels, 
         default: placeholder,
       },
       "@/core/event/content": load("src/core/event/content.ts"),
+      "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
       "@/components/form/Label": { default: placeholder },
       "@/components/form/input/InputField": { default: placeholder },
       react: { useState: (v) => [v, () => {}] },
@@ -2312,6 +2313,7 @@ test("Event information configuration preserves field bindings, limits, labels, 
         assert.equal(changes.at(-1).content.translations[0].localeCode, "th");
       } else {
         assert.equal(input.props.value, null);
+        assert.equal(input.props.blockPast, true);
         input.props.onChange("2027-01-01T03:00:00.000Z");
         assert.deepEqual(changes.at(-1), {
           [field]: "2027-01-01T03:00:00.000Z",

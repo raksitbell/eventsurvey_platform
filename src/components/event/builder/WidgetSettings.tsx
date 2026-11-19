@@ -1,12 +1,12 @@
 "use client";
 
-import { reportingDay } from "@/core/event/widget-data";
-
-import React, { useEffect } from "react";
-import { useTranslations } from "next-intl";
+import DateTimePicker from "@/components/form/DateTimePicker";
 import Input from "@/components/form/input/InputField";
 import Select from "@/components/form/Select";
 import Label from "@/components/form/Label";
+import { reportingDay } from "@/core/event/widget-data";
+import { fromBangkokInput } from "@/core/i18n/bangkok-datetime";
+import type { DashboardWidget, ReportingData } from "@/types/event/reporting";
 import {
   Bars3BottomLeftIcon,
   Bars3BottomRightIcon,
@@ -16,8 +16,9 @@ import {
   ChartPieIcon,
   PresentationChartLineIcon,
 } from "@heroicons/react/24/outline";
+import { useTranslations } from "next-intl";
+import React, { useEffect, useId } from "react";
 import { WidgetTypeIcon } from "./WidgetPreview";
-import type { DashboardWidget, ReportingData } from "@/types/event/reporting";
 
 const ALIGN_OPTIONS: {
   value: NonNullable<DashboardWidget["text_align"]>;
@@ -45,11 +46,13 @@ export default function WidgetSettings({
   onClose,
 }: Props) {
   const t = useTranslations("eventReports");
+  const dates = useTranslations("datePicker");
+  const dateId = useId();
 
   useEffect(() => {
     if (!onClose) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !e.defaultPrevented) onClose();
     };
     globalThis.document.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -63,8 +66,18 @@ export default function WidgetSettings({
   const eventEndDate = data.eventEndsAt ? reportingDay(data.eventEndsAt) : "";
   const effectiveFrom = widget.date_from ?? eventStartDate;
   const effectiveTo = widget.date_to ?? eventEndDate;
+  const range = {
+    start: fromBangkokInput(`${effectiveFrom}T00:00`),
+    end: fromBangkokInput(`${effectiveTo}T00:00`),
+  };
+  const minStart = fromBangkokInput(`${eventStartDate}T00:00`);
+  const maxEnd = fromBangkokInput(`${eventEndDate}T00:00`);
   const hasCustomDates = Boolean(widget.date_from || widget.date_to);
   const align = widget.text_align ?? "left";
+
+  function changeDate(key: "date_from" | "date_to", value: string | null) {
+    change({ [key]: value ? reportingDay(value) : null, date_range_days: 0 });
+  }
 
   return (
     <div className="space-y-4">
@@ -294,45 +307,38 @@ export default function WidgetSettings({
       {/* Row 2: Event Date Range Bar (referencing event starts_at and ends_at) */}
       <fieldset
         disabled={disabled}
-        className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-gray-100 bg-gray-50/70 px-3.5 py-2.5 dark:border-gray-800 dark:bg-gray-800/50"
+        className="space-y-2.5 rounded-xl border border-gray-100 bg-gray-50/70 px-3.5 py-2.5 dark:border-gray-800 dark:bg-gray-800/50"
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="space-y-2">
           <span className="inline-flex items-center gap-1.5 text-theme-sm font-medium text-gray-700 dark:text-gray-200">
-            <CalendarDaysIcon className="size-4 text-brand-600 dark:text-brand-400" />
-            <span>{t("builder.range")}:</span>
+            <CalendarDaysIcon className="size-4 text-brand-600 dark:text-brand-400" aria-hidden="true" />
+            <span>{t("builder.range")}</span>
           </span>
 
-          <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 py-1 text-theme-sm dark:border-gray-700 dark:bg-gray-900">
-            <span className="text-gray-400">{t("builder.dateFrom")}</span>
-            <input
-              type="date"
-              aria-label={t("builder.dateFrom")}
-              min={eventStartDate || undefined}
-              max={effectiveTo || eventEndDate || undefined}
-              value={effectiveFrom}
-              onChange={(e) =>
-                change({
-                  date_from: e.target.value || null,
-                  date_range_days: 0,
-                })
-              }
-              className="bg-transparent font-medium text-gray-800 outline-hidden dark:text-gray-200"
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10.5rem),1fr))] gap-2.5">
+            <DateTimePicker
+              id={`${dateId}-from`}
+              label={t("builder.dateFrom")}
+              dateOnly
+              readOnly={disabled}
+              min={minStart}
+              max={maxEnd && (!range.end || maxEnd < range.end) ? maxEnd : range.end}
+              value={range.start}
+              range={widget.date_range_days ? undefined : range}
+              clearLabel={widget.date_from ? dates("clearDate") : undefined}
+              onChange={(value) => changeDate("date_from", value)}
             />
-            <span className="text-gray-300 dark:text-gray-600">–</span>
-            <span className="text-gray-400">{t("builder.dateTo")}</span>
-            <input
-              type="date"
-              aria-label={t("builder.dateTo")}
-              min={effectiveFrom || eventStartDate || undefined}
-              max={eventEndDate || undefined}
-              value={effectiveTo}
-              onChange={(e) =>
-                change({
-                  date_to: e.target.value || null,
-                  date_range_days: 0,
-                })
-              }
-              className="bg-transparent font-medium text-gray-800 outline-hidden dark:text-gray-200"
+            <DateTimePicker
+              id={`${dateId}-to`}
+              label={t("builder.dateTo")}
+              dateOnly
+              readOnly={disabled}
+              min={minStart && (!range.start || minStart > range.start) ? minStart : range.start}
+              max={maxEnd}
+              value={range.end}
+              range={widget.date_range_days ? undefined : range}
+              clearLabel={widget.date_to ? dates("clearDate") : undefined}
+              onChange={(value) => changeDate("date_to", value)}
             />
           </div>
         </div>

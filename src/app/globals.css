@@ -764,6 +764,87 @@ span.flatpickr-weekday,
   @apply right-0 left-auto;
 }
 
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) {
+  --calendar-range-fill: var(--color-event-tile);
+  --calendar-range-endpoint: var(--color-event-action);
+  max-width: calc(100vw - 1rem);
+}
+
+.dark .flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) {
+  --calendar-range-fill: var(--color-gray-700);
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  :is(.flatpickr-rContainer, .flatpickr-days, .dayContainer) {
+  width: min(307px, calc(100vw - 4rem));
+  min-width: 0;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) .dayContainer {
+  justify-content: flex-start;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) .flatpickr-day {
+  position: relative;
+  isolation: isolate;
+  justify-content: center;
+  max-width: none;
+  border-inline-width: 0;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.inRange, .startRange, .endRange, .schedule-range-between, .schedule-range-start, .schedule-range-end) {
+  @apply border-transparent! bg-transparent! shadow-none!;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.inRange, .startRange, .endRange, .schedule-range-between, .schedule-range-start, .schedule-range-end)::before {
+  position: absolute;
+  z-index: -2;
+  inset: 3px 0;
+  background-color: var(--calendar-range-fill);
+  content: "";
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.startRange, .schedule-range-start)::before {
+  inset-inline-start: 50%;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.endRange, .schedule-range-end)::before {
+  inset-inline-end: 50%;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.startRange, .endRange, .schedule-range-start, .schedule-range-end) {
+  @apply text-white! dark:text-white!;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.startRange, .endRange, .schedule-range-start, .schedule-range-end)::after {
+  position: absolute;
+  z-index: -1;
+  inset-block: 3px;
+  inset-inline: max(0px, calc((100% - 33px) / 2));
+  border-radius: 9999px;
+  background-color: var(--calendar-range-endpoint);
+  content: "";
+}
+
+.flatpickr-calendar.event-datetime-calendar .flatpickr-day.flatpickr-disabled {
+  @apply cursor-not-allowed text-gray-500! dark:text-gray-400!;
+}
+
+.flatpickr-calendar.event-datetime-calendar
+  .flatpickr-day.flatpickr-disabled:is(.schedule-range-start, .schedule-range-end) {
+  @apply text-white! dark:text-white!;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) .flatpickr-day:focus-visible {
+  @apply outline-2 -outline-offset-2 outline-event-action dark:outline-brand-300;
+}
+
 [dir="rtl"] .flatpickr-calendar.static {
   left: 0 !important;
   right: auto !important;

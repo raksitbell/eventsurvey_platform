@@ -18,7 +18,7 @@ const brandingPatch = z.object({
 export const setupDraftPatch = z.object({
   eventId,
   revision: setupRevisionSchema,
-  draft: datedDraft.optional(),
+  draft: eventDraftSchema.optional(),
   branding: brandingPatch.optional(),
 }).strict().refine((value) => Boolean(value.draft || value.branding));
 

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { isPastScheduleMinute } from "@/core/event/schedule";
 import {
   assertManualFormStatusTransition,
   formMutationFlags,
@@ -341,6 +342,33 @@ function assertCanChangeStatus(status: FormStatus): void {
       409,
       "open/closed forms cannot be changed manually — cron owns those transitions",
     );
+  }
+}
+
+function assertFormSchedule(
+  opensAt: string | null,
+  closesAt: string | null,
+  now: number,
+  previous?: Pick<MockForm, "opens_at" | "closes_at">,
+): void {
+  const opensChanged = opensAt !== previous?.opens_at;
+  const closesChanged = closesAt !== previous?.closes_at;
+  if (!opensChanged && !closesChanged) return;
+
+  const opens = opensAt ? Date.parse(opensAt) : null;
+  const closes = closesAt ? Date.parse(closesAt) : null;
+  if (
+    Number.isNaN(opens) ||
+    Number.isNaN(closes) ||
+    (opens !== null && closes !== null && closes <= opens)
+  ) {
+    throw new ServiceError("DATE_RANGE_INVALID", 400);
+  }
+  if (
+    (opensChanged && isPastScheduleMinute(opensAt, now)) ||
+    (closesChanged && isPastScheduleMinute(closesAt, now))
+  ) {
+    throw new ServiceError("FORM_SCHEDULE_IN_PAST", 400);
   }
 }
 
@@ -1421,6 +1449,7 @@ export async function createForm(
   const id = newId();
   const opensAt = input.opens_at?.trim() || null;
   const closesAt = input.closes_at?.trim() || null;
+  assertFormSchedule(opensAt, closesAt, Date.parse(stamp));
   const form: MockForm = {
     id,
     event_id: input.eventId,
@@ -1471,9 +1500,6 @@ export async function updateForm(
   const effective = resolveEffectiveFormStatus(form);
   assertCanEdit(effective);
 
-  const fields = await assertQuestionTreeOwnership(id, input.questions);
-  const snapshot = await captureFormTree(form);
-
   const stamp = nowIso();
   const opensAt =
     input.opens_at !== undefined
@@ -1483,6 +1509,10 @@ export async function updateForm(
     input.closes_at !== undefined
       ? input.closes_at?.trim() || null
       : form.closes_at;
+  assertFormSchedule(opensAt, closesAt, Date.parse(stamp), form);
+
+  const fields = await assertQuestionTreeOwnership(id, input.questions);
+  const snapshot = await captureFormTree(form);
 
   const updatedForm: MockForm = {
     ...form,
@@ -1532,6 +1562,13 @@ export async function updateFormStatus(
     patch.closesAt !== undefined
       ? patch.closesAt?.trim() || null
       : form.closes_at;
+  const activating = current === "draft" && patch.status === "scheduled";
+  assertFormSchedule(
+    opensAt,
+    closesAt,
+    Date.parse(stamp),
+    activating ? undefined : form,
+  );
 
   const recordBefore = await toFormRecord(form, event);
 

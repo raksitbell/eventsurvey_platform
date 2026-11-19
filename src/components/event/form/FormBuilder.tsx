@@ -52,6 +52,8 @@ const PERSISTED_CHOICE_TYPES = new Set<QuestionType>([
 
 const KNOWN_FORM_ERROR_CODES = new Set([
   "FORM_SCHEDULE_REQUIRED",
+  "FORM_SCHEDULE_IN_PAST",
+  "DATE_RANGE_INVALID",
   "FORM_NOT_READY",
   "FORM_NOT_EDITABLE",
   "FORM_NOT_DELETABLE",
@@ -74,30 +76,6 @@ const KNOWN_FORM_ERROR_CODES = new Set([
   "MOCK_READ_ONLY",
   "MOCK_API_ERROR",
 ]);
-
-function toFlatpickrDateTime(raw: string | null | undefined): string {
-  if (!raw) return "";
-  const trimmed = raw.trim();
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(trimmed)) return trimmed;
-  const d = new Date(trimmed);
-  if (Number.isNaN(d.getTime())) return trimmed;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
-}
-
-function toApiIsoDateTime(raw: string | null | undefined): string | null {
-  const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  const normalized = trimmed.includes("T")
-    ? trimmed
-    : trimmed.replace(" ", "T");
-  const d = new Date(normalized);
-  return Number.isNaN(d.getTime()) ? trimmed : d.toISOString();
-}
 
 function createChoicePair(order: number): { th: Choice; en: Choice } {
   const id = crypto.randomUUID();
@@ -220,8 +198,8 @@ export default function FormBuilder({ type }: { type: FormType }) {
         },
       },
       type,
-      opens_at: "",
-      closes_at: "",
+      opens_at: null,
+      closes_at: null,
       questions: [firstQuestion],
     };
   });
@@ -380,8 +358,8 @@ export default function FormBuilder({ type }: { type: FormType }) {
             description: record.head.en.description,
           },
         },
-        opens_at: toFlatpickrDateTime(record.opensAt ?? record.opens_at),
-        closes_at: toFlatpickrDateTime(record.closesAt ?? record.closes_at),
+        opens_at: record.opensAt ?? record.opens_at ?? null,
+        closes_at: record.closesAt ?? record.closes_at ?? null,
         questions: normalizedQuestions,
       });
 
@@ -549,8 +527,8 @@ export default function FormBuilder({ type }: { type: FormType }) {
         en: { title: enTitle, description: enDesc },
         th: { title: thTitle, description: thDesc },
       },
-      opens_at: toApiIsoDateTime(currentForm.opens_at),
-      closes_at: toApiIsoDateTime(currentForm.closes_at),
+      opens_at: currentForm.opens_at ?? null,
+      closes_at: currentForm.closes_at ?? null,
       questions: mappedQuestions,
     };
   };
@@ -640,8 +618,8 @@ export default function FormBuilder({ type }: { type: FormType }) {
         `/event/forms/${targetId}/status`,
         {
           status: nextStatus,
-          opensAt: toApiIsoDateTime(form.opens_at),
-          closesAt: toApiIsoDateTime(form.closes_at),
+          opensAt: form.opens_at ?? null,
+          closesAt: form.closes_at ?? null,
         },
       );
 
@@ -1406,7 +1384,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
-  const setOpensAt = (opensAt: string) => {
+  const setOpensAt = (opensAt: string | null) => {
     if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
@@ -1414,7 +1392,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
-  const setClosesAt = (closesAt: string) => {
+  const setClosesAt = (closesAt: string | null) => {
     if (!canEdit) return;
     setForm((prev) => ({
       ...prev,
@@ -1677,8 +1655,9 @@ export default function FormBuilder({ type }: { type: FormType }) {
                   showLocaleBadge
                   title={form.head[loc].title}
                   description={form.head[loc].description}
-                  opensAt={form.opens_at ?? ""}
-                  closesAt={form.closes_at ?? ""}
+                  opensAt={form.opens_at ?? null}
+                  closesAt={form.closes_at ?? null}
+                  readOnly={!canEdit}
                   isActive={activeSectionId === "header"}
                   onSelect={() => setActiveSectionId("header")}
                   onChangeTitle={(val) => setTitle(loc, val)}

@@ -5,7 +5,7 @@ import { defaultEventBranding } from "@/core/event/branding";
 import { projectEventContent } from "@/core/event/content";
 import { selectSetupForms } from "@/core/event/form-summary";
 import { publicationIssues, publicationSchema } from "@/core/event/publication";
-import { surveyClosingTime } from "@/core/event/schedule";
+import { isPastScheduleMinute, surveyClosingTime } from "@/core/event/schedule";
 import type { SetupRecord } from "@/core/event/setup-state";
 import { encodeSetupRecord, readSetupRecord, readSetupState } from "@/core/event/setup-storage";
 import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
@@ -105,6 +105,40 @@ function canonicalDraft(draft: EventDraft) {
   return JSON.parse(JSON.stringify(projectEventContent(draft, draft.content?.defaultLocale))) as EventDraft;
 }
 
+function sameDateTime(a: string | null | undefined, b: string | null | undefined) {
+  return a === b || (!a && !b) || (!!a && !!b && Date.parse(a) === Date.parse(b));
+}
+
+function assertDraftSchedule(draft: EventDraft, previous: EventDraft | null, event: MockEvent) {
+  const startsChanged = !sameDateTime(draft.startsAt, previous ? previous.startsAt : event.start_at);
+  const endsChanged = !sameDateTime(draft.endsAt, previous ? previous.endsAt : event.end_at);
+  const usesCustomClose = draft.hasSurvey && draft.surveyCloseMode === "custom";
+  const previouslyUsedCustomClose = previous?.hasSurvey && previous.surveyCloseMode === "custom";
+  const closeChanged = !sameDateTime(draft.surveyCustomClose, previous?.surveyCustomClose) ||
+    (usesCustomClose && !previouslyUsedCustomClose);
+
+  const now = Date.now();
+  if (
+    (startsChanged && isPastScheduleMinute(draft.startsAt, now)) ||
+    (endsChanged && isPastScheduleMinute(draft.endsAt, now)) ||
+    (closeChanged && isPastScheduleMinute(draft.surveyCustomClose, now))
+  ) {
+    throw new ServiceError("SETUP_DATE_IN_PAST", 422);
+  }
+  if (
+    (startsChanged || endsChanged) && draft.startsAt && draft.endsAt &&
+    Date.parse(draft.endsAt) <= Date.parse(draft.startsAt)
+  ) {
+    throw new ServiceError("SETUP_DATE_ORDER", 422);
+  }
+  if (
+    usesCustomClose && (endsChanged || closeChanged) &&
+    (!draft.surveyCustomClose || (draft.endsAt && Date.parse(draft.surveyCustomClose) < Date.parse(draft.endsAt)))
+  ) {
+    throw new ServiceError("SETUP_SURVEY_CLOSE_INVALID", 422);
+  }
+}
+
 export async function saveSetupDraft(
   context: SetupContext,
   input: { revision: number; draft?: EventDraft; branding?: BrandingChange },
@@ -124,6 +158,7 @@ export async function saveSetupDraft(
     }
     if (isDeepStrictEqual(next, setup)) return readSetupState(event);
     assertRevision(setup, input.revision);
+    if (input.draft) assertDraftSchedule(input.draft, setup.draft, event);
     next.revision++;
     return { ...readSetupState(await persistSetup(event, next)), savedFromRevision: input.revision };
   });
@@ -301,15 +336,16 @@ export async function publishSetup(
     if (draft.hasSurvey && draft.surveyAccess === "registered_only") issues.push("whitelist");
     if (issues.length) throw new ServiceError("SETUP_PUBLISH_INVALID", 422, undefined, issues);
     await Promise.all(Object.values(setup.branding).map((branding) => checkBranding(event.id, branding)));
-    const publishedAt = new Date().toISOString();
+    const now = Date.now();
+    if (isPastScheduleMinute(draft.startsAt, now) || Date.parse(draft.endsAt ?? "") <= now) {
+      throw new ServiceError("SETUP_PUBLISH_IN_PAST", 422);
+    }
+    const publishedAt = new Date(now).toISOString();
     const branding =
       setup.branding[input.locale] ??
       setup.branding[draft.content?.defaultLocale ?? ""] ??
       defaultEventBranding;
     const publication = publicationSchema.parse({ publishedAt, draft, branding, forms: definitions });
-    if (new Date(draft.endsAt ?? "").getTime() <= Date.now()) {
-      throw new ServiceError("SETUP_PUBLISH_IN_PAST", 422);
-    }
     const next = {
       ...setup,
       revision: setup.revision + 1,

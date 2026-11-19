@@ -24,6 +24,7 @@ function DetailsForm(props: EventSetupPageProps) {
   const { workspace, userId, locale } = props;
   const t = useTranslations("eventSetup"),
     d = useTranslations("eventHome.details");
+  const dates = useTranslations("datePicker");
   const home = useTranslations("eventHome");
   const overview = useTranslations("eventOverview");
   const statusName = eventWorkspaceDisplayStatus(workspace);
@@ -46,13 +47,21 @@ function DetailsForm(props: EventSetupPageProps) {
   const navigate = createSavedNavigation(persist, router.push);
   const pending = setup.pending || media.saving;
   useWhitelistNavigationGuard(!list.isOpen && (dirty || media.dirty), persist);
+  const scheduleErrors: Record<string, string> = {
+    SETUP_DATE_IN_PAST: dates("pastDate"),
+    SETUP_DATE_ORDER: dates("invalidOrder"),
+    SETUP_SURVEY_CLOSE_INVALID: t("closeError"),
+  };
+  const scheduleError = status === "error" && setup.errorCode
+    ? scheduleErrors[setup.errorCode]
+    : undefined;
   const feedback = setup.conflict
     ? t("draftConflict")
-    : status === "invalid"
+    : scheduleError ?? (status === "invalid"
       ? d(status)
       : status === "error" || media.status === "error" || media.status === "invalid"
         ? t("saveError")
-        : media.pendingMediaMessage ? t(media.pendingMediaMessage) : undefined;
+        : media.pendingMediaMessage ? t(media.pendingMediaMessage) : undefined);
   return (
     <>
       <form

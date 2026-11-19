@@ -30,6 +30,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventPublish");
   const router = useRouter();
   const s = useTranslations("eventSetup");
+  const dates = useTranslations("datePicker");
   const { confirm } = useConfirm();
   const setupApi = useSetupApiState(workspace);
   const {
@@ -133,7 +134,7 @@ function PublishPage({ workspace, userId, locale }: EventSetupPageProps) {
       if (cause instanceof ApiError && cause.code === "SETUP_MEDIA_PENDING") {
         setError(s(pendingMediaMessage ?? "mediaAnotherBrowser"));
       } else if (cause instanceof ApiError && cause.code === "SETUP_PUBLISH_IN_PAST") {
-        setError(t("issues.eventSchedule"));
+        setError(dates("pastDate"));
       } else if (cause instanceof ApiError && cause.code === "SETUP_PUBLISH_INVALID") {
         const issues = (cause.body as { issues?: PublishIssue[] } | undefined)?.issues ?? [];
         setError(issues.map((issue) => typeof issue === "string"

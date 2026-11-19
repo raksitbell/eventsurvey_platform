@@ -1,6 +1,7 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { maskEmail, maskName, mayViewPii, type PiiViewer } from "@/core/auth/pii";
+import { isPastScheduleMinute } from "@/core/event/schedule";
 import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
 import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
 import { resolveEventTitle } from "@/core/mock/event-title";
@@ -772,6 +773,9 @@ export async function scheduleEvent(
   }
 
   const now = nowIso();
+  if (isPastScheduleMinute(startsAt, Date.parse(now))) {
+    throw new ServiceError("EVENT_SCHEDULE_IN_PAST", 422);
+  }
   const updated = await mockApi.patch<MockEvent>(`/events/${event.id}`, {
     start_at: startsAt,
     end_at: endsAt,

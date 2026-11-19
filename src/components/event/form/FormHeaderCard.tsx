@@ -1,127 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useId } from "react";
 import { useTranslations } from "next-intl";
-import flatpickr from "flatpickr";
-import type { Instance } from "flatpickr/dist/types/instance";
-import "flatpickr/dist/flatpickr.min.css";
-import {
-  CalendarDaysIcon,
-  ExclamationCircleIcon,
-  XMarkIcon,
-} from "@heroicons/react/24/outline";
+import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
+import DateTimePicker from "@/components/form/DateTimePicker";
+import { shiftBangkokMinute } from "@/core/i18n/bangkok-datetime";
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
-import { FormLocale } from "@/types/event/form";
-
-interface DateTimeFieldProps {
-  label: string;
-  value: string;
-  placeholder: string;
-  clearLabel: string;
-  onChange: (value: string) => void;
-  onFocus?: () => void;
-}
-
-function DateTimeField({
-  label,
-  value,
-  placeholder,
-  clearLabel,
-  onChange,
-  onFocus,
-}: DateTimeFieldProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const fpRef = useRef<Instance | null>(null);
-  const onChangeRef = useRef(onChange);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    if (!inputRef.current) return;
-
-    const instance = flatpickr(inputRef.current, {
-      enableTime: true,
-      time_24hr: true,
-      dateFormat: "Y-m-d H:i",
-      defaultDate: value || undefined,
-      disableMobile: true,
-      onChange: (_, dateStr) => {
-        onChangeRef.current(dateStr);
-      },
-    });
-
-    fpRef.current = Array.isArray(instance) ? instance[0] : instance;
-
-    return () => {
-      fpRef.current?.destroy();
-      fpRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!fpRef.current) return;
-    const currentFormatted = fpRef.current.input.value;
-    if (!value && currentFormatted) {
-      fpRef.current.clear(false);
-    } else if (value && value !== currentFormatted) {
-      fpRef.current.setDate(value, false);
-    }
-  }, [value]);
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-        {label}
-      </span>
-      <div className="relative">
-        <input
-          ref={inputRef}
-          type="text"
-          readOnly
-          value={value}
-          onFocus={onFocus}
-          placeholder={placeholder}
-          className="w-full cursor-pointer rounded-lg border border-gray-200 bg-gray-50 py-2 ps-3 pe-16 text-sm text-gray-800 transition-colors placeholder:text-gray-400 focus:border-brand-500 focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:bg-gray-900"
-        />
-        <div className="absolute inset-y-0 end-0 flex items-center gap-1 pe-2.5">
-          {value && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                fpRef.current?.clear(false);
-                onChange("");
-              }}
-              aria-label={clearLabel}
-              className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-            >
-              <XMarkIcon className="h-4 w-4" />
-            </button>
-          )}
-          <CalendarDaysIcon className="pointer-events-none h-4 w-4 text-gray-500 dark:text-gray-400" />
-        </div>
-      </div>
-    </div>
-  );
-}
+import type { FormLocale } from "@/types/event/form";
 
 interface FormHeaderCardProps {
   locale?: FormLocale;
   showLocaleBadge?: boolean;
   title: string;
   description: string;
-  opensAt: string;
-  closesAt: string;
+  opensAt: string | null;
+  closesAt: string | null;
+  readOnly: boolean;
   isActive: boolean;
   sectionRef?: (el: HTMLDivElement | null) => void;
   onSelect: () => void;
   onChangeTitle: (title: string) => void;
   onChangeDescription: (description: string) => void;
-  onChangeOpensAt: (opensAt: string) => void;
-  onChangeClosesAt: (closesAt: string) => void;
+  onChangeOpensAt: (opensAt: string | null) => void;
+  onChangeClosesAt: (closesAt: string | null) => void;
 }
 
 export default function FormHeaderCard({
@@ -131,6 +32,7 @@ export default function FormHeaderCard({
   description,
   opensAt,
   closesAt,
+  readOnly,
   isActive,
   sectionRef,
   onSelect,
@@ -139,13 +41,15 @@ export default function FormHeaderCard({
   onChangeOpensAt,
   onChangeClosesAt,
 }: FormHeaderCardProps) {
+  const scheduleId = useId();
   const tbuilder = useTranslations("form.builder");
   const FlagIcon = locale === "th" ? ThFlagIcon : UsFlagIcon;
   const localeLabel =
     locale === "th" ? tbuilder("langThai") : tbuilder("langEnglish");
 
+  const range = { start: opensAt, end: closesAt };
   const isDateRangeInvalid =
-    Boolean(opensAt && closesAt) && opensAt >= closesAt;
+    opensAt && closesAt && Date.parse(opensAt) >= Date.parse(closesAt);
 
   return (
     <div
@@ -190,17 +94,27 @@ export default function FormHeaderCard({
 
         {/* Form Schedule: opens_at & closes_at */}
         <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 sm:gap-4 dark:border-gray-800">
-          <DateTimeField
+          <DateTimePicker
+            id={`${scheduleId}-opens`}
             label={tbuilder("opensAt")}
             value={opensAt}
+            readOnly={readOnly}
+            blockPast
+            max={shiftBangkokMinute(closesAt, -1)}
+            range={range}
             placeholder={tbuilder("selectDateTime")}
             clearLabel={tbuilder("clearDate")}
             onChange={onChangeOpensAt}
             onFocus={onSelect}
           />
-          <DateTimeField
+          <DateTimePicker
+            id={`${scheduleId}-closes`}
             label={tbuilder("closesAt")}
             value={closesAt}
+            readOnly={readOnly}
+            blockPast
+            min={shiftBangkokMinute(opensAt, 1)}
+            range={range}
             placeholder={tbuilder("selectDateTime")}
             clearLabel={tbuilder("clearDate")}
             onChange={onChangeClosesAt}
@@ -209,7 +123,10 @@ export default function FormHeaderCard({
         </div>
 
         {isDateRangeInvalid && (
-          <div className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-error-600 dark:text-error-400">
+          <div
+            role="alert"
+            className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-error-600 dark:text-error-400"
+          >
             <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
             <span>{tbuilder("dateRangeInvalid")}</span>
           </div>
