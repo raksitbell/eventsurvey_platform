@@ -20,8 +20,8 @@ export type PlatformAccessMatrix = {
   overview: ModuleAccessLevel;
   events: ModuleAccessLevel;
   users: ModuleAccessLevel;
-  /** Platform User Activity page */
-  activity: ModuleAccessLevel;
+  /** Platform User Activity — view only (no edit). */
+  canViewActivity: boolean;
   canInspection: boolean;
   canViewUnmaskedPii: boolean;
 };
@@ -30,7 +30,7 @@ export const DEFAULT_PLATFORM_MATRIX: PlatformAccessMatrix = {
   overview: "restricted",
   events: "restricted",
   users: "restricted",
-  activity: "restricted",
+  canViewActivity: false,
   canInspection: false,
   canViewUnmaskedPii: false,
 };
@@ -39,7 +39,7 @@ export const FULL_PLATFORM_MATRIX: PlatformAccessMatrix = {
   overview: "can_edit",
   events: "can_edit",
   users: "can_edit",
-  activity: "can_edit",
+  canViewActivity: true,
   canInspection: true,
   canViewUnmaskedPii: true,
 };
@@ -60,17 +60,24 @@ function normalizePlatformMatrix(value: unknown): PlatformAccessMatrix {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { ...DEFAULT_PLATFORM_MATRIX };
   }
-  const raw = value as Partial<PlatformAccessMatrix>;
-  const read = (key: keyof PlatformAccessMatrix): ModuleAccessLevel => {
+  const raw = value as Partial<PlatformAccessMatrix> & {
+    /** Legacy module level before canViewActivity boolean. */
+    activity?: ModuleAccessLevel;
+  };
+  const read = (
+    key: "overview" | "events" | "users",
+  ): ModuleAccessLevel => {
     const v = raw[key];
     if (v === "can_edit" || v === "restricted" || v === "view_only") return v;
     return "restricted";
   };
+  const legacyActivity =
+    raw.activity === "view_only" || raw.activity === "can_edit";
   return {
     overview: read("overview"),
     events: read("events"),
     users: read("users"),
-    activity: read("activity"),
+    canViewActivity: raw.canViewActivity === true || legacyActivity,
     canInspection: raw.canInspection === true,
     canViewUnmaskedPii: raw.canViewUnmaskedPii === true,
   };
@@ -179,6 +186,8 @@ export async function hasPlatformPermission(
       return matrix.events === "can_edit";
     case "manage_platform_users":
       return matrix.users === "can_edit";
+    case "view_platform_activity":
+      return matrix.canViewActivity;
     case "inspect_event":
       return matrix.canInspection;
     case "view_unmasked_pii":

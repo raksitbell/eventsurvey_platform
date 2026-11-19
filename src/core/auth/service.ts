@@ -8,7 +8,18 @@ const EMPTY_SNAPSHOT: AuthSnapshot = {
   impersonatedUser: null,
   inspectedEventId: null,
   inspectedEventName: null,
+  canViewActivity: false,
 };
+
+function normalizeSnapshot(data: Partial<AuthSnapshot>): AuthSnapshot {
+  return {
+    realUser: data.realUser ?? null,
+    impersonatedUser: data.impersonatedUser ?? null,
+    inspectedEventId: data.inspectedEventId ?? null,
+    inspectedEventName: data.inspectedEventName ?? null,
+    canViewActivity: data.canViewActivity === true,
+  };
+}
 
 export async function loginWithCredentials(
   credentials: LoginCredentials,
@@ -20,12 +31,7 @@ export async function loginWithCredentials(
 export async function getAuthSnapshot(signal: AbortSignal): Promise<AuthSnapshot> {
   try {
     const data = await api.get<AuthSnapshot>("/auth/session", signal);
-    return {
-      realUser: data.realUser,
-      impersonatedUser: data.impersonatedUser ?? null,
-      inspectedEventId: data.inspectedEventId ?? null,
-      inspectedEventName: data.inspectedEventName ?? null,
-    };
+    return normalizeSnapshot(data);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       return EMPTY_SNAPSHOT;
@@ -38,12 +44,14 @@ export function signOut() {
   return api.post<void>("/auth/logout", {});
 }
 
-export function startEventInspection(eventId: string) {
-  return api.post<AuthSnapshot>("/auth/inspect-event", { eventId });
+export async function startEventInspection(eventId: string) {
+  const data = await api.post<AuthSnapshot>("/auth/inspect-event", { eventId });
+  return normalizeSnapshot(data);
 }
 
-export function endEventInspection() {
-  return api.delete<AuthSnapshot>("/auth/inspect-event");
+export async function endEventInspection() {
+  const data = await api.delete<AuthSnapshot>("/auth/inspect-event");
+  return normalizeSnapshot(data);
 }
 
 /** @deprecated Use startEventInspection — kept for transitional imports. */

@@ -490,7 +490,7 @@ test("team and QR routes await signed access; inspection manages, legacy imperso
                     overview: "can_edit",
                     events: "can_edit",
                     users: "can_edit",
-                    activity: "can_edit",
+                    canViewActivity: true,
                     canInspection: true,
                     canViewUnmaskedPii: true,
                   },

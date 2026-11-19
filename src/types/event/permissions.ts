@@ -23,6 +23,8 @@ export interface EventPermissionMatrix {
   canManageSubmissions?: boolean;
   /** Toggle: allow exporting raw CSV / XLSX / PDF reports */
   canExport: boolean;
+  /** Toggle: allow viewing this event’s user activity timeline (view only) */
+  canViewActivity: boolean;
 }
 
 export type SubUserStatus = "invited" | "active" | "suspended" | "removed";

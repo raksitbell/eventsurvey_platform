@@ -18,6 +18,8 @@ export interface EventWorkspace {
   canAccessDashboard: boolean;
   /** At least one form module is view_only or can_edit (restricted hides Form nav). */
   canAccessForms: boolean;
+  /** Event-scoped User Activity timeline (view only). */
+  canViewActivity: boolean;
   description: string | null;
   startsAt: string | null;
   endsAt: string | null;

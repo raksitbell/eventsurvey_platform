@@ -19,6 +19,7 @@ export const DEFAULT_ADMIN_MATRIX: EventPermissionMatrix = {
   canViewSubmissions: true,
   canManageSubmissions: true,
   canExport: true,
+  canViewActivity: true,
 };
 
 export const DEFAULT_SUB_USER_MATRIX: EventPermissionMatrix = {
@@ -29,6 +30,7 @@ export const DEFAULT_SUB_USER_MATRIX: EventPermissionMatrix = {
   canViewSubmissions: false,
   canManageSubmissions: false,
   canExport: false,
+  canViewActivity: false,
 };
 
 /**
@@ -74,6 +76,7 @@ function matrixFromParsed(
       parsed.canViewSubmissions === true &&
       parsed.canManageSubmissions === true,
     canExport: parsed.canExport === true,
+    canViewActivity: parsed.canViewActivity === true,
   };
 }
 
@@ -111,6 +114,7 @@ export function deserializePermissionMatrix(
     canViewSubmissions: fallbackCodes.includes("manage_dashboard"),
     canManageSubmissions: fallbackCodes.includes("manage_dashboard"),
     canExport: fallbackCodes.includes("manage_dashboard"),
+    canViewActivity: false,
   };
 }
 

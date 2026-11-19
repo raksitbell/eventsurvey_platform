@@ -31,13 +31,16 @@ interface AuthContextValue {
   inspectedEventId: string | null;
   inspectedEventName: string | null;
   isInspectingEvent: boolean;
+  canViewActivity: boolean;
   /** True while restoring the server session or navigating after an auth change. */
   isLoading: boolean;
   authUnavailable: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  inspectEvent: (eventId: string) => Promise<void>;
+  inspectEvent: (eventId: string, path?: string) => Promise<void>;
   stopInspectingEvent: () => Promise<void>;
+  /** Re-read `/api/auth/session` (e.g. after editing own platform flags). */
+  refreshAuth: () => Promise<void>;
   /** @deprecated Use inspectEvent. */
   impersonate: (userId: string) => Promise<void>;
   /** @deprecated Use stopInspectingEvent. */
@@ -51,6 +54,7 @@ const EMPTY: AuthSnapshot = {
   impersonatedUser: null,
   inspectedEventId: null,
   inspectedEventName: null,
+  canViewActivity: false,
 };
 
 /** Safety net so a redirect that never reaches the target cannot strand the UI */
@@ -73,42 +77,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Soft-nav target — AuthGuard shows hold instead of 403 during role switches */
   const [pendingPath, setPendingPath] = useState<string | null>(null);
 
+  const refreshAuth = useCallback(async () => {
+    if (changingSession.current) return;
+    sessionRequest.current?.abort();
+    const request = new AbortController();
+    sessionRequest.current = request;
+    try {
+      const current = await getAuthSnapshot(request.signal);
+      if (request.signal.aborted) return;
+      setSnapshot(current);
+      setSessionStatus("ready");
+    } catch {
+      if (request.signal.aborted) return;
+      setSnapshot(EMPTY);
+      setSessionStatus("unavailable");
+    }
+  }, []);
+
   useEffect(() => {
     clearLegacyAuthStorage();
 
-    async function refreshSession() {
-      if (changingSession.current) return;
-      sessionRequest.current?.abort();
-      const request = new AbortController();
-      sessionRequest.current = request;
-      try {
-        const current = await getAuthSnapshot(request.signal);
-        if (request.signal.aborted) return;
-        setSnapshot(current);
-        setSessionStatus("ready");
-      } catch {
-        if (request.signal.aborted) return;
-        setSnapshot(EMPTY);
-        setSessionStatus("unavailable");
-      }
-    }
+    const onFocus = () => {
+      void refreshAuth();
+    };
+    const onChannelMessage = () => {
+      void refreshAuth();
+    };
 
     const channel =
       typeof BroadcastChannel === "function"
         ? new BroadcastChannel("eventsurvey-auth")
         : null;
     authChannel.current = channel;
-    channel?.addEventListener("message", refreshSession);
-    window.addEventListener("focus", refreshSession);
-    void refreshSession();
+    channel?.addEventListener("message", onChannelMessage);
+    window.addEventListener("focus", onFocus);
+    void refreshAuth();
 
     return () => {
       sessionRequest.current?.abort();
-      window.removeEventListener("focus", refreshSession);
+      window.removeEventListener("focus", onFocus);
+      channel?.removeEventListener("message", onChannelMessage);
       channel?.close();
       authChannel.current = null;
     };
-  }, []);
+  }, [refreshAuth]);
 
   const isHolding =
     pendingPath !== null &&
@@ -170,12 +182,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      await changeSession(async () => ({
-        realUser: await loginWithCredentials({ email, password }),
-        impersonatedUser: null,
-        inspectedEventId: null,
-        inspectedEventName: null,
-      }));
+      await changeSession(async () => {
+        await loginWithCredentials({ email, password });
+        return getAuthSnapshot(new AbortController().signal);
+      });
     },
     [changeSession],
   );
@@ -188,8 +198,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [changeSession]);
 
   const inspectEvent = useCallback(
-    async (eventId: string) => {
-      await changeSession(() => startEventInspection(eventId), "/event");
+    async (eventId: string, path = "/event") => {
+      await changeSession(() => startEventInspection(eventId), path);
     },
     [changeSession],
   );
@@ -197,6 +207,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const stopInspectingEvent = useCallback(async () => {
     await changeSession(endEventInspection, "/admin/events");
   }, [changeSession]);
+
+  const canViewActivity = snapshot.canViewActivity === true;
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -206,12 +218,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       inspectedEventId,
       inspectedEventName,
       isInspectingEvent,
+      canViewActivity,
       isLoading: sessionStatus === "loading" || isHolding,
       authUnavailable: sessionStatus === "unavailable",
       login,
       logout,
       inspectEvent,
       stopInspectingEvent,
+      refreshAuth,
       impersonate: async () => {
         throw new Error("IMPERSONATION_REMOVED");
       },
@@ -224,12 +238,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       inspectedEventId,
       inspectedEventName,
       isInspectingEvent,
+      canViewActivity,
       sessionStatus,
       isHolding,
       login,
       logout,
       inspectEvent,
       stopInspectingEvent,
+      refreshAuth,
     ],
   );
 

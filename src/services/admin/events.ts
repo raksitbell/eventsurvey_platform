@@ -1,5 +1,6 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { writeAuditLog } from "@/core/audit/write";
 import { maskEmail, maskName, mayViewPii, type PiiViewer } from "@/core/auth/pii";
 import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
 import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
@@ -538,6 +539,18 @@ export async function createAdminEvent(
     }
   }
 
+  await writeAuditLog({
+    actorUserId: platformAdminUserId,
+    eventId: event.id,
+    action: "create",
+    resourceType: "event",
+    resourceId: event.id,
+    module: "event_management",
+    descriptionTh: "สร้างอีเวนต์ใหม่",
+    descriptionEn: "Created a new event",
+    metadata: { slug: input.slug },
+  });
+
   return {
     event: toListItem(event, translationRows, [adminUser], locale, viewer),
     impersonateUserId: admin.mode === "existing" ? adminUser.id : null,
@@ -624,6 +637,21 @@ export async function updateAdminEvent(
   await upsertTitle("th", titleTh);
   await upsertTitle("en", titleEn);
 
+  await writeAuditLog({
+    actorUserId: actorUserId,
+    eventId: eventId,
+    action: "update",
+    resourceType: "event",
+    resourceId: eventId,
+    module: "event_management",
+    descriptionTh: "แก้ไขชื่อและ slug อีเวนต์",
+    descriptionEn: "Updated event name and slug",
+    metadata: {
+      before: { slug: event.slug },
+      after: { slug },
+    },
+  });
+
   const { translations, users } = await loadEventBundle();
   return toListItem(updated, translations, users, locale, viewer);
 }
@@ -697,6 +725,19 @@ export async function updateAdminEventStatus(
     ...(action === "start" ? { opens_at: event.opens_at ?? now } : {}),
     ...(action === "close" ? { closes_at: now } : {}),
   });
+
+  await writeAuditLog({
+    actorUserId: actorUserId,
+    eventId: eventId,
+    action: "update",
+    resourceType: "event",
+    resourceId: eventId,
+    module: "event_management",
+    descriptionTh: action === "start" ? "เปิดอีเวนต์" : "ปิดอีเวนต์",
+    descriptionEn: action === "start" ? "Started event" : "Closed event",
+    metadata: { before: { status: event.status }, after: { status: transition.to } },
+  });
+
   const { translations, users } = await loadEventBundle();
   return toListItem(updated, translations, users, locale, viewer);
 }

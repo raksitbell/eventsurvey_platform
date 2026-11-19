@@ -1,5 +1,6 @@
 import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { writeAuditLog } from "@/core/audit/write";
 import {
   deserializePermissionMatrix,
   serializePermissionMatrix,
@@ -223,6 +224,22 @@ export async function updateSubUserPermissions(
     updated_at: now,
   });
 
+  await writeAuditLog({
+    actorUserId: currentUserId,
+    eventId,
+    action: "update",
+    resourceType: "event_access",
+    resourceId: subUserId,
+    module: "user_management",
+    descriptionTh: "แก้ไขสิทธิ์ผู้ใช้ย่อย",
+    descriptionEn: "Updated sub-user permissions",
+    metadata: {
+      before: existing.matrix,
+      after: permissionMatrix,
+      roleName,
+    },
+  });
+
   return toSubUserItem(targetUser, {
     row,
     matrix: permissionMatrix,
@@ -351,6 +368,18 @@ async function createSubUserInvite(
     // Keep the account pending and report the actual delivery outcome.
   }
 
+  await writeAuditLog({
+    actorUserId: currentUserId,
+    eventId,
+    action: "create",
+    resourceType: "sub_user",
+    resourceId: userId,
+    module: "user_management",
+    descriptionTh: "เชิญผู้ใช้ย่อย",
+    descriptionEn: "Invited a sub-user",
+    metadata: { email, roleName },
+  });
+
   return {
     ...toSubUserItem(newUser, {
       row: {
@@ -399,5 +428,16 @@ export async function removeSubUser(
     status: "removed",
     removed_at: now,
     updated_at: now,
+  });
+
+  await writeAuditLog({
+    actorUserId: currentUserId,
+    eventId,
+    action: "delete",
+    resourceType: "sub_user",
+    resourceId: subUserId,
+    module: "user_management",
+    descriptionTh: "ลบผู้ใช้ย่อยออกจากอีเวนต์",
+    descriptionEn: "Removed a sub-user from the event",
   });
 }

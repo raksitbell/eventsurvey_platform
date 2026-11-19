@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
+import { writeAuditLog } from "@/core/audit/write";
 import { defaultEventBranding } from "@/core/event/branding";
 import { projectEventContent } from "@/core/event/content";
 import { selectSetupForms } from "@/core/event/form-summary";
@@ -130,7 +131,25 @@ export async function saveSetupDraft(
     if (isDeepStrictEqual(next, setup)) return readSetupState(event);
     assertRevision(setup, input.revision);
     next.revision++;
-    return { ...readSetupState(await persistSetup(event, next)), savedFromRevision: input.revision };
+    const saved = {
+      ...readSetupState(await persistSetup(event, next)),
+      savedFromRevision: input.revision,
+    };
+    await writeAuditLog({
+      actorUserId: context.userId,
+      eventId: context.event.id,
+      action: "update",
+      resourceType: "event_setup",
+      resourceId: context.event.id,
+      module: "event_setup",
+      descriptionTh: input.branding
+        ? "บันทึก Branding"
+        : "บันทึกฉบับร่างอีเวนต์",
+      descriptionEn: input.branding
+        ? "Saved branding"
+        : "Saved event draft",
+    });
+    return saved;
   });
 }
 
@@ -226,6 +245,17 @@ export async function updateSetupWhitelist(
     }
     assertRevision(setup, input.revision);
     const saved = await persistSetup(event, { ...setup, revision: setup.revision + 1, whitelist });
+    await writeAuditLog({
+      actorUserId: context.userId,
+      eventId: context.event.id,
+      action: "update",
+      resourceType: "whitelist",
+      resourceId: context.event.id,
+      module: "event_setup",
+      descriptionTh: "อัปเดตรายชื่ออนุญาต",
+      descriptionEn: "Updated whitelist",
+      metadata: { count: whitelist.entries.length },
+    });
     return getSetupWhitelist({ ...context, event: saved });
   });
 }

@@ -68,7 +68,11 @@ export default function InviteSubUserModal({
   };
 
   const handleToggleChange = (
-    key: "canViewSubmissions" | "canManageSubmissions" | "canExport",
+    key:
+      | "canViewSubmissions"
+      | "canManageSubmissions"
+      | "canExport"
+      | "canViewActivity",
     value: boolean,
   ) => {
     setPermissions((prev) => {
@@ -238,7 +242,7 @@ export default function InviteSubUserModal({
         </div>
 
         {/* Special Action Toggles */}
-        <div className="grid gap-3 pt-1 sm:grid-cols-3">
+        <div className="grid gap-3 pt-1 sm:grid-cols-2 lg:grid-cols-4">
           <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-event-border bg-white p-3.5 transition hover:bg-event-subtle dark:border-gray-800 dark:bg-gray-800/60">
             <input
               type="checkbox"
@@ -278,6 +282,20 @@ export default function InviteSubUserModal({
             />
             <span className="text-xs font-medium text-gray-800 dark:text-white/90">
               {t("toggles.exportData")}
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-event-border bg-white p-3.5 transition hover:bg-event-subtle dark:border-gray-800 dark:bg-gray-800/60">
+            <input
+              type="checkbox"
+              checked={permissions.canViewActivity}
+              onChange={(e) =>
+                handleToggleChange("canViewActivity", e.target.checked)
+              }
+              className="size-4 rounded border-gray-300 text-event-action focus:ring-event-action"
+            />
+            <span className="text-xs font-medium text-gray-800 dark:text-white/90">
+              {t("toggles.viewActivity")}
             </span>
           </label>
         </div>

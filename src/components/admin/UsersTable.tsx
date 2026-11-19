@@ -1,5 +1,7 @@
 "use client";
 
+import UserActivityProfileModal from "@/components/admin/activity/UserActivityProfileModal";
+import PlatformAccessModal from "@/components/admin/PlatformAccessModal";
 import Button from "@/components/ui/button/Button";
 import { TableBodySkeleton } from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
@@ -8,11 +10,16 @@ import { canAccessAdmin } from "@/core/auth";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
+  PlatformAccessFlags,
 } from "@/types/admin/users";
 import type { UserRole } from "@/types/user";
 import { translateRole, translateStatus } from "@/utils/i18n-labels";
 import { useConfirm } from "@/hooks/useConfirm";
-import { EyeIcon } from "@heroicons/react/24/outline";
+import {
+  EyeIcon,
+  KeyIcon,
+  UserCircleIcon,
+} from "@heroicons/react/24/outline";
 import { showToast } from "@/utils/alert";
 import { useTranslations } from "next-intl";
 import { useLocale } from "next-intl";
@@ -34,12 +41,16 @@ export default function UsersTable() {
   const locale = useLocale() as Locale;
   const tCommon = useTranslations("common");
   const { confirm } = useConfirm();
-  const { realUser, inspectEvent } = useAuth();
+  const { realUser, inspectEvent, canViewActivity, refreshAuth } = useAuth();
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [roleFilter, setRoleFilter] = useState<UserRole | "all">("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [platformUser, setPlatformUser] = useState<AdminUserListItem | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -186,19 +197,39 @@ export default function UsersTable() {
                         {translateStatus(tCommon, user.status)}
                       </td>
                       <td className="px-4 py-3 text-end">
-                        {canOpen ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={pendingId === user.id}
-                            onClick={() => void openWorkspace(user)}
-                            startIcon={<EyeIcon className="size-5" />}
-                          >
-                            {te("openWorkspace")}
-                          </Button>
-                        ) : (
-                          <span className="text-theme-sm text-gray-400">—</span>
-                        )}
+                        <div className="inline-flex items-center gap-2">
+                          {user.role === "super_admin" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setPlatformUser(user)}
+                              startIcon={<KeyIcon className="size-5" />}
+                            >
+                              {t("editPlatformAccess")}
+                            </Button>
+                          ) : null}
+                          {canViewActivity ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setProfileUserId(user.id)}
+                              startIcon={<UserCircleIcon className="size-5" />}
+                            >
+                              {t("viewProfile")}
+                            </Button>
+                          ) : null}
+                          {canOpen ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={pendingId === user.id}
+                              onClick={() => void openWorkspace(user)}
+                              startIcon={<EyeIcon className="size-5" />}
+                            >
+                              {te("openWorkspace")}
+                            </Button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -208,6 +239,35 @@ export default function UsersTable() {
           </table>
         </div>
       </div>
+
+      <UserActivityProfileModal
+        userId={profileUserId}
+        isOpen={Boolean(profileUserId)}
+        onClose={() => setProfileUserId(null)}
+      />
+
+      <PlatformAccessModal
+        user={platformUser}
+        isOpen={Boolean(platformUser)}
+        onClose={() => setPlatformUser(null)}
+        onSaved={(userId: string, flags: PlatformAccessFlags) => {
+          setUsers((prev) =>
+            prev.map((row) =>
+              row.id === userId
+                ? {
+                    ...row,
+                    canViewActivity: flags.canViewActivity,
+                    canInspection: flags.canInspection,
+                  }
+                : row,
+            ),
+          );
+          if (realUser?.id === userId) {
+            void refreshAuth();
+          }
+          showToast({ title: t("platformAccessSaved"), variant: "success" });
+        }}
+      />
     </div>
   );
 }

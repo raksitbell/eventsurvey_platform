@@ -201,6 +201,246 @@
       "customRoles": "บทบาทในอีเวนต์",
       "status": "สถานะ",
       "actions": "การกระทำ"
+    },
+    "viewProfile": "โปรไฟล์",
+    "editPlatformAccess": "สิทธิ์",
+    "platformAccessTitle": "สิทธิ์แพลตฟอร์ม",
+    "platformAccessSaving": "กำลังบันทึก…",
+    "platformAccessSaved": "บันทึกสิทธิ์แพลตฟอร์มแล้ว",
+    "platformAccessSaveError": "บันทึกสิทธิ์แพลตฟอร์มไม่สำเร็จ",
+    "platformFlags": {
+      "canViewActivity": "ดูกิจกรรมผู้ใช้",
+      "canViewActivityDesc": "เปิดดูแดชบอร์ดและไทม์ไลน์กิจกรรมผู้ใช้ได้",
+      "canInspection": "ตรวจสอบอีเวนต์",
+      "canInspectionDesc": "เปิดพื้นที่อีเวนต์ด้วยสิทธิ์แพลตฟอร์มเต็มได้"
+    }
+  },
+  "adminActivity": {
+    "title": "กิจกรรมผู้ใช้",
+    "description": "บันทึกการเพิ่ม แก้ไข และลบจากการทำงานของ API ทั้งฝั่งแพลตฟอร์มและอีเวนต์",
+    "loadError": "โหลดกิจกรรมไม่สำเร็จ",
+    "profileLoadError": "โหลดไทม์ไลน์ผู้ใช้ไม่สำเร็จ",
+    "loading": "กำลังโหลด…",
+    "empty": "ยังไม่มีกิจกรรม",
+    "platformOnly": "แพลตฟอร์ม",
+    "profileTitle": "โปรไฟล์ผู้ใช้",
+    "profileSubtitle": "ไทม์ไลน์กิจกรรม",
+    "timelineTitle": "ประวัติกิจกรรม",
+    "membershipsTitle": "อีเวนต์",
+    "membershipsEmpty": "ผู้ใช้นี้ยังไม่ถูกมอบหมายให้อีเวนต์ใด",
+    "permissionsUnknown": "ไม่พบสิทธิ์สำหรับอีเวนต์นี้",
+    "viewRelatedUser": "ดูผู้ใช้ที่เกี่ยวข้อง",
+    "filterByEventHint": "กรองตารางตามอีเวนต์นี้",
+    "openModuleHint": "เปิดโมดูลนี้",
+    "inspectModuleConfirm": "ตรวจสอบ “{event}” แล้วเปิด {module} หรือไม่?",
+    "inspectModuleConfirmLabel": "ตรวจสอบและเปิด",
+    "openModuleTitle": "เปิดโมดูล",
+    "openModuleConfirm": "ไปที่ {module} หรือไม่?",
+    "openModuleConfirmLabel": "เปิด",
+    "permissionModules": {
+      "event": "อีเวนต์",
+      "registrationForm": "ฟอร์มลงทะเบียน",
+      "surveyForm": "ฟอร์มแบบสอบถาม",
+      "dashboard": "แดชบอร์ด"
+    },
+    "permissionToggles": {
+      "canViewSubmissions": "ดูคำตอบ",
+      "canManageSubmissions": "จัดการคำตอบ",
+      "canExport": "ส่งออก",
+      "canViewActivity": "ดูกิจกรรมผู้ใช้"
+    },
+    "modules": {
+      "event_setup": "ตั้งค่าอีเวนต์",
+      "user_management": "จัดการผู้ใช้",
+      "event_management": "จัดการอีเวนต์",
+      "registration_builder": "สร้างฟอร์มลงทะเบียน",
+      "survey_builder": "สร้างแบบสอบถาม",
+      "dashboard": "แดชบอร์ด"
+    },
+    "stats": {
+      "total": "กิจกรรมทั้งหมด",
+      "users": "ผู้ใช้",
+      "events": "อีเวนต์ที่เกี่ยวข้อง",
+      "platform": "การกระทำระดับแพลตฟอร์ม"
+    },
+    "filters": {
+      "search": "ค้นหา",
+      "searchPlaceholder": "ค้นหาผู้ใช้ อีเวนต์ โมดูล หรือรายละเอียด",
+      "event": "อีเวนต์",
+      "allEvents": "ทุกอีเวนต์",
+      "accountType": "ประเภทบัญชี",
+      "allAccounts": "ทั้งหมด",
+      "platform": "แพลตฟอร์ม",
+      "eventAccount": "อีเวนต์",
+      "dateRange": "ช่วงวันที่",
+      "dateRangePlaceholder": "เลือกช่วงวันที่"
+    },
+    "columns": {
+      "time": "เวลา",
+      "user": "ผู้ใช้",
+      "event": "อีเวนต์",
+      "action": "การกระทำ",
+      "detail": "รายละเอียด",
+      "module": "โมดูล"
+    },
+    "actions": {
+      "create": "สร้าง",
+      "update": "แก้ไข",
+      "delete": "ลบ",
+      "other": "อื่น ๆ"
+    },
+    "roles": {
+      "super_admin": "ผู้ดูแลแพลตฟอร์ม",
+      "event_owner": "Event Admin",
+      "sub_user": "ผู้ใช้ย่อย",
+      "participant": "ผู้เข้าร่วม"
+    },
+    "meta": {
+      "email": "อีเมล: {value}",
+      "roleName": "บทบาท: {value}",
+      "slug": "Slug: {value}",
+      "field": "ฟิลด์: {value}",
+      "count": "{count} รายการ",
+      "pair": "{field}: {value}",
+      "change": "{field}: {from} → {to}",
+      "empty": "—",
+      "bool": {
+        "on": "เปิด",
+        "off": "ปิด"
+      },
+      "levels": {
+        "can_edit": "แก้ไขได้",
+        "view_only": "ดูอย่างเดียว",
+        "restricted": "ไม่มีสิทธิ์"
+      },
+      "fields": {
+        "email": "อีเมล",
+        "roleName": "บทบาท",
+        "slug": "Slug",
+        "count": "จำนวน",
+        "field": "ฟิลด์",
+        "event": "อีเวนต์",
+        "registrationForm": "ฟอร์มลงทะเบียน",
+        "surveyForm": "ฟอร์มแบบสอบถาม",
+        "dashboard": "แดชบอร์ด",
+        "canViewSubmissions": "ดูคำตอบ",
+        "canManageSubmissions": "จัดการคำตอบ",
+        "canExport": "ส่งออก",
+        "canViewActivity": "ดูกิจกรรมผู้ใช้",
+        "canInspection": "ตรวจสอบอีเวนต์",
+        "status": "สถานะ",
+        "before": "ก่อน",
+        "after": "หลัง"
+      }
+    }
+  },
+  "eventActivity": {
+    "title": "กิจกรรมผู้ใช้",
+    "description": "บันทึกการเพิ่ม แก้ไข และลบของการทำงานในอีเวนต์นี้",
+    "loadError": "โหลดกิจกรรมไม่สำเร็จ",
+    "profileLoadError": "โหลดไทม์ไลน์ผู้ใช้ไม่สำเร็จ",
+    "loading": "กำลังโหลด…",
+    "empty": "ยังไม่มีกิจกรรม",
+    "platformOnly": "แพลตฟอร์ม",
+    "profileTitle": "โปรไฟล์ผู้ใช้",
+    "profileSubtitle": "ไทม์ไลน์กิจกรรม",
+    "timelineTitle": "ประวัติกิจกรรม",
+    "membershipsTitle": "อีเวนต์",
+    "membershipsEmpty": "ผู้ใช้นี้ยังไม่ถูกมอบหมายให้อีเวนต์ใด",
+    "permissionsUnknown": "ไม่พบสิทธิ์สำหรับอีเวนต์นี้",
+    "viewRelatedUser": "ดูผู้ใช้ที่เกี่ยวข้อง",
+    "openModuleHint": "เปิดโมดูลนี้",
+    "openModuleTitle": "เปิดโมดูล",
+    "openModuleConfirm": "ไปที่ {module} หรือไม่?",
+    "openModuleConfirmLabel": "เปิด",
+    "permissionModules": {
+      "event": "อีเวนต์",
+      "registrationForm": "ฟอร์มลงทะเบียน",
+      "surveyForm": "ฟอร์มแบบสอบถาม",
+      "dashboard": "แดชบอร์ด"
+    },
+    "permissionToggles": {
+      "canViewSubmissions": "ดูคำตอบ",
+      "canManageSubmissions": "จัดการคำตอบ",
+      "canExport": "ส่งออก",
+      "canViewActivity": "ดูกิจกรรมผู้ใช้"
+    },
+    "modules": {
+      "event_setup": "ตั้งค่าอีเวนต์",
+      "user_management": "จัดการผู้ใช้",
+      "event_management": "จัดการอีเวนต์",
+      "registration_builder": "สร้างฟอร์มลงทะเบียน",
+      "survey_builder": "สร้างแบบสอบถาม",
+      "dashboard": "แดชบอร์ด"
+    },
+    "stats": {
+      "total": "กิจกรรมทั้งหมด",
+      "users": "ผู้ใช้"
+    },
+    "filters": {
+      "search": "ค้นหา",
+      "searchPlaceholder": "ค้นหาผู้ใช้ โมดูล หรือรายละเอียด",
+      "event": "อีเวนต์",
+      "allEvents": "ทุกอีเวนต์",
+      "dateRange": "ช่วงวันที่",
+      "dateRangePlaceholder": "เลือกช่วงวันที่"
+    },
+    "columns": {
+      "time": "เวลา",
+      "user": "ผู้ใช้",
+      "action": "การกระทำ",
+      "detail": "รายละเอียด",
+      "module": "โมดูล"
+    },
+    "actions": {
+      "create": "สร้าง",
+      "update": "แก้ไข",
+      "delete": "ลบ",
+      "other": "อื่น ๆ"
+    },
+    "roles": {
+      "super_admin": "ผู้ดูแลแพลตฟอร์ม",
+      "event_owner": "Event Admin",
+      "sub_user": "ผู้ใช้ย่อย",
+      "participant": "ผู้เข้าร่วม"
+    },
+    "meta": {
+      "email": "อีเมล: {value}",
+      "roleName": "บทบาท: {value}",
+      "slug": "Slug: {value}",
+      "field": "ฟิลด์: {value}",
+      "count": "{count} รายการ",
+      "pair": "{field}: {value}",
+      "change": "{field}: {from} → {to}",
+      "empty": "—",
+      "bool": {
+        "on": "เปิด",
+        "off": "ปิด"
+      },
+      "levels": {
+        "can_edit": "แก้ไขได้",
+        "view_only": "ดูอย่างเดียว",
+        "restricted": "ไม่มีสิทธิ์"
+      },
+      "fields": {
+        "email": "อีเมล",
+        "roleName": "บทบาท",
+        "slug": "Slug",
+        "count": "จำนวน",
+        "field": "ฟิลด์",
+        "event": "อีเวนต์",
+        "registrationForm": "ฟอร์มลงทะเบียน",
+        "surveyForm": "ฟอร์มแบบสอบถาม",
+        "dashboard": "แดชบอร์ด",
+        "canViewSubmissions": "ดูคำตอบ",
+        "canManageSubmissions": "จัดการคำตอบ",
+        "canExport": "ส่งออก",
+        "canViewActivity": "ดูกิจกรรมผู้ใช้",
+        "canInspection": "ตรวจสอบอีเวนต์",
+        "status": "สถานะ",
+        "before": "ก่อน",
+        "after": "หลัง"
+      }
     }
   },
   "eventHome": {
@@ -960,6 +1200,7 @@
     "badgeDashboard": "แดชบอร์ด: {level}",
     "badgeSubmissions": "คำตอบ",
     "badgeExport": "ส่งออก",
+    "badgeActivity": "กิจกรรม",
     "eventAdminRole": "ผู้ดูแลอีเวนต์",
     "workspaceEyebrow": "พื้นที่ทำงานอีเวนต์",
     "toggles": {
@@ -968,7 +1209,9 @@
       "manageSubmissions": "จัดการคำตอบ",
       "manageSubmissionsDesc": "จัดการ / ลบคำตอบ (ต้องเปิดสิทธิ์ดู)",
       "exportData": "ส่งออก",
-      "exportDataDesc": "ส่งออกข้อมูล / รายงาน"
+      "exportDataDesc": "ส่งออกข้อมูล / รายงาน",
+      "viewActivity": "ดูกิจกรรมผู้ใช้",
+      "viewActivityDesc": "ดูไทม์ไลน์กิจกรรมของอีเวนต์นี้ (ดูอย่างเดียว)"
     },
     "rules": {
       "rule1": "เปิดจัดการคำตอบ → เปิดดูคำตอบอัตโนมัติ",
@@ -1343,7 +1586,7 @@
     "backSummary": "กลับไปหน้าสรุป",
     "previewTitle": "ตัวอย่างหน้าผู้เข้าร่วม",
     "team": "จัดการผู้ใช้ในอีเวนต์",
-    "activity": "User Activity",
+    "activity": "กิจกรรมผู้ใช้",
     "overview": "ภาพรวม",
     "dashboard": "แดชบอร์ด",
     "appSubtitle": "ลงทะเบียนและแบบสอบถามกิจกรรม",
