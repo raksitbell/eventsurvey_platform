@@ -14,6 +14,7 @@ import {
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
+import { canToggleUniqueField, supportsUniqueField } from "@/core/forms/unique-field";
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
 import {
   Choice,
@@ -28,7 +29,6 @@ import {
   QUESTIONS_TYPES,
   QuestionType,
   RATING_DISPLAY,
-  UNIQUE_QUESTION_TYPES,
 } from "@/types/event/form";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { showToast } from "@/utils/alert";
@@ -62,6 +62,8 @@ const KNOWN_FORM_ERROR_CODES = new Set([
   "INVALID_FORM_STATUS_TRANSITION",
   "FORM_TYPE_EXISTS",
   "FORM_TYPE_NOT_ENABLED",
+  "FORM_UNIQUE_FIELD_LIMIT",
+  "FORM_UNIQUE_FIELD_TYPE",
   "FORM_NOT_FOUND",
   "EVENT_NOT_FOUND",
   "FORBIDDEN",
@@ -826,6 +828,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
       question: {
         ...source,
         id: newId,
+        is_unique: false,
         label: {
           th: [
             {
@@ -926,9 +929,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
 
   const updateQuestion = (id: string, nextType: QuestionType) => {
     if (!canEdit) return;
-    const isUniqueEligible = (
-      UNIQUE_QUESTION_TYPES as readonly QuestionType[]
-    ).includes(nextType);
+    const isUniqueEligible = supportsUniqueField(nextType);
 
     setForm((prev) => ({
       ...prev,
@@ -1005,20 +1006,19 @@ export default function FormBuilder({ type }: { type: FormType }) {
 
   const toggleUnique = (id: string) => {
     if (!canEdit) return;
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) =>
-        item.question.id === id
-          ? {
-              ...item,
-              question: {
-                ...item.question,
-                is_unique: !item.question.is_unique,
-              },
-            }
-          : item,
-      ),
-    }));
+    setForm((prev) => {
+      const field = prev.questions.find(({ question }) => question.id === id)?.question;
+      const hasUnique = prev.questions.some(({ question }) => question.is_unique);
+      if (!field || !canToggleUniqueField(field, hasUnique)) return prev;
+      return {
+        ...prev,
+        questions: prev.questions.map((item) =>
+          item.question === field
+            ? { question: { ...field, is_unique: !field.is_unique } }
+            : item,
+        ),
+      };
+    });
   };
 
   const updateQuestionRange = (id: string, min: number, max: number) => {
@@ -1482,6 +1482,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
   }
 
   const localesToRender: FormLocale[] = hasEnglish ? ["th", "en"] : ["th"];
+  const hasUniqueField = form.questions.some(({ question }) => question.is_unique);
   const containerWidthClass = hasEnglish
     ? "max-w-4xl lg:max-w-7xl"
     : "max-w-4xl";
@@ -1773,6 +1774,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
                   >
                     <QuestionCard
                       question={question}
+                      showUniqueField={canToggleUniqueField(question, hasUniqueField)}
                       locale={loc}
                       showLocaleBadge={hasEnglish}
                       isActive={activeSectionId === qId}

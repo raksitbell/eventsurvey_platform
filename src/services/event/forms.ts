@@ -5,6 +5,7 @@ import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { writeAuditLog } from "@/core/audit/write";
 import { isPastScheduleMinute } from "@/core/event/schedule";
+import { writeSerially } from "@/core/event/serial-write";
 import {
   assertManualFormStatusTransition,
   formMutationFlags,
@@ -12,6 +13,7 @@ import {
   resolveEffectiveFormStatus,
 } from "@/core/forms/lifecycle";
 import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
+import { uniqueFieldIssue } from "@/core/forms/unique-field";
 import { validatePublishReady } from "@/core/validation/forms";
 import type {
   Choice,
@@ -792,6 +794,11 @@ function suppliedChoiceIds(question: Question["question"]): string[] {
   ]);
 }
 
+function assertValidUniqueField(questions: Question[]) {
+  const issue = uniqueFieldIssue(questions);
+  if (issue) throw new ServiceError(issue, 400);
+}
+
 function assertNewQuestionTreeHasNoIds(questions: Question[]): void {
   for (const item of questions) {
     if (item.question.id) {
@@ -1432,11 +1439,16 @@ export async function createForm(
   input: FormCreateBody,
   userId: string,
 ): Promise<FormRecord> {
+  assertValidUniqueField(input.questions);
+  return writeSerially(input.eventId, () => createOrUpdateDraft(input, userId));
+}
+
+async function createOrUpdateDraft(input: FormCreateBody, userId: string): Promise<FormRecord> {
   const event = await loadEvent(input.eventId);
   const existingConflict = await findExistingLiveType(input.eventId, input.type);
   if (existingConflict) {
     if (resolveEffectiveFormStatus(existingConflict) === "draft") {
-      return updateForm(existingConflict.id, input, userId);
+      return updateDraft(existingConflict, input, userId);
     }
     throw new ServiceError(
       "FORM_TYPE_EXISTS",
@@ -1517,6 +1529,12 @@ export async function updateForm(
   userId: string,
 ): Promise<FormRecord> {
   const form = await getLiveForm(id);
+  assertValidUniqueField(input.questions);
+  return writeSerially(form.event_id, async () => updateDraft(await getLiveForm(id), input, userId));
+}
+
+async function updateDraft(form: MockForm, input: Form, userId: string): Promise<FormRecord> {
+  const { id } = form;
   const effective = resolveEffectiveFormStatus(form);
   assertCanEdit(effective);
 
@@ -1612,6 +1630,7 @@ export async function updateFormStatus(
   const recordBefore = await toFormRecord(form, event);
 
   if (patch.status === "scheduled") {
+    assertValidUniqueField(recordBefore.questions);
     if (!opensAt && !closesAt) {
       throw new ServiceError(
         "FORM_SCHEDULE_REQUIRED",

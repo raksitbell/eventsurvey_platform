@@ -16,7 +16,6 @@ import {
   QUESTIONS_TYPES,
   QuestionType,
   RATING_DISPLAY,
-  UNIQUE_QUESTION_TYPES,
 } from "@/types/event/form";
 import ShortText from "./chioce/ShortText";
 import LongText from "./chioce/LongText";
@@ -46,6 +45,7 @@ const QuestionTypeComp: Partial<
 
 interface QuestionCardProps {
   question: Question["question"];
+  showUniqueField: boolean;
   locale?: FormLocale;
   showLocaleBadge?: boolean;
   isActive: boolean;
@@ -83,6 +83,7 @@ interface QuestionCardProps {
 
 export default function QuestionCard({
   question,
+  showUniqueField,
   locale = "th",
   showLocaleBadge = false,
   isActive,
@@ -121,9 +122,6 @@ export default function QuestionCard({
   const label = question.label[locale]?.[0] ?? question.label.th[0];
   const Field = QuestionTypeComp[question.type];
   const FlagIcon = locale === "th" ? ThFlagIcon : UsFlagIcon;
-  const canBeUnique = (
-    UNIQUE_QUESTION_TYPES as readonly QuestionType[]
-  ).includes(question.type);
   const isStandaloneDraggable = Boolean(onDragStart);
 
   return (
@@ -262,7 +260,7 @@ export default function QuestionCard({
           <TrashIcon className="h-5 w-5" />
         </button>
 
-        {canBeUnique && (
+        {showUniqueField && (
           <label className="ms-2 flex cursor-pointer items-center gap-2 border-s border-gray-200 ps-3 text-sm text-gray-600 sm:ps-4 dark:border-gray-700 dark:text-gray-300">
             <span>{tbuilder("unique")}</span>
             <input

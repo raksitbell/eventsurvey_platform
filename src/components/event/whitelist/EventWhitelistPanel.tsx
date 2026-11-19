@@ -5,11 +5,13 @@ import WhitelistTable from "@/components/event/whitelist/WhitelistTable";
 import WhitelistEntryRow from "@/components/event/whitelist/WhitelistEntryRow";
 import type { WhitelistEntryDraft } from "@/components/event/whitelist/WhitelistEntryRow";
 import WhitelistLoadingSkeleton from "@/components/event/whitelist/WhitelistLoadingSkeleton";
+import WhitelistPrerequisite from "@/components/event/whitelist/WhitelistPrerequisite";
 import type { WhitelistRowIssue } from "@/types/event/whitelist";
 import WhitelistImportDialog from "@/components/event/whitelist/WhitelistImportDialog";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import {
+  whitelistRegistrationBuilderHref,
   replaceWhitelist,
   normalizeWhitelistId,
   whitelistEntryIssue,
@@ -221,7 +223,13 @@ function WhitelistPageContent({
     return skeleton;
   }
 
-  const content = (
+  const content = missingUniqueField ? (
+    <WhitelistPrerequisite
+      inDialog={!!onClose}
+      onBack={() => void back()}
+      builderHref={whitelistRegistrationBuilderHref(workspace)}
+    />
+  ) : (
     <div className="es-list-page" data-inline-edit={entry ? true : undefined}>
       <div className="es-list-content">
         <header className="es-list-heading">
@@ -286,13 +294,13 @@ function WhitelistPageContent({
           <p role="status">{t("recoverNoMatch")}</p>
         ))}
       {recovering && <p role="status">{t("recoverStaged")}</p>}
-      {(error || missingUniqueField) && (
+      {error && (
         <div>
           <p
             role="alert"
             className="text-theme-sm text-error-600 dark:text-error-400"
           >
-            {t(error ?? "missingUniqueField")}
+            {t(error)}
           </p>
           {(error === "loadError" || error === "conflict") && (
             <Button variant="outline" onClick={() => void reloadSavedEntries()}>
@@ -352,7 +360,7 @@ function WhitelistPageContent({
         isOpen
         onClose={() => void back()}
         labelledBy="setup-whitelist-title"
-        className="es-list-modal"
+        className={missingUniqueField ? "es-list-modal es-list-locked-modal" : "es-list-modal"}
         showCloseButton={false}
         backdropClassName="bg-black/50"
       >

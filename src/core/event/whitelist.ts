@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { supportsUniqueField } from "@/core/forms/unique-field";
 import type {
   WhitelistEntry,
   WhitelistImportPreview,
@@ -20,13 +21,7 @@ export function whitelistUniqueField(
   const fields = form.questions.filter(({ question }) => question.is_unique);
   if (fields.length !== 1) return null;
   const { question } = fields[0];
-  if (
-    !question.id ||
-    (question.type !== "email" &&
-      question.type !== "short_text" &&
-      question.type !== "number")
-  )
-    return null;
+  if (!question.id || !supportsUniqueField(question.type)) return null;
   const field: WhitelistUniqueField = { id: question.id, type: question.type };
   if (question.type === "short_text") {
     field.minLength = question.min_length;
@@ -91,10 +86,17 @@ export function whitelistKey(userId: string, eventId: string, locale: string) {
 export function canEditWhitelist(workspace: EventWorkspace): boolean {
   return (
     !!workspace.canManageWhitelist &&
+    !workspace.setup?.publication &&
     !workspace.localPublishedAt &&
     workspace.eventStatus === "draft" &&
     (workspace.whitelistEnabledForSetup ?? (workspace.isPrivate && workspace.hasRegistration))
   );
+}
+export function whitelistRegistrationBuilderHref(workspace: EventWorkspace) {
+  if (!canEditWhitelist(workspace)) return undefined;
+  return workspace.canEditEvent && workspace.hasRegistration
+    ? "/event/setup/registration"
+    : "/event/form/registration";
 }
 interface LegacyWhitelist {
   key: string;

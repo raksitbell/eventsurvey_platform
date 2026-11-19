@@ -7,6 +7,7 @@ import { projectEventContent } from "@/core/event/content";
 import { selectSetupForms } from "@/core/event/form-summary";
 import { publicationIssues, publicationSchema } from "@/core/event/publication";
 import { isPastScheduleMinute, surveyClosingTime } from "@/core/event/schedule";
+import { writeSerially } from "@/core/event/serial-write";
 import type { SetupRecord } from "@/core/event/setup-state";
 import { encodeSetupRecord, readSetupRecord, readSetupState } from "@/core/event/setup-storage";
 import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
@@ -22,22 +23,6 @@ import type { MockEvent, MockForm, MockWhitelistEntry } from "@/types/mock";
 
 type SetupContext = Awaited<ReturnType<typeof getSetupContext>>;
 type BrandingChange = { locale: string; value: EventBranding; pendingMedia?: EventSetupMediaKind[] };
-
-const setupLocks = (globalThis as typeof globalThis & {
-  eventSurveySetupLocks?: Map<string, Promise<void>>;
-});
-const locks = setupLocks.eventSurveySetupLocks ??= new Map();
-
-async function writeSerially<T>(eventId: string, operation: () => Promise<T>): Promise<T> {
-  const next = Promise.resolve(locks.get(eventId)).then(operation);
-  const settled = next.then(() => {}, () => {});
-  locks.set(eventId, settled);
-  try {
-    return await next;
-  } finally {
-    if (locks.get(eventId) === settled) locks.delete(eventId);
-  }
-}
 
 async function loadSetupEvent(eventId: string): Promise<MockEvent> {
   const event = await mockApi.get<MockEvent>(`/events/${encodeURIComponent(eventId)}`).catch((error: unknown) => {

@@ -18,6 +18,55 @@
   color: var(--es-text-primary);
   font-family: var(--overview-font-inter), sans-serif;
 }
+.es-list-locked-modal[role="dialog"] {
+  max-width: 32rem;
+  overflow: auto;
+}
+.es-list-prerequisite {
+  display: grid;
+  justify-items: center;
+  gap: 0.875rem;
+  max-width: 32rem;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border-radius: 1rem;
+  background: var(--es-background-surface);
+  color: var(--es-text-primary);
+  text-align: center;
+}
+.es-list-lock-icon {
+  box-sizing: content-box;
+  width: 2rem;
+  padding: 1rem;
+  border-radius: 50%;
+  background: var(--es-background-surface-subtle);
+  color: var(--es-action-primary);
+}
+.es-list-prerequisite h1 {
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+.es-list-prerequisite p {
+  color: var(--es-text-secondary);
+}
+.es-list-prerequisite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-block-start: 0.5rem;
+}
+.es-list-configure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding-inline: 1.25rem;
+  border-radius: 0.5rem;
+  background: var(--es-action-primary);
+  color: var(--color-white);
+  font-weight: 600;
+}
 .es-list-content {
   overflow: auto;
   flex: 1;
