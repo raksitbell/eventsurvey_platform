@@ -1,5 +1,6 @@
 import type { PublicationForm } from "@/core/event/publication";
 import { readSetupRecord } from "@/core/event/setup-storage";
+import { nextCronFormStatus } from "@/core/forms/lifecycle";
 import type { Form } from "@/types/event/form";
 import type { MockEvent, MockForm, MockFormType } from "@/types/mock";
 
@@ -17,7 +18,7 @@ export function withPublishedFormSchedule(
 }
 
 /** Project the immutable schedule without overwriting a recorded transition. */
-export function matchPublishedForm(
+function matchPublishedForm(
   form: MockForm,
   saved: PublicationForm | null,
 ): MockForm | null {
@@ -38,6 +39,19 @@ export function matchPublishedForm(
     opens_at: saved.opensAt,
     closes_at: saved.closesAt,
   };
+}
+
+/** Published forms use their frozen window even before the worker records the next transition. */
+export function readPublishedForm(
+  form: MockForm,
+  saved: PublicationForm | null,
+  event: MockEvent,
+): MockForm | null {
+  if (event.id !== form.event_id) return null;
+  const projected = matchPublishedForm(form, saved);
+  if (!projected || (event.status !== "open" && event.status !== "closed")) return projected;
+  const status = nextCronFormStatus(projected, event);
+  return status ? { ...projected, status } : projected;
 }
 
 export function publishedFormDefinition(saved: PublicationForm): Form {

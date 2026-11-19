@@ -14,7 +14,7 @@ import { eventShareOrigin, eventShareUrl } from "@/core/event/share-links";
 import { eventQrDataUrl } from "@/core/event/share-qr";
 import { resolveFormWindows } from "@/core/forms/lifecycle";
 import {
-  matchPublishedForm,
+  readPublishedForm,
   publishedFormDefinition,
 } from "@/core/forms/published-schedule";
 import { isActiveMockUser, resolveAppRole } from "@/core/mock/map-user";
@@ -111,7 +111,7 @@ async function findShareableForm(
     const snapshot = publication.forms[kind];
     if (!snapshot || !hasShareableContent(snapshot)) return null;
     const stored = rows.find((form) => form.id === snapshot.id && form.type === kind);
-    const row = stored ? matchPublishedForm(stored, snapshot) : null;
+    const row = stored ? readPublishedForm(stored, snapshot, event) : null;
     if (!row || !shareableStatuses.has(row.status)) return null;
     return { row, form: publishedFormDefinition(snapshot), status: row.status };
   }

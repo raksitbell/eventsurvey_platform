@@ -14,7 +14,7 @@ import {
 } from "@/core/forms/lifecycle";
 import {
   getPublishedForm,
-  matchPublishedForm,
+  readPublishedForm,
   publishedFormDefinition,
   withPublishedFormSchedule,
 } from "@/core/forms/published-schedule";
@@ -687,7 +687,7 @@ async function toFormRecord(
 ): Promise<FormRecord> {
   const event = loadedEvent ?? (await loadEvent(form.event_id));
   const published = getPublishedForm(event, form.type);
-  const lifecycle = matchPublishedForm(form, published);
+  const lifecycle = readPublishedForm(form, published, event);
   if (published && lifecycle) {
     const { head, questions } = publishedFormDefinition(published);
     return {

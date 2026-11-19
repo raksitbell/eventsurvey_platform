@@ -205,6 +205,11 @@ test("a published draft is scheduled without a form row write and progresses usi
   assert.deepEqual((await forms.runFormsCron()).opened, []);
 
   setTime(opens);
+  // The event may be published after its start, before either form worker runs.
+  assert.equal((await participant.getPublicFormBySlug(event.slug, row.type)).status, "open");
+  assert.equal((await forms.getForm(row.id)).status, "open");
+  assert.equal(row.status, "draft");
+  assert.deepEqual(writes, []);
   assert.deepEqual((await forms.runFormsCron()).opened, [row.id]);
   assert.equal(row.status, "open");
   assert.equal(row.opens_at, null);
@@ -231,6 +236,9 @@ test("a published draft is scheduled without a form row write and progresses usi
   );
   row.status = "open";
   setTime(surveyClose);
+  assert.equal((await forms.getForm(row.id)).status, "closed");
+  assert.equal((await participant.getPublicFormBySlug(event.slug, row.type)).status, "closed");
+  assert.equal(row.status, "open");
   assert.deepEqual((await forms.runFormsCron()).closed, [row.id]);
 
   row.id = "replacement-record";
