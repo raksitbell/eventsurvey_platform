@@ -112,11 +112,9 @@ Raksit owns Event Details, Branding, Form Setup, Preview & Publish, Whitelist Ma
 ### Participant preview
 
 - Use two icon tabs for participant previews in Branding and Preview & Publish. Show the selected Event Display or Participant Public Form.
-- Share `components/event/participant/ParticipantEventScreen.tsx` across standalone participant Event Details and both Branding preview viewports. Figma references are Desktop `1020:2275` within `1034:2175` and Mobile `628:804`. The screen composes Header, Content, Footer, and floating display controls.
-- `ParticipantPreviewViewport` scales the shared screen from the 1440×900 and 390×844 Figma viewports. Container queries use preview width. `/preview/event?device=desktop|mobile` renders the shared screen outside the portal shell from local setup values under the authenticated event preview guard. Published participant pages use the server snapshot.
-- Full Preview Figma Desktop `2030:7849` / Mobile `2030:7928` keeps the 64px toolbar visible. Switch devices there and scroll only the read-only viewport. Return to `/event/branding` by default or `/event/publish` with `from=publish`. Hide floating controls, disable participant language actions, render Login as text, and keep form navigation and submission inactive. Use the Figma toolbar notice.
-- The shared toolbar `2155:3459` (instances `2158:10875` / `2158:10893`) has transparent identity/actions containers over continuous lavender. Only Exit has a white surface. Use solid borders on read-only participant previews on both devices, including embedded Preview & Publish and Full Preview from either origin. Keep Mobile Full Preview instances `2030:7945` / `2030:8131` solid while preserving their source components and links.
-- QR artwork in `public/images/event-preview/` is Figma sample artwork. Keep real form/QR navigation and privacy-policy content in their assigned implementation scope.
+- Use the live [Participant Event Display section](https://www.figma.com/design/fVXZJ63REaHE4H6aoiY4hp/Event-Survey-User-Interface?node-id=3102-12480) for all three layouts. Portrait (3:4) and Square (1:1) stack banner, information and QR. Landscape (16:9) places the information and vertical QR card beneath the banner. Participant forms have their own header and footer.
+- The public event slug and the Branding and Publish previews share `ParticipantEventScreen` and `EventDisplay`. Published events use server event data and the available form links. Setup previews use draft data, read-only controls and the sample QR artwork in `public/images/event-preview/`.
+- `ParticipantDisplayPreview` fits the LCD canvas in its preview container. Full Preview at `/preview/event` keeps the toolbar, selected display/form, content language and return destination. Only the published event accepts language changes and navigates to live forms.
 
 ### Whitelist
 

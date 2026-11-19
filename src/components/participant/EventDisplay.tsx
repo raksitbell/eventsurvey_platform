@@ -8,6 +8,7 @@ import type {
 import { Inter } from "next/font/google";
 import type { CSSProperties } from "react";
 import type { ParticipantFormKind } from "@/types/event/participant";
+import type { PublicEvent } from "@/types/event/public-event";
 import "./event-display.css";
 
 const inter = Inter({
@@ -28,7 +29,7 @@ export interface EventDisplayProps {
     bannerPlaceholder: string;
     qrPlaceholder: string;
   };
-  preview?: {
+  event?: {
     contentLocale: string;
     banner: string | null;
     bannerLabel: string;
@@ -39,47 +40,58 @@ export interface EventDisplayProps {
     forms: ParticipantFormKind[];
     style: CSSProperties;
   };
+  formLinks?: PublicEvent["formLinks"];
 }
 
 export default function EventDisplay({
   layout,
   data,
   labels,
-  preview,
+  event,
+  formLinks,
 }: EventDisplayProps) {
+  const published = formLinks !== undefined;
+  const preview = Boolean(event) && !published;
   const Root = preview ? "div" : "main";
+  const forms = published
+    ? (["registration", "survey"] as const).filter((kind) => formLinks[kind])
+    : event?.forms;
   return (
     <Root
       className={`${inter.variable} participant-display participant-display--${layout}`}
+      data-event-display={event ? true : undefined}
+      data-display-mode={published ? "published" : preview ? "preview" : undefined}
       data-display-preview={preview ? true : undefined}
-      style={preview?.style}
+      style={event?.style}
     >
       <div className="participant-content">
         <EventDisplayBanner
           layout={layout}
           label={labels.bannerPlaceholder}
-          src={preview?.banner}
-          imageLabel={preview?.bannerLabel}
-          objectPosition={preview?.bannerPosition}
+          src={event?.banner}
+          imageLabel={event?.bannerLabel}
+          objectPosition={event?.bannerPosition}
         />
         {layout === "landscape" && (
           <div className="participant-banner-divider" aria-hidden="true" />
         )}
         <div
           className="participant-content-bottom"
-          data-has-qr={preview ? preview.forms.length > 0 : undefined}
+          data-has-qr={forms && forms.length > 0}
         >
           <EventDisplayInformation
             data={data}
             labels={labels}
-            preview={preview}
+            event={event}
+            published={published}
           />
           <EventDisplayQr
             registration={labels.registration}
             survey={labels.survey}
             placeholder={labels.qrPlaceholder}
             vertical={layout === "landscape"}
-            previewForms={preview?.forms}
+            forms={forms}
+            formLinks={formLinks}
           />
         </div>
       </div>

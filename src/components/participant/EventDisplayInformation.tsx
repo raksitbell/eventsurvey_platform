@@ -1,11 +1,8 @@
-import {
-  CalendarDaysIcon,
-  GlobeAltIcon,
-  MapPinIcon,
-} from "@heroicons/react/24/outline";
+import { GlobeAltIcon } from "@heroicons/react/24/outline";
 import type { EventDisplayData } from "@/types/participant/display";
 import Image from "next/image";
 import type { EventDisplayProps } from "./EventDisplay";
+import EventDisplayLanguage from "./EventDisplayLanguage";
 
 interface EventDisplayInformationProps {
   data: EventDisplayData;
@@ -15,7 +12,8 @@ interface EventDisplayInformationProps {
     about: string;
     aboutSubtitle: string;
   };
-  preview?: EventDisplayProps["preview"];
+  event?: EventDisplayProps["event"];
+  published: boolean;
 }
 
 function socialIcon(platform: string) {
@@ -35,30 +33,35 @@ function socialIcon(platform: string) {
 export default function EventDisplayInformation({
   data,
   labels,
-  preview,
+  event,
+  published,
 }: EventDisplayInformationProps) {
-  const Title = preview ? "h2" : "h1";
-  const Heading = preview ? "h3" : "strong";
+  const Title = event && !published ? "h2" : "h1";
+  const Heading = published ? "h2" : event ? "h3" : "strong";
   const channels =
-    preview?.channels ??
+    event?.channels ??
     ["twitter", "facebook", "instagram"].map((platform) => ({
       key: platform,
       platform,
       label: data.socialHandle,
     }));
-  const contentLocale = preview?.contentLocale;
+  const contentLocale = event?.contentLocale;
+  const title = (
+    <Title className="participant-display-title" lang={contentLocale} dir="auto">
+      {data.title}
+    </Title>
+  );
   return (
     <section
       className="participant-card participant-information"
       aria-label={data.title}
     >
-      <Title
-        className="participant-display-title"
-        lang={contentLocale}
-        dir="auto"
-      >
-        {data.title}
-      </Title>
+      {published ? (
+        <div className="participant-title-row">
+          {title}
+          <EventDisplayLanguage />
+        </div>
+      ) : title}
       <div className="participant-section-heading">
         <Heading>{labels.hostedBy}</Heading>
         <span>{labels.hostedBySubtitle}</span>
@@ -66,20 +69,20 @@ export default function EventDisplayInformation({
       <div className="participant-divider" />
       <div className="participant-organizer-row">
         <div className="participant-organizer">
-          {preview?.logo ? (
+          {event?.logo ? (
             <Image
-              src={preview.logo.src}
+              src={event.logo.src}
               alt=""
-              width={preview.logo.wordmark ? 128 : 32}
+              width={event.logo.wordmark ? 128 : 32}
               height={32}
               unoptimized
               className="participant-organizer-logo"
-              data-wordmark={preview.logo.wordmark}
+              data-wordmark={event.logo.wordmark}
             />
           ) : (
             <span
               className="participant-avatar"
-              aria-hidden={preview ? true : undefined}
+              aria-hidden={event ? true : undefined}
             >
               {data.organizerInitial}
             </span>
@@ -88,9 +91,9 @@ export default function EventDisplayInformation({
             <strong>
               <bdi>{data.organizer}</bdi>
             </strong>
-            {preview?.tagline && (
+            {event?.tagline && (
               <span>
-                <bdi>{preview.tagline}</bdi>
+                <bdi>{event.tagline}</bdi>
               </span>
             )}
           </div>
@@ -98,7 +101,7 @@ export default function EventDisplayInformation({
         {channels.length > 0 && (
           <div
             className="participant-socials"
-            aria-label={preview ? undefined : data.socialHandle}
+            aria-label={event ? undefined : data.socialHandle}
           >
             {channels.map(({ key, platform, label }) => {
               const icon = socialIcon(platform);
@@ -106,7 +109,7 @@ export default function EventDisplayInformation({
                 <span
                   key={key}
                   className="participant-social"
-                  title={preview ? platform : undefined}
+                  title={event ? platform : undefined}
                 >
                   {icon ? (
                     <Image
@@ -118,7 +121,7 @@ export default function EventDisplayInformation({
                   ) : (
                     <GlobeAltIcon aria-hidden="true" />
                   )}
-                  {preview && <span className="sr-only">{platform} </span>}
+                  {event && <span className="sr-only">{platform} </span>}
                   <bdi>{label}</bdi>
                 </span>
               );
@@ -130,7 +133,7 @@ export default function EventDisplayInformation({
       <div className="participant-metadata">
         <div className="participant-meta-item">
           <span className="participant-meta-icon">
-            <CalendarDaysIcon aria-hidden="true" />
+            <Image src="/images/event-publication/calendar.svg" alt="" width={32} height={32} />
           </span>
           <div>
             <strong>{data.startsAt}</strong>
@@ -139,7 +142,7 @@ export default function EventDisplayInformation({
         </div>
         <div className="participant-meta-item">
           <span className="participant-meta-icon">
-            <MapPinIcon aria-hidden="true" />
+            <Image src="/images/event-publication/venue.svg" alt="" width={32} height={32} />
           </span>
           <div lang={contentLocale} dir="auto">
             <strong>{data.location}</strong>
@@ -147,7 +150,7 @@ export default function EventDisplayInformation({
           </div>
         </div>
       </div>
-      {(!preview || data.description) && (
+      {(!event || data.description) && (
         <div className="participant-about">
           <div className="participant-section-heading">
             <Heading>{labels.about}</Heading>

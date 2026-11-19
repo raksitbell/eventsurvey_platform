@@ -2037,6 +2037,7 @@ function compileSetupComponent(relative, mocks = {}) {
       compilerOptions: {
         module: ts.ModuleKind.CommonJS,
         jsx: ts.JsxEmit.ReactJSX,
+        target: ts.ScriptTarget.ES2017,
       },
     },
   ).outputText;
@@ -3825,4 +3826,80 @@ test("Full Preview keeps valid content language and bounded origins", () => {
   assert.equal(participantPreviewReturnHref("branding", "th", survey), "/event/branding?lang=th&tab=form&form=survey");
   assert.deepEqual(participantPreviewSelection(["form", "display"], ["survey", "registration"]), { tab: "display", formKind: null });
   assert.deepEqual(participantPreviewSelection("unknown", "/event/details"), { tab: "display", formKind: null });
+});
+
+function renderParticipantDisplay({ layout = "landscape", draft = seed, formLinks } = {}) {
+  const intl = { useLocale: () => "en", useTranslations: () => (key) => key };
+  const qr = compileSetupComponent("src/components/participant/EventDisplayQr.tsx", {
+    "next-intl": intl,
+    "next/image": { default: "img" },
+    "@/i18n/navigation": { Link: "a" },
+  });
+  const display = compileSetupComponent("src/components/participant/EventDisplay.tsx", {
+    "@/components/participant/EventDisplayBanner": { default: "banner" },
+    "@/components/participant/EventDisplayInformation": { default: "information" },
+    "@/components/participant/EventDisplayQr": { default: qr },
+    "next/font/google": { Inter: () => ({ variable: "font" }) },
+    "./event-display.css": {},
+  });
+  const screen = compileSetupComponent("src/components/event/participant/ParticipantEventScreen.tsx", {
+    "@/components/participant/EventDisplay": { default: display },
+    "@/core/event/banner-layout": load("src/core/event/banner-layout.ts"),
+    "@/core/event/content": load("src/core/event/content.ts"),
+    "@/core/event/participant": load("src/core/event/participant.ts"),
+    "@/core/event/participant-colors": load("src/core/event/participant-colors.ts"),
+    "@/core/i18n/bangkok-datetime": load("src/core/i18n/bangkok-datetime.ts"),
+    "next-intl": intl,
+  });
+  const element = screen({ draft, branding: { ...defaultEventBranding, layout }, formLinks });
+  const page = element.type(element.props);
+  const qrElement = findSetupElement(page, (node) => node.type === qr);
+  return { page, qrCard: qr(qrElement.props) };
+}
+
+test("Participant display uses the selected banner ratio and canvas in both preview and publication", () => {
+  const layouts = [
+    { layout: "portrait", ratio: 3 / 4, width: 1080, height: 1920 },
+    { layout: "square", ratio: 1, width: 1080, height: 1920 },
+    { layout: "landscape", ratio: 16 / 9, width: 1920, height: 1080 },
+  ];
+  for (const { layout, ratio, width, height } of layouts) {
+    for (const formLinks of [undefined, { registration: { href: "/event/fair/registration" } }]) {
+      const { page, qrCard } = renderParticipantDisplay({ layout, formLinks });
+      const banner = findSetupElement(page, (node) => node.type === "banner");
+      assert.equal(banner.props.layout, layout);
+      assert.equal(page.props.style["--display-banner-ratio"], ratio);
+      assert.equal(page.props.style["--display-canvas-width"], width + "px");
+      assert.equal(page.props.style["--display-canvas-height"], height + "px");
+      assert.equal(qrCard.props.className.includes("participant-qr--vertical"), layout === "landscape");
+    }
+  }
+});
+
+test("Published participant display uses only available form links and supplied QR images", () => {
+  const href = "/event/fair/survey";
+  const qrDataUrl = "data:image/png;base64,cXI=";
+  for (const link of [{ href, qrDataUrl }, { href }]) {
+    const { page, qrCard } = renderParticipantDisplay({ formLinks: { survey: link } });
+    assert.equal(page.type, "main");
+    assert.equal(qrCard.props.children.length, 1);
+    const anchor = findSetupElement(qrCard, (node) => node.type === "a");
+    assert.equal(anchor.props.href, href);
+    assert.equal(anchor.props["aria-label"], "survey");
+    const image = findSetupElement(anchor, (node) => node.type === "img");
+    if (link.qrDataUrl) assert.equal(image.props.src, qrDataUrl);
+    else assert.equal(image, null);
+  }
+  const { page, qrCard } = renderParticipantDisplay({ formLinks: {} });
+  assert.equal(page.type, "main");
+  assert.equal(qrCard, null);
+});
+
+test("Participant display preview shows inert sample QR artwork only for enabled draft forms", () => {
+  const { page, qrCard } = renderParticipantDisplay({ draft: { ...seed, hasSurvey: false } });
+  assert.equal(page.type, "div");
+  assert.equal(qrCard.props.children.length, 1);
+  assert.equal(findSetupElement(qrCard, (node) => node.props?.href), null);
+  const image = findSetupElement(qrCard, (node) => node.type === "img");
+  assert.equal(image.props.src, "/images/event-preview/registration.svg");
 });

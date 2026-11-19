@@ -1,10 +1,11 @@
 ---
 name: "EventSurvey"
 description: "EventSurvey design system and participant Event Display typography contract, verified against the Figma source of truth."
-version: "2026-11-15"
-status: "Figma text styles applied; repository/CSS integration pending"
+version: "2026-11-20"
+status: "Shared participant Event Display implemented for the three LCD layouts"
 sources:
   figma: "https://www.figma.com/design/fVXZJ63REaHE4H6aoiY4hp/Event-Survey-User-Interface"
+  figmaEventDisplay: "https://www.figma.com/design/fVXZJ63REaHE4H6aoiY4hp/Event-Survey-User-Interface?node-id=3102-12480"
   figmaEventInformation: "https://www.figma.com/design/fVXZJ63REaHE4H6aoiY4hp/Event-Survey-User-Interface?node-id=3140-5261"
   figmaQR: "https://www.figma.com/design/fVXZJ63REaHE4H6aoiY4hp/Event-Survey-User-Interface?node-id=3140-5280"
   reference: "Luma DESIGN.md supplied by the project owner; comparative design reference, not an imported design system"
@@ -34,7 +35,7 @@ typography:
     qrLabel: {fontSize: 20, fontWeight: 600, lineHeight: 28}
     helper: {fontSize: 14, fontWeight: 400, lineHeight: 21}
 layout:
-  eventDisplayWidthPx: 800
+  eventDisplayWidthsPx: {portrait: 700, square: 800, landscape: 896}
   portraitCanvas: {width: 1080, height: 1920}
   squareCanvas: {width: 1080, height: 1920}
   landscapeCanvas: {width: 1920, height: 1080}
@@ -106,11 +107,11 @@ The **existing scoped Figma Text Styles were updated in place and retained their
 ## 4. Layout, media and sizing
 
 - Current reviewed vertical participant canvases: **1080 × 1920**.
-- Shared column in Portrait and Square: **fixed 800px** on those canvases; banner, `EventInformation`, and `QRCodeSection` align on the same edges.
+- In section `3102:12480`, the Portrait column is **700px** and the Square column is **800px**. Each banner aligns with the information and QR cards below it.
 - Section spacing: **20px** between banner, information and QR in the currently inspected display roots.
 - Event information card: **20px vertical / 32px horizontal** padding; QR section: **18px vertical / 32px horizontal** padding. Event display card corner radius: **20px**.
-- Portrait banner **3:4**: 800 × 1066.67px; Square banner **1:1**: 800 × 800px. Landscape uses a 16:9 banner on a landscape 1920 × 1080 canvas; its content width/element geometry follows its own layout contract and should not be assumed to be the same fixed 800px column.
-- `fixed-width: 800px` on the reviewed 1080×1920 display is **not** a universal mobile responsive rule. For narrower interactive screens define a separate width constraint (such as `min(800px, viewport - insets)`), then verify content and QR reachability.
+- Portrait uses a **700 × 933.33px** banner and Square uses **800 × 800px**. Landscape has an **896 × 504px** banner on a **1920 × 1080px** canvas. Below it, the **640px** information card and **240px** vertical QR card share a row with a **16px** gap.
+- On phones the live event uses the available width with insets. The banner retains its aspect ratio, and the information and form links follow it in reading order.
 - Preserve aspect ratios and show an explicit crop preview for photos with mismatched source ratios. Do not silently stretch 3:4 artwork into Square or Landscape.
 - The current participant LCD display has **no Header or Footer**; do not inherit Admin shell scaffolding into it.
 
@@ -173,7 +174,7 @@ The supplied Luma file reports `headline-md: 40px / lineHeight 1.2`, `body-md: 2
 
 - [ ] Match current Figma Text Style names, weights, sizes and line heights in web components.
 - [ ] Ensure child date/time rows grow with text and do not clip the end date/time.
-- [ ] Confirm shared 800px column on approved LCD viewports; separately test narrower web/mobile widths.
+- [ ] Confirm the 700px, 800px and 896px columns on the corresponding LCD viewports; separately test narrower web/mobile widths.
 - [ ] Verify `EventInformation` and `QRCodeSection` consume one locale state and update both label sets.
 - [ ] Test both languages, maximum-length bio/description content, and longer localized venue/date labels.
 - [ ] Verify QR controls, actual destinations, accessibility and display contrast at physical viewing distance.
