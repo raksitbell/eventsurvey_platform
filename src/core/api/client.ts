@@ -3,6 +3,8 @@
  * Aggregated/bound responses live here; raw mock resources are fetched server-side.
  */
 
+export const PORTAL_UNAUTHORIZED_EVENT = "eventsurvey:unauthorized";
+
 export interface ApiValidationDetail {
   path: string;
   message: string;
@@ -72,6 +74,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       }
     } catch {
       // ignore parse errors
+    }
+    // The session endpoint already handles revocation and clears the HttpOnly cookie.
+    if (
+      response.status === 401 && code === "UNAUTHORIZED" &&
+      path.split("?")[0] !== "/auth/session" &&
+      !init?.signal?.aborted && typeof globalThis.window !== "undefined"
+    ) {
+      globalThis.window.dispatchEvent(new Event(PORTAL_UNAUTHORIZED_EVENT));
     }
     throw new ApiError(message, response.status, body, code, details);
   }
