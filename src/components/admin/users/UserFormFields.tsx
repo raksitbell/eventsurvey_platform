@@ -14,6 +14,10 @@ export function needsAssignedEvent(role: UserRole): boolean {
   return role === "sub_user";
 }
 
+export function canAssignEvent(role: UserRole, isTrial = false): boolean {
+  return needsAssignedEvent(role) || (isTrial && role === "event_owner");
+}
+
 type Props = {
   name: string;
   email: string;
@@ -22,6 +26,7 @@ type Props = {
   password: string;
   confirmPassword: string;
   events: Array<{ id: string; title: string }>;
+  isTrial?: boolean;
   /** When true, password is optional (edit). When false, password is required (create). */
   passwordOptional?: boolean;
   disabled?: boolean;
@@ -41,6 +46,7 @@ export default function UserFormFields({
   password,
   confirmPassword,
   events,
+  isTrial = false,
   passwordOptional = false,
   disabled = false,
   onNameChange,
@@ -53,6 +59,7 @@ export default function UserFormFields({
   const t = useTranslations("adminUsers");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const showTrialHint = isTrial && role === "event_owner" && !eventId;
 
   return (
     <div className="space-y-5">
@@ -99,24 +106,31 @@ export default function UserFormFields({
           ))}
         </SelectField>
       </div>
-      {needsAssignedEvent(role) ? (
+      {canAssignEvent(role, isTrial) ? (
         <div>
           <Label htmlFor="admin-user-event">
-            {t("form.event")} <span className="text-error-500">*</span>
+            {t("form.event")} {needsAssignedEvent(role) && <span className="text-error-500">*</span>}
           </Label>
           <SelectField
             id="admin-user-event"
             value={eventId}
             onChange={(e) => onEventChange(e.target.value)}
             disabled={disabled}
+            aria-required={needsAssignedEvent(role)}
+            aria-describedby={showTrialHint ? "trial-event-hint" : undefined}
           >
-            <option value="">{t("form.eventPlaceholder")}</option>
+            <option value="">{t(needsAssignedEvent(role) ? "form.eventPlaceholder" : "noAssignedEvent")}</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
                 {event.title || event.id}
               </option>
             ))}
           </SelectField>
+          {showTrialHint && (
+            <p id="trial-event-hint" className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              {t("form.trialOwnerEventHint")}
+            </p>
+          )}
         </div>
       ) : null}
 

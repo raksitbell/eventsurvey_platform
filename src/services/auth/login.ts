@@ -23,7 +23,7 @@ export async function loginWithMockCredentials(
     status: "active",
   });
 
-  const users = await mockApi.get<MockUser[]>(`/users?${params.toString()}`);
+  const users = await mockApi.getFresh<MockUser[]>(`/users?${params.toString()}`);
   const matched = users.find(
     (user) =>
       isActiveMockUser(user) && user.email === email && user.password === password,

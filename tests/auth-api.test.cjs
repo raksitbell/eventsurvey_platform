@@ -16,6 +16,7 @@ process.env.NODE_ENV = "production";
 const load = loadSource();
 const { AUTH_SESSION_COOKIE, parseAuthSessionCookie } = load("src/core/auth/cookie.ts");
 const { POST: login } = load("src/app/api/auth/login/route.ts");
+const { GET: getLoginTrialAccounts } = load("src/app/api/auth/trial-accounts/route.ts");
 const { POST: logout } = load("src/app/api/auth/logout/route.ts");
 const { GET: getSession } = load("src/app/api/auth/session/route.ts");
 const { POST: startInspectEvent, DELETE: stopInspectEvent } = load("src/app/api/auth/inspect-event/route.ts");
@@ -535,6 +536,74 @@ test("saving a role change from the edit form keeps the full name and email", as
   assert.equal(saved.user.role, "event_owner");
 });
 
+test("the public trial picker exposes only display fields for active, login-eligible trial accounts", async (t) => {
+  const { admin, reviewer, owner, assistant, otherOwner, invited, assignable, collections, failures } = setupMockData(t);
+  Object.assign(admin, { email: "admin@example.com" });
+  Object.assign(reviewer, { email: "kittisak@example.com", is_trial: false });
+  Object.assign(owner, { email: "Thanawat@Example.com" });
+  assistant.is_trial = true;
+  otherOwner.is_trial = true;
+  collections.events[1].deleted_at = "2026-11-20T00:00:00Z";
+  invited.is_trial = true;
+  assignable.is_trial = true;
+  const response = await getLoginTrialAccounts();
+  assert.equal(response.status, 200);
+  assertNoStore(response);
+  assert.equal(response.headers.get("set-cookie"), null);
+  assert.deepEqual(await response.json(), { accounts: [
+    { email: admin.email, role: "super_admin" },
+    { email: owner.email, role: "event_owner" },
+    { email: assistant.email, role: "sub_user" },
+  ] });
+  admin.removed_at = "2026-11-20T00:00:00Z";
+  owner.status = "suspended";
+  collections.event_access.find((row) => row.user_id === assistant.id).can_manage_sub_users = true;
+  assert.deepEqual(await (await getLoginTrialAccounts()).json(), { accounts: [
+    { email: assistant.email, role: "event_owner" },
+  ] });
+
+  failures.set("/users", "private upstream diagnostics");
+  const failed = await getLoginTrialAccounts();
+  assert.equal(failed.status, 503);
+  assertNoStore(failed);
+  assert.deepEqual(await failed.json(), { error: "TRIAL_ACCOUNTS_UNAVAILABLE" });
+});
+
+test("the trial picker signals the published preset only for matching current demo credentials", async (t) => {
+  const { admin, reviewer, owner, assistant, otherOwner } = setupMockData(t);
+  const { PUBLISHED_DEMO_PASSWORD } = load("src/core/auth/demo-preset.ts");
+  Object.assign(admin, { email: "admin@example.com", password: PUBLISHED_DEMO_PASSWORD });
+  Object.assign(owner, { email: "Thanawat@Example.com", password: PUBLISHED_DEMO_PASSWORD });
+  Object.assign(assistant, { email: "kittisak@example.com", password: PUBLISHED_DEMO_PASSWORD });
+  Object.assign(otherOwner, { is_trial: true, password: PUBLISHED_DEMO_PASSWORD });
+  reviewer.password = PUBLISHED_DEMO_PASSWORD;
+
+  async function listed() {
+    const response = await getLoginTrialAccounts();
+    assert.equal(response.status, 200);
+    assertNoStore(response);
+    return (await response.json()).accounts;
+  }
+  const initial = await listed();
+  assert.deepEqual(initial.filter((row) => row.usesPublishedPassword).map((row) => row.email).sort(),
+    [admin.email, owner.email, assistant.email].sort());
+  assert.deepEqual(initial.find((row) => row.email === admin.email), {
+    email: admin.email, role: "super_admin", usesPublishedPassword: true,
+  });
+  assert.deepEqual(initial.find((row) => row.email === otherOwner.email), {
+    email: otherOwner.email, role: "event_owner",
+  });
+  assert.ok(!initial.some((row) => row.email === reviewer.email));
+
+  admin.password = "changed-fixture-only";
+  owner.is_trial = false;
+  assistant.removed_at = "2026-11-20T00:00:00Z";
+  const updated = await listed();
+  assert.deepEqual(updated.find((row) => row.email === admin.email), { email: admin.email, role: "super_admin" });
+  assert.ok(!updated.some((row) => row.email === owner.email || row.email === assistant.email));
+  assert.ok(!updated.some((row) => row.usesPublishedPassword));
+});
+
 test("the trial account filter uses seed identities and explicit flags within User Management permissions", async (t) => {
   const { admin, reviewer, owner, assistant, otherOwner, invited, platformPermissions } = setupMockData(t);
   const { cookie } = await signIn(reviewer);
@@ -620,6 +689,12 @@ test("a user manager can create, edit and remove a trial account while ordinary 
   const access = collections.event_access.find((row) => row.user_id === id);
   assert.equal(access.event_id, body.eventId);
   assert.deepEqual(await trialIds(), [id]);
+  const publicAccounts = async () => (await (await getLoginTrialAccounts()).json()).accounts;
+  assert.deepEqual(await publicAccounts(), [{ email: body.email, role: "sub_user" }]);
+  const submit = (email, password) => login(request("/api/auth/login", { method: "POST", body: { email, password } }));
+  assert.equal((await submit(body.email)).status, 400);
+  assert.equal((await submit(body.email, "wrong-password")).status, 401);
+  assert.equal((await submit(body.email, password)).status, 200);
   assert.equal((await createAs(manager)).status, 409);
   const detail = (targetId) => getAdminUser(request(`/api/admin/users/${targetId}?trial=true`, {
     cookie: viewer,
@@ -634,6 +709,8 @@ test("a user manager can create, edit and remove a trial account while ordinary 
   assert.equal(owner.email, originalOwnerEmail);
   const edit = await editEmail(id, "renamed-trial@example.test");
   assert.equal(edit.status, 200);
+  assert.deepEqual(await publicAccounts(), [{ email: "renamed-trial@example.test", role: "sub_user" }]);
+  assert.equal((await submit(body.email, password)).status, 401);
   assert.deepEqual(await trialIds(), [id]);
 
   await assertDenied(await removeAs(undefined, id), 401);
@@ -651,6 +728,8 @@ test("a user manager can create, edit and remove a trial account while ordinary 
   assert.deepEqual(await removed.json(), { success: true });
   assert.ok(user.removed_at);
   assert.ok(access.deleted_at);
+  assert.deepEqual(await publicAccounts(), []);
+  assert.equal((await submit("renamed-trial@example.test", password)).status, 401);
   assert.deepEqual(await trialIds(), []);
   assert.equal((await detail(id)).status, 404);
   assert.equal((await editEmail(id, "removed-trial@example.test")).status, 404);

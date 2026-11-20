@@ -1,6 +1,7 @@
 "use client";
 
 import UserFormFields, {
+  canAssignEvent,
   needsAssignedEvent,
 } from "@/components/admin/users/UserFormFields";
 import Button from "@/components/ui/button/Button";
@@ -87,7 +88,7 @@ export default function EditUserForm({ userId, fromTrialAccounts }: Props) {
 
   const handleRoleChange = (next: UserRole) => {
     setRole(next);
-    if (!needsAssignedEvent(next)) setEventId("");
+    if (!canAssignEvent(next, fromTrialAccounts)) setEventId("");
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -128,8 +129,8 @@ export default function EditUserForm({ userId, fromTrialAccounts }: Props) {
       };
       if (role === "super_admin") {
         body.eventId = null;
-      } else if (needsAssignedEvent(role)) {
-        body.eventId = eventId;
+      } else if (canAssignEvent(role, fromTrialAccounts)) {
+        body.eventId = eventId || null;
       }
       if (changingPassword) {
         body.password = password;
@@ -181,6 +182,7 @@ export default function EditUserForm({ userId, fromTrialAccounts }: Props) {
         password={password}
         confirmPassword={confirmPassword}
         events={events}
+        isTrial={fromTrialAccounts}
         passwordOptional
         disabled={isSubmitting}
         onNameChange={setName}

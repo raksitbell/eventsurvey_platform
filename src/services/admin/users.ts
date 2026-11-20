@@ -9,6 +9,7 @@ import { getPlatformAccessRow, normalizePlatformMatrix } from "@/core/mock/acces
 import { resolveEventTitle } from "@/core/mock/event-title";
 import { mapMockUserToUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
+import { isTrialAccount } from "@/core/mock/trial-accounts";
 import { getActivePortalAccount } from "@/services/auth/session";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
@@ -77,16 +78,6 @@ function mapListedPortalUser(
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
-}
-
-const LEGACY_TRIAL_EMAILS = new Set([
-  "admin@example.com",
-  "thanawat@example.com",
-  "kittisak@example.com",
-]);
-
-function isTrialAccount(user: MockUser): boolean {
-  return user.is_trial ?? LEGACY_TRIAL_EMAILS.has(normalizeEmail(user.email ?? ""));
 }
 
 async function readManagedUser(userId: string, trialOnly: boolean): Promise<MockUser> {

@@ -1,6 +1,7 @@
 "use client";
 
 import UserFormFields, {
+  canAssignEvent,
   needsAssignedEvent,
 } from "@/components/admin/users/UserFormFields";
 import Button from "@/components/ui/button/Button";
@@ -64,7 +65,7 @@ export default function CreateUserForm({ isTrial = false }: { isTrial?: boolean 
 
   const handleRoleChange = (next: UserRole) => {
     setRole(next);
-    if (!needsAssignedEvent(next)) setEventId("");
+    if (!canAssignEvent(next, isTrial)) setEventId("");
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -96,7 +97,7 @@ export default function CreateUserForm({ isTrial = false }: { isTrial?: boolean 
           role,
           password,
           ...(isTrial ? { isTrial: true } : {}),
-          ...(needsAssignedEvent(role) ? { eventId } : { eventId: null }),
+          eventId: eventId || null,
         },
       );
       showToast({
@@ -136,6 +137,7 @@ export default function CreateUserForm({ isTrial = false }: { isTrial?: boolean 
         password={password}
         confirmPassword={confirmPassword}
         events={events}
+        isTrial={isTrial}
         disabled={isSubmitting}
         onNameChange={setName}
         onEmailChange={setEmail}

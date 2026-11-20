@@ -16,7 +16,7 @@ export default async function AdminCreateUserPage({
           {t(isTrial ? "platformConfiguration.addTrialAccount" : "adminUsers.form.createTitle")}
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {t("adminUsers.form.subtitle")}
+          {t(isTrial ? "platformConfiguration.trialLoginVisibility" : "adminUsers.form.subtitle")}
         </p>
       </div>
       <CreateUserForm key={isTrial ? "trial" : "regular"} isTrial={isTrial} />
