@@ -1,9 +1,11 @@
 import { getEventAccessForUser } from "@/core/mock/access";
 import { MockApiError, mockApi } from "@/core/api/mock-client";
+import type { PiiViewer } from "@/core/auth/pii";
 import {
   getAdminUserActivity,
   listAdminActivity,
 } from "@/services/admin/activity";
+import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import { ReportingError } from "@/services/event/reporting";
 import type {
   AdminActivityFilters,
@@ -13,43 +15,35 @@ import type {
 import type { MockUser } from "@/types/mock";
 import { routing, type Locale } from "@/i18n/routing";
 
-async function resolveEventScope(
+async function requireEventActivityAccess(
   userId: string,
   inspectedEventId?: string | null,
-): Promise<{ eventId: string; canViewActivity: boolean }> {
+): Promise<{ eventId: string; viewer: PiiViewer }> {
   const inspected = inspectedEventId?.trim() || null;
-  if (inspected) {
-    const actor = await mockApi.get<MockUser>(
-      `/users/${encodeURIComponent(userId)}`,
-    );
-    if (!actor || actor.system_role !== "platform_admin") {
-      throw new ReportingError(403, "FORBIDDEN");
-    }
-    return { eventId: inspected, canViewActivity: true };
-  }
-
   const actor = await mockApi.get<MockUser>(
     `/users/${encodeURIComponent(userId)}`,
   );
+  if (inspected) {
+    if (!actor || actor.system_role !== "platform_admin") {
+      throw new ReportingError(403, "FORBIDDEN");
+    }
+    return {
+      eventId: inspected,
+      viewer: await getPlatformPiiViewer({ userId, platformRoleId: actor.id }),
+    };
+  }
+
   if (!actor?.event_id) {
     throw new ReportingError(403, "FORBIDDEN");
   }
   const access = await getEventAccessForUser(actor.id, actor.event_id);
-  return {
-    eventId: actor.event_id,
-    canViewActivity: access.matrix.canViewActivity,
-  };
-}
-
-async function requireEventActivityAccess(
-  userId: string,
-  inspectedEventId?: string | null,
-): Promise<string> {
-  const scope = await resolveEventScope(userId, inspectedEventId);
-  if (!scope.canViewActivity) {
+  if (!access.matrix.canViewActivity) {
     throw new ReportingError(403, "FORBIDDEN");
   }
-  return scope.eventId;
+  return {
+    eventId: actor.event_id,
+    viewer: { userId, canViewUnmaskedPii: false },
+  };
 }
 
 export async function listEventActivity(
@@ -58,15 +52,15 @@ export async function listEventActivity(
   filters: Omit<AdminActivityFilters, "eventId" | "accountType"> = {},
   options: { inspectedEventId?: string | null } = {},
 ): Promise<AdminActivityResponse> {
-  const eventId = await requireEventActivityAccess(
+  const { eventId, viewer } = await requireEventActivityAccess(
     userId,
     options.inspectedEventId,
   );
-  const data = await listAdminActivity(locale, {
-    ...filters,
-    eventId,
-    accountType: "event",
-  });
+  const data = await listAdminActivity(
+    locale,
+    { ...filters, eventId, accountType: "event" },
+    viewer,
+  );
   return {
     ...data,
     events: data.events.filter((event) => event.id === eventId),
@@ -84,7 +78,7 @@ export async function getEventUserActivity(
   locale: Locale = routing.defaultLocale,
   options: { inspectedEventId?: string | null } = {},
 ): Promise<AdminUserActivityProfile | null> {
-  const eventId = await requireEventActivityAccess(
+  const { eventId, viewer } = await requireEventActivityAccess(
     requesterId,
     options.inspectedEventId,
   );
@@ -100,7 +94,12 @@ export async function getEventUserActivity(
   }
   if (!target || target.removed_at) return null;
 
-  const profile = await getAdminUserActivity(targetUserId, locale, { eventId });
+  const profile = await getAdminUserActivity(
+    targetUserId,
+    locale,
+    { eventId },
+    viewer,
+  );
   if (!profile) return null;
 
   const isEventMember = target.event_id === eventId;

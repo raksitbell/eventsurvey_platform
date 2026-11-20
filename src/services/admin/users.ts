@@ -553,12 +553,12 @@ export async function updateUserRoleOrEvent(
     patchBody.email = email;
   }
 
-  if (typeof updates.password === "string" && updates.password.length > 0) {
-    patchBody.password = validatePassword(updates.password);
-    if (current.status === "invited") {
-      patchBody.status = "active";
-      patchBody.joined_at = current.joined_at ?? new Date().toISOString();
-    }
+  const password = typeof updates.password === "string" && updates.password.length > 0
+    ? validatePassword(updates.password)
+    : undefined;
+  if (password && current.status === "invited") {
+    patchBody.status = "active";
+    patchBody.joined_at = current.joined_at ?? new Date().toISOString();
   }
 
   // Clear role references only on records created before access matrices.
@@ -572,7 +572,10 @@ export async function updateUserRoleOrEvent(
     patchBody.event_id = nextEventId;
   }
 
-  await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, patchBody);
+  await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, {
+    ...patchBody,
+    ...(password ? { password } : {}),
+  });
 
   if (nextRole === "super_admin") {
     await softDeleteEventAccess(targetUserId);
