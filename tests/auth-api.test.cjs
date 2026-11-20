@@ -411,6 +411,7 @@ test("upstream failure details stay in the API layer", async (t) => {
 
 test("admin can create events with either owner mode and an invite failure preserves the draft", async (t) => {
   const { admin, assignable, collections } = setupMockData(t, { eventWrites: true });
+  assignable.role_id = "previous-event-role";
   const { cookie } = await signIn(admin);
   const invitations = [];
   const create = createEventHandler(async (invitation) => {
@@ -441,6 +442,8 @@ test("admin can create events with either owner mode and an invite failure prese
     assert.equal(result.inviteSent, false);
     assert.equal(assigned.status, isExisting ? "active" : "invited");
     assert.equal(assigned.event_id, result.event.id);
+    assert.equal(assigned.role_id, isExisting ? null : undefined);
+    if (!isExisting) assert.equal(assigned.platform_role_id, undefined);
     assert.ok(access);
     assert.equal(access.can_manage_sub_users, true);
     assert.equal(access.matrix.event, "can_edit");

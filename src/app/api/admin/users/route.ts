@@ -68,15 +68,9 @@ export async function POST(request: NextRequest) {
       return authJson({ error: "PASSWORD_REQUIRED" }, 400);
     }
 
-    const requestedLocale = request.nextUrl.searchParams.get("locale");
-    const locale = routing.locales.includes(requestedLocale as Locale)
-      ? (requestedLocale as Locale)
-      : routing.defaultLocale;
-
     const result = await createAdminUser(
       { name, email, role, eventId, password },
       session.realUserId,
-      locale,
     );
     return authJson(result, 201);
   } catch (error) {

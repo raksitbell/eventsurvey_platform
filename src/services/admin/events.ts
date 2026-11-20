@@ -361,7 +361,7 @@ async function resolveEventAdmin(input: CreateAdminEventInput) {
     ) {
       throw new ServiceError("USER_NOT_ASSIGNABLE", 409);
     }
-    return { mode: "existing" as const, userId: existing.id };
+    return { mode: "existing" as const, userId: existing.id, hasLegacyRole: "role_id" in existing };
   }
 
   const email = input.adminEmail?.trim().toLowerCase();
@@ -420,7 +420,6 @@ export async function createAdminEvent(
   const translationRows: MockEventTranslation[] = [];
   const assignment = {
     event_id: eventId,
-    role_id: null,
     role_assigned_by_user_id: platformAdminUserId,
     role_assigned_at: now,
     updated_at: now,
@@ -484,7 +483,6 @@ export async function createAdminEvent(
         password: randomBytes(18).toString("base64url"),
         display_name: admin.name,
         system_role: "event_user",
-        platform_role_id: null,
         status: "invited",
         invited_by_user_id: platformAdminUserId,
         joined_at: null,
@@ -496,7 +494,7 @@ export async function createAdminEvent(
       operation = "PATCH /users";
       const path = `/users/${encodeURIComponent(admin.userId)}`;
       adminUser = await mockApi
-        .patch<MockUser>(path, assignment)
+        .patch<MockUser>(path, admin.hasLegacyRole ? { ...assignment, role_id: null } : assignment)
         .catch(async (error: unknown) => {
           const current = await mockApi.get<MockUser>(path).catch(() => null);
           if (current?.event_id === eventId) {

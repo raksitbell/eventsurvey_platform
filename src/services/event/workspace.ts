@@ -206,7 +206,7 @@ async function loadWorkspacePayload(
     canAccessForms,
     viewableFormTypes: visibleTypes,
     canViewActivity:
-      (options.hasAccessRow !== false) && matrix.canViewActivity === true,
+      (options.hasAccessRow !== false) && matrix.canViewActivity,
   };
 }
 

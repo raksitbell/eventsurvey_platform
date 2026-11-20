@@ -159,7 +159,7 @@ export function platformSessionFlags(matrix: PlatformAccessMatrix) {
     canViewOverview: satisfiesModuleAccess(matrix.overview, "view_only"),
     canViewEvents: satisfiesModuleAccess(matrix.events, "view_only"),
     canViewUsers: satisfiesModuleAccess(matrix.users, "view_only"),
-    canViewActivity: matrix.canViewActivity === true,
+    canViewActivity: matrix.canViewActivity,
     canManageEvents: satisfiesModuleAccess(matrix.events, "can_edit"),
   };
 }

@@ -331,10 +331,9 @@ test("analytics scope, privacy, reports, grants and layout", async () => {
   );
   assert.equal(inspected.permissions.manage, true);
   assert.equal(db.audit_logs.at(-1).actor_user_id, "admin");
-  assert.equal(
-    JSON.parse(db.audit_logs.at(-1).description).effectiveUserId,
-    "admin",
-  );
+  assert.equal(db.audit_logs.at(-1).metadata.effectiveUserId, "admin");
+  assert.equal(db.audit_logs.at(-1).description_en, "Viewed event analytics");
+  assert.equal(db.audit_logs.at(-1).description, undefined);
   const restricted = await loadAnalytics("sub");
   assert.deepEqual(
     restricted.forms.map((f) => f.id),

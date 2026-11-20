@@ -90,8 +90,9 @@ function bindEventName(
 function localizeAuditDescription(row: MockAuditLog, locale: Locale): string {
   const th = row.description_th?.trim() || "";
   const en = row.description_en?.trim() || "";
-  if (locale === "en") return en || th || row.description?.trim() || row.action;
-  return th || en || row.description?.trim() || row.action;
+  // Older audit records have a single unlocalized description.
+  const legacy = "description" in row && typeof row.description === "string" ? row.description.trim() : "";
+  return (locale === "en" ? en || th : th || en) || legacy || row.action;
 }
 
 async function toActivityItem(
@@ -134,7 +135,7 @@ async function toActivityItem(
       !Array.isArray(row.metadata)
         ? row.metadata
         : null,
-    includesUnmaskedPii: row.includes_unmasked_pii === true,
+    includesUnmaskedPii: row.includes_unmasked_pii,
   };
 }
 

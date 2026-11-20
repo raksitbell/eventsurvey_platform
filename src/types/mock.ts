@@ -60,11 +60,7 @@ export interface MockUser {
   password: string;
   display_name: string;
   system_role: MockSystemRole;
-  /** @deprecated Prefer `platform_access` rows keyed by user_id */
-  platform_role_id: string | null;
   event_id: string | null;
-  /** @deprecated Prefer `event_access` rows keyed by user_id */
-  role_id: string | null;
   role_assigned_by_user_id: string | null;
   role_assigned_at: string | null;
   status: MockAccountStatus;
@@ -347,8 +343,6 @@ export interface MockAuditLog {
   module?: string | null;
   description_th?: string | null;
   description_en?: string | null;
-  /** @deprecated Prefer description_th / description_en */
-  description?: string | null;
   metadata?: Record<string, unknown> | null;
   includes_unmasked_pii: boolean;
   occurred_at: string;

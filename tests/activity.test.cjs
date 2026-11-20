@@ -445,6 +445,19 @@ test("writeAuditLog stores bilingual description fields", async () => {
   assert.equal(body.description, undefined);
 });
 
+test("older audit descriptions remain readable in both locales", async () => {
+  const env = fixture();
+  const row = env.collections.audit_logs.find((entry) => entry.id === "log-event-setup");
+  delete row.description_th;
+  delete row.description_en;
+  row.description = "Earlier activity description";
+
+  for (const locale of ["th", "en"]) {
+    const activity = await env.listAdminActivity(locale);
+    assert.equal(activity.items.find((item) => item.id === row.id)?.description, row.description);
+  }
+});
+
 test("admin activity localizes descriptions and applies filters", async () => {
   const env = fixture();
 

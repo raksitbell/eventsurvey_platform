@@ -77,7 +77,7 @@ export default function CreateUserForm() {
     setIsSubmitting(true);
     try {
       await api.post<AdminUserWriteResult>(
-        `/admin/users?locale=${encodeURIComponent(locale)}`,
+        "/admin/users",
         {
           name: name.trim(),
           email: email.trim().toLowerCase(),

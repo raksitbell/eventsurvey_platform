@@ -37,7 +37,7 @@ async function resolveEventScope(
   const access = await getEventAccessForUser(actor.id, actor.event_id);
   return {
     eventId: actor.event_id,
-    canViewActivity: access.matrix.canViewActivity === true,
+    canViewActivity: access.matrix.canViewActivity,
   };
 }
 
