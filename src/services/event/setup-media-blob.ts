@@ -64,7 +64,7 @@ export async function createBlobMediaUpload(eventId: string, kind: EventSetupMed
   return { id, uploadUrl: presignedUrl };
 }
 
-export async function findBlobMedia(id: string) {
+async function readBlobManifest(id: string) {
   if (!eventSetupMediaIdPattern.test(id)) return null;
   const result = await get(manifestPath(id), privateRead);
   if (!result || result.statusCode !== 200) return null;
@@ -107,8 +107,6 @@ export async function finalizeBlobMediaUpload(
   const bytes = await readBlobMedia(pathname, contentType);
   if (!bytes) throw new ServiceError("INVALID_SETUP_MEDIA", 400);
 
-  // Abandoned and invalid uploads expire. Clear the TTL before exposing a durable reference.
-  await setTtl(pathname, { ttlDays: null });
   const manifest: BlobMediaManifest = { eventId, kind, type: contentType, size: bytes.byteLength };
   try {
     await put(manifestPath(id), JSON.stringify(manifest), {
@@ -116,19 +114,25 @@ export async function finalizeBlobMediaUpload(
     });
   } catch (error) {
     // Concurrent completions and retries may observe an already committed manifest.
-    const saved = await findBlobMedia(id);
+    const saved = await readBlobManifest(id);
     if (saved?.blobPath !== pathname || saved.size !== manifest.size) throw error;
   }
+  // The immutable manifest must exist before the image becomes permanent.
+  await setTtl(pathname, { ttlDays: null });
   return { url: eventSetupMediaUrl(id) };
 }
 
-export async function blobMediaAvailable(pathname: string, type: MediaContentType, size: number) {
+export async function findBlobMedia(id: string) {
+  const asset = await readBlobManifest(id);
+  if (!asset) return null;
   try {
-    // A ready manifest describes a verified object at a write-once pathname.
-    const object = await head(pathname);
-    return object.pathname === pathname && object.contentType === type && object.size === size;
+    // A failed or in-progress completion may have a manifest and an expiring image.
+    const object = await head(asset.blobPath);
+    if (object.expiresAt || object.pathname !== asset.blobPath ||
+      object.contentType !== asset.type || object.size !== asset.size) return null;
+    return asset;
   } catch (error) {
-    if (error instanceof BlobNotFoundError) return false;
+    if (error instanceof BlobNotFoundError) return null;
     throw error;
   }
 }

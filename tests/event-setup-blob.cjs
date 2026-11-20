@@ -34,7 +34,7 @@ function fixture(t) {
   const authorizations = [];
   const signatures = [];
   class BlobNotFoundError extends Error {}
-  const load = loadSource({
+  const overrides = {
     "@vercel/blob": {
       BlobNotFoundError,
       issueSignedToken: async (constraints) => {
@@ -59,7 +59,10 @@ function fixture(t) {
       head: async (key) => {
         const file = objects.get(key);
         if (!file) throw new BlobNotFoundError();
-        return { pathname: key, size: file.bytes.length, contentType: file.type };
+        return {
+          pathname: key, size: file.bytes.length, contentType: file.type,
+          expiresAt: file.ttlDays ? new Date(Date.now() + file.ttlDays * 86400_000) : undefined,
+        };
       },
       setTtl: async (key, { ttlDays }) => {
         assert.ok(objects.has(key));
@@ -72,7 +75,8 @@ function fixture(t) {
         objects.set(key, { bytes: Buffer.from(body), type: options.contentType });
       },
     },
-  });
+  };
+  const load = loadSource(overrides);
   const { POST: login } = load("src/app/api/auth/login/route.ts");
   const { POST } = load("src/app/api/event/setup/media/route.ts");
   const { GET } = load("src/app/api/event/setup/media/[id]/route.ts");
@@ -85,7 +89,7 @@ function fixture(t) {
     assert.equal(response.status, 200);
     return response.headers.get("set-cookie").split(";")[0];
   }
-  return { load, owner, otherOwner, event, objects, authorizations, signatures, post, get, signIn };
+  return { load, owner, otherOwner, event, objects, authorizations, signatures, post, get, signIn, blob: overrides["@vercel/blob"] };
 }
 
 test("Blob upload authorization binds size, type, event and kind before finalization", async (t) => {
@@ -120,6 +124,46 @@ test("Blob upload authorization binds size, type, event and kind before finaliza
   assert.equal((await post(cookie, "complete", { id, kind: "logo" })).status, 400);
   assert.equal((await get(id, cookie)).status, 404);
 });
+
+for (const [method, failure] of [["put", "manifest write"], ["setTtl", "TTL removal"]]) {
+  test(`failed ${failure} keeps the image expiring and unavailable until completion is retried`, async (t) => {
+    const { load, owner, event, objects, signatures, post, get, signIn, blob } = fixture(t);
+    const cookie = await signIn(owner);
+    const bytes = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6p8AAAAASUVORK5CYII=",
+      "base64",
+    );
+    const contentType = "image/png";
+    const prepared = await post(cookie, "prepare", { contentType, size: bytes.length });
+    assert.equal(prepared.status, 200);
+    const { id } = await prepared.json();
+    const { pathname, ttlDays } = signatures[0];
+    assert.equal(ttlDays, 1);
+    const image = { bytes, type: contentType, ttlDays };
+    objects.set(pathname, image);
+    const url = mediaApi + "/" + id;
+    const { assertEventSetupMedia } = load("src/services/event/setup-media.ts");
+    const complete = () => post(cookie, "complete", { id, contentType });
+    t.mock.method(blob, method, async () => { throw new Error(failure); }, { times: 1 });
+
+    const failed = await complete();
+    assert.equal(failed.status, 503);
+    assert.equal((await failed.json()).error, "SETUP_MEDIA_STORAGE_UNAVAILABLE");
+    assert.equal(image.ttlDays, 1);
+    assert.equal((await get(id, cookie)).status, 404);
+    await assert.rejects(assertEventSetupMedia(event.id, [url]), { code: "SETUP_MEDIA_UNAVAILABLE" });
+
+    const retries = await Promise.all([complete(), complete()]);
+    for (const retry of retries) {
+      assert.equal(retry.status, 201);
+      assert.deepEqual(await retry.json(), { url });
+    }
+    assert.equal(image.ttlDays, null);
+    assert.equal(objects.size, 2);
+    assert.equal((await get(id, cookie)).status, 307);
+    await assertEventSetupMedia(event.id, [url]);
+  });
+}
 
 test("8 MiB Blob only becomes publicly readable after the saved event snapshot publishes", async (t) => {
   const { load, event, owner, otherOwner, objects, signatures, post, get, signIn } = fixture(t);
