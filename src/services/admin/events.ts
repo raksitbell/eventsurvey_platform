@@ -508,6 +508,7 @@ export async function createAdminEvent(
       adminUser = await createRow<MockUser>("/users", {
         id: admin.userId,
         email: admin.email,
+        is_trial: false,
         password: randomBytes(18).toString("base64url"),
         display_name: admin.name,
         system_role: "event_user",

@@ -159,6 +159,7 @@ export function platformSessionFlags(matrix: PlatformAccessMatrix) {
     canViewOverview: satisfiesModuleAccess(matrix.overview, "view_only"),
     canViewEvents: satisfiesModuleAccess(matrix.events, "view_only"),
     canViewUsers: satisfiesModuleAccess(matrix.users, "view_only"),
+    canManageUsers: satisfiesModuleAccess(matrix.users, "can_edit"),
     canViewActivity: matrix.canViewActivity,
     canInspection: matrix.canInspection,
     canManageEvents: satisfiesModuleAccess(matrix.events, "can_edit"),

@@ -79,6 +79,34 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+const LEGACY_TRIAL_EMAILS = new Set([
+  "admin@example.com",
+  "thanawat@example.com",
+  "kittisak@example.com",
+]);
+
+function isTrialAccount(user: MockUser): boolean {
+  return user.is_trial ?? LEGACY_TRIAL_EMAILS.has(normalizeEmail(user.email ?? ""));
+}
+
+async function readManagedUser(userId: string, trialOnly: boolean): Promise<MockUser> {
+  const current = await mockApi
+    .getFresh<MockUser>(`/users/${encodeURIComponent(userId)}`)
+    .catch((error: unknown) => {
+      if (error instanceof MockApiError && error.status === 404) return null;
+      throw error;
+    });
+  if (
+    !current ||
+    current.id !== userId ||
+    !isListedPortalUser(current) ||
+    (trialOnly && !isTrialAccount(current))
+  ) {
+    throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
+  }
+  return current;
+}
+
 const MIN_PASSWORD_LENGTH = 8;
 
 function validatePassword(password: string): string {
@@ -199,10 +227,12 @@ async function findLiveEvent(eventId: string): Promise<MockEvent | null> {
 export async function getBoundAdminUsers(
   role?: string,
   locale: Locale = routing.defaultLocale,
+  trialOnly = false,
 ): Promise<AdminUsersResponse> {
+  const getUsers = trialOnly ? mockApi.getFresh : mockApi.get;
   const [mockUsers, events, translations, eventAccess, platformAccess] =
     await Promise.all([
-      mockApi.get<MockUser[]>("/users?_sort=created_at&_order=desc"),
+      getUsers<MockUser[]>("/users?_sort=created_at&_order=desc"),
       mockApi.getFresh<MockEvent[]>("/events"),
       mockApi.get<MockEventTranslation[]>("/event_translations"),
       mockApi.get<MockEventAccess[]>("/event_access"),
@@ -225,9 +255,12 @@ export async function getBoundAdminUsers(
       .map((row) => [row.user_id, row]),
   );
 
+  const listedUsers = mockUsers.filter(
+    (user) => isListedPortalUser(user) && (!trialOnly || isTrialAccount(user)),
+  );
   const permissionsByUserId = new Map<string, Awaited<ReturnType<typeof getRolePermissions>>>();
   await Promise.all(
-    mockUsers.map(async (mock) => {
+    listedUsers.map(async (mock) => {
       if (mock.system_role !== "event_user") {
         permissionsByUserId.set(mock.id, []);
         return;
@@ -251,8 +284,7 @@ export async function getBoundAdminUsers(
       .map((user) => [user.id, user]),
   );
 
-  let portalUsers = mockUsers
-    .filter(isListedPortalUser)
+  let portalUsers = listedUsers
     .map((mock) =>
       mapListedPortalUser(mock, permissionsByUserId.get(mock.id) ?? []),
     )
@@ -429,6 +461,7 @@ export async function createAdminUser(
   await mockApi.post<MockUser>("/users", {
     id: userId,
     email,
+    is_trial: input.isTrial ?? false,
     password,
     display_name: name,
     system_role: isPlatform ? "platform_admin" : "event_user",
@@ -474,24 +507,9 @@ export async function updateUserRoleOrEvent(
     password?: string;
   },
   actorUserId: string,
+  trialOnly = false,
 ): Promise<{ success: boolean }> {
-  const account = await getActivePortalAccount(targetUserId);
-  if (!account) {
-    // Allow editing invited accounts that getActivePortalAccount may skip.
-    const raw = await mockApi
-      .get<MockUser>(`/users/${encodeURIComponent(targetUserId)}`)
-      .catch(() => null);
-    if (!raw || raw.removed_at || raw.status === "removed") {
-      throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
-    }
-  }
-
-  const current = await mockApi.get<MockUser>(
-    `/users/${encodeURIComponent(targetUserId)}`,
-  );
-  if (!current || current.removed_at || current.status === "removed") {
-    throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
-  }
+  const current = await readManagedUser(targetUserId, trialOnly);
 
   const currentPermissions = await getRolePermissions(
     current.id,
@@ -542,6 +560,9 @@ export async function updateUserRoleOrEvent(
       throw new ServiceError("EMAIL_EXISTS", 409, "Email already in use");
     }
     patchBody.email = email;
+    if (current.is_trial == null && email !== normalizeEmail(current.email ?? "")) {
+      patchBody.is_trial = isTrialAccount(current);
+    }
   }
 
   const password = typeof updates.password === "string" && updates.password.length > 0
@@ -600,25 +621,22 @@ export async function updateUserRoleOrEvent(
 export async function getAdminUserById(
   userId: string,
   locale: Locale = routing.defaultLocale,
+  trialOnly = false,
 ): Promise<AdminUserListItem | null> {
-  const data = await getBoundAdminUsers(undefined, locale);
+  const data = await getBoundAdminUsers(undefined, locale, trialOnly);
   return data.users.find((user) => user.id === userId) ?? null;
 }
 
 export async function deleteAdminUser(
   targetUserId: string,
   actorUserId: string,
+  trialOnly = false,
 ): Promise<{ success: boolean }> {
   if (targetUserId === actorUserId) {
     throw new ServiceError("CANNOT_DELETE_SELF", 400, "Cannot delete yourself");
   }
 
-  const current = await mockApi
-    .get<MockUser>(`/users/${encodeURIComponent(targetUserId)}`)
-    .catch(() => null);
-  if (!current || current.removed_at || current.status === "removed") {
-    throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
-  }
+  await readManagedUser(targetUserId, trialOnly);
 
   const now = new Date().toISOString();
   await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, {

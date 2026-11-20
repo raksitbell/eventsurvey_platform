@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
     const locale = routing.locales.includes(requestedLocale as Locale)
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
-    const data = await getBoundAdminUsers(role, locale);
+    const trialOnly = request.nextUrl.searchParams.get("trial") === "true";
+    const data = await getBoundAdminUsers(role, locale, trialOnly);
     return authJson(data);
   } catch {
     return authJson({ error: "Failed to load users" }, 502);
@@ -48,6 +49,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await readJsonObject(request);
     if (!body) return authJson({ error: "INVALID_JSON" }, 400);
+    if (body.isTrial !== undefined && typeof body.isTrial !== "boolean") {
+      return authJson({ error: "INVALID_TRIAL_FLAG" }, 400);
+    }
 
     const name = typeof body.name === "string" ? body.name : "";
     const email = typeof body.email === "string" ? body.email : "";
@@ -67,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await createAdminUser(
-      { name, email, role, eventId, password },
+      { name, email, role, eventId, password, isTrial: body.isTrial },
       session.realUserId,
     );
     return authJson(result, 201);

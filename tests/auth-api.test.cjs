@@ -535,6 +535,129 @@ test("saving a role change from the edit form keeps the full name and email", as
   assert.equal(saved.user.role, "event_owner");
 });
 
+test("the trial account filter uses seed identities and explicit flags within User Management permissions", async (t) => {
+  const { admin, reviewer, owner, assistant, otherOwner, invited, platformPermissions } = setupMockData(t);
+  const { cookie } = await signIn(reviewer);
+  const path = "/api/admin/users?trial=true";
+  owner.email = "  Thanawat@Example.com ";
+  assistant.is_trial = true;
+  Object.assign(otherOwner, { email: "kittisak@example.com", is_trial: false });
+  Object.assign(invited, { is_trial: true, removed_at: "2026-01-01T00:00:00Z" });
+  admin.email = "other@example.com";
+
+  await assertDenied(await getAdminUsers(request(path)), 401);
+  const response = await getAdminUsers(request(path, { cookie }));
+  assert.equal(response.status, 200);
+  assertNoStore(response);
+  const { users, meta } = await response.json();
+  assert.deepEqual(users.map((row) => row.id).sort(), [owner.id, assistant.id].sort());
+  assert.deepEqual(meta, { total: 2, byRole: { event_owner: 1, sub_user: 1 } });
+  assert.ok(users.every((row) => !("password" in row)));
+  const owners = await getAdminUsers(request(path + "&role=event_owner", { cookie }));
+  assert.deepEqual((await owners.json()).users.map((row) => row.id), [owner.id]);
+  const ordinary = await getAdminUsers(request("/api/admin/users", { cookie }));
+  assert.ok((await ordinary.json()).users.some((row) => row.id === otherOwner.id));
+
+  platformPermissions.find((row) => row.user_id === reviewer.id).matrix.users = "restricted";
+  await assertDenied(await getAdminUsers(request(path, { cookie })), 403);
+});
+
+test("renaming an account and reusing a seed email preserve the original account's trial classification", async (t) => {
+  const { admin, owner, otherOwner } = setupMockData(t, { eventWrites: true });
+  const { cookie } = await signIn(admin);
+  const { POST: create } = load("src/app/api/admin/users/route.ts");
+  const seedEmail = "kittisak@example.com";
+  owner.email = seedEmail;
+  const rename = (user, email) => patchAdminUser(request("/api/admin/users/" + user.id, {
+    method: "PATCH", cookie, body: { email },
+  }), context("id", user.id));
+  assert.equal((await rename(owner, "changed@example.test")).status, 200);
+  assert.equal(owner.is_trial, true);
+  assert.equal((await rename(otherOwner, "thanawat@example.com")).status, 200);
+  assert.equal(otherOwner.is_trial, false);
+  const created = await create(request("/api/admin/users", {
+    method: "POST", cookie, body: { email: seedEmail, name: "New owner", role: "event_owner", password },
+  }));
+  assert.equal(created.status, 201);
+  const trial = await getAdminUsers(request("/api/admin/users?trial=true", { cookie }));
+  assert.deepEqual((await trial.json()).users.map((row) => row.id), [owner.id]);
+});
+
+test("a user manager can create, edit and remove a trial account while ordinary accounts stay outside trial deletion", async (t) => {
+  const { admin, reviewer, owner, collections } = setupMockData(t, { eventWrites: true });
+  const manager = (await signIn(admin)).cookie;
+  const viewer = (await signIn(reviewer)).cookie;
+  const { POST: create } = load("src/app/api/admin/users/route.ts");
+  const { DELETE: remove } = load("src/app/api/admin/users/[id]/route.ts");
+  const body = {
+    name: "QA Trial Editor", email: "qa-trial@example.test", password,
+    role: "sub_user", eventId: "event-a", isTrial: true,
+  };
+  const createAs = (cookie, input = body) => create(request("/api/admin/users", {
+    method: "POST", cookie, body: input,
+  }));
+  const removeAs = (cookie, id, query = "?trial=true") => remove(
+    request(`/api/admin/users/${id}${query}`, { method: "DELETE", cookie }),
+    context("id", id),
+  );
+  const trialIds = async () => {
+    const response = await getAdminUsers(request("/api/admin/users?trial=true", { cookie: manager }));
+    assert.equal(response.status, 200);
+    return (await response.json()).users.map((row) => row.id);
+  };
+
+  await assertDenied(await createAs(undefined), 401);
+  await assertDenied(await createAs(viewer), 403);
+  const invalid = await createAs(manager, { ...body, isTrial: "true" });
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json()).error, "INVALID_TRIAL_FLAG");
+  assert.deepEqual(await trialIds(), []);
+  const created = await createAs(manager);
+  assert.equal(created.status, 201);
+  const { id } = await created.json();
+  const user = collections.users.find((row) => row.id === id);
+  assert.equal(user.is_trial, true);
+  const access = collections.event_access.find((row) => row.user_id === id);
+  assert.equal(access.event_id, body.eventId);
+  assert.deepEqual(await trialIds(), [id]);
+  assert.equal((await createAs(manager)).status, 409);
+  const detail = (targetId) => getAdminUser(request(`/api/admin/users/${targetId}?trial=true`, {
+    cookie: viewer,
+  }), context("id", targetId));
+  const editEmail = (targetId, email) => patchAdminUser(request(`/api/admin/users/${targetId}?trial=true`, {
+    method: "PATCH", cookie: manager, body: { email },
+  }), context("id", targetId));
+  assert.equal((await detail(id)).status, 200);
+  assert.equal((await detail(owner.id)).status, 404);
+  const originalOwnerEmail = owner.email;
+  assert.equal((await editEmail(owner.id, "stale-trial@example.test")).status, 404);
+  assert.equal(owner.email, originalOwnerEmail);
+  const edit = await editEmail(id, "renamed-trial@example.test");
+  assert.equal(edit.status, 200);
+  assert.deepEqual(await trialIds(), [id]);
+
+  await assertDenied(await removeAs(undefined, id), 401);
+  await assertDenied(await removeAs(viewer, id), 403);
+  const self = await removeAs(manager, admin.id);
+  assert.equal(self.status, 400);
+  assert.equal((await self.json()).error, "CANNOT_DELETE_SELF");
+  assert.equal((await removeAs(manager, owner.id, "?trial=yes")).status, 400);
+  assert.equal((await removeAs(manager, owner.id)).status, 404);
+  assert.equal(owner.status, "active");
+  assert.equal(user.removed_at, null);
+
+  const removed = await removeAs(manager, id);
+  assert.equal(removed.status, 200);
+  assert.deepEqual(await removed.json(), { success: true });
+  assert.ok(user.removed_at);
+  assert.ok(access.deleted_at);
+  assert.deepEqual(await trialIds(), []);
+  assert.equal((await detail(id)).status, 404);
+  assert.equal((await editEmail(id, "removed-trial@example.test")).status, 404);
+  assert.equal((await removeAs(manager, id)).status, 404);
+  assert.equal((await removeAs(manager, owner.id, "")).status, 200);
+});
+
 test("users from a deleted draft can be assigned to another event with the selected role", async (t) => {
   const { admin, assistant, owner, collections } = setupMockData(t, { eventWrites: true });
   Object.assign(collections.events[0], { status: "draft", deleted_at: "2026-11-20T00:00:00Z" });

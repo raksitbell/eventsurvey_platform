@@ -1,12 +1,18 @@
-"use client";
-
 import EditUserForm from "@/components/admin/users/EditUserForm";
-import { useParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
-export default function AdminUserEditPage() {
-  const params = useParams<{ id: string }>();
-  const t = useTranslations("adminUsers");
+export default async function AdminUserEditPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string | string[] }>;
+}) {
+  const [{ id }, { from }, t] = await Promise.all([
+    params,
+    searchParams,
+    getTranslations("adminUsers"),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -18,7 +24,7 @@ export default function AdminUserEditPage() {
           {t("form.subtitle")}
         </p>
       </div>
-      <EditUserForm userId={params.id} />
+      <EditUserForm userId={id} fromTrialAccounts={from === "trial-accounts"} />
     </div>
   );
 }

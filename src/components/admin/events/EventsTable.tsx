@@ -15,10 +15,8 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { Link } from "@/i18n/navigation";
 import {
   ArrowUturnLeftIcon,
-  CalendarDaysIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  TrashIcon,
 } from "@heroicons/react/24/outline";
 import { showProgress, showToast } from "@/utils/alert";
 import type { Locale } from "@/i18n/routing";
@@ -92,40 +90,7 @@ function parseCloseWarnings(body: unknown): EventCloseWarning[] {
   return warnings as EventCloseWarning[];
 }
 
-export default function EventsTable() {
-  const t = useTranslations("adminEvents");
-  const [showTrash, setShowTrash] = useState(false);
-  const views = [
-    { trash: false, label: t("trash.events"), Icon: CalendarDaysIcon },
-    { trash: true, label: t("trash.title"), Icon: TrashIcon },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div
-        role="group"
-        aria-label={t("title")}
-        className="inline-flex gap-1 rounded-lg border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900"
-      >
-        {views.map(({ trash, label, Icon }) => (
-          <button
-            key={label}
-            type="button"
-            aria-pressed={showTrash === trash}
-            onClick={() => setShowTrash(trash)}
-            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 aria-pressed:bg-brand-50 aria-pressed:text-brand-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:aria-pressed:bg-brand-500/15 dark:aria-pressed:text-brand-300"
-          >
-            <Icon className="size-4" aria-hidden="true" />
-            {label}
-          </button>
-        ))}
-      </div>
-      <EventList key={showTrash ? "trash" : "events"} showTrash={showTrash} />
-    </div>
-  );
-}
-
-function EventList({ showTrash }: { showTrash: boolean }) {
+export default function EventsTable({ showTrash = false }: { showTrash?: boolean }) {
   const t = useTranslations("adminEvents");
   const tc = useTranslations("confirm");
   const ti = useTranslations("eventInspection");

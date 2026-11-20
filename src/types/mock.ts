@@ -56,6 +56,8 @@ export type MockPlatformPermissionCode =
 export interface MockUser {
   id: string;
   email: string;
+  /** Older demo accounts use the seed identities documented in the README. */
+  is_trial?: boolean;
   phone?: string | null;
   /** Mock login only — never return to the browser */
   password: string;

@@ -52,6 +52,7 @@
       "overview": "System Overview",
       "owners": "User Management",
       "activity": "User Activity",
+      "configuration": "Platform Configuration",
       "eventHome": "Overview",
       "eventWorkspace": "Event Workspace",
       "dashboard": "Dashboard",
@@ -175,6 +176,18 @@
         "attention": "Attention"
       }
     }
+  },
+  "platformConfiguration": {
+    "title": "Platform Configuration",
+    "trialAccounts": "Manage trial accounts",
+    "addTrialAccount": "Add trial account",
+    "trialAccountCreated": "Trial account created",
+    "emptyTrialAccounts": "No trial accounts found.",
+    "accountActions": "Actions for {name}",
+    "deleteTrialAccount": "Delete trial account",
+    "deletingTrialAccount": "Deleting trial account…",
+    "trialAccountUnavailable": "This trial account is no longer listed.",
+    "retry": "Try again"
   },
   "adminUsers": {
     "title": "User Management",
@@ -768,7 +781,7 @@
       "inspectPermission": "Requires permission to inspect event workspaces.",
       "closeEvent": "Close event",
       "deleteEvent": "Move to Trash",
-      "confirmDelete": "Move “{title}” to Trash? You can restore it from Trash.",
+      "confirmDelete": "Move “{title}” to Trash? You can restore it from Platform Configuration → Trash.",
       "deleted": "Event moved to Trash",
       "deleting": "Moving event to Trash…",
       "noLongerDraft": "This event is no longer a draft and cannot be moved to Trash.",
@@ -776,7 +789,6 @@
       "deleteError": "Could not move the event to Trash."
     },
     "trash": {
-      "events": "Events",
       "title": "Trash",
       "empty": "No events in Trash",
       "noMatches": "No events in Trash match these filters.",

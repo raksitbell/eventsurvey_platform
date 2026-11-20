@@ -51,6 +51,14 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
   const t = useTranslations("errors.403");
+  const onConfiguration =
+    pathname === "/admin/configuration" || pathname.startsWith("/admin/configuration/");
+  const adminPageUnavailable =
+    (isAdminOverviewPath(pathname) && !canViewOverview) ||
+    (pathname.startsWith("/admin/events") && !canViewEvents) ||
+    (pathname.startsWith("/admin/users") && !canViewUsers) ||
+    (pathname.startsWith("/admin/activity") && !canViewActivity) ||
+    (onConfiguration && !canViewEvents && !canViewUsers);
 
   const homePath = user
     ? getHomePathForRole(user.role, {
@@ -74,7 +82,7 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
       return;
     }
 
-    if (area !== "admin" || !allowAdmin) return;
+    if (area !== "admin" || !allowAdmin || !adminPageUnavailable) return;
 
     const adminHome = getAdminHomePath({
       canViewOverview,
@@ -83,22 +91,9 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
       canViewActivity,
     });
 
-    if (isAdminOverviewPath(pathname) && !canViewOverview) {
-      if (adminHome !== pathname) router.replace(adminHome);
-      return;
-    }
-    if (pathname.startsWith("/admin/events") && !canViewEvents) {
-      router.replace(adminHome);
-      return;
-    }
-    if (pathname.startsWith("/admin/users") && !canViewUsers) {
-      router.replace(adminHome);
-      return;
-    }
-    if (pathname.startsWith("/admin/activity") && !canViewActivity) {
-      router.replace(adminHome);
-    }
+    if (adminHome !== pathname) router.replace(adminHome);
   }, [
+    adminPageUnavailable,
     allowAdmin,
     area,
     authUnavailable,
@@ -141,20 +136,7 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
     );
   }
 
-  if (area === "admin") {
-    if (isAdminOverviewPath(pathname) && !canViewOverview) {
-      return <HoldScreen />;
-    }
-    if (pathname.startsWith("/admin/events") && !canViewEvents) {
-      return <HoldScreen />;
-    }
-    if (pathname.startsWith("/admin/users") && !canViewUsers) {
-      return <HoldScreen />;
-    }
-    if (pathname.startsWith("/admin/activity") && !canViewActivity) {
-      return <HoldScreen />;
-    }
-  }
+  if (area === "admin" && adminPageUnavailable) return <HoldScreen />;
 
   return <>{children}</>;
 }

@@ -17,6 +17,14 @@ type RouteContext = {
 
 const PORTAL_ROLES: UserRole[] = ["super_admin", "event_owner", "sub_user"];
 
+function readTrialScope(request: NextRequest): boolean {
+  const trial = request.nextUrl.searchParams.get("trial");
+  if (trial !== null && trial !== "true" && trial !== "false") {
+    throw new ServiceError("INVALID_TRIAL_FLAG", 400);
+  }
+  return trial === "true";
+}
+
 export async function GET(request: NextRequest, context: RouteContext) {
   const session = await requireAdminSession(request);
   if (!isAuthSession(session)) return session;
@@ -33,10 +41,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const locale = routing.locales.includes(requestedLocale as Locale)
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
-    const user = await getAdminUserById(id, locale);
+    const user = await getAdminUserById(id, locale, readTrialScope(request));
     if (!user) return authJson({ error: "USER_NOT_FOUND" }, 404);
     return authJson({ user });
-  } catch {
+  } catch (error) {
+    if (error instanceof ServiceError) {
+      return authJson({ error: error.code }, error.status);
+    }
     return authJson({ error: "Failed to load user" }, 502);
   }
 }
@@ -77,6 +88,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       id,
       { eventId, role, name, email, password },
       session.realUserId,
+      readTrialScope(request),
     );
     return authJson(result);
   } catch (error) {
@@ -102,7 +114,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params;
-    const result = await deleteAdminUser(id, session.realUserId);
+    const result = await deleteAdminUser(id, session.realUserId, readTrialScope(request));
     return authJson(result);
   } catch (error) {
     if (error instanceof ServiceError) {
