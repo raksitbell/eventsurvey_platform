@@ -2028,6 +2028,145 @@ function findSetupElement(node, predicate) {
   }
   return null;
 }
+
+function renderFormComponent(relative, mocks) {
+  const state = [];
+  let cursor = 0;
+  let mount;
+  const Component = compileSetupComponent(relative, {
+    react: {
+      useCallback: (callback) => callback,
+      useEffect: (effect) => { mount = effect; },
+      useState(initial) {
+        const index = cursor++;
+        if (!(index in state)) state[index] = typeof initial === "function" ? initial() : initial;
+        return [state[index], (next) => {
+          state[index] = typeof next === "function" ? next(state[index]) : next;
+        }];
+      },
+    },
+    "next-intl": { useLocale: () => "en", useTranslations: () => (key) => key },
+    ...mocks,
+  });
+  return {
+    render(props) { cursor = 0; return Component(props); },
+    async mount() { mount(); await new Promise((resolve) => setImmediate(resolve)); },
+  };
+}
+
+test("Form Management schedules unconfigured legacy drafts only when their lifecycle and permissions allow it", async () => {
+  const legacyWindow = { startsAt: null, endsAt: null };
+  async function openPage({ type, legacyScheduleWindow = legacyWindow, access = "can_edit", canChangeStatus = true }) {
+    // The workspace may carry projected setup fields. The forms response has the authoritative window.
+    const workspace = { eventId: "legacy", eventStatus: "draft", setup: null };
+    let record = {
+      id: type + "-id", type, status: "draft", head: { en: { title: type }, th: { title: "" } },
+      opensAt: null, closesAt: null, canChangeStatus, canDelete: false,
+    };
+    const requests = [];
+    const { render, mount } = renderFormComponent("src/components/event/form/FormHomePage.tsx", {
+      "@/components/event/workspace/EventWorkspacePageHeader": { default: "header" },
+      "@/components/ui/skeleton/Skeleton": { default: "skeleton" },
+      "@/context/AuthContext": { useAuth: () => ({ user: { id: "owner" } }) },
+      "@/core/i18n/format-datetime": loadSource()("src/core/i18n/format-datetime.ts"),
+      "@/hooks/useConfirm": { useConfirm: () => ({}) },
+      "@/i18n/navigation": { Link: "a" },
+      "@/types/event/form": { FORM_TYPES: ["registration", "survey"] },
+      "@/utils/alert": { showToast: () => {} },
+      "./FormScheduleEditor": { default: "schedule-editor" },
+      "@/core/api": { api: {
+        async get(path) {
+          if (path === "/event/workspace?locale=en") return workspace;
+          assert.equal(path, "/event/forms?eventId=legacy");
+          return { forms: [record], [type + "FormAccess"]: access, legacyScheduleWindow };
+        },
+        async patch(path, body) {
+          requests.push({ path, body });
+          record = { ...record, ...body };
+          return record;
+        },
+      } },
+    });
+    render();
+    await mount();
+    const findAction = (label) => findSetupElement(render(), (node) =>
+      node.type === "button" && findSetupElement(node, (child) => child.props.children === label));
+    return { render, requests, findAction };
+  }
+
+  for (const type of ["registration", "survey"]) {
+    const page = await openPage({ type });
+    page.findAction("schedule").props.onClick();
+    const editor = findSetupElement(page.render(), (node) => node.type === "schedule-editor");
+    assert.equal(editor.props.record.id, type + "-id");
+    assert.deepEqual(page.requests, []);
+    const bounds = { opensAt: "2090-01-02T03:00:00.000Z", closesAt: null };
+    await editor.props.onSchedule(bounds);
+    assert.deepEqual(page.requests, [{
+      path: "/event/forms/" + type + "-id/status", body: { status: "scheduled", ...bounds },
+    }]);
+    assert.ok(page.findAction("revertToDraft"));
+  }
+  for (const scenario of [
+    { legacyScheduleWindow: null },
+    { access: "view_only" }, { access: "restricted" }, { canChangeStatus: false },
+  ]) {
+    const page = await openPage({ type: "registration", ...scenario });
+    assert.equal(page.findAction("schedule"), null, JSON.stringify(scenario));
+    assert.deepEqual(page.requests, []);
+  }
+});
+
+test("the legacy schedule editor keeps registration within the event and permits extended surveys", async (t) => {
+  const now = Date.parse("2090-01-02T01:00:20.000Z");
+  t.mock.method(Date, "now", () => now);
+  const startsAt = "2090-01-02T00:00:00.000Z";
+  const endsAt = "2090-01-02T02:00:00.000Z";
+  const opensAfterEnd = "2090-01-02T03:00:00.000Z";
+  for (const type of ["registration", "survey"]) {
+    const { render } = renderFormComponent("src/components/event/form/FormScheduleEditor.tsx", {
+      "@/components/form/DateTimePicker": { default: "picker" },
+      "@/components/ui/button/Button": { default: "button" },
+      "@/core/forms/lifecycle": loadSource()("src/core/forms/lifecycle.ts"),
+      "@/core/event/schedule": loadSource()("src/core/event/schedule.ts"),
+      "@/core/i18n/bangkok-datetime": loadSource()("src/core/i18n/bangkok-datetime.ts"),
+    });
+    const requests = [];
+    const props = {
+      record: { type, opensAt: null, closesAt: null },
+      eventWindow: { startsAt, endsAt },
+      busy: false,
+      async onSchedule(bounds) { requests.push(bounds); return "Schedule failed"; },
+    };
+    const view = () => render(props);
+    const picker = (suffix) => findSetupElement(view(), (node) => node.props.id === `form-schedule-${type}-${suffix}`).props;
+    const submit = () => view().props.onSubmit({ preventDefault() {} });
+    const alert = () => findSetupElement(view(), (node) => node.props.role === "alert")?.props.children;
+    assert.equal(picker("opens").value, "2090-01-02T01:00:00.000Z");
+    assert.equal(picker("closes").value, endsAt);
+    picker("closes").onChange(null);
+    if (type === "registration") {
+      for (const eventEnd of [startsAt, endsAt]) {
+        props.eventWindow.endsAt = eventEnd;
+        picker("opens").onChange(eventEnd);
+        await submit();
+        assert.equal(alert(), "REGISTRATION_OUTSIDE_EVENT");
+      }
+      picker("opens").onChange("2090-01-02T01:30:00.000Z");
+      picker("closes").onChange(opensAfterEnd);
+      await submit();
+      assert.equal(alert(), "REGISTRATION_OUTSIDE_EVENT");
+      assert.deepEqual(requests, []);
+    } else {
+      picker("opens").onChange(opensAfterEnd);
+      await submit();
+      assert.deepEqual(requests, [{ opensAt: opensAfterEnd, closesAt: null }]);
+      assert.equal(alert(), "Schedule failed");
+      assert.equal(picker("opens").value, opensAfterEnd);
+    }
+  }
+});
+
 test("Overview keeps its hero through loading, empty, draft, and published states", () => {
   let session = { userId: "owner", workspace: null, loading: true };
   const Page = compileSetupComponent("src/components/event/workspace/EventWorkspacePanel.tsx", {

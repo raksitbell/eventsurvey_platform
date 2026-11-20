@@ -173,6 +173,10 @@ function setupMockData(t, { eventWrites = false } = {}) {
       const row = rows.find((item) => item.id === decodeURIComponent(id));
       if (!row) return new Response(null, { status: 404 });
       if (method === "GET") return Response.json(row);
+      if (method === "PUT" && eventWrites && collection === "forms") {
+        rows[rows.indexOf(row)] = body;
+        return Response.json(body);
+      }
       if (method === "PATCH" && (eventWrites || collection === "users")) {
         Object.assign(row, body);
         return Response.json(row);

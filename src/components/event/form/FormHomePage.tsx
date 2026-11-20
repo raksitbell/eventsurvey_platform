@@ -12,6 +12,7 @@ import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspac
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
+import { formatDateTime } from "@/core/i18n/format-datetime";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Link } from "@/i18n/navigation";
 import {
@@ -25,6 +26,13 @@ import {
 import type { ModuleAccessLevel } from "@/types/event/permissions";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { showToast } from "@/utils/alert";
+import FormScheduleEditor from "./FormScheduleEditor";
+
+const scheduleDateFormat = {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Asia/Bangkok",
+} as const;
 
 function formAccessForType(
   list: FormListResponse | null,
@@ -56,6 +64,9 @@ function statusBadgeClass(status?: FormStatus, enabled = true): string {
 
 const KNOWN_FORM_ERROR_CODES = new Set([
   "FORM_SCHEDULE_REQUIRED",
+  "FORM_SCHEDULE_IN_PAST",
+  "DATE_RANGE_INVALID",
+  "REGISTRATION_OUTSIDE_EVENT",
   "FORM_NOT_READY",
   "FORM_NOT_EDITABLE",
   "FORM_NOT_DELETABLE",
@@ -103,8 +114,9 @@ export default function FormHomePage() {
   );
 
   const [listData, setListData] = useState<FormListResponse | null>(null);
+  const [scheduleFormId, setScheduleFormId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [busyType, setBusyType] = useState<FormType | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
 
   const loadForms = useCallback(async () => {
     if (!user) return;
@@ -131,15 +143,23 @@ export default function FormHomePage() {
     void loadForms();
   }, [loadForms]);
 
-  const handleToggleStatus = async (record: FormRecord) => {
+  const handleToggleStatus = async (
+    record: FormRecord,
+    schedule?: Pick<FormRecord, "opensAt" | "closesAt">,
+  ) => {
     const nextStatus = record.status === "draft" ? "scheduled" : "draft";
-    setBusyType(record.type);
+    setIsBusy(true);
     try {
-      await api.patch<FormRecord>(`/event/forms/${record.id}/status`, {
+      const updated = await api.patch<FormRecord>(`/event/forms/${record.id}/status`, {
         status: nextStatus,
-        opensAt: record.opensAt,
-        closesAt: record.closesAt,
+        opensAt: schedule ? schedule.opensAt : record.opensAt,
+        closesAt: schedule ? schedule.closesAt : record.closesAt,
       });
+      setScheduleFormId(null);
+      setListData((previous) => previous && ({
+        ...previous,
+        forms: previous.forms.map((form) => form.id === updated.id ? updated : form),
+      }));
       await loadForms();
       showToast({
         title:
@@ -148,13 +168,13 @@ export default function FormHomePage() {
             : tbuilder("revertSuccess"),
         variant: "success",
       });
+      return null;
     } catch (err) {
-      showToast({
-        title: resolveErrorMessage(err, tbuilder("saveError")),
-        variant: "error",
-      });
+      const message = resolveErrorMessage(err, tbuilder("saveError"));
+      if (!schedule) showToast({ title: message, variant: "error" });
+      return message;
     } finally {
-      setBusyType(null);
+      setIsBusy(false);
     }
   };
 
@@ -167,7 +187,7 @@ export default function FormHomePage() {
     });
     if (!ok) return;
 
-    setBusyType(record.type);
+    setIsBusy(true);
     try {
       await api.delete<void>(`/event/forms/${record.id}`);
       await loadForms();
@@ -178,7 +198,7 @@ export default function FormHomePage() {
         variant: "error",
       });
     } finally {
-      setBusyType(null);
+      setIsBusy(false);
     }
   };
 
@@ -199,7 +219,10 @@ export default function FormHomePage() {
               const access = formAccessForType(listData, type);
               const canEditAccess = access === "can_edit";
               const canViewAccess = access === "view_only" || canEditAccess;
-              const isBusy = busyType === type;
+              const editWindow = record?.status === "draft" && canEditAccess && record.canChangeStatus
+                ? listData?.legacyScheduleWindow
+                : null;
+              const showEditor = editWindow && record?.id === scheduleFormId;
               const localizedTitle =
                 record?.head[locale]?.title?.trim() ||
                 record?.head.th.title?.trim() ||
@@ -215,7 +238,7 @@ export default function FormHomePage() {
               return (
                 <div
                   key={type}
-                  className="flex flex-col gap-3 rounded-xl border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-4 dark:border-gray-800"
+                  className="flex flex-col gap-3 rounded-xl border border-gray-200 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4 sm:py-4 dark:border-gray-800"
                 >
                   <div className="flex items-center gap-3">
                     <div className="shrink-0 rounded-lg bg-brand-50 p-2 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
@@ -236,13 +259,13 @@ export default function FormHomePage() {
                           {record.opensAt && (
                             <span>
                               {tbuilder("opensAt")}:{" "}
-                              {new Date(record.opensAt).toLocaleString(locale)}
+                              {formatDateTime(record.opensAt, locale, scheduleDateFormat)}
                             </span>
                           )}
                           {record.closesAt && (
                             <span>
                               {tbuilder("closesAt")}:{" "}
-                              {new Date(record.closesAt).toLocaleString(locale)}
+                              {formatDateTime(record.closesAt, locale, scheduleDateFormat)}
                             </span>
                           )}
                         </div>
@@ -260,12 +283,15 @@ export default function FormHomePage() {
                       {statusLabel}
                     </span>
 
-                    {canEditAccess && record?.canChangeStatus &&
-                      (record.status === "scheduled" || record.opensAt || record.closesAt) && (
+                    {canEditAccess && record?.canChangeStatus && !showEditor &&
+                      (editWindow || record.status === "scheduled" || record.opensAt || record.closesAt) && (
                       <button
                         type="button"
                         disabled={isBusy}
-                        onClick={() => void handleToggleStatus(record)}
+                        onClick={() => {
+                          if (editWindow) setScheduleFormId(record.id);
+                          else void handleToggleStatus(record);
+                        }}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         <ArrowPathIcon className="h-4 w-4" />
@@ -308,6 +334,15 @@ export default function FormHomePage() {
                       </Link>
                     )}
                   </div>
+                  {showEditor && record && (
+                    <FormScheduleEditor
+                      record={record}
+                      eventWindow={editWindow}
+                      busy={isBusy}
+                      onCancel={() => setScheduleFormId(null)}
+                      onSchedule={(schedule) => handleToggleStatus(record, schedule)}
+                    />
+                  )}
                 </div>
               );
             })}

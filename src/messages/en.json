@@ -925,6 +925,7 @@
     "errors": {
       "FORM_SCHEDULE_REQUIRED": "Please set Opens at or Closes at before scheduling the form",
       "FORM_SCHEDULE_IN_PAST": "Opening and closing times must be current or future.",
+      "REGISTRATION_OUTSIDE_EVENT": "Registration must open before the event ends and close by the end of the event.",
       "FORM_NOT_READY": "Form is not ready to schedule (requires a title, at least 1 question, and options for choice questions)",
       "FORM_NOT_EDITABLE": "Only draft forms can be edited. Please revert to draft first.",
       "FORM_NOT_DELETABLE": "Only draft forms can be deleted. Please revert to draft first.",

@@ -5,11 +5,13 @@ import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { writeAuditLog } from "@/core/audit/write";
 import { isPastScheduleMinute } from "@/core/event/schedule";
+import { readSetupRecord } from "@/core/event/setup-storage";
 import { writeSerially } from "@/core/event/serial-write";
 import {
   assertManualFormStatusTransition,
   formMutationFlags,
   nextCronFormStatus,
+  registrationOutsideEvent,
   resolveEffectiveFormStatus,
 } from "@/core/forms/lifecycle";
 import {
@@ -1372,6 +1374,14 @@ async function compensateOrThrow(
   throw originalError;
 }
 
+function liveEventWindow(event: MockEvent): FormListData["legacyScheduleWindow"] {
+  if (event.status !== "open" && event.status !== "scheduled") return null;
+  return {
+    startsAt: event.start_at ?? event.opens_at ?? null,
+    endsAt: event.end_at ?? event.closes_at ?? null,
+  };
+}
+
 export async function listForms(
   eventId: string,
   allowedTypes: readonly FormType[],
@@ -1405,14 +1415,18 @@ export async function listForms(
     }
   }
 
+  const published = !!readSetupRecord(event).publication;
   return {
     eventId: event.id,
+    legacyScheduleWindow: published ? null : liveEventWindow(event),
     hasRegistration:
       (event.has_registration ?? true) ||
       items.some((f) => f.type === "registration"),
     hasSurvey:
       (event.has_survey ?? true) || items.some((f) => f.type === "survey"),
-    forms: items,
+    forms: published
+      ? items.map((record) => record.status === "draft" ? { ...record, canChangeStatus: false } : record)
+      : items,
   };
 }
 
@@ -1643,9 +1657,16 @@ async function changeFormStatus(
   patch: FormStatusPatchInput,
   userId: string,
 ): Promise<FormRecord> {
-  assertUnpublishedForm(form, event, "FORM_STATUS_LOCKED");
   const { id } = form;
   const current = resolveEffectiveFormStatus(form);
+  const activating = current === "draft" && patch.status === "scheduled";
+  if (activating) {
+    if (readSetupRecord(event).publication) {
+      throw new ServiceError("FORM_STATUS_LOCKED", 409, "Published event forms are read-only");
+    }
+  } else {
+    assertUnpublishedForm(form, event, "FORM_STATUS_LOCKED");
+  }
   assertCanChangeStatus(current);
   const stamp = nowIso();
   assertManualFormStatusTransition(current, patch.status);
@@ -1656,7 +1677,14 @@ async function changeFormStatus(
     patch.closesAt !== undefined
       ? patch.closesAt?.trim() || null
       : form.closes_at;
-  const activating = current === "draft" && patch.status === "scheduled";
+  const scheduleChanged = opensAt !== form.opens_at || closesAt !== form.closes_at;
+  if (form.type === "registration" && patch.status === "scheduled" && (activating || scheduleChanged)) {
+    const window = liveEventWindow(event);
+    if (event.status === "closed" ||
+      (window && registrationOutsideEvent(window.endsAt, opensAt, closesAt, Date.parse(stamp)))) {
+      throw new ServiceError("REGISTRATION_OUTSIDE_EVENT", 400);
+    }
+  }
   assertFormSchedule(
     opensAt,
     closesAt,
