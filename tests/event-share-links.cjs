@@ -424,13 +424,20 @@ test("both cron jobs honor the published Survey window after the Event closes", 
   assert.deepEqual((await runEventLifecycleCron("platform-admin")).formsClosed, [survey.id]);
 });
 
-test("public forms resolve published branding by locale for both form kinds and status pages", async () => {
+test("public forms show the localized published event and its banner for both form kinds and status pages", async () => {
   const { defaultEventBranding } = load("@/core/event/branding");
   const fallback = { ...defaultEventBranding, primary: "#123456" };
   const english = { ...fallback, footerColor: "#765432", chromeOpacity: 60 };
+  const th = { localeCode: "th", title: "เวิร์กช็อป", description: "เรียนรู้", locationName: "ห้อง A", floorZone: "ชั้น 1" };
+  const en = { localeCode: "en", title: "Workshop", description: "Learn", locationName: "Hall A", floorZone: "1F" };
+  const bannerUrl = "https://example.org/banner.png";
   const setup = {
     publication: {
-      draft: { hasRegistration: true, hasSurvey: true },
+      draft: {
+        eventName: th.title, content: { defaultLocale: "th", translations: [th, en] },
+        startsAt: event.start_at, endsAt: event.end_at, isPrivate: false, surveyAccess: "public",
+        hasRegistration: true, hasSurvey: true, registrationCapacity: 230,
+      },
       forms: { registration: null, survey: null },
       branding: fallback,
     },
@@ -440,22 +447,35 @@ test("public forms resolve published branding by locale for both form kinds and 
   const read = loadSource({
     ...substitutions,
     "@/core/api/mock-client": {
-      mockApi: { get: async () => [{ ...event, status: "scheduled" }] },
+      mockApi: { get: async (resource) => {
+        if (resource.startsWith("/events?")) return [{ ...event, status: "scheduled" }];
+        if (resource.startsWith("/event_banners?")) return [{ event_id: event.id, banner_url: bannerUrl }];
+        if (resource.startsWith("/event_translations?")) {
+          assert.equal(setup.publication, null);
+          return [{ event_id: event.id, locale_code: "th", title: th.title, location_name: th.locationName }];
+        }
+        throw new Error("Unexpected resource " + resource);
+      } },
     },
     "@/core/event/setup-storage": { readSetupRecord: () => setup },
   });
   const { getPublicFormPageBySlug } = read("src/services/event/public-event.ts");
   for (const kind of ["registration", "survey"]) {
     assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en"), {
-      result: { status: "scheduled" }, branding: english, bannerUrl: null, hasSurvey: false,
+      result: { status: "scheduled" }, branding: english, bannerUrl, hasSurvey: false,
+      eventDetails: {
+        eventName: en.title, description: en.description, locationName: en.locationName, locationDetail: en.floorZone,
+        startsAt: event.start_at, endsAt: event.end_at, isPrivate: false, surveyAccess: "public",
+      },
     });
     assert.equal((await getPublicFormPageBySlug(event.slug, kind, "th")).branding, fallback);
   }
   setup.publication = null;
-  assert.deepEqual(
-    (await getPublicFormPageBySlug(event.slug, "survey", "en")).branding,
-    defaultEventBranding,
-  );
+  const legacy = await getPublicFormPageBySlug(event.slug, "survey", "en");
+  assert.deepEqual(legacy.branding, defaultEventBranding);
+  assert.equal(legacy.eventDetails.eventName, th.title);
+  assert.equal(legacy.eventDetails.locationName, th.locationName);
+  assert.equal(legacy.bannerUrl, bannerUrl);
 });
 
 test("private participant forms disclose questions only after a matching published whitelist identifier", async (t) => {

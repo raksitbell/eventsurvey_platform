@@ -3,6 +3,7 @@
 import PublicParticipantForm from "@/components/event/participant/forms/PublicParticipantForm";
 import ParticipantFormPreviewSkeleton from "@/components/event/participant/forms/ParticipantFormPreviewSkeleton";
 import Button from "@/components/ui/button/Button";
+import { projectEventContent } from "@/core/event/content";
 import { selectSetupForms } from "@/core/event/form-summary";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import type {
@@ -110,7 +111,7 @@ export default function BrandingPreviewGallery({
       ?.focus({ preventScroll: true });
   }
 
-  const panelClass = `custom-scrollbar min-h-0 min-w-0 overflow-y-auto overscroll-contain ${pageHeader ? "flex-1" : "rounded-xl"} ${viewportClassName}`;
+  const panelClass = `custom-scrollbar min-h-0 min-w-0 overflow-y-auto ${pageHeader ? "flex-1 overscroll-contain" : "rounded-xl"} ${viewportClassName}`;
   const tabList = (
     <div
       role="tablist"
@@ -128,7 +129,7 @@ export default function BrandingPreviewGallery({
           tabIndex={tab === id ? 0 : -1}
           onClick={() => setSelection({ ...selection, tab: id })}
           onKeyDown={selectWithKeyboard}
-          className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-700 hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-event-action aria-selected:bg-event-action aria-selected:text-white dark:text-gray-200 dark:hover:bg-gray-700 dark:aria-selected:bg-event-action dark:aria-selected:text-white"
+          className="flex min-h-11 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-lg px-2 text-sm font-medium wrap-anywhere text-gray-700 hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-event-action aria-selected:bg-event-action aria-selected:text-white dark:text-gray-200 dark:hover:bg-gray-700 dark:aria-selected:bg-event-action dark:aria-selected:text-white"
         >
           <Icon aria-hidden="true" className="size-5 shrink-0" />
           {visual(label)}
@@ -137,7 +138,7 @@ export default function BrandingPreviewGallery({
     </div>
   );
   return (
-    <div className={`flex min-h-0 min-w-0 flex-col ${className}`}>
+    <div className={`@container/preview flex min-h-0 min-w-0 flex-col ${className}`}>
       {pageHeader ? pageHeader(tabList) : tabList}
       <div
         role="tabpanel"
@@ -159,13 +160,11 @@ export default function BrandingPreviewGallery({
       >
         {tab === "form" && (
           <div
-            className={
-              pageHeader ? "flex min-h-full flex-col" : "space-y-2 p-3"
-            }
+            className={`@container/form-preview ${pageHeader ? "flex min-h-full flex-col" : "space-y-2 py-2 @sm/preview:px-3"}`}
           >
             {draft.hasRegistration && draft.hasSurvey && (
               <div
-                className={`flex flex-wrap gap-1 ${pageHeader ? "shrink-0 justify-center border-b border-preview-border bg-white p-2 dark:border-gray-700 dark:bg-gray-900" : ""}`}
+                className={`grid grid-cols-2 gap-1 @md/form-preview:flex @md/form-preview:flex-wrap ${pageHeader ? "shrink-0 justify-center border-b border-preview-border bg-white p-2 dark:border-gray-700 dark:bg-gray-900" : ""}`}
                 role="group"
                 aria-label={visual("publicFormPreview")}
               >
@@ -177,7 +176,7 @@ export default function BrandingPreviewGallery({
                     onClick={() =>
                       setSelection({ ...selection, formKind: type })
                     }
-                    className={`rounded-lg border border-event-border text-sm font-medium text-gray-700 focus-visible:outline-2 focus-visible:outline-event-action aria-pressed:bg-event-action aria-pressed:text-white dark:border-gray-600 dark:text-gray-200 dark:aria-pressed:text-white ${pageHeader ? "min-h-10 px-3" : "px-2 py-1"}`}
+                    className="min-h-11 min-w-0 rounded-lg border border-event-border px-2 py-1 text-sm leading-tight font-medium wrap-anywhere text-gray-700 focus-visible:outline-2 focus-visible:outline-event-action aria-pressed:bg-event-action aria-pressed:text-white @md/form-preview:px-3 dark:border-gray-600 dark:text-gray-200 dark:aria-pressed:text-white"
                   >
                     {participant(type)}
                   </button>
@@ -195,13 +194,17 @@ export default function BrandingPreviewGallery({
                 </Button>
               </div>
             ) : loading ? (
-              <ParticipantFormPreviewSkeleton label={formsText("loading")} />
+              <ParticipantFormPreviewSkeleton
+                label={formsText("loading")}
+                bannerLayout={branding.banner?.url || bannerUrl ? branding.layout ?? "portrait" : undefined}
+              />
             ) : (
               <PublicParticipantForm
                 key={form?.id ?? kind}
                 readOnly
                 fillViewport={Boolean(pageHeader)}
                 kind={kind}
+                eventDetails={projectEventContent(draft, contentLocale ?? undefined)}
                 result={
                   form ? { status: "open", form } : { status: "unavailable" }
                 }

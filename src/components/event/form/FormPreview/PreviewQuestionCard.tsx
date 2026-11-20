@@ -19,6 +19,8 @@ export type AnswerValue = string | string[] | number;
 
 interface PreviewQuestionCardProps {
   question: Question["question"];
+  appearance?: "card" | "participant";
+  number?: number;
   locale?: FormLocale;
   answer?: AnswerValue;
   errorMessage?: string;
@@ -30,6 +32,8 @@ interface PreviewQuestionCardProps {
 
 export default function PreviewQuestionCard({
   question,
+  appearance = "card",
+  number,
   locale = "th",
   answer,
   errorMessage,
@@ -58,14 +62,17 @@ export default function PreviewQuestionCard({
   return (
     <div
       id={`preview-q-${qId}`}
-      className={`rounded-xl border bg-white p-5 shadow-sm transition-all sm:p-6 ${
+      role="group"
+      aria-labelledby={`preview-label-${qId}`}
+      aria-describedby={hasError ? `preview-error-${qId}` : undefined}
+      className={appearance === "participant" ? "participant-form-question @container/question min-w-0 wrap-anywhere" : `rounded-xl border bg-white p-5 shadow-sm transition-all sm:p-6 ${
         hasError ? "border-red-500" : "border-gray-200"
       }`}
     >
       {/* Question Title */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-base font-medium text-gray-900">
-          <span>{questionTitle}</span>
+      <div className={`${appearance === "participant" ? "mb-2" : "mb-4"} flex flex-wrap items-center justify-between gap-2`}>
+        <div id={`preview-label-${qId}`} className="text-base font-medium text-gray-900">
+          <span>{number !== undefined && `${number}. `}{questionTitle}</span>
           {question.is_required && <span className="ms-1 text-red-600">*</span>}
         </div>
 
@@ -150,6 +157,7 @@ export default function PreviewQuestionCard({
 
       {question.type === "rating" && (
         <PreviewRating
+          appearance={appearance}
           minNumber={question.min_number}
           maxNumber={ratingMax}
           ratingDisplay={question.rating_display || "icon"}
@@ -172,7 +180,7 @@ export default function PreviewQuestionCard({
 
       {/* Validation Error Message */}
       {hasError && (
-        <div className="mt-4 flex items-center gap-2 text-xs font-medium text-red-600">
+        <div id={`preview-error-${qId}`} role="alert" className="mt-4 flex items-center gap-2 text-xs font-medium text-red-600">
           <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
           <span>{errorMessage}</span>
         </div>

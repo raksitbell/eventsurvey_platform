@@ -93,6 +93,7 @@ export default async function PublicParticipantFormPage({
       kind={kind}
       eventHref={publicEventPath(eventSlug)}
       result={page.result}
+      eventDetails={page.eventDetails}
       branding={page.branding}
       bannerUrl={page.bannerUrl}
       registrationHref={kind === "survey" ? publicEventPath(eventSlug, "registration") : undefined}

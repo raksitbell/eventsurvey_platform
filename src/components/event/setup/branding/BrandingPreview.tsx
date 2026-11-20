@@ -53,7 +53,7 @@ export default function BrandingPreview({
         disabled={disabled}
         workspace={workspace}
         contentLocale={contentLocale}
-        viewportClassName="max-h-[65dvh]"
+        viewportClassName="sm:max-h-[65dvh]"
       >
         <div className="overflow-hidden rounded-xl bg-participant-page p-3 dark:bg-gray-950">
           <div

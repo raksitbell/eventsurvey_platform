@@ -1,16 +1,11 @@
 "use client";
 
+import ParticipantCapacityDialog from "./ParticipantCapacityDialog";
 import ParticipantEligibilityGate from "./ParticipantEligibilityGate";
 import { normalizeWhitelistId } from "@/core/event/whitelist";
-import PreviewHeaderCard from "@/components/event/form/FormPreview/PreviewHeaderCard";
+import ParticipantFormLayout from "./ParticipantFormLayout";
+import { CheckCircleIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
 import PreviewQuestionCard from "@/components/event/form/FormPreview/PreviewQuestionCard";
-import ParticipantFooter from "../ParticipantFooter";
-import ParticipantHeader from "../ParticipantHeader";
-import { bannerObjectPosition } from "@/core/event/banner-layout";
-import {
-  participantColors,
-  eventColorForeground,
-} from "@/core/event/participant-colors";
 import type { EventBranding } from "@/types/event/branding";
 import Button from "@/components/ui/button/Button";
 import {
@@ -22,7 +17,7 @@ import {
 } from "@/core/event/public-form-response";
 import { Link } from "@/i18n/navigation";
 import { completeFormLocale } from "@/core/forms/content";
-import type { ParticipantFormKind } from "@/types/event/participant";
+import type { ParticipantFormEventDetails, ParticipantFormKind } from "@/types/event/participant";
 import type { PublicForm, PublicFormSubmissionResult } from "@/types/event/public-event";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -31,7 +26,6 @@ import {
   useId,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
 } from "react";
 
@@ -61,6 +55,7 @@ type PublicParticipantFormProps = {
   result: PublicForm;
   branding: EventBranding;
   bannerUrl: string | null;
+  eventDetails: ParticipantFormEventDetails;
   contentLocale?: string | null;
 } & (
   | {
@@ -93,6 +88,7 @@ export default function PublicParticipantForm({
   result,
   branding,
   bannerUrl,
+  eventDetails,
   contentLocale,
   readOnly = false,
   fillViewport = false,
@@ -307,22 +303,30 @@ export default function PublicParticipantForm({
     }
   }
 
+  const verifiedRegistration = !readOnly && kind === "survey" && eventDetails.surveyAccess === "registered_only";
+  const verifiedInvitation = !readOnly && kind === "registration" && eventDetails.isPrivate && granted !== null;
   const fields =
     status === "open" && form ? (
-      <fieldset disabled={readOnly || submitting} className="flex flex-col gap-4">
-        <PreviewHeaderCard
-          title={heading}
-          description={form.head[locale].description}
-          hasRequiredQuestion={form.questions.some(
-            ({ question }) => question.is_required,
+      <fieldset disabled={readOnly || submitting} className="flex min-w-0 flex-col gap-4">
+        <div className="space-y-2 border-b border-preview-border pb-4">
+          <h1 className="text-2xl leading-snug font-bold wrap-anywhere @4xl/participant:text-3xl">{heading}</h1>
+          {form.head[locale].description && (
+            <p className="text-theme-sm whitespace-pre-line text-participant-muted">{form.head[locale].description}</p>
           )}
-        />
-        {form.questions.map(({ question }) => {
+        </div>
+        {(verifiedRegistration || verifiedInvitation) && (
+          <p className="flex items-center gap-2 rounded-lg bg-event-display-tint p-3 text-theme-sm font-semibold">
+            <CheckCircleIcon className="size-5 shrink-0" aria-hidden="true" />{t(verifiedRegistration ? "registrationVerified" : "invitationVerified")}
+          </p>
+        )}
+        {form.questions.map(({ question }, index) => {
           const id = publicQuestionId(question);
           const questionLocale = publicQuestionLocale(question, locale);
           const card = (
             <PreviewQuestionCard
               key={id}
+              appearance="participant"
+              number={kind === "survey" ? index + 1 : undefined}
               question={{
                 ...question,
                 id: readOnly ? `${instanceId}-${id}` : id,
@@ -336,124 +340,90 @@ export default function PublicParticipantForm({
               onClearAnswer={() => updateAnswer(id, "")}
             />
           );
-          return id === verifiedId ? <fieldset key={id} disabled>{card}</fieldset> : card;
+          return id === verifiedId ? <fieldset key={id} disabled className="min-w-0">{card}</fieldset> : card;
         })}
-        {submitError && <p role="alert" className="rounded-lg bg-white p-3 text-error-700 dark:bg-gray-900 dark:text-error-300">{t(submitError)}</p>}
-        <div className="flex flex-wrap gap-3">
-          <Button
-            type={readOnly ? "button" : "submit"}
-            disabled={readOnly || submitting}
-            className={`bg-(--participant-accent)! text-(--participant-on-accent)! hover:brightness-95 ${readOnly ? "opacity-100!" : ""}`}
-          >
-            {t(submitting ? "submitting" : "submit")}
-          </Button>
-          <Button
-            variant="outline"
-            className={readOnly ? "opacity-100!" : undefined}
-            disabled={readOnly || submitting}
+        {submitError && (
+          <p role="alert" className="flex items-start gap-3 rounded-lg bg-error-50 px-4 py-3 text-theme-sm text-error-700">
+            <InformationCircleIcon aria-hidden="true" className="size-5 shrink-0" />{t(submitError)}
+          </p>
+        )}
+        <Button
+          type={readOnly ? "button" : "submit"}
+          disabled={readOnly || submitting}
+          className={`min-h-12 w-full bg-(--participant-accent)! text-(--participant-on-accent)! hover:brightness-95 ${readOnly ? "opacity-100!" : ""}`}
+        >
+          {t(submitting ? "submitting" : kind === "registration" ? "submitRegistration" : "submitSurvey")}
+        </Button>
+        {!readOnly && Object.keys(answers).some((id) => id !== verifiedId) && (
+          <button
+            type="button"
+            disabled={submitting}
             onClick={() => {
               setAnswers(verifiedId && granted ? { [verifiedId]: granted.identifier } : {});
               setErrors({});
               setSubmitError(null);
             }}
+            className="self-end rounded-lg px-3 py-2 text-theme-sm font-medium text-(--participant-control-text) hover:underline"
           >
             {preview("clearForm")}
-          </Button>
-        </div>
+          </button>
+        )}
       </fieldset>
     ) : null;
 
-  const colors = participantColors(branding);
-  const banner = branding.banner?.url ?? bannerUrl;
-  const gradient =
-    branding.backgroundMode === "gradient"
-      ? `linear-gradient(${branding.gradientAngle ?? 0}deg, ${branding.secondary}, ${branding.gradientEnd ?? branding.primary})`
-      : undefined;
-  const style = {
-    ...colors,
-    "--participant-on-accent": eventColorForeground(branding.accent),
-    "--color-brand-500": colors["--participant-control-text"],
-  } as CSSProperties;
-  const Container = readOnly ? "section" : "main";
-  const pageHeight = fillViewport ? "grow shrink-0" : readOnly ? "" : "min-h-dvh";
-  const backClass =
-    "inline-block rounded-md bg-(--participant-secondary) px-2 py-1 font-medium text-(--participant-link)";
+  const statusLink = "inline-flex min-h-11 items-center justify-center rounded-xl bg-(--participant-accent) px-5 font-semibold text-(--participant-on-accent) hover:brightness-95";
   return (
-    <Container
-      style={style}
-      className={`@container/participant flex w-full min-w-0 flex-col bg-(--participant-secondary) ${pageHeight}`}
+    <>
+    <ParticipantFormLayout
+      details={eventDetails}
+      branding={branding}
+      bannerUrl={bannerUrl}
+      kind={kind}
+      locale={contentLocale || portalLocale}
+      showMobileFooter={kind === "registration" && !eventDetails.isPrivate && Boolean(form)}
+      readOnly={readOnly}
+      fillViewport={fillViewport}
+      eventHref={eventHref}
     >
-      <ParticipantHeader
-        branding={branding}
-        readOnly={readOnly}
-        contentLocale={locale}
-      />
-      <div
-        className="relative isolate flex-1 overflow-hidden px-4 py-6 @4xl/participant:py-10"
-        style={{ backgroundImage: gradient }}
-      >
-        {branding.backgroundMode === "blur" && banner && (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -z-1 scale-110 bg-cover opacity-60 blur-lg"
-            style={{
-              backgroundImage: `url(${JSON.stringify(banner)})`,
-              backgroundPosition: bannerObjectPosition(
-                branding.banner?.cropPosition,
-              ),
-            }}
-          />
-        )}
-        <div className="mx-auto max-w-2xl space-y-4 text-gray-900 dark:text-gray-100">
-          {eventHref ? (
-            <Link href={eventHref} className={`${backClass} hover:underline`}>
-              {t("backToEvent")}
-            </Link>
-          ) : (
-            <span className={backClass}>{t("backToEvent")}</span>
-          )}
-          {fields ? (
-            readOnly ? (
-              fields
-            ) : (
-              <form onSubmit={submit} noValidate>
-                {fields}
-              </form>
-            )
-          ) : current.status === "eligibility" && checkEligibility ? (
-            <ParticipantEligibilityGate
-              gate={current}
-              locale={preferredLocale}
-              accessChanged={accessChanged}
-              verify={checkEligibility}
-              onResult={receiveEligibility}
-            />
-          ) : (
-            <section className="space-y-3 rounded-xl border border-gray-200 bg-white px-5 py-6 dark:border-gray-800 dark:bg-gray-900">
-              <h1 className="text-title-sm font-semibold">{heading}</h1>
-              <p role="status" className="text-gray-700 dark:text-gray-300">
-                {t(
-                  status === "submitted"
-                    ? kind === "registration" ? "registrationSubmitted" : "surveySubmitted"
-                    : status === "eligibility"
-                      ? "restricted"
-                      : status === "open"
-                        ? "unavailable"
-                        : status,
-                )}
-              </p>
+      {fields ? (
+        readOnly ? fields : <form onSubmit={submit} noValidate>{fields}</form>
+      ) : current.status === "eligibility" && checkEligibility ? (
+        <ParticipantEligibilityGate
+          gate={current}
+          locale={preferredLocale}
+          accessChanged={accessChanged}
+          verify={checkEligibility}
+          onResult={receiveEligibility}
+        />
+      ) : (
+        <div className="space-y-4">
+          <h1 className="text-2xl leading-snug font-bold">{heading}</h1>
+          <div role="status" className="flex items-start gap-3 rounded-xl bg-event-display-tint p-4 text-theme-sm font-medium">
+            {status === "submitted" ? <CheckCircleIcon className="size-5 shrink-0" aria-hidden="true" /> : <InformationCircleIcon className="size-5 shrink-0" aria-hidden="true" />}
+            <div className="space-y-2">
+              <p>{t(
+                status === "submitted"
+                  ? kind === "registration" ? "registrationSubmitted" : "surveySubmitted"
+                  : status === "eligibility" ? "restricted" : status === "open" ? "unavailable" : status,
+              )}</p>
               {current.status === "submitted" && current.earlierAnswers && <p>{t("earlierAnswersSaved")}</p>}
-              {status === "registrationRequired" && registrationHref && (
-                <Link href={registrationHref} className={backClass}>{t("goToRegistration")}</Link>
-              )}
-              {status === "submitted" && kind === "registration" && surveyHref && (
-                <Link href={surveyHref} prefetch={false} className={backClass}>{t("goToSurvey")}</Link>
-              )}
-            </section>
+            </div>
+          </div>
+          {status === "full" && eventHref && (
+            <Link id={`${instanceId}-return`} href={eventHref} className={statusLink}>{t("backToEvent")}</Link>
+          )}
+          {status === "registrationRequired" && registrationHref && (
+            <Link href={registrationHref} className={statusLink}>{t("goToRegistration")}</Link>
+          )}
+          {status === "submitted" && kind === "registration" && surveyHref && (
+            <Link href={surveyHref} prefetch={false} className={statusLink}>{t("goToSurvey")}</Link>
           )}
         </div>
-      </div>
-      <ParticipantFooter readOnly={readOnly} />
-    </Container>
+      )}
+    </ParticipantFormLayout>
+    {status === "full" && eventHref && (
+      <ParticipantCapacityDialog kind={kind} eventHref={eventHref} accent={branding.accent} returnId={`${instanceId}-return`} />
+    )}
+    </>
   );
 }

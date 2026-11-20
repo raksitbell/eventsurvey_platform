@@ -22,7 +22,7 @@ import { getRolePermissions } from "@/core/mock/role-permissions";
 import type { Locale } from "@/i18n/routing";
 import { getForm } from "@/services/event/forms";
 import type { Form, FormStatus } from "@/types/event/form";
-import type { ParticipantFormKind } from "@/types/event/participant";
+import type { ParticipantFormEventDetails, ParticipantFormKind } from "@/types/event/participant";
 import type {
   EventShareResponse,
   PublicEvent,
@@ -185,22 +185,17 @@ function safeBannerUrl(value: string | null | undefined) {
   }
 }
 
-export async function getPublicEventBySlug(
-  slug: string,
-  locale: Locale,
-): Promise<PublicEvent | null> {
-  const event = await findPublicEvent(slug);
-  if (!event) return null;
+async function readEventBanner(eventId: string) {
+  const banners = await mockApi.get<MockEventBanner[]>(
+    `/event_banners?event_id=${encodeURIComponent(eventId)}`,
+  );
+  return safeBannerUrl(banners.find((banner) => banner.event_id === eventId)?.banner_url);
+}
 
-  const setup = readSetupRecord(event);
-  const eventId = encodeURIComponent(event.id);
-  const [translations, banners, windows] = await Promise.all([
-    mockApi.get<MockEventTranslation[]>(
-      `/event_translations?event_id=${eventId}`,
-    ),
-    mockApi.get<MockEventBanner[]>(`/event_banners?event_id=${eventId}`),
-    loadShareableWindows(event, setup),
-  ]);
+async function readLegacyEventDetails(event: MockEvent, locale: Locale): Promise<ParticipantFormEventDetails> {
+  const translations = await mockApi.get<MockEventTranslation[]>(
+    `/event_translations?event_id=${encodeURIComponent(event.id)}`,
+  );
   const localized = translations.filter(
     (translation) => translation.event_id === event.id,
   );
@@ -210,6 +205,31 @@ export async function getPublicEventBySlug(
       (translation) => translation.locale_code === event.default_locale,
     ) ??
     localized[0];
+  return {
+    eventName: content?.title || event.slug,
+    description: content?.description ?? null,
+    locationName: content?.location_name ?? null,
+    locationDetail: content?.floor_zone?.trim() || undefined,
+    startsAt: event.start_at,
+    endsAt: event.end_at,
+    isPrivate: event.is_private,
+    surveyAccess: event.survey_access,
+  };
+}
+
+export async function getPublicEventBySlug(
+  slug: string,
+  locale: Locale,
+): Promise<PublicEvent | null> {
+  const event = await findPublicEvent(slug);
+  if (!event) return null;
+
+  const setup = readSetupRecord(event);
+  const [details, bannerUrl, windows] = await Promise.all([
+    setup.publication ? projectEventContent(setup.publication.draft, locale) : readLegacyEventDetails(event, locale),
+    readEventBanner(event.id),
+    loadShareableWindows(event, setup),
+  ]);
   const origin = eventShareOrigin();
   const formLinks: PublicEvent["formLinks"] = {};
   await Promise.all(
@@ -224,40 +244,16 @@ export async function getPublicEventBySlug(
       }),
   );
 
-  if (setup.publication) {
-    return {
-      draft: projectEventContent({
-        ...setup.publication.draft,
-        hasRegistration: Boolean(formLinks.registration),
-        hasSurvey: Boolean(formLinks.survey),
-      }, locale),
-      branding: setup.publishedBranding?.[locale] ?? setup.publication.branding,
-      bannerUrl: safeBannerUrl(banners.find((banner) => banner.event_id === event.id)?.banner_url),
-      formLinks,
-    };
-  }
-
-  const floorZone = content?.floor_zone?.trim() || null;
-
   return {
     draft: {
-      eventName: content?.title || event.slug,
-      description: content?.description ?? null,
-      locationName: content?.location_name ?? null,
-      locationDetail: floorZone ?? undefined,
-      startsAt: event.start_at,
-      endsAt: event.end_at,
-      isPrivate: event.is_private,
-      hasRegistration: Boolean(formLinks.registration),
-      hasSurvey: Boolean(formLinks.survey),
-      surveyAccess: event.survey_access,
       registrationCapacity: null,
       surveyCapacity: null,
+      ...details,
+      hasRegistration: Boolean(formLinks.registration),
+      hasSurvey: Boolean(formLinks.survey),
     },
-    branding: defaultEventBranding,
-    bannerUrl: safeBannerUrl(
-      banners.find((banner) => banner.event_id === event.id)?.banner_url,
-    ),
+    branding: setup.publication ? setup.publishedBranding?.[locale] ?? setup.publication.branding : defaultEventBranding,
+    bannerUrl,
     formLinks,
   };
 }
@@ -357,17 +353,24 @@ export async function getPublicFormPageBySlug(
   const branding = publication
     ? publishedBranding?.[locale] ?? publication.branding
     : defaultEventBranding;
-  let bannerUrl = branding.banner?.url ?? null;
-  if (branding.backgroundMode === "blur" && !bannerUrl) {
-    const banners = await mockApi.get<MockEventBanner[]>(
-      `/event_banners?event_id=${encodeURIComponent(event.id)}`,
-    );
-    bannerUrl = safeBannerUrl(banners.find((banner) => banner.event_id === event.id)?.banner_url);
-  }
+  const [details, bannerUrl] = await Promise.all([
+    publication ? projectEventContent(publication.draft, locale) : readLegacyEventDetails(event, locale),
+    branding.banner?.url ?? readEventBanner(event.id),
+  ]);
+  const eventDetails: ParticipantFormEventDetails = {
+    eventName: details.eventName,
+    description: details.description,
+    locationName: details.locationName,
+    locationDetail: details.locationDetail,
+    startsAt: details.startsAt,
+    endsAt: details.endsAt,
+    isPrivate: details.isPrivate,
+    surveyAccess: details.surveyAccess,
+  };
   const hasSurvey = kind === "registration" && isEnabled(event, "survey", publication) && formAccess(event, setup) !== "restricted" &&
     (publication ? !!publication.forms.survey && hasShareableContent(publication.forms.survey) :
       !!await findShareableForm(event, "survey", await loadPublishedForms(event.id), null));
-  return { result, branding, bannerUrl, hasSurvey };
+  return { result, branding, bannerUrl, eventDetails, hasSurvey };
 }
 
 async function hasJoinedRegistration(eventId: string, formId: string, fieldType: "email" | "short_text" | "number", identifier: string) {

@@ -50,10 +50,10 @@ export default function ParticipantEligibilityGate({ gate, locale, accessChanged
   }
 
   return (
-    <form action={check} noValidate className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-      <h1 className="text-title-sm font-semibold">{t("verifyEligibility")}</h1>
+    <form action={check} noValidate className="space-y-4">
+      <h1 className="text-2xl leading-snug font-bold">{t("verifyEligibility")}</h1>
       <div>
-        <Label htmlFor={inputId}>{label}</Label>
+        <Label htmlFor={inputId} className="text-participant-text dark:text-participant-text">{label}</Label>
         <Input
           id={inputId}
           name="identifier"
@@ -69,7 +69,7 @@ export default function ParticipantEligibilityGate({ gate, locale, accessChanged
         />
       </div>
       {error && <p id={inputId + "-error"} role="alert" className="text-theme-sm text-error-600 dark:text-error-400">{t(error)}</p>}
-      <Button type="submit" disabled={pending} className="bg-(--participant-accent)! text-(--participant-on-accent)!">{t("verifyIdentifier")}</Button>
+      <Button type="submit" disabled={pending} className="w-full bg-(--participant-accent)! text-(--participant-on-accent)!">{t("verifyIdentifier")}</Button>
     </form>
   );
 }

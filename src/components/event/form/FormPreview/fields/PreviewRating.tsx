@@ -10,6 +10,7 @@ import {
 import { ICON, RATING_DISPLAY } from "@/types/event/form";
 
 interface PreviewRatingProps {
+  appearance?: "card" | "participant";
   minNumber?: number;
   maxNumber: number;
   ratingDisplay?: RATING_DISPLAY;
@@ -65,6 +66,7 @@ function PreviewIconGlyph({
 }
 
 export default function PreviewRating({
+  appearance = "card",
   minNumber = 1,
   maxNumber,
   ratingDisplay = "icon",
@@ -91,20 +93,24 @@ export default function PreviewRating({
 
   const hasSelection = value !== undefined && value !== null;
   const activeRating = hoveredLevel ?? (value ?? -1);
+  const participant = appearance === "participant";
+  const participantScale = "grid min-w-0 flex-1 grid-cols-[repeat(auto-fit,minmax(min(100%,2.75rem),1fr))] gap-2";
 
   if (ratingDisplay === "linear_scale") {
     return (
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <div className={participant
+          ? "flex min-w-0 flex-col gap-2 pt-2 @xl/question:flex-row @xl/question:items-center"
+          : "flex flex-col gap-3 pt-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4"}>
           {scaleMinLabel?.trim() ? (
-            <span className="text-sm text-gray-800 sm:pb-2.5">
+            <span className={participant ? "text-sm text-gray-800 @xl/question:max-w-1/5" : "text-sm text-gray-800 sm:pb-2.5"}>
               {scaleMinLabel.trim()}
             </span>
-          ) : (
+          ) : !participant && (
             <span className="hidden sm:block" />
           )}
 
-          <div className="flex flex-1 flex-wrap items-center justify-around gap-3 sm:gap-4">
+          <div className={participant ? participantScale : "flex flex-1 flex-wrap items-center justify-around gap-3 sm:gap-4"}>
             {levels.map((level) => {
               const isSelected = hasSelection && value === level;
 
@@ -115,11 +121,14 @@ export default function PreviewRating({
                   onMouseEnter={() => setHoveredLevel(level)}
                   onMouseLeave={() => setHoveredLevel(null)}
                   onClick={() => onChange(level)}
-                  className="group flex flex-col items-center gap-3 rounded-lg p-2"
+                  aria-pressed={isSelected}
+                  className={appearance === "participant"
+                    ? "flex min-h-11 min-w-10 flex-1 items-center justify-center rounded-lg border border-preview-border bg-white p-2 aria-pressed:border-(--participant-accent) aria-pressed:bg-(--participant-accent) aria-pressed:text-(--participant-on-accent)"
+                    : "group flex flex-col items-center gap-3 rounded-lg p-2"}
                 >
-                  <span className="text-sm text-gray-800">{level}</span>
+                  <span className={appearance === "participant" ? "text-sm font-semibold" : "text-sm text-gray-800"}>{level}</span>
 
-                  <span
+                  {appearance === "card" && <span
                     className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors sm:h-6 sm:w-6 ${
                       isSelected
                         ? "border-[var(--participant-control-text,#5C54D1)]"
@@ -131,17 +140,17 @@ export default function PreviewRating({
                     {isSelected && (
                       <span className="h-2.5 w-2.5 rounded-full bg-[var(--participant-control-text,#5C54D1)] sm:h-3 sm:w-3" />
                     )}
-                  </span>
+                  </span>}
                 </button>
               );
             })}
           </div>
 
           {scaleMaxLabel?.trim() ? (
-            <span className="text-end text-sm text-gray-800 sm:pb-2.5">
+            <span className={participant ? "text-end text-sm text-gray-800 @xl/question:max-w-1/5" : "text-end text-sm text-gray-800 sm:pb-2.5"}>
               {scaleMaxLabel.trim()}
             </span>
-          ) : (
+          ) : !participant && (
             <span className="hidden sm:block" />
           )}
         </div>
@@ -163,7 +172,7 @@ export default function PreviewRating({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-5 gap-3 pt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-around sm:gap-4">
+      <div className={participant ? `${participantScale} pt-2` : "grid grid-cols-5 gap-3 pt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-around sm:gap-4"}>
         {levels.map((level) => {
           const isHighlighted = level <= activeRating;
           const isSelected = hasSelection && value === level;
@@ -175,6 +184,7 @@ export default function PreviewRating({
               onMouseEnter={() => setHoveredLevel(level)}
               onMouseLeave={() => setHoveredLevel(null)}
               onClick={() => onChange(level)}
+              aria-pressed={isSelected}
               className="group flex flex-col items-center gap-2 rounded-lg p-2 transition-transform hover:scale-110"
             >
               <span

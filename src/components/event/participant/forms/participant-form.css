@@ -1,0 +1,85 @@
+.participant-form-page {
+  font-family: var(--es-font-inter, Arial), var(--es-font-thai, sans-serif), sans-serif;
+}
+.participant-form-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  justify-items: center;
+  width: min(100% - 2rem, 47.5rem);
+  gap: 1.25rem;
+  margin-inline: auto;
+  padding-block: 1.25rem 2rem;
+}
+.participant-form-card {
+  overflow-wrap: anywhere;
+}
+.participant-form-banner[data-layout="portrait"] { max-width: 34.75rem; }
+.participant-form-intro {
+  display: grid;
+  gap: .75rem;
+  font-size: .9375rem;
+  line-height: 1.5;
+  width: 100%;
+  border: 1px solid var(--color-preview-border);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  background: white;
+  color: var(--color-participant-text);
+}
+.participant-form-facts {
+  display: grid;
+  gap: .75rem;
+  border-block-start: 1px solid var(--color-preview-border);
+  padding-block-start: .875rem;
+}
+.participant-form-facts dt {
+  color: var(--color-participant-muted);
+  font-size: .75rem;
+  font-weight: 600;
+}
+.participant-form-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  width: fit-content;
+  min-height: 1.875rem;
+  border-radius: 9999px;
+  padding-inline: 1.25rem;
+  background: color-mix(in srgb, var(--participant-accent) 15%, white);
+  color: var(--color-participant-text);
+  font-size: .75rem;
+  font-weight: 600;
+}
+.participant-form-question :is(input:not([type="radio"], [type="checkbox"]), select, textarea) {
+  width: 100%;
+  max-width: none;
+  min-height: 2.875rem;
+  border: 1px solid var(--color-preview-border);
+  border-radius: .625rem;
+  padding: .625rem 1rem;
+  color: var(--color-participant-text);
+  background: white;
+}
+.participant-form-question :is(input, select, textarea):focus-visible {
+  border-color: var(--participant-control-text);
+  outline: 2px solid var(--participant-control-text);
+  outline-offset: 1px;
+}
+.participant-form-question :is(.max-w-xs, .max-w-md) { max-width: none; }
+.participant-form-question label { min-height: 2.75rem; color: var(--color-participant-text); }
+@container participant (min-width: 56rem) {
+  .participant-form-body { gap: 1.5rem; padding-block: 1.625rem 3rem; }
+  .participant-form-intro { padding: 1.75rem 1.875rem; }
+}
+
+@container participant (width < 56rem) {
+  .participant-form-facts {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  }
+  .participant-form-card :is(input, select, textarea) {
+    min-inline-size: 0;
+    font-size: 1rem;
+  }
+}

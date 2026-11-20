@@ -48,7 +48,7 @@ export default function PublishParticipantPreview({
         disabled={disabled}
         contentLocale={contentLocale}
         className="min-h-0 w-full"
-        viewportClassName="max-h-[min(68dvh,50rem)]"
+        viewportClassName="sm:max-h-[min(68dvh,50rem)]"
       >
         <div className={data.branding.layout === "landscape" ? "mx-auto max-w-5xl" : "mx-auto max-w-md"}>
           <ParticipantDisplayPreview {...data} contentLocale={contentLocale} />

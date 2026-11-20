@@ -112,7 +112,8 @@ Raksit owns Event Details, Branding, Form Setup, Preview & Publish, Whitelist Ma
 ### Participant preview
 
 - Use two icon tabs for participant previews in Branding and Preview & Publish. Show the selected Event Display or Participant Public Form.
-- Use the live [Participant Event Display section](https://www.figma.com/design/fVXZJ63REaHE4H6aoiY4hp/Event-Survey-User-Interface?node-id=3102-12480) for all three layouts. Portrait (3:4) and Square (1:1) stack banner, information and QR. Landscape (16:9) places the information and vertical QR card beneath the banner. Participant forms have their own header and footer.
+- Use the live [Participant Event Display section](https://www.figma.com/design/fVXZJ63REaHE4H6aoiY4hp/Event-Survey-User-Interface?node-id=3102-12480) for all three layouts. Portrait (3:4) and Square (1:1) stack banner, information and QR. Landscape (16:9) places the information and vertical QR card beneath the banner.
+- Registration and surveys share the event identity, optional banner and event details above the form on mobile and desktop. Use the public registration header in the [participant form designs](https://www.figma.com/design/fVXZJ63REaHE4H6aoiY4hp/Event-Survey-User-Interface?node-id=3696-5600) for both kinds, including access prompts and previews. Each form supplies its own title and questions.
 - The public event slug and the Branding and Publish previews share `ParticipantEventScreen` and `EventDisplay`. Published events use server event data and the available form links. Setup previews use draft data, read-only controls and the sample QR artwork in `public/images/event-preview/`.
 - `ParticipantDisplayPreview` fits the LCD canvas in its preview container. Full Preview at `/preview/event` keeps the toolbar, selected display/form, content language and return destination. Only the published event accepts language changes and navigates to live forms.
 

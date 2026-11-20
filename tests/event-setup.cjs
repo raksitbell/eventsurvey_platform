@@ -2079,7 +2079,11 @@ test("Branding preview tabs show the selected participant surface and implement 
   const PublicForm = () => null;
   const PreviewSkeleton = compileSetupComponent(
     "src/components/event/participant/forms/ParticipantFormPreviewSkeleton.tsx",
-    { "@/components/ui/skeleton/Skeleton": { default: () => null } },
+    {
+      "@/components/ui/skeleton/Skeleton": { default: () => null },
+      "@/core/event/banner-layout": load("src/core/event/banner-layout.ts"),
+      "./participant-form.css": {},
+    },
   );
   const forms = ["registration", "survey"].map((type) => ({ id: type, type }));
   let selection;
@@ -2090,6 +2094,7 @@ test("Branding preview tabs show the selected participant surface and implement 
       "@/components/event/participant/forms/PublicParticipantForm": { default: PublicForm },
       "@/components/event/participant/forms/ParticipantFormPreviewSkeleton": { default: PreviewSkeleton },
       "@/components/ui/button/Button": { default: setupButton },
+      "@/core/event/content": load("src/core/event/content.ts"),
       "@/core/event/form-summary": load("src/core/event/form-summary.ts"),
       "@/hooks/useEventFormSummaries": {
         default: (id, enabled) => {
@@ -2174,6 +2179,21 @@ test("Branding preview tabs show the selected participant surface and implement 
   findSetupElement(formView, (n) => n.type === "button" && n.props.children === "survey").props.onClick();
   const getPublicForm = (tree) => findSetupElement(tree, (n) => n.type === PublicForm).props;
   assert.equal(getPublicForm(render()).readOnly, true);
+  const translatedView = render({
+    draft: {
+      ...seed,
+      content: {
+        defaultLocale: "th",
+        translations: [
+          { localeCode: "th", title: "กิจกรรม", locationName: "ชั้น 1" },
+          { localeCode: "en", title: "Workshop", locationName: "First floor" },
+        ],
+      },
+    },
+    contentLocale: "en",
+  });
+  assert.equal(getPublicForm(translatedView).eventDetails.eventName, "Workshop");
+  assert.equal(getPublicForm(translatedView).eventDetails.locationName, "First floor");
   const fullPage = render({ pageHeader: (tabs) => require("react").createElement("header", null, tabs) });
   const header = findSetupElement(fullPage, (node) => node.type === "header");
   assert.ok(findSetupElement(header, (node) => node.props.role === "tablist"));
@@ -3790,6 +3810,75 @@ function renderParticipantDisplay({ layout = "landscape", draft = seed, formLink
   const qrElement = findSetupElement(page, (node) => node.type === qr);
   return { page, qrCard: qr(qrElement.props) };
 }
+
+test("Registration and Survey render the current event header before their own form in preview and publication", () => {
+  const { createElement } = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const intl = {
+    useLocale: () => "en",
+    useTranslations: () => (key, values) => values?.name ? key + " " + values.name : key,
+  };
+  const shared = { "next-intl": intl, "@/i18n/navigation": { Link: "a" } };
+  const layout = compileSetupComponent("src/components/event/participant/forms/ParticipantFormLayout.tsx", {
+    ...shared,
+    "@/components/event/setup/event-admin-fonts": { eventInter: { variable: "" }, eventThai: { variable: "" } },
+    "@/components/participant/EventDisplayLanguage": { default: () => null },
+    "@/core/event/banner-layout": load("src/core/event/banner-layout.ts"),
+    "@/core/event/participant-colors": load("src/core/event/participant-colors.ts"),
+    "@/core/i18n/bangkok-datetime": { toBangkokInput },
+    "next/image": { default: ({ src, alt }) => createElement("img", { src, alt }) },
+    "./participant-form.css": {},
+  });
+  const Form = compileSetupComponent("src/components/event/participant/forms/PublicParticipantForm.tsx", {
+    ...shared,
+    "./ParticipantFormLayout": { default: layout },
+    "./ParticipantCapacityDialog": { default: () => null },
+    "./ParticipantEligibilityGate": { default: () => null },
+    "@/components/event/form/FormPreview/PreviewQuestionCard": { default: () => null },
+    "@/components/ui/button/Button": { default: setupButton },
+    "@/core/event/public-form-response": load("src/core/event/public-form-response.ts"),
+    "@/core/event/whitelist": load("src/core/event/whitelist.ts"),
+    "@/core/forms/content": load("src/core/forms/content.ts"),
+    "@/core/i18n/format-datetime": load("src/core/i18n/format-datetime.ts"),
+  });
+
+  for (const kind of ["registration", "survey"]) {
+    for (const readOnly of [false, true]) {
+      const source = readOnly ? "Edited draft" : "Published";
+      const title = kind + " form title";
+      const head = { en: { title }, th: { title: "" } };
+      const props = {
+        kind, readOnly, contentLocale: "en", eventHref: readOnly ? undefined : "/event/book-fair",
+        result: { status: "open", form: { type: kind, head, questions: [] } },
+        eventDetails: {
+          ...seed, eventName: source + " event", description: source + " description",
+          locationName: source + " venue", locationDetail: "Floor 4",
+          startsAt: "2027-03-05T02:15:00Z", endsAt: "2027-03-06T12:30:00Z",
+        },
+        branding: { ...defaultEventBranding, organizer: source + " organizer",
+          banner: readOnly ? { name: "Draft banner", url: "/draft-banner.png" } : null },
+        bannerUrl: "/saved-banner.png",
+      };
+      const markup = renderToStaticMarkup(createElement(Form, props));
+      const formTitle = markup.indexOf(">" + title + "<");
+      assert.ok(formTitle > 0);
+      const header = markup.slice(0, formTitle);
+      const bannerSrc = readOnly ? props.branding.banner.url : props.bannerUrl;
+      assert.ok(header.includes('<img src="' + bannerSrc + '" alt="banner"'), kind + " (" + source + ") missing visible banner");
+      for (const value of [props.eventDetails.eventName, "organizedBy " + props.branding.organizer, "09:15", "19:30",
+        props.eventDetails.locationName, props.eventDetails.locationDetail, props.eventDetails.description]) {
+        assert.ok(header.includes(value), kind + " (" + source + ") missing " + value);
+      }
+
+      const empty = renderToStaticMarkup(createElement(Form, {
+        ...props, eventDetails: { ...seed, eventName: source + " event" },
+        branding: defaultEventBranding, bannerUrl: null,
+      }));
+      assert.ok(empty.includes(source + " event") && empty.includes(title));
+      assert.doesNotMatch(empty, /<img |organizedBy|>dateTime<|>venue<|>about</);
+    }
+  }
+});
 
 test("Participant display uses the selected banner ratio and canvas in both preview and publication", () => {
   const layouts = [

@@ -1433,7 +1433,6 @@
     "fileStorage": "Unable to save this image. Browser storage may be full. Your previous image is unchanged."
   },
   "participantEvent": {
-    "tagline": "Event registration and surveys",
     "logo": "Event logo",
     "banner": "Event banner",
     "language": "Change language",
@@ -1442,9 +1441,7 @@
     "datePending": "Date not set",
     "registration": "Registration Form",
     "survey": "Survey Form",
-    "qrAlt": "{form} QR code",
-    "privacy": "Privacy policy",
-    "adminLogin": "Administrator login"
+    "qrAlt": "{form} QR code"
   },
   "eventPreview": {
     "title": "You are in Preview mode",
@@ -1690,6 +1687,10 @@
     "teamHint": "View members and manage permissions"
   },
   "publicParticipantForm": {
+    "invitationVerified": "Your invitation has been verified.",
+    "accessStatus": "Participation status",
+    "registrationFull": "Registration is full",
+    "surveyFull": "The survey is full",
     "verifyEligibility": "Verify your invitation",
     "verifyIdentifier": "Check access",
     "identifier": "Invitation identifier",
@@ -1703,7 +1704,6 @@
     "submitting": "Saving your response…",
     "recheckError": "Could not check form availability. Try again.",
     "invalidAnswer": "Enter a valid answer.",
-    "submit": "Submit response",
     "registrationSubmitted": "Your registration is complete.",
     "surveySubmitted": "Your survey response has been saved.",
     "registrationRequired": "Register for this event before completing the survey.",
@@ -1711,9 +1711,19 @@
     "goToSurvey": "Go to survey",
     "submitError": "Could not confirm that your response was saved. Please submit again.",
     "invalidAnswers": "Review your answers and submit again.",
-    "requestChanged": "Your earlier response is no longer available. To send the answers shown here as a new response, select Submit response again.",
+    "requestChanged": "Your earlier response is no longer available. Submit again to save the answers shown here as a new response.",
     "earlierAnswersSaved": "Your earlier answers were saved. The edits you made afterward were not submitted.",
-    "duplicate": "A response already exists for these details. Check your information before submitting again."
+    "duplicate": "A response already exists for these details. Check your information before submitting again.",
+    "eventInformation": "Event information",
+    "registrationBadge": "01 / Registration",
+    "surveyBadge": "02 / Survey",
+    "registrationVerified": "Your registration has been verified.",
+    "dateTime": "Date and time",
+    "venue": "Venue",
+    "about": "About the event",
+    "organizedBy": "Organized by {name}",
+    "submitRegistration": "Confirm registration",
+    "submitSurvey": "Submit survey"
   },
   "eventPublishedView": {
     "loading": "Loading QR codes…",
