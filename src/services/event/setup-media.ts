@@ -11,7 +11,7 @@ import {
 import { isActiveMockUser } from "@/core/mock/map-user";
 import type { MockEvent, MockUser } from "@/types/mock";
 import { IMAGE_MAX_INPUT_BYTES } from "@/utils/image-upload";
-import { blobMediaAvailable, findBlobMedia, readBlobMedia, usesBlobMedia } from "./setup-media-blob";
+import { findBlobMedia, readBlobMedia, usesBlobMedia } from "./setup-media-blob";
 import { isSupportedType, matchesImageType, type MediaContentType } from "./setup-media-image";
 
 export { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
@@ -130,11 +130,16 @@ export async function getSetupMediaUploadEvent(
   return getSetupMediaEvent(user.event_id);
 }
 
-export async function storeEventSetupMedia(eventId: string, request: Request) {
+export function requireDiskUploadDirectory() {
   const diskDisabled = usesBlobMedia() ||
     (process.env.VERCEL === "1" && process.env.EVENT_SETUP_MEDIA_PROVIDER !== "disk");
   const dir = diskDisabled ? null : mediaDirectory();
   if (!dir) throw new ServiceError("SETUP_MEDIA_STORAGE_UNAVAILABLE", 503);
+  return dir;
+}
+
+export async function storeEventSetupMedia(eventId: string, request: Request) {
+  const dir = requireDiskUploadDirectory();
   const { type, bytes } = await readUpload(request, eventId);
   const id = randomUUID();
   const metadata: MediaMetadata = { eventId, type, size: bytes.length };
@@ -207,10 +212,7 @@ export async function assertEventSetupMedia(eventId: string, urls: Iterable<stri
     if (!isEventSetupMediaUrl(url)) throw new ServiceError("INVALID_SETUP_MEDIA", 400);
     const asset = await findEventSetupMedia(url.slice(url.lastIndexOf("/") + 1));
     if (!asset || asset.eventId !== eventId) throw new ServiceError("SETUP_MEDIA_UNAVAILABLE", 409);
-    const available = asset.blobPath
-      ? await blobMediaAvailable(asset.blobPath, asset.type, asset.size)
-      : Boolean(await readEventSetupMedia(asset));
-    if (!available) {
+    if (!asset.blobPath && !(await readEventSetupMedia(asset))) {
       throw new ServiceError("SETUP_MEDIA_UNAVAILABLE", 409);
     }
   }

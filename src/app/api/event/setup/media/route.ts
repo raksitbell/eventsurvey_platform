@@ -10,7 +10,11 @@ import { authJson, readJsonObject } from "@/core/auth/route-response";
 import { eventSetupMediaIdPattern } from "@/core/event/setup-media-url";
 import { setupMediaKindSchema } from "@/core/event/setup-state";
 import { readSetupState } from "@/core/event/setup-storage";
-import { getSetupMediaUploadEvent, storeEventSetupMedia } from "@/services/event/setup-media";
+import {
+  getSetupMediaUploadEvent,
+  requireDiskUploadDirectory,
+  storeEventSetupMedia,
+} from "@/services/event/setup-media";
 import {
   createBlobMediaUpload,
   finalizeBlobMediaUpload,
@@ -41,7 +45,10 @@ async function handleMediaUpload(eventId: string, request: NextRequest) {
     if (body.size >= IMAGE_MAX_INPUT_BYTES) {
       return authJson({ error: "SETUP_MEDIA_TOO_LARGE" }, 413);
     }
-    if (!blob) return authJson({ mode: "disk" });
+    if (!blob) {
+      requireDiskUploadDirectory();
+      return authJson({ mode: "disk" });
+    }
     const upload = await createBlobMediaUpload(eventId, kind.data, body.contentType);
     return authJson({ mode: "blob", ...upload });
   }
