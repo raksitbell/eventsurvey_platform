@@ -790,6 +790,7 @@ export default function UsersTable() {
       {/* Activity Profile Modal */}
       <UserActivityProfileModal
         userId={profileUserId}
+        displayUser={users.find((user) => user.id === profileUserId)}
         isOpen={Boolean(profileUserId)}
         onClose={() => setProfileUserId(null)}
       />

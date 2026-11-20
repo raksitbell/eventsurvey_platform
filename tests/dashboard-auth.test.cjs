@@ -64,6 +64,9 @@ function fixture({ allowImpersonation = true } = {}) {
     "@/core/api/mock-client": {
       MockApiError,
       mockApi: {
+        getFresh(path) {
+          return this.get(path);
+        },
         async get(path) {
           if (path.startsWith("/platform_access")) {
             const url = new URL(path, "https://fixture.test");

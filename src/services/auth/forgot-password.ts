@@ -134,6 +134,7 @@ export async function resetPasswordWithToken(
   const now = new Date().toISOString();
   await mockApi.patch(`/users/${encodeURIComponent(user.id)}`, {
     password,
+    uses_published_trial_password: false,
     updated_at: now,
   });
 }

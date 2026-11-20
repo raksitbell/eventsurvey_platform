@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type Props = {
   userId: string | null;
+  displayUser?: { name: string; email: string };
   isOpen: boolean;
   onClose: () => void;
   /** Default `/admin/users` — event scope uses `/event/users`. */
@@ -44,6 +45,7 @@ const TOGGLE_KEYS = [
 
 export default function UserActivityProfileModal({
   userId,
+  displayUser,
   isOpen,
   onClose,
   activityPathPrefix = "/admin/users",
@@ -96,6 +98,8 @@ export default function UserActivityProfileModal({
     };
   }, [activityPathPrefix, isOpen, locale, t, userId]);
 
+  const identity = displayUser ?? profile?.user;
+
   return (
     <Modal
       isOpen={isOpen}
@@ -118,7 +122,7 @@ export default function UserActivityProfileModal({
                 id="user-activity-profile-title"
                 className="text-xl font-semibold text-gray-900 dark:text-white"
               >
-                {profile?.user.name ?? t("profileTitle")}
+                {identity?.name || t("profileTitle")}
               </h2>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {profile?.user.roleLabel
@@ -134,9 +138,9 @@ export default function UserActivityProfileModal({
                     : profile.user.roleLabel
                   : t("profileSubtitle")}
               </p>
-              {profile?.user.email ? (
+              {identity?.email ? (
                 <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                  {translateMeta("meta.email", { value: profile.user.email })}
+                  {translateMeta("meta.email", { value: identity.email })}
                 </p>
               ) : null}
             </div>

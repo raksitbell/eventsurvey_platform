@@ -13,6 +13,7 @@ import {
   type AuthSnapshot,
 } from "@/core/auth";
 import { EMPTY_AUTH_SNAPSHOT } from "@/core/auth/session";
+import { PORTAL_UNAUTHORIZED_EVENT } from "@/core/api/client";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type React from "react";
 import {
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const authChannel = useRef<BroadcastChannel | null>(null);
   const sessionRequest = useRef<AbortController | null>(null);
   const changingSession = useRef(false);
+  const recheckAfterChange = useRef(false);
   /** Soft-nav target — AuthGuard shows hold instead of 403 during role switches */
   const [pendingPath, setPendingPath] = useState<string | null>(null);
 
@@ -71,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const current = await getAuthSnapshot(request.signal);
       if (request.signal.aborted) return;
       setSnapshot(current);
+      if (!current.user) setPendingPath(null);
       setSessionStatus("ready");
     } catch {
       if (request.signal.aborted) return;
@@ -88,6 +91,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const onChannelMessage = () => {
       void refreshAuth();
     };
+    // Several components can receive 401 during the same menu navigation.
+    let rechecking = false;
+    const onUnauthorized = () => {
+      if (changingSession.current) {
+        recheckAfterChange.current = true;
+        return;
+      }
+      if (rechecking) return;
+      rechecking = true;
+      void refreshAuth().finally(() => { rechecking = false; });
+    };
 
     const channel =
       typeof BroadcastChannel === "function"
@@ -96,11 +110,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authChannel.current = channel;
     channel?.addEventListener("message", onChannelMessage);
     globalThis.addEventListener("focus", onFocus);
+    globalThis.addEventListener(PORTAL_UNAUTHORIZED_EVENT, onUnauthorized);
     void refreshAuth();
 
     return () => {
       sessionRequest.current?.abort();
       globalThis.removeEventListener("focus", onFocus);
+      globalThis.removeEventListener(PORTAL_UNAUTHORIZED_EVENT, onUnauthorized);
       channel?.removeEventListener("message", onChannelMessage);
       channel?.close();
       authChannel.current = null;
@@ -153,9 +169,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authChannel.current?.postMessage("session-changed");
       } finally {
         changingSession.current = false;
+        if (recheckAfterChange.current) {
+          recheckAfterChange.current = false;
+          void refreshAuth();
+        }
       }
     },
-    [softGo],
+    [softGo, refreshAuth],
   );
 
   const login = useCallback(

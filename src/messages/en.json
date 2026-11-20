@@ -52,6 +52,7 @@
       "overview": "System Overview",
       "owners": "User Management",
       "activity": "User Activity",
+      "configuration": "Platform Configuration",
       "eventHome": "Overview",
       "eventWorkspace": "Event Workspace",
       "dashboard": "Dashboard",
@@ -96,6 +97,19 @@
   },
   "auth": {
     "title": "Sign in to EventSurvey",
+    "trial": {
+      "intro": "Use your account or choose a demo user to try another role.",
+      "emailLabel": "Administrator email",
+      "choose": "Choose a trial account",
+      "enterPassword": "Enter this account’s password or select it from your password manager.",
+      "super_admin": "Platform Admin",
+      "event_owner": "Event Admin",
+      "sub_user": "Event Staff",
+      "loading": "Loading trial accounts…",
+      "empty": "No trial accounts available.",
+      "loadError": "Could not load trial accounts.",
+      "retry": "Try again"
+    },
     "email": "Email",
     "emailPlaceholder": "admin@email.com",
     "password": "Password",
@@ -176,6 +190,23 @@
       }
     }
   },
+  "platformConfiguration": {
+    "title": "Platform Configuration",
+    "trialAccounts": "Manage trial accounts",
+    "addTrialAccount": "Add trial account",
+    "trialAccountCreated": "Trial account created",
+    "trialLoginVisibility": "Once the account can sign in, its email and role appear in the sign-in picker.",
+    "trialPasswordMode": "Trial account password",
+    "publicDemoPassword": "Autofill the public demo password",
+    "customTrialPassword": "Set a custom password",
+    "publicDemoPasswordHint": "Anyone who selects this account on the sign-in page can sign in as {role}.",
+    "emptyTrialAccounts": "No trial accounts found.",
+    "accountActions": "Actions for {name}",
+    "deleteTrialAccount": "Delete trial account",
+    "deletingTrialAccount": "Deleting trial account…",
+    "trialAccountUnavailable": "This trial account is no longer listed.",
+    "retry": "Try again"
+  },
   "adminUsers": {
     "title": "User Management",
     "description": "Manage user accounts, access, and event assignments in the system",
@@ -237,6 +268,7 @@
       "role": "User type",
       "event": "Assigned event",
       "eventPlaceholder": "Select an event",
+      "trialOwnerEventHint": "Assign an event to show this trial account on the sign-in page.",
       "eventRequired": "Select an event for Event Editor",
       "nameEmailRequired": "Please enter both name and email",
       "emailExists": "This email is already in use",
@@ -757,6 +789,37 @@
     "confirmStart": "Start “{title}” now and open the event?",
     "confirmClose": "Do you want to close “{title}”?\nThis action cannot be undone.",
     "confirmCloseWithWarnings": "Close “{title}”?\nThese forms are still active or not expired:",
+    "menu": {
+      "actionsFor": "Actions for {title}",
+      "managePermission": "Requires permission to manage events.",
+      "draftOnly": "Available for draft events only.",
+      "startAvailableAt": "Available from {time} (Bangkok time).",
+      "missingStartTime": "A valid start time is required to start this event.",
+      "deleteActiveReason": "Use “Close event” to end an active event.",
+      "deleteClosedReason": "Closed events are kept for their activity history.",
+      "inspectPermission": "Requires permission to inspect event workspaces.",
+      "closeEvent": "Close event",
+      "deleteEvent": "Move to Trash",
+      "confirmDelete": "Move “{title}” to Trash? You can restore it from Platform Configuration → Trash.",
+      "deleted": "Event moved to Trash",
+      "deleting": "Moving event to Trash…",
+      "noLongerDraft": "This event is no longer a draft and cannot be moved to Trash.",
+      "noLongerAvailable": "The event is no longer in this list.",
+      "deleteError": "Could not move the event to Trash."
+    },
+    "trash": {
+      "title": "Trash",
+      "empty": "No events in Trash",
+      "noMatches": "No events in Trash match these filters.",
+      "restore": "Restore",
+      "onlyDrafts": "Only draft events can be restored.",
+      "confirmRestore": "Restore “{title}” to the events list?",
+      "restoring": "Restoring event…",
+      "restored": "Event restored",
+      "noLongerRestorable": "This event is no longer available to restore.",
+      "slugConflict": "An event with this slug already exists. The event is still in Trash.",
+      "restoreError": "Could not restore the event."
+    },
     "formTypes": {
       "registration": "Registration",
       "survey": "Survey"

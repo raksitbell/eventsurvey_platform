@@ -1,20 +1,17 @@
-import { mockApi } from "@/core/api/mock-client";
+import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { writeAuditLog } from "@/core/audit/write";
+import { PUBLISHED_DEMO_PASSWORD } from "@/core/auth/demo-preset";
 import {
   DEFAULT_ADMIN_MATRIX,
   DEFAULT_SUB_USER_MATRIX,
 } from "@/core/auth/event-permissions";
-import {
-  maskName,
-  mayViewPii,
-  projectUserPii,
-  type PiiViewer,
-} from "@/core/auth/pii";
 import { getPlatformAccessRow, normalizePlatformMatrix } from "@/core/mock/access";
 import { resolveEventTitle } from "@/core/mock/event-title";
 import { mapMockUserToUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
+import { isTrialAccount } from "@/core/mock/trial-accounts";
+import { canCreatePublicDemoTrial } from "@/services/auth/public-demo";
 import { getActivePortalAccount } from "@/services/auth/session";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
@@ -85,6 +82,24 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+async function readManagedUser(userId: string, trialOnly: boolean): Promise<MockUser> {
+  const current = await mockApi
+    .getFresh<MockUser>(`/users/${encodeURIComponent(userId)}`)
+    .catch((error: unknown) => {
+      if (error instanceof MockApiError && error.status === 404) return null;
+      throw error;
+    });
+  if (
+    !current ||
+    current.id !== userId ||
+    !isListedPortalUser(current) ||
+    (trialOnly && !isTrialAccount(current))
+  ) {
+    throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
+  }
+  return current;
+}
+
 const MIN_PASSWORD_LENGTH = 8;
 
 function validatePassword(password: string): string {
@@ -96,6 +111,20 @@ function validatePassword(password: string): string {
     );
   }
   return password;
+}
+
+function passwordForNewUser(input: AdminUserWriteInput): string {
+  if (input.usePublishedPassword) {
+    if (!input.isTrial || input.password !== undefined) {
+      throw new ServiceError("INVALID_PUBLISHED_PASSWORD", 400);
+    }
+    if (!canCreatePublicDemoTrial()) {
+      throw new ServiceError("PUBLIC_DEMO_UNAVAILABLE", 403);
+    }
+    return PUBLISHED_DEMO_PASSWORD;
+  }
+  if (!input.password) throw new ServiceError("PASSWORD_REQUIRED", 400);
+  return validatePassword(input.password);
 }
 
 async function findUserByEmail(email: string): Promise<MockUser | null> {
@@ -163,7 +192,7 @@ async function upsertEventAccess(
   const rows = await mockApi.get<MockEventAccess[]>(
     `/event_access?user_id=${encodeURIComponent(userId)}`,
   );
-  const active = rows.find((row) => !row.deleted_at);
+  const active = rows.find((row) => row.event_id === eventId && !row.deleted_at);
   const payload = {
     event_id: eventId,
     role_name: isOwner ? "Event Admin" : "Staff",
@@ -174,36 +203,44 @@ async function upsertEventAccess(
   };
   if (active) {
     await mockApi.patch(`/event_access/${encodeURIComponent(active.id)}`, payload);
-    return;
+  } else {
+    await mockApi.post<MockEventAccess>("/event_access", {
+      id: randomUUID(),
+      user_id: userId,
+      created_at: now,
+      ...payload,
+    });
   }
-  await mockApi.post<MockEventAccess>("/event_access", {
-    id: randomUUID(),
-    user_id: userId,
-    created_at: now,
-    ...payload,
-  });
+  for (const row of rows) {
+    if (row.deleted_at || row.id === active?.id) continue;
+    await mockApi.patch(`/event_access/${encodeURIComponent(row.id)}`, {
+      deleted_at: now,
+      updated_at: now,
+    });
+  }
 }
 
-async function assertLiveEvent(eventId: string): Promise<MockEvent> {
-  const event = await mockApi
-    .get<MockEvent>(`/events/${encodeURIComponent(eventId)}`)
-    .catch(() => null);
-  if (!event || event.deleted_at) {
-    throw new ServiceError("EVENT_NOT_FOUND", 400, "Event not found");
+async function findLiveEvent(eventId: string): Promise<MockEvent | null> {
+  try {
+    const event = await mockApi.getFresh<MockEvent>(`/events/${encodeURIComponent(eventId)}`);
+    return event?.id === eventId && !event.deleted_at ? event : null;
+  } catch (error) {
+    if (error instanceof MockApiError && error.status === 404) return null;
+    throw error;
   }
-  return event;
 }
 
 /** Bind users + events + event_translations + event_access for the admin users table */
 export async function getBoundAdminUsers(
   role?: string,
   locale: Locale = routing.defaultLocale,
-  viewer?: PiiViewer,
+  trialOnly = false,
 ): Promise<AdminUsersResponse> {
+  const getUsers = trialOnly ? mockApi.getFresh : mockApi.get;
   const [mockUsers, events, translations, eventAccess, platformAccess] =
     await Promise.all([
-      mockApi.get<MockUser[]>("/users?_sort=created_at&_order=desc"),
-      mockApi.get<MockEvent[]>("/events"),
+      getUsers<MockUser[]>("/users?_sort=created_at&_order=desc"),
+      mockApi.getFresh<MockEvent[]>("/events"),
       mockApi.get<MockEventTranslation[]>("/event_translations"),
       mockApi.get<MockEventAccess[]>("/event_access"),
       mockApi.get<MockPlatformAccess[]>("/platform_access").catch(() => []),
@@ -218,15 +255,19 @@ export async function getBoundAdminUsers(
   const liveEvents = new Set(
     events.filter((event) => !event.deleted_at).map((event) => event.id),
   );
+  const mockById = new Map(mockUsers.map((user) => [user.id, user]));
   const accessByUser = new Map(
     eventAccess
-      .filter((row) => !row.deleted_at)
+      .filter((row) => !row.deleted_at && row.event_id === mockById.get(row.user_id)?.event_id)
       .map((row) => [row.user_id, row]),
   );
 
+  const listedUsers = mockUsers.filter(
+    (user) => isListedPortalUser(user) && (!trialOnly || isTrialAccount(user)),
+  );
   const permissionsByUserId = new Map<string, Awaited<ReturnType<typeof getRolePermissions>>>();
   await Promise.all(
-    mockUsers.map(async (mock) => {
+    listedUsers.map(async (mock) => {
       if (mock.system_role !== "event_user") {
         permissionsByUserId.set(mock.id, []);
         return;
@@ -250,8 +291,7 @@ export async function getBoundAdminUsers(
       .map((user) => [user.id, user]),
   );
 
-  let portalUsers = mockUsers
-    .filter(isListedPortalUser)
+  let portalUsers = listedUsers
     .map((mock) =>
       mapListedPortalUser(mock, permissionsByUserId.get(mock.id) ?? []),
     )
@@ -265,17 +305,13 @@ export async function getBoundAdminUsers(
   }
 
   const bound: AdminUserListItem[] = portalUsers.map((user) => {
-    const safe = projectUserPii(user, mayViewPii(viewer, user.id));
     const owner = user.ownerId ? usersById.get(user.ownerId) : null;
-    const mock = mockUsers.find((row) => row.id === user.id);
-    const eventId = mock?.event_id;
-    const eventName =
-      eventId && liveEvents.has(eventId)
-        ? resolveEventTitle(translations, eventId, locale)
-        : null;
+    const mock = mockById.get(user.id);
+    const eventId = mock?.event_id && liveEvents.has(mock.event_id) ? mock.event_id : null;
+    const eventName = eventId ? resolveEventTitle(translations, eventId, locale) : null;
 
     const customRoleName =
-      user.role === "sub_user"
+      eventId && user.role === "sub_user"
         ? (accessByUser.get(user.id)?.role_name ?? null)
         : null;
 
@@ -285,23 +321,19 @@ export async function getBoundAdminUsers(
         : undefined;
 
     return {
-      id: safe.id,
-      name: safe.name,
-      email: safe.email,
-      phone: safe.phone,
-      role: safe.role,
-      status: safe.status,
-      ownerId: safe.ownerId,
-      ownerName: owner
-        ? mayViewPii(viewer, owner.id)
-          ? owner.name
-          : maskName(owner.name)
-        : null,
-      canViewSensitiveData: safe.canViewSensitiveData,
-      eventId: eventId && liveEvents.has(eventId) ? eventId : null,
+      id: user.id,
+      name: user.name ?? "",
+      email: user.email,
+      phone: mock?.phone ?? null,
+      role: user.role,
+      status: user.status,
+      ownerId: user.ownerId,
+      ownerName: owner?.name ?? null,
+      canViewSensitiveData: user.canViewSensitiveData,
+      eventId,
       eventName,
       customRoleName,
-      lastActiveAt: mock?.updated_at ?? mock?.joined_at ?? safe.updatedAt,
+      lastActiveAt: mock?.updated_at ?? mock?.joined_at ?? user.updatedAt,
       ...(platformAccess
         ? {
             platformAccess,
@@ -309,8 +341,8 @@ export async function getBoundAdminUsers(
             canInspection: platformAccess.canInspection,
           }
         : {}),
-      createdAt: safe.createdAt,
-      updatedAt: safe.updatedAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   });
 
@@ -401,6 +433,7 @@ export async function createAdminUser(
   const name = input.name.trim();
   const email = normalizeEmail(input.email);
   const role = input.role;
+  const password = passwordForNewUser(input);
 
   if (!name || !email) {
     throw new ServiceError("VALIDATION_ERROR", 400, "Name and email required");
@@ -420,14 +453,14 @@ export async function createAdminUser(
     throw new ServiceError("EVENT_REQUIRED", 400, "Event required");
   }
   if (requestedEvent && (needsEvent(role) || role === "event_owner")) {
-    const event = await assertLiveEvent(requestedEvent);
+    const event = await findLiveEvent(requestedEvent);
+    if (!event) throw new ServiceError("EVENT_NOT_FOUND", 400, "Event not found");
     eventId = event.id;
   }
   if (role === "super_admin") {
     eventId = null;
   }
 
-  const password = validatePassword(input.password);
   const now = new Date().toISOString();
   const userId = randomUUID();
   const isPlatform = role === "super_admin";
@@ -435,6 +468,8 @@ export async function createAdminUser(
   await mockApi.post<MockUser>("/users", {
     id: userId,
     email,
+    is_trial: input.isTrial ?? false,
+    uses_published_trial_password: input.usePublishedPassword ?? false,
     password,
     display_name: name,
     system_role: isPlatform ? "platform_admin" : "event_user",
@@ -480,24 +515,9 @@ export async function updateUserRoleOrEvent(
     password?: string;
   },
   actorUserId: string,
+  trialOnly = false,
 ): Promise<{ success: boolean }> {
-  const account = await getActivePortalAccount(targetUserId);
-  if (!account) {
-    // Allow editing invited accounts that getActivePortalAccount may skip.
-    const raw = await mockApi
-      .get<MockUser>(`/users/${encodeURIComponent(targetUserId)}`)
-      .catch(() => null);
-    if (!raw || raw.removed_at || raw.status === "removed") {
-      throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
-    }
-  }
-
-  const current = await mockApi.get<MockUser>(
-    `/users/${encodeURIComponent(targetUserId)}`,
-  );
-  if (!current || current.removed_at || current.status === "removed") {
-    throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
-  }
+  const current = await readManagedUser(targetUserId, trialOnly);
 
   const currentPermissions = await getRolePermissions(
     current.id,
@@ -515,18 +535,15 @@ export async function updateUserRoleOrEvent(
     nextEventId = null;
   } else if (updates.eventId !== undefined) {
     nextEventId = updates.eventId?.trim() || null;
-  } else if (nextRole === "event_owner" && updates.role === "event_owner") {
-    // Keep existing assignment when promoting within event roles.
-    nextEventId = current.event_id;
+  }
+  if (nextEventId && !(await findLiveEvent(nextEventId))) {
+    if (updates.eventId !== undefined) {
+      throw new ServiceError("EVENT_NOT_FOUND", 400, "Event not found");
+    }
+    nextEventId = null;
   }
   if (needsEvent(nextRole) && !nextEventId) {
     throw new ServiceError("EVENT_REQUIRED", 400, "Event required");
-  }
-  if (nextRole === "event_owner" && updates.eventId === null) {
-    nextEventId = null;
-  }
-  if (nextEventId) {
-    await assertLiveEvent(nextEventId);
   }
 
   const patchBody: Record<string, unknown> = {
@@ -551,6 +568,9 @@ export async function updateUserRoleOrEvent(
       throw new ServiceError("EMAIL_EXISTS", 409, "Email already in use");
     }
     patchBody.email = email;
+    if (current.is_trial == null && email !== normalizeEmail(current.email ?? "")) {
+      patchBody.is_trial = isTrialAccount(current);
+    }
   }
 
   const password = typeof updates.password === "string" && updates.password.length > 0
@@ -574,7 +594,7 @@ export async function updateUserRoleOrEvent(
 
   await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, {
     ...patchBody,
-    ...(password ? { password } : {}),
+    ...(password ? { password, uses_published_trial_password: false } : {}),
   });
 
   if (nextRole === "super_admin") {
@@ -609,26 +629,22 @@ export async function updateUserRoleOrEvent(
 export async function getAdminUserById(
   userId: string,
   locale: Locale = routing.defaultLocale,
-  viewer?: PiiViewer,
+  trialOnly = false,
 ): Promise<AdminUserListItem | null> {
-  const data = await getBoundAdminUsers(undefined, locale, viewer);
+  const data = await getBoundAdminUsers(undefined, locale, trialOnly);
   return data.users.find((user) => user.id === userId) ?? null;
 }
 
 export async function deleteAdminUser(
   targetUserId: string,
   actorUserId: string,
+  trialOnly = false,
 ): Promise<{ success: boolean }> {
   if (targetUserId === actorUserId) {
     throw new ServiceError("CANNOT_DELETE_SELF", 400, "Cannot delete yourself");
   }
 
-  const current = await mockApi
-    .get<MockUser>(`/users/${encodeURIComponent(targetUserId)}`)
-    .catch(() => null);
-  if (!current || current.removed_at || current.status === "removed") {
-    throw new ServiceError("USER_NOT_FOUND", 404, "User not found");
-  }
+  await readManagedUser(targetUserId, trialOnly);
 
   const now = new Date().toISOString();
   await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, {

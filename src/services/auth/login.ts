@@ -8,6 +8,7 @@ import {
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import type { MockUser } from "@/types/mock";
 import type { User } from "@/types/user";
+import { isPublicDemoLoginBlocked } from "./public-demo";
 
 export type LoginResult =
   | { ok: true; user: User }
@@ -23,13 +24,13 @@ export async function loginWithMockCredentials(
     status: "active",
   });
 
-  const users = await mockApi.get<MockUser[]>(`/users?${params.toString()}`);
+  const users = await mockApi.getFresh<MockUser[]>(`/users?${params.toString()}`);
   const matched = users.find(
     (user) =>
       isActiveMockUser(user) && user.email === email && user.password === password,
   );
 
-  if (!matched) {
+  if (!matched || isPublicDemoLoginBlocked(matched)) {
     return { ok: false, error: "INVALID_CREDENTIALS" };
   }
 

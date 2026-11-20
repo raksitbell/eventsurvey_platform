@@ -50,6 +50,7 @@ export async function setPasswordForInvitedUser(
   const now = new Date().toISOString();
   await mockApi.patch(`/users/${encodeURIComponent(user.id)}`, {
     password,
+    uses_published_trial_password: false,
     status: "active",
     joined_at: now,
     updated_at: now,

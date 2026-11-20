@@ -13,6 +13,7 @@ export type AuthSnapshot = {
   canViewEvents: boolean;
   /** platform_access.users is view_only+ */
   canViewUsers: boolean;
+  canManageUsers: boolean;
   /** From platform_access.canViewActivity (super_admin User Activity). */
   canViewActivity: boolean;
   /** From platform_access.canInspection — open event workspace as platform. */
@@ -29,6 +30,7 @@ export const EMPTY_AUTH_SNAPSHOT: AuthSnapshot = {
   canViewOverview: false,
   canViewEvents: false,
   canViewUsers: false,
+  canManageUsers: false,
   canViewActivity: false,
   canInspection: false,
   canManageEvents: false,

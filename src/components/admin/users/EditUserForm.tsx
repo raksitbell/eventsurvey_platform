@@ -1,10 +1,12 @@
 "use client";
 
 import UserFormFields, {
+  canAssignEvent,
   needsAssignedEvent,
 } from "@/components/admin/users/UserFormFields";
 import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
+import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
@@ -19,12 +21,19 @@ import { FormEvent, useEffect, useState } from "react";
 
 type Props = {
   userId: string;
+  fromTrialAccounts?: boolean;
 };
 
-export default function EditUserForm({ userId }: Props) {
+export default function EditUserForm({ userId, fromTrialAccounts }: Props) {
   const t = useTranslations("adminUsers");
   const locale = useLocale() as Locale;
   const router = useRouter();
+  const { canManageUsers } = useAuth();
+  const restricted = fromTrialAccounts && !canManageUsers;
+  const userPath = `/admin/users/${encodeURIComponent(userId)}`;
+  const returnHref = fromTrialAccounts
+    ? "/admin/configuration?tab=trial-accounts"
+    : "/admin/users";
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -40,18 +49,20 @@ export default function EditUserForm({ userId }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (restricted) {
+      router.replace(returnHref);
+      return;
+    }
     let cancelled = false;
     async function load() {
       setIsLoading(true);
       setLoadError(null);
       try {
+        const query = new URLSearchParams({ locale });
+        if (fromTrialAccounts) query.set("trial", "true");
         const [detail, list] = await Promise.all([
-          api.get<{ user: AdminUserListItem }>(
-            `/admin/users/${encodeURIComponent(userId)}?locale=${encodeURIComponent(locale)}`,
-          ),
-          api.get<AdminUsersResponse>(
-            `/admin/users?locale=${encodeURIComponent(locale)}`,
-          ),
+          api.get<{ user: AdminUserListItem }>(`${userPath}?${query}`),
+          api.get<AdminUsersResponse>(`/admin/users?${query}`),
         ]);
         if (cancelled) return;
         setName(detail.user.name);
@@ -71,11 +82,13 @@ export default function EditUserForm({ userId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [locale, t, userId]);
+  }, [fromTrialAccounts, locale, restricted, returnHref, router, t, userPath]);
+
+  if (restricted) return null;
 
   const handleRoleChange = (next: UserRole) => {
     setRole(next);
-    if (!needsAssignedEvent(next)) setEventId("");
+    if (!canAssignEvent(next, fromTrialAccounts)) setEventId("");
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -116,15 +129,15 @@ export default function EditUserForm({ userId }: Props) {
       };
       if (role === "super_admin") {
         body.eventId = null;
-      } else if (needsAssignedEvent(role)) {
-        body.eventId = eventId;
+      } else if (canAssignEvent(role, fromTrialAccounts)) {
+        body.eventId = eventId || null;
       }
       if (changingPassword) {
         body.password = password;
       }
-      await api.patch(`/admin/users/${encodeURIComponent(userId)}`, body);
+      await api.patch(fromTrialAccounts ? `${userPath}?trial=true` : userPath, body);
       showToast({ title: t("form.updateSuccess"), variant: "success" });
-      router.push("/admin/users");
+      router.push(returnHref);
     } catch (err) {
       const code = err instanceof ApiError ? err.code : undefined;
       const message =
@@ -169,6 +182,7 @@ export default function EditUserForm({ userId }: Props) {
         password={password}
         confirmPassword={confirmPassword}
         events={events}
+        isTrial={fromTrialAccounts}
         passwordOptional
         disabled={isSubmitting}
         onNameChange={setName}
@@ -179,10 +193,11 @@ export default function EditUserForm({ userId }: Props) {
         onConfirmPasswordChange={setConfirmPassword}
       />
       <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5 dark:border-gray-800">
-        <Link href="/admin/users">
-          <Button type="button" variant="outline">
-            {t("form.cancel")}
-          </Button>
+        <Link
+          href={returnHref}
+          className="inline-flex items-center rounded-lg bg-white px-5 py-3.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/3"
+        >
+          {t("form.cancel")}
         </Link>
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? t("form.saving") : t("form.editSubmit")}

@@ -706,6 +706,9 @@ function invitationFixture(t, { failMail = false, failAccess = false, failUserWr
     "@/core/api/mock-client": {
       MockApiError,
       mockApi: {
+        getFresh(query) {
+          return this.get(query);
+        },
         async get(query) {
           if (query.startsWith("/users/")) {
             const user = users.get(query.slice("/users/".length));

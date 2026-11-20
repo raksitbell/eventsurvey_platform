@@ -17,6 +17,7 @@ function normalizeSnapshot(data: SessionResponse): AuthSnapshot {
     canViewOverview: data.canViewOverview === true,
     canViewEvents: data.canViewEvents === true,
     canViewUsers: data.canViewUsers === true,
+    canManageUsers: data.canManageUsers === true,
     canViewActivity: data.canViewActivity === true,
     canInspection: data.canInspection === true,
     canManageEvents: data.canManageEvents === true,

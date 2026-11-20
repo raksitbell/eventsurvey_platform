@@ -1,6 +1,7 @@
 "use client";
 
-import EventStatusBadge from "@/components/admin/events/EventStatusBadge";
+import EventActionsMenu from "./EventActionsMenu";
+import EventStatusBadge from "./EventStatusBadge";
 import DateRangePicker, {
   type DateRangeValue,
 } from "@/components/form/DateRangePicker";
@@ -13,14 +14,11 @@ import { fromBangkokInput } from "@/core/i18n/bangkok-datetime";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Link } from "@/i18n/navigation";
 import {
-  ArrowTopRightOnSquareIcon,
+  ArrowUturnLeftIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  EyeIcon,
-  PencilSquareIcon,
-  TrashIcon,
 } from "@heroicons/react/24/outline";
-import { showToast } from "@/utils/alert";
+import { showProgress, showToast } from "@/utils/alert";
 import type { Locale } from "@/i18n/routing";
 import type {
   AdminEventListItem,
@@ -30,7 +28,7 @@ import type {
 } from "@/types/admin/events";
 import type { MockEventStatus } from "@/types/mock";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 10;
 
@@ -92,7 +90,7 @@ function parseCloseWarnings(body: unknown): EventCloseWarning[] {
   return warnings as EventCloseWarning[];
 }
 
-export default function EventsTable() {
+export default function EventsTable({ showTrash = false }: { showTrash?: boolean }) {
   const t = useTranslations("adminEvents");
   const tc = useTranslations("confirm");
   const ti = useTranslations("eventInspection");
@@ -110,6 +108,13 @@ export default function EventsTable() {
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const [listRevision, setListRevision] = useState(0);
+  const refreshEvents = () => setListRevision((previous) => previous + 1);
+
+  const hasFilters = Boolean(q.trim() || status !== "all" || dateRange);
+  const emptyMessage = showTrash
+    ? t(hasFilters ? "trash.noMatches" : "trash.empty")
+    : t("empty");
   const totalEvents = events.length;
   const totalPages = Math.max(1, Math.ceil(totalEvents / PAGE_SIZE));
   const startIndex = (currentPage - 1) * PAGE_SIZE;
@@ -148,36 +153,98 @@ export default function EventsTable() {
     }
   };
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  useEffect(() => {
+    const request = new AbortController();
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams({ locale });
+        if (showTrash) params.set("trash", "true");
+        if (q.trim()) params.set("q", q.trim());
+        if (status !== "all") params.set("status", status);
+        if (dateRange) {
+          const start = fromBangkokInput(`${dateRange.start}T00:00`);
+          const endMinute = fromBangkokInput(`${dateRange.end}T23:59`);
+          if (start) params.set("startDate", start);
+          if (endMinute) {
+            const end = new Date(Date.parse(endMinute) + 59_999);
+            params.set("endDate", end.toISOString());
+          }
+        }
+        const data = await api.get<AdminEventsResponse>(
+          `/admin/events?${params.toString()}`,
+          request.signal,
+        );
+        if (!request.signal.aborted) setEvents(data.events);
+      } catch {
+        if (!request.signal.aborted) setError(t("loadError"));
+      } finally {
+        if (!request.signal.aborted) setIsLoading(false);
+      }
+    };
+    void load();
+    return () => request.abort();
+  }, [dateRange, listRevision, locale, q, showTrash, status, t]);
+
+  const changeTrashStatus = async (event: AdminEventListItem) => {
+    const actionLabel = t(showTrash ? "trash.restore" : "menu.deleteEvent");
+    const confirmed = await confirm({
+      title: actionLabel,
+      message: t(showTrash ? "trash.confirmRestore" : "menu.confirmDelete", {
+        title: event.title,
+      }),
+      confirmLabel: actionLabel,
+      cancelLabel: tc("cancel"),
+      variant: showTrash ? "primary" : "danger",
+    });
+    if (!confirmed) return;
+
+    setPendingId(event.id);
+    const path = `/admin/events/${encodeURIComponent(event.id)}`;
     try {
-      const params = new URLSearchParams({ locale });
-      if (q.trim()) params.set("q", q.trim());
-      if (status !== "all") params.set("status", status);
-      if (dateRange) {
-        const start = fromBangkokInput(`${dateRange.start}T00:00`);
-        const endMinute = fromBangkokInput(`${dateRange.end}T23:59`);
-        if (start) params.set("startDate", start);
-        if (endMinute) {
-          const end = new Date(Date.parse(endMinute) + 59_999);
-          params.set("endDate", end.toISOString());
+      showProgress(
+        t(showTrash ? "trash.restoring" : "menu.deleting"),
+        event.title,
+      );
+      if (showTrash) {
+        await api.post(`${path}/restore`, {});
+      } else {
+        await api.delete(path);
+      }
+      setEvents((current) => current.filter((row) => row.id !== event.id));
+      showToast({
+        title: t(showTrash ? "trash.restored" : "menu.deleted"),
+        variant: "success",
+      });
+      refreshEvents();
+    } catch (err) {
+      let message = t(showTrash ? "trash.restoreError" : "menu.deleteError");
+      if (err instanceof ApiError) {
+        switch (err.code) {
+          case "EVENT_NOT_DELETABLE":
+            message = t("menu.noLongerDraft");
+            break;
+          case "EVENT_NOT_RESTORABLE":
+            message = t("trash.noLongerRestorable");
+            break;
+          case "EVENT_NOT_FOUND":
+            message = t("menu.noLongerAvailable");
+            break;
+          case "SLUG_EXISTS":
+            message = t("trash.slugConflict");
+            break;
+          case "FORBIDDEN":
+            message = t("menu.managePermission");
+            break;
         }
       }
-      const data = await api.get<AdminEventsResponse>(
-        `/admin/events?${params.toString()}`,
-      );
-      setEvents(data.events);
-    } catch {
-      setError(t("loadError"));
+      showToast({ title: message, variant: "error" });
+      refreshEvents();
     } finally {
-      setIsLoading(false);
+      setPendingId(null);
     }
-  }, [dateRange, locale, q, status, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  };
 
   const formatCloseWarningMessage = (
     eventTitle: string,
@@ -212,7 +279,7 @@ export default function EventsTable() {
       setPendingId(event.id);
       try {
         await api.patch(`/admin/events/${event.id}/status`, { action: "start" });
-        await load();
+        refreshEvents();
       } catch {
         setError(t("actionError"));
       } finally {
@@ -235,12 +302,12 @@ export default function EventsTable() {
       await api.patch(`/admin/events/${event.id}/status`, {
         action: "close",
       });
-      await load();
+      refreshEvents();
     } catch (err) {
       if (
         err instanceof ApiError &&
         err.status === 409 &&
-        err.message === "CLOSE_HAS_ACTIVE_FORMS"
+        err.code === "CLOSE_HAS_ACTIVE_FORMS"
       ) {
         const warnings = parseCloseWarnings(err.body);
         const forceConfirm = await confirm({
@@ -256,7 +323,7 @@ export default function EventsTable() {
             action: "close",
             force: true,
           });
-          await load();
+          refreshEvents();
         } catch {
           setError(t("actionError"));
         }
@@ -309,7 +376,7 @@ export default function EventsTable() {
             />
           </div>
         </div>
-        {canManageEvents ? (
+        {canManageEvents && !showTrash ? (
           <Link href="/admin/events/new">
             <Button>+ {t("createNew")}</Button>
           </Link>
@@ -356,19 +423,23 @@ export default function EventsTable() {
                     colSpan={6}
                     className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
                   >
-                    {t("empty")}
+                    {emptyMessage}
                   </td>
                 </tr>
               ) : (
                 paginatedEvents.map((event) => (
                   <tr key={event.id}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-800 dark:text-white/90">
-                      <Link
-                        href={`/admin/events/${event.id}`}
-                        className="hover:text-brand-600 dark:hover:text-brand-400"
-                      >
-                        {event.title}
-                      </Link>
+                      {showTrash ? (
+                        event.title
+                      ) : (
+                        <Link
+                          href={`/admin/events/${event.id}`}
+                          className="hover:text-brand-600 dark:hover:text-brand-400"
+                        >
+                          {event.title}
+                        </Link>
+                      )}
                     </td>
                     <td className="px-4 py-3 font-mono text-theme-xs text-gray-500 dark:text-gray-400">
                       {event.slug}
@@ -384,65 +455,27 @@ export default function EventsTable() {
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                       {formatUpdatedAt(event.updatedAt, locale)}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap items-center justify-center gap-1.5">
-                        <Link
-                          href={`/admin/events/${event.id}`}
-                          title={t("view")}
-                          aria-label={t("view")}
-                          className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
-                        >
-                          <EyeIcon className="size-5" />
-                        </Link>
-                        {canInspection ? (
-                          <button
-                            type="button"
-                            title={t("openWorkspace")}
-                            aria-label={t("openWorkspace")}
-                            disabled={openingId === event.id}
-                            onClick={() => void openWorkspace(event)}
-                            className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
-                          >
-                            <ArrowTopRightOnSquareIcon className="size-5" />
-                          </button>
-                        ) : null}
-                        {canManageEvents && event.status === "draft" ? (
-                          <Link
-                            href={`/admin/events/${event.id}/edit`}
-                            title={t("edit")}
-                            aria-label={t("edit")}
-                            className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
-                          >
-                            <PencilSquareIcon className="size-5" />
-                          </Link>
-                        ) : null}
-                        {canManageEvents &&
-                        event.status === "scheduled" &&
-                        event.canStart ? (
-                          <button
-                            type="button"
-                            title={t("start")}
-                            aria-label={t("start")}
-                            disabled={pendingId === event.id}
-                            onClick={() => void runStatusAction(event, "start")}
-                            className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-theme-xs font-medium text-brand-600 transition hover:bg-brand-50 disabled:opacity-50 dark:border-brand-500/30 dark:text-brand-400 dark:hover:bg-brand-500/10"
-                          >
-                            {t("start")}
-                          </button>
-                        ) : null}
-                        {canManageEvents && event.status === "open" ? (
-                          <button
-                            type="button"
-                            title={t("close")}
-                            aria-label={t("close")}
-                            disabled={pendingId === event.id}
-                            onClick={() => void runStatusAction(event, "close")}
-                            className="inline-flex size-9 items-center justify-center rounded-lg border border-error-200 text-error-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 disabled:opacity-50 dark:border-error-500/30 dark:text-error-400 dark:hover:border-error-500/50 dark:hover:bg-error-500/10"
-                          >
-                            <TrashIcon className="size-5 shrink-0" />
-                          </button>
-                        ) : null}
-                      </div>
+                    <td className="px-4 py-3 text-center">
+                      {showTrash ? (
+                        <RestoreEventAction
+                          event={event}
+                          canManage={canManageEvents}
+                          busy={pendingId !== null}
+                          onRestore={() => void changeTrashStatus(event)}
+                        />
+                      ) : (
+                        <EventActionsMenu
+                          event={event}
+                          canManage={canManageEvents}
+                          canInspect={canInspection}
+                          busy={pendingId !== null || openingId !== null}
+                          onInspect={() => void openWorkspace(event)}
+                          onChangeStatus={(action) =>
+                            void runStatusAction(event, action)
+                          }
+                          onDelete={() => void changeTrashStatus(event)}
+                        />
+                      )}
                     </td>
                   </tr>
                 ))
@@ -509,5 +542,47 @@ export default function EventsTable() {
         </div>
       </div>
     </div>
+  );
+}
+
+function RestoreEventAction({
+  event,
+  canManage,
+  busy,
+  onRestore,
+}: {
+  event: AdminEventListItem;
+  canManage: boolean;
+  busy: boolean;
+  onRestore: () => void;
+}) {
+  const t = useTranslations("adminEvents");
+  const reason = !canManage
+    ? t("menu.managePermission")
+    : event.status !== "draft"
+      ? t("trash.onlyDrafts")
+      : undefined;
+  const reasonId = `restore-reason-${event.id}`;
+  return (
+    <>
+      <button
+        type="button"
+        disabled={busy || Boolean(reason)}
+        aria-describedby={reason ? reasonId : undefined}
+        onClick={onRestore}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-theme-xs font-medium text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:enabled:hover:bg-gray-800"
+      >
+        <ArrowUturnLeftIcon aria-hidden="true" className="size-4" />
+        {t("trash.restore")}
+      </button>
+      {reason && (
+        <p
+          id={reasonId}
+          className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400"
+        >
+          {reason}
+        </p>
+      )}
+    </>
   );
 }

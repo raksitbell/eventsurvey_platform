@@ -14,6 +14,10 @@ export function needsAssignedEvent(role: UserRole): boolean {
   return role === "sub_user";
 }
 
+export function canAssignEvent(role: UserRole, isTrial = false): boolean {
+  return needsAssignedEvent(role) || (isTrial && role === "event_owner");
+}
+
 type Props = {
   name: string;
   email: string;
@@ -22,6 +26,11 @@ type Props = {
   password: string;
   confirmPassword: string;
   events: Array<{ id: string; title: string }>;
+  isTrial?: boolean;
+  demoPasswordOption?: {
+    enabled: boolean;
+    onChange: (enabled: boolean) => void;
+  };
   /** When true, password is optional (edit). When false, password is required (create). */
   passwordOptional?: boolean;
   disabled?: boolean;
@@ -41,6 +50,8 @@ export default function UserFormFields({
   password,
   confirmPassword,
   events,
+  isTrial = false,
+  demoPasswordOption,
   passwordOptional = false,
   disabled = false,
   onNameChange,
@@ -51,8 +62,10 @@ export default function UserFormFields({
   onConfirmPasswordChange,
 }: Props) {
   const t = useTranslations("adminUsers");
+  const configuration = useTranslations("platformConfiguration");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const showTrialHint = isTrial && role === "event_owner" && !eventId;
 
   return (
     <div className="space-y-5">
@@ -99,95 +112,126 @@ export default function UserFormFields({
           ))}
         </SelectField>
       </div>
-      {needsAssignedEvent(role) ? (
+      {canAssignEvent(role, isTrial) ? (
         <div>
           <Label htmlFor="admin-user-event">
-            {t("form.event")} <span className="text-error-500">*</span>
+            {t("form.event")} {needsAssignedEvent(role) && <span className="text-error-500">*</span>}
           </Label>
           <SelectField
             id="admin-user-event"
             value={eventId}
             onChange={(e) => onEventChange(e.target.value)}
             disabled={disabled}
+            aria-required={needsAssignedEvent(role)}
+            aria-describedby={showTrialHint ? "trial-event-hint" : undefined}
           >
-            <option value="">{t("form.eventPlaceholder")}</option>
+            <option value="">{t(needsAssignedEvent(role) ? "form.eventPlaceholder" : "noAssignedEvent")}</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
                 {event.title || event.id}
               </option>
             ))}
           </SelectField>
+          {showTrialHint && (
+            <p id="trial-event-hint" className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              {t("form.trialOwnerEventHint")}
+            </p>
+          )}
         </div>
       ) : null}
 
-      <div>
-        <Label htmlFor="admin-user-password">
-          {t("form.password")}{" "}
-          {passwordOptional ? null : <span className="text-error-500">*</span>}
-        </Label>
-        <div className="relative">
-          <Input
-            id="admin-user-password"
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => onPasswordChange(e.target.value)}
-            placeholder={
-              passwordOptional
-                ? t("form.passwordOptionalPlaceholder")
-                : t("form.passwordPlaceholder")
-            }
+      {demoPasswordOption && (
+        <div>
+          <Label htmlFor="admin-trial-password-mode">{configuration("trialPasswordMode")}</Label>
+          <SelectField
+            id="admin-trial-password-mode"
+            value={demoPasswordOption.enabled ? "public" : "custom"}
+            onChange={(event) => demoPasswordOption.onChange(event.target.value === "public")}
             disabled={disabled}
-            autoComplete="new-password"
-            className="pe-12"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((prev) => !prev)}
-            className="absolute inset-y-0 end-0 flex items-center pe-3.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-describedby={demoPasswordOption.enabled ? "trial-public-password-hint" : undefined}
           >
-            {showPassword ? (
-              <EyeSlashIcon className="size-5" />
-            ) : (
-              <EyeIcon className="size-5" />
-            )}
-          </button>
+            <option value="public">{configuration("publicDemoPassword")}</option>
+            <option value="custom">{configuration("customTrialPassword")}</option>
+          </SelectField>
+          {demoPasswordOption.enabled && (
+            <p id="trial-public-password-hint" className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              {configuration("publicDemoPasswordHint", { role: t(`filters.${role}`) })}
+            </p>
+          )}
         </div>
-        <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
-          {passwordOptional ? t("form.passwordOptionalHint") : t("form.passwordHint")}
-        </p>
-      </div>
+      )}
+      {!demoPasswordOption?.enabled && (
+        <>
+          <div>
+            <Label htmlFor="admin-user-password">
+              {t("form.password")}{" "}
+              {passwordOptional ? null : <span className="text-error-500">*</span>}
+            </Label>
+            <div className="relative">
+              <Input
+                id="admin-user-password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => onPasswordChange(e.target.value)}
+                placeholder={
+                  passwordOptional
+                    ? t("form.passwordOptionalPlaceholder")
+                    : t("form.passwordPlaceholder")
+                }
+                disabled={disabled}
+                autoComplete="new-password"
+                className="pe-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 end-0 flex items-center pe-3.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeSlashIcon className="size-5" />
+                ) : (
+                  <EyeIcon className="size-5" />
+                )}
+              </button>
+            </div>
+            <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              {passwordOptional ? t("form.passwordOptionalHint") : t("form.passwordHint")}
+            </p>
+          </div>
 
-      <div>
-        <Label htmlFor="admin-user-confirm-password">
-          {t("form.confirmPassword")}{" "}
-          {passwordOptional ? null : <span className="text-error-500">*</span>}
-        </Label>
-        <div className="relative">
-          <Input
-            id="admin-user-confirm-password"
-            type={showConfirm ? "text" : "password"}
-            value={confirmPassword}
-            onChange={(e) => onConfirmPasswordChange(e.target.value)}
-            placeholder={t("form.confirmPasswordPlaceholder")}
-            disabled={disabled}
-            autoComplete="new-password"
-            className="pe-12"
-          />
-          <button
-            type="button"
-            onClick={() => setShowConfirm((prev) => !prev)}
-            className="absolute inset-y-0 end-0 flex items-center pe-3.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            aria-label={showConfirm ? "Hide password" : "Show password"}
-          >
-            {showConfirm ? (
-              <EyeSlashIcon className="size-5" />
-            ) : (
-              <EyeIcon className="size-5" />
-            )}
-          </button>
-        </div>
-      </div>
+          <div>
+            <Label htmlFor="admin-user-confirm-password">
+              {t("form.confirmPassword")}{" "}
+              {passwordOptional ? null : <span className="text-error-500">*</span>}
+            </Label>
+            <div className="relative">
+              <Input
+                id="admin-user-confirm-password"
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => onConfirmPasswordChange(e.target.value)}
+                placeholder={t("form.confirmPasswordPlaceholder")}
+                disabled={disabled}
+                autoComplete="new-password"
+                className="pe-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm((prev) => !prev)}
+                className="absolute inset-y-0 end-0 flex items-center pe-3.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                aria-label={showConfirm ? "Hide password" : "Show password"}
+              >
+                {showConfirm ? (
+                  <EyeSlashIcon className="size-5" />
+                ) : (
+                  <EyeIcon className="size-5" />
+                )}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
