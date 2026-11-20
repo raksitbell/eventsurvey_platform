@@ -8,6 +8,7 @@ import {
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import type { MockUser } from "@/types/mock";
 import type { User } from "@/types/user";
+import { isPublicDemoLoginBlocked } from "./public-demo";
 
 export type LoginResult =
   | { ok: true; user: User }
@@ -29,7 +30,7 @@ export async function loginWithMockCredentials(
       isActiveMockUser(user) && user.email === email && user.password === password,
   );
 
-  if (!matched) {
+  if (!matched || isPublicDemoLoginBlocked(matched)) {
     return { ok: false, error: "INVALID_CREDENTIALS" };
   }
 

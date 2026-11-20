@@ -11,6 +11,5 @@ export function isPublishedTrialEmail(email: string): boolean {
 }
 
 export function isTrialAccount(user: MockUser): boolean {
-  if (user.is_trial != null) return user.is_trial === true;
-  return isPublishedTrialEmail(user.email ?? "");
+  return user.is_trial ?? isPublishedTrialEmail(user.email ?? "");
 }

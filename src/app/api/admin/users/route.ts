@@ -52,6 +52,12 @@ export async function POST(request: NextRequest) {
     if (body.isTrial !== undefined && typeof body.isTrial !== "boolean") {
       return authJson({ error: "INVALID_TRIAL_FLAG" }, 400);
     }
+    if (
+      (body.usePublishedPassword !== undefined && typeof body.usePublishedPassword !== "boolean") ||
+      (body.usePublishedPassword && body.password !== undefined)
+    ) {
+      return authJson({ error: "INVALID_PUBLISHED_PASSWORD" }, 400);
+    }
 
     const name = typeof body.name === "string" ? body.name : "";
     const email = typeof body.email === "string" ? body.email : "";
@@ -65,13 +71,16 @@ export async function POST(request: NextRequest) {
       typeof body.eventId === "string" && body.eventId.trim()
         ? body.eventId.trim()
         : null;
-    const password = typeof body.password === "string" ? body.password : "";
-    if (!password) {
-      return authJson({ error: "PASSWORD_REQUIRED" }, 400);
-    }
-
     const result = await createAdminUser(
-      { name, email, role, eventId, password, isTrial: body.isTrial },
+      {
+        name,
+        email,
+        role,
+        eventId,
+        password: typeof body.password === "string" ? body.password : undefined,
+        isTrial: body.isTrial,
+        usePublishedPassword: body.usePublishedPassword,
+      },
       session.realUserId,
     );
     return authJson(result, 201);

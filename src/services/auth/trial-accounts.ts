@@ -5,6 +5,7 @@ import { isActiveMockUser, resolveAppRole } from "@/core/mock/map-user";
 import { isPublishedTrialEmail, isTrialAccount } from "@/core/mock/trial-accounts";
 import type { LoginTrialAccount } from "@/types/auth";
 import type { MockEvent, MockEventAccess, MockUser } from "@/types/mock";
+import { isPublicDemoLoginBlocked } from "./public-demo";
 
 export async function listLoginTrialAccounts(): Promise<LoginTrialAccount[]> {
   const [users, events, accessRows] = await Promise.all([
@@ -18,7 +19,7 @@ export async function listLoginTrialAccounts(): Promise<LoginTrialAccount[]> {
   const accounts: LoginTrialAccount[] = [];
 
   for (const user of users) {
-    if (!isActiveMockUser(user) || !isTrialAccount(user)) continue;
+    if (!isActiveMockUser(user) || !isTrialAccount(user) || isPublicDemoLoginBlocked(user)) continue;
     // The sign-in handler trims submitted emails and compares them to the stored value.
     if (!user.email || user.email !== user.email.trim() || !user.password)
       continue;
@@ -39,7 +40,8 @@ export async function listLoginTrialAccounts(): Promise<LoginTrialAccount[]> {
     );
     if (!role || role === "participant") continue;
     const account: LoginTrialAccount = { email: user.email, role };
-    if (isPublishedTrialEmail(user.email) && user.password === PUBLISHED_DEMO_PASSWORD) {
+    const published = user.uses_published_trial_password ?? isPublishedTrialEmail(user.email);
+    if (published && user.password === PUBLISHED_DEMO_PASSWORD) {
       account.usesPublishedPassword = true;
     }
     accounts.push(account);

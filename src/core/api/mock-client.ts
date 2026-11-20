@@ -7,10 +7,12 @@
  * Any mutation clears the GET cache for that isolate.
  */
 
+export const PUBLIC_DEMO_API_BASE_URL = "https://eventmockapi.vercel.app";
+
 export const MOCK_API_BASE_URL = (
   process.env.MOCK_API_BASE_URL ??
   process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "https://eventmockapi.vercel.app"
+  PUBLIC_DEMO_API_BASE_URL
 ).replace(/\/+$/, "");
 
 /** Default 30s; set `MOCK_API_GET_CACHE_TTL_MS=0` to disable caching. */

@@ -18,7 +18,15 @@ import { showToast } from "@/utils/alert";
 import { useLocale, useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useState } from "react";
 
-export default function CreateUserForm({ isTrial = false }: { isTrial?: boolean }) {
+type Props = {
+  isTrial?: boolean;
+  allowPublicDemoPassword?: boolean;
+};
+
+export default function CreateUserForm({
+  isTrial = false,
+  allowPublicDemoPassword = false,
+}: Props) {
   const t = useTranslations("adminUsers");
   const configuration = useTranslations("platformConfiguration");
   const locale = useLocale() as Locale;
@@ -34,6 +42,7 @@ export default function CreateUserForm({ isTrial = false }: { isTrial?: boolean 
   const [eventId, setEventId] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [usePublishedPassword, setUsePublishedPassword] = useState(allowPublicDemoPassword);
   const [events, setEvents] = useState<Array<{ id: string; title: string }>>(
     [],
   );
@@ -78,11 +87,11 @@ export default function CreateUserForm({ isTrial = false }: { isTrial?: boolean 
       showToast({ title: t("form.eventRequired"), variant: "error" });
       return;
     }
-    if (password.length < 8) {
+    if (!usePublishedPassword && password.length < 8) {
       showToast({ title: t("form.passwordTooShort"), variant: "error" });
       return;
     }
-    if (password !== confirmPassword) {
+    if (!usePublishedPassword && password !== confirmPassword) {
       showToast({ title: t("form.passwordMismatch"), variant: "error" });
       return;
     }
@@ -95,7 +104,7 @@ export default function CreateUserForm({ isTrial = false }: { isTrial?: boolean 
           name: name.trim(),
           email: email.trim().toLowerCase(),
           role,
-          password,
+          ...(usePublishedPassword ? { usePublishedPassword: true } : { password }),
           ...(isTrial ? { isTrial: true } : {}),
           eventId: eventId || null,
         },
@@ -138,6 +147,11 @@ export default function CreateUserForm({ isTrial = false }: { isTrial?: boolean 
         confirmPassword={confirmPassword}
         events={events}
         isTrial={isTrial}
+        demoPasswordOption={
+          allowPublicDemoPassword
+            ? { enabled: usePublishedPassword, onChange: setUsePublishedPassword }
+            : undefined
+        }
         disabled={isSubmitting}
         onNameChange={setName}
         onEmailChange={setEmail}

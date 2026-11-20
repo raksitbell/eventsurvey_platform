@@ -631,6 +631,113 @@ test("the trial account filter uses seed identities and explicit flags within Us
   await assertDenied(await getAdminUsers(request(path, { cookie })), 403);
 });
 
+function useTrialDemoBackend(t, demoBase) {
+  const previous = process.env.TRIAL_DEMO_API_BASE_URL;
+  process.env.TRIAL_DEMO_API_BASE_URL = demoBase;
+  t.after(() => {
+    if (previous === undefined) delete process.env.TRIAL_DEMO_API_BASE_URL;
+    else process.env.TRIAL_DEMO_API_BASE_URL = previous;
+  });
+  return loadSource();
+}
+
+test("an unconfigured deployment can provision public trial passwords only on the published mock API", (t) => {
+  useTrialDemoBackend(t, "");
+  const canProvision = (base) => loadSource({
+    "@/core/api/mock-client": { ...load("src/core/api/mock-client.ts"), MOCK_API_BASE_URL: base },
+  })("src/services/auth/public-demo.ts").canCreatePublicDemoTrial();
+  assert.equal(canProvision("https://eventmockapi.vercel.app"), true);
+  assert.equal(canProvision("https://eventmockapi.vercel.app.example.test"), false);
+  assert.equal(canProvision(origin), false);
+});
+
+test("a newly published trial signs in from the anonymous picker until its password changes", async (t) => {
+  const { admin, collections } = setupMockData(t, { eventWrites: true });
+  const api = useTrialDemoBackend(t, origin);
+  const { PUBLISHED_DEMO_PASSWORD } = api("src/core/auth/demo-preset.ts");
+  const { POST: create } = api("src/app/api/admin/users/route.ts");
+  const { GET: picker } = api("src/app/api/auth/trial-accounts/route.ts");
+  const { POST: submitLogin } = api("src/app/api/auth/login/route.ts");
+  const { PATCH: edit } = api("src/app/api/admin/users/[id]/route.ts");
+  const { cookie } = await signIn(admin);
+  const email = "published-trial@example.test";
+  const body = {
+    name: "Published trial", email, role: "sub_user", eventId: "event-a",
+    isTrial: true, usePublishedPassword: true,
+  };
+  const result = await create(request("/api/admin/users", { method: "POST", cookie, body }));
+  assert.equal(result.status, 201);
+  const { id } = await result.json();
+  const stored = collections.users.find((row) => row.id === id);
+  assert.equal(stored.uses_published_trial_password, true);
+
+  const publicAccount = async () => {
+    const response = await picker();
+    assert.equal(response.status, 200);
+    assertNoStore(response);
+    return (await response.json()).accounts.find((row) => row.email === email);
+  };
+  const loginAsTrial = (password) => submitLogin(request("/api/auth/login", { method: "POST", body: { email, password } }));
+  assert.deepEqual(await publicAccount(), { email, role: "sub_user", usesPublishedPassword: true });
+  const signedIn = await loginAsTrial(PUBLISHED_DEMO_PASSWORD);
+  assert.equal(signedIn.status, 200);
+  const { GET: readSession } = api("src/app/api/auth/session/route.ts");
+  const session = await readSession(request("/api/auth/session", { cookie: cookieValue(signedIn) }));
+  assert.equal(session.status, 200);
+  assert.equal((await session.json()).realUser.id, id);
+
+  const changed = await edit(request(`/api/admin/users/${id}?trial=true`, {
+    method: "PATCH", cookie, body: { password },
+  }), context("id", id));
+  assert.equal(changed.status, 200);
+  assert.equal(stored.uses_published_trial_password, false);
+  assert.deepEqual(await publicAccount(), { email, role: "sub_user" });
+  assert.equal((await loginAsTrial(PUBLISHED_DEMO_PASSWORD)).status, 401);
+  assert.equal((await loginAsTrial(password)).status, 200);
+});
+
+test("the public trial preset requires a matching demo backend and an explicit trial-only request", async (t) => {
+  const { admin, reviewer, owner, collections } = setupMockData(t, { eventWrites: true });
+  const { cookie } = await signIn(admin);
+  const viewer = await signIn(reviewer);
+  const before = collections.users.length;
+  const body = {
+    name: "New trial", email: "new-trial@example.test", role: "sub_user", eventId: "event-a",
+    isTrial: true, usePublishedPassword: true,
+  };
+  const submit = (handler, input, cookie) => handler(request("/api/admin/users", { method: "POST", cookie, body: input }));
+  await t.test("matching demo API", async (t) => {
+    const api = useTrialDemoBackend(t, origin);
+    const { POST: create } = api("src/app/api/admin/users/route.ts");
+    await assertDenied(await submit(create, body), 401, "anonymous");
+    await assertDenied(await submit(create, body, viewer.cookie), 403, "view-only administrator");
+    for (const invalid of [{ isTrial: false }, { isTrial: undefined }, { password }, { usePublishedPassword: "true" }]) {
+      await assertDenied(await submit(create, { ...body, ...invalid }, cookie), 400, Object.keys(invalid)[0]);
+    }
+    assert.equal(collections.users.length, before);
+  });
+  await t.test("different demo API", async (t) => {
+    const api = useTrialDemoBackend(t, origin + "/other");
+    const { POST: create } = api("src/app/api/admin/users/route.ts");
+    await assertDenied(await submit(create, body, cookie), 403, "another mock API");
+    assert.equal(collections.users.length, before);
+
+    const originalSession = await signIn(owner);
+    const { PUBLISHED_DEMO_PASSWORD } = api("src/core/auth/demo-preset.ts");
+    Object.assign(owner, { is_trial: true, uses_published_trial_password: true, password: PUBLISHED_DEMO_PASSWORD });
+    const { GET: picker } = api("src/app/api/auth/trial-accounts/route.ts");
+    assert.deepEqual((await (await picker()).json()).accounts, []);
+    const { POST: submitLogin } = api("src/app/api/auth/login/route.ts");
+    await assertDenied(await submitLogin(request("/api/auth/login", {
+      method: "POST", body: { email: owner.email, password: PUBLISHED_DEMO_PASSWORD },
+    })), 401, "published trial from another mock API");
+    const { GET: readSession } = api("src/app/api/auth/session/route.ts");
+    await assertDenied(await readSession(request("/api/auth/session", {
+      cookie: originalSession.cookie,
+    })), 401, "existing session for a copied trial");
+  });
+});
+
 test("renaming an account and reusing a seed email preserve the original account's trial classification", async (t) => {
   const { admin, owner, otherOwner } = setupMockData(t, { eventWrites: true });
   const { cookie } = await signIn(admin);

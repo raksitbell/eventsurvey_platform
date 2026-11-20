@@ -1,6 +1,7 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { writeAuditLog } from "@/core/audit/write";
+import { PUBLISHED_DEMO_PASSWORD } from "@/core/auth/demo-preset";
 import {
   DEFAULT_ADMIN_MATRIX,
   DEFAULT_SUB_USER_MATRIX,
@@ -10,6 +11,7 @@ import { resolveEventTitle } from "@/core/mock/event-title";
 import { mapMockUserToUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import { isTrialAccount } from "@/core/mock/trial-accounts";
+import { canCreatePublicDemoTrial } from "@/services/auth/public-demo";
 import { getActivePortalAccount } from "@/services/auth/session";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
@@ -109,6 +111,20 @@ function validatePassword(password: string): string {
     );
   }
   return password;
+}
+
+function passwordForNewUser(input: AdminUserWriteInput): string {
+  if (input.usePublishedPassword) {
+    if (!input.isTrial || input.password !== undefined) {
+      throw new ServiceError("INVALID_PUBLISHED_PASSWORD", 400);
+    }
+    if (!canCreatePublicDemoTrial()) {
+      throw new ServiceError("PUBLIC_DEMO_UNAVAILABLE", 403);
+    }
+    return PUBLISHED_DEMO_PASSWORD;
+  }
+  if (!input.password) throw new ServiceError("PASSWORD_REQUIRED", 400);
+  return validatePassword(input.password);
 }
 
 async function findUserByEmail(email: string): Promise<MockUser | null> {
@@ -417,6 +433,7 @@ export async function createAdminUser(
   const name = input.name.trim();
   const email = normalizeEmail(input.email);
   const role = input.role;
+  const password = passwordForNewUser(input);
 
   if (!name || !email) {
     throw new ServiceError("VALIDATION_ERROR", 400, "Name and email required");
@@ -444,7 +461,6 @@ export async function createAdminUser(
     eventId = null;
   }
 
-  const password = validatePassword(input.password);
   const now = new Date().toISOString();
   const userId = randomUUID();
   const isPlatform = role === "super_admin";
@@ -453,6 +469,7 @@ export async function createAdminUser(
     id: userId,
     email,
     is_trial: input.isTrial ?? false,
+    uses_published_trial_password: input.usePublishedPassword ?? false,
     password,
     display_name: name,
     system_role: isPlatform ? "platform_admin" : "event_user",
@@ -577,7 +594,7 @@ export async function updateUserRoleOrEvent(
 
   await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, {
     ...patchBody,
-    ...(password ? { password } : {}),
+    ...(password ? { password, uses_published_trial_password: false } : {}),
   });
 
   if (nextRole === "super_admin") {

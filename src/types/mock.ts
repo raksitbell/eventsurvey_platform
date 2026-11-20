@@ -58,6 +58,8 @@ export interface MockUser {
   email: string;
   /** Older demo accounts use the seed identities documented in the README. */
   is_trial?: boolean;
+  /** Explicitly provisioned with the public demo preset; absent on legacy rows. */
+  uses_published_trial_password?: boolean;
   phone?: string | null;
   /** Mock login only — never return to the browser */
   password: string;

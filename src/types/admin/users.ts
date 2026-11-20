@@ -79,7 +79,9 @@ export type AdminUserWriteInput = {
   /** Required for Event Editor; ignored for Platform Admin. */
   eventId?: string | null;
   /** Plain password set by admin (never returned to the browser later). */
-  password: string;
+  password?: string;
+  /** Provision the public demo preset for a trial in a designated demo environment. */
+  usePublishedPassword?: boolean;
 };
 
 export type AdminUserWriteResult = {

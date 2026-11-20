@@ -1,4 +1,5 @@
 import CreateUserForm from "@/components/admin/users/CreateUserForm";
+import { canCreatePublicDemoTrial } from "@/services/auth/public-demo";
 import { getTranslations } from "next-intl/server";
 
 export default async function AdminCreateUserPage({
@@ -19,7 +20,11 @@ export default async function AdminCreateUserPage({
           {t(isTrial ? "platformConfiguration.trialLoginVisibility" : "adminUsers.form.subtitle")}
         </p>
       </div>
-      <CreateUserForm key={isTrial ? "trial" : "regular"} isTrial={isTrial} />
+      <CreateUserForm
+        key={isTrial ? "trial" : "regular"}
+        isTrial={isTrial}
+        allowPublicDemoPassword={isTrial && canCreatePublicDemoTrial()}
+      />
     </div>
   );
 }
