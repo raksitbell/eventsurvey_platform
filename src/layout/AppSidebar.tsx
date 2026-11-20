@@ -5,11 +5,7 @@ import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { api } from "@/core/api";
-import {
-  canEnterAdminArea,
-  canEnterEventArea,
-  getAdminHomePath,
-} from "@/core/auth";
+import { getAdminHomePath } from "@/core/auth";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
@@ -37,7 +33,8 @@ export default function AppSidebar() {
   const {
     user,
     realUser,
-    isImpersonating,
+    allowAdmin,
+    allowEvent,
     inspectedEventId,
     canViewOverview,
     canViewEvents,
@@ -58,21 +55,12 @@ export default function AppSidebar() {
   const isDashboardPath = isEventReportingPath(pathname);
   const expanded = isExpanded || isHovered || isMobileOpen;
 
-  const allowAdmin = canEnterAdminArea(realUser?.role, isImpersonating);
-  const allowEvent = canEnterEventArea(
-    user?.role,
-    realUser?.role,
-    isImpersonating,
-    inspectedEventId,
-  );
-
   const dashboardAccessKey =
     allowEvent && isEventArea
       ? JSON.stringify([
           user?.id,
           user?.role,
           realUser?.id,
-          isImpersonating,
           inspectedEventId,
           locale,
           pathname,

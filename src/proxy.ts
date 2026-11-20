@@ -1,4 +1,4 @@
-import { readAuthSession } from "@/core/auth/cookie";
+import { isLegacyImpersonation, readAuthSession } from "@/core/auth/cookie";
 import {
   canEnterAdminArea,
   canEnterEventArea,
@@ -51,7 +51,7 @@ function authRedirect(
     if (!session) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    if (!canEnterAdminArea(session.realRole, session.impersonating)) {
+    if (!canEnterAdminArea(session.realRole, isLegacyImpersonation(session))) {
       return NextResponse.redirect(new URL("/error/403", request.url));
     }
     return null;
@@ -65,7 +65,7 @@ function authRedirect(
       !canEnterEventArea(
         session.role,
         session.realRole,
-        session.impersonating,
+        isLegacyImpersonation(session),
         session.inspectedEventId,
       )
     ) {

@@ -19,6 +19,7 @@ import type { ModuleAccessLevel } from "@/types/event/permissions";
 import type { MockPermissionCode, MockUser } from "@/types/mock";
 import {
   isInspectingEvent,
+  isLegacyImpersonation,
   readAuthSession,
   type AuthSessionCookie,
 } from "./cookie";
@@ -58,7 +59,7 @@ export async function requirePortalSession(session: AuthSessionCookie | null) {
     }
   }
 
-  if (!auth.session.impersonating) {
+  if (!isLegacyImpersonation(auth.session)) {
     return { ...auth, impersonatedUser: null };
   }
   try {
@@ -84,7 +85,7 @@ export async function requireAdminSession(request: NextRequest) {
       : rejectCrossOrigin(request);
   if (crossOrigin) return crossOrigin;
   const session = readAuthSession(request);
-  if (session && !canEnterAdminArea(session.realRole, session.impersonating)) {
+  if (session && !canEnterAdminArea(session.realRole, isLegacyImpersonation(session))) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
   const auth = await requireSessionActor(session);
@@ -109,7 +110,7 @@ export async function requireEventSession(request: NextRequest) {
     !canEnterEventArea(
       session.role,
       session.realRole,
-      session.impersonating,
+      isLegacyImpersonation(session),
       session.inspectedEventId,
     )
   ) {

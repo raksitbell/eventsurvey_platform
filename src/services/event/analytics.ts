@@ -1,5 +1,5 @@
 import { mockApi, MockApiError } from "@/core/api/mock-client";
-import type { AuthSessionCookie } from "@/core/auth/cookie";
+import { isLegacyImpersonation, type AuthSessionCookie } from "@/core/auth/cookie";
 import {
   AnalyticsError,
   localDay,
@@ -46,9 +46,7 @@ async function scope(session: AuthSessionCookie) {
     ...scoped,
     session,
     // Platform inspection keeps full manage; legacy impersonation stays read-only.
-    manage:
-      (!session.impersonating || Boolean(session.inspectedEventId)) &&
-      scoped.canManageDashboard,
+    manage: !isLegacyImpersonation(session) && scoped.canManageDashboard,
   };
 }
 

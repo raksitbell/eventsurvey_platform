@@ -12,13 +12,19 @@ type SessionIdentity = {
   userId: string;
   realRole: UserRole;
   role: UserRole;
-  /** @deprecated Prefer inspectedEventId — kept false for new sessions. */
-  impersonating: boolean;
   /** Platform admin inspecting a specific event workspace (no role swap). */
   inspectedEventId: string | null;
 };
 
 export type AuthSessionCookie = SessionIdentity & { expiresAt: number };
+// V1 signs this flag as well as the two account IDs. Reject any disagreement.
+type V1Claims = AuthSessionCookie & { impersonating: boolean };
+
+export function isLegacyImpersonation(
+  session: Pick<SessionIdentity, "realUserId" | "userId">,
+) {
+  return session.realUserId !== session.userId;
+}
 
 const cookieOptions = {
   httpOnly: true,
@@ -39,7 +45,7 @@ function sign(value: string, secret: string) {
     .digest("base64url");
 }
 
-function isValidIdentity(data: Partial<AuthSessionCookie>) {
+function isValidIdentity(data: Partial<V1Claims>) {
   if (
     typeof data.realUserId !== "string" ||
     !data.realUserId ||
@@ -49,7 +55,7 @@ function isValidIdentity(data: Partial<AuthSessionCookie>) {
     !PORTAL_ROLES.includes(data.role) ||
     !data.realRole ||
     !PORTAL_ROLES.includes(data.realRole) ||
-    typeof data.impersonating !== "boolean"
+    data.impersonating !== (data.realUserId !== data.userId)
   ) {
     return false;
   }
@@ -65,19 +71,14 @@ function isValidIdentity(data: Partial<AuthSessionCookie>) {
     return (
       data.realRole === "super_admin" &&
       data.role === "super_admin" &&
-      data.realUserId === data.userId &&
       !data.impersonating
     );
   }
 
   if (data.impersonating) {
-    return (
-      data.realRole === "super_admin" &&
-      data.realUserId !== data.userId &&
-      isImpersonatableRole(data.role)
-    );
+    return data.realRole === "super_admin" && isImpersonatableRole(data.role);
   }
-  return data.realRole === data.role && data.realUserId === data.userId;
+  return data.realRole === data.role;
 }
 
 export function parseAuthSessionCookie(
@@ -101,7 +102,7 @@ export function parseAuthSessionCookie(
   try {
     const data = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8"),
-    ) as Partial<AuthSessionCookie> | null;
+    ) as Partial<V1Claims> | null;
     if (
       !data ||
       typeof data.expiresAt !== "number" ||
@@ -135,6 +136,7 @@ export function setAuthSessionCookie(
 
   const claims = {
     ...identity,
+    impersonating: isLegacyImpersonation(identity),
     inspectedEventId: identity.inspectedEventId ?? null,
     expiresAt,
   };
@@ -153,12 +155,12 @@ export function clearAuthSessionCookie(response: NextResponse) {
 
 /** Platform admin currently inspecting an event workspace. */
 export function isInspectingEvent(
-  session: Pick<AuthSessionCookie, "realRole" | "impersonating" | "inspectedEventId"> | null,
+  session: AuthSessionCookie | null,
 ): session is AuthSessionCookie & { inspectedEventId: string } {
   return Boolean(
     session &&
       session.realRole === "super_admin" &&
-      !session.impersonating &&
+      !isLegacyImpersonation(session) &&
       session.inspectedEventId,
   );
 }

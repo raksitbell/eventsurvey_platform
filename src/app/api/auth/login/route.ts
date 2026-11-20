@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       realRole: user.role,
       role: user.role,
-      impersonating: false,
       inspectedEventId: null,
     });
     return response;

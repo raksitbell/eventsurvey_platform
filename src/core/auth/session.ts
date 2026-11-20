@@ -3,8 +3,8 @@ import type { User } from "@/types/user";
 
 export type AuthSnapshot = {
   realUser: User | null;
-  /** @deprecated Impersonation removed — always null for new sessions. */
-  impersonatedUser: User | null;
+  /** Effective identity used by the current portal session. */
+  user: User | null;
   inspectedEventId: string | null;
   inspectedEventName: string | null;
   /** platform_access.overview is view_only+ */
@@ -19,6 +19,19 @@ export type AuthSnapshot = {
   canInspection: boolean;
   /** From platform_access.events === can_edit (create / edit / status). */
   canManageEvents: boolean;
+};
+
+export const EMPTY_AUTH_SNAPSHOT: AuthSnapshot = {
+  realUser: null,
+  user: null,
+  inspectedEventId: null,
+  inspectedEventName: null,
+  canViewOverview: false,
+  canViewEvents: false,
+  canViewUsers: false,
+  canViewActivity: false,
+  canInspection: false,
+  canManageEvents: false,
 };
 
 export function clearLegacyAuthStorage() {

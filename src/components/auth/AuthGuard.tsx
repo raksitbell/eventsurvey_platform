@@ -3,12 +3,7 @@
 import ErrorPage from "@/components/common/ErrorPage";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import { useAuth } from "@/context/AuthContext";
-import {
-  canEnterAdminArea,
-  canEnterEventArea,
-  getAdminHomePath,
-  getHomePathForRole,
-} from "@/core/auth";
+import { getAdminHomePath, getHomePathForRole } from "@/core/auth";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import type React from "react";
@@ -44,9 +39,8 @@ function isAdminOverviewPath(pathname: string): boolean {
 export default function AuthGuard({ area, children }: AuthGuardProps) {
   const {
     user,
-    realUser,
-    isImpersonating,
-    inspectedEventId,
+    allowAdmin,
+    allowEvent,
     isLoading,
     authUnavailable,
     canViewOverview,
@@ -80,8 +74,7 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
       return;
     }
 
-    if (area !== "admin" || !user || !realUser) return;
-    if (!canEnterAdminArea(realUser.role, isImpersonating)) return;
+    if (area !== "admin" || !allowAdmin) return;
 
     const adminHome = getAdminHomePath({
       canViewOverview,
@@ -106,6 +99,7 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
       router.replace(adminHome);
     }
   }, [
+    allowAdmin,
     area,
     authUnavailable,
     canViewActivity,
@@ -113,10 +107,8 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
     canViewOverview,
     canViewUsers,
     homePath,
-    isImpersonating,
     isLoading,
     pathname,
-    realUser,
     router,
     user,
   ]);
@@ -130,17 +122,9 @@ export default function AuthGuard({ area, children }: AuthGuardProps) {
     return <>{children}</>;
   }
 
-  if (!user || !realUser) {
+  if (!user) {
     return <HoldScreen />;
   }
-
-  const allowAdmin = canEnterAdminArea(realUser.role, isImpersonating);
-  const allowEvent = canEnterEventArea(
-    user.role,
-    realUser.role,
-    isImpersonating,
-    inspectedEventId,
-  );
 
   if (
     (area === "admin" && !allowAdmin) ||

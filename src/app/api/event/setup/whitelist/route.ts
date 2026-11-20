@@ -29,12 +29,7 @@ function requestLocale(request: NextRequest) {
     : routing.defaultLocale;
 }
 
-function inspectOptions(
-  session: Pick<
-    AuthSessionCookie,
-    "realRole" | "impersonating" | "inspectedEventId"
-  >,
-) {
+function inspectOptions(session: AuthSessionCookie) {
   return {
     inspectedEventId: isInspectingEvent(session)
       ? session.inspectedEventId

@@ -166,3 +166,31 @@ test("proxy forwards unrelated paths with similar prefixes to the localized rout
     assert.equal(response.headers.get("x-test-intl"), "forwarded", path);
   }
 });
+
+test("browser session restoration distinguishes inspection from acting as another user", async () => {
+  const admin = { id: "admin", role: "super_admin" };
+  const owner = { id: "owner", role: "event_owner" };
+  let response = { realUser: admin, inspectedEventId: "event-a", canViewEvents: true };
+  const loadClient = loadSource({
+    "@/core/api/client": { api: { get: async () => response } },
+  });
+  const { getAuthSnapshot } = loadClient("src/core/auth/service.ts");
+  const signal = new AbortController().signal;
+
+  const inspecting = await getAuthSnapshot(signal);
+  assert.equal(inspecting.realUser, admin);
+  assert.equal(inspecting.user, admin);
+  assert.equal(inspecting.inspectedEventId, "event-a");
+  assert.equal(inspecting.canViewEvents, true);
+  assert.equal(inspecting.canManageEvents, false);
+
+  response = { realUser: admin, impersonatedUser: owner, canViewEvents: "true" };
+  const legacy = await getAuthSnapshot(signal);
+  assert.equal(legacy.realUser, admin);
+  assert.equal(legacy.user, owner);
+  assert.equal(legacy.inspectedEventId, null);
+  assert.equal(legacy.canViewEvents, false);
+
+  response = { impersonatedUser: owner };
+  assert.equal((await getAuthSnapshot(signal)).user, null);
+});

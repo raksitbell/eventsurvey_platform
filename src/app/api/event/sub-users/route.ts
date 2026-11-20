@@ -6,6 +6,7 @@ import {
 } from "@/core/auth/api-guard";
 import {
   isInspectingEvent,
+  isLegacyImpersonation,
   type AuthSessionCookie,
 } from "@/core/auth/cookie";
 import { authJson, readJsonObject } from "@/core/auth/route-response";
@@ -14,12 +15,7 @@ import { getSubUsers, inviteSubUser } from "@/services/event/sub-users";
 import type { InviteSubUserInput } from "@/types/event/permissions";
 import type { NextRequest } from "next/server";
 
-function workspaceOptions(
-  session: Pick<
-    AuthSessionCookie,
-    "realRole" | "impersonating" | "inspectedEventId"
-  >,
-) {
+function workspaceOptions(session: AuthSessionCookie) {
   return {
     inspectedEventId: isInspectingEvent(session)
       ? session.inspectedEventId
@@ -50,7 +46,7 @@ export async function GET(request: NextRequest) {
       ...data,
       canManageSubUsers:
         inspecting ||
-        (!sessionOrDeny.impersonating && data.canManageSubUsers),
+        (!isLegacyImpersonation(sessionOrDeny) && data.canManageSubUsers),
     });
   } catch (error) {
     if (error instanceof ServiceError) {
@@ -67,7 +63,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
-  if (sessionOrDeny.impersonating && !sessionOrDeny.inspectedEventId) {
+  if (isLegacyImpersonation(sessionOrDeny)) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSessionActor } from "@/core/auth/api-guard";
 import {
+  isLegacyImpersonation,
   readAuthSession,
   setAuthSessionCookie,
 } from "@/core/auth/cookie";
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   const auth = await requireSessionActor(readAuthSession(request));
   if (auth instanceof NextResponse) return auth;
-  if (!canEnterAdminArea(auth.session.realRole, auth.session.impersonating)) {
+  if (!canEnterAdminArea(auth.session.realRole, isLegacyImpersonation(auth.session))) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
 
@@ -81,7 +82,6 @@ export async function POST(request: NextRequest) {
         userId: session.realUserId,
         realRole: session.realRole,
         role: session.realRole,
-        impersonating: false,
         inspectedEventId: eventId,
       },
       session.expiresAt,
@@ -114,7 +114,7 @@ export async function DELETE(request: NextRequest) {
     inspectedEventName: null,
     ...flags,
   });
-  if (session.inspectedEventId || session.impersonating) {
+  if (session.inspectedEventId || isLegacyImpersonation(session)) {
     setAuthSessionCookie(
       response,
       {
@@ -122,7 +122,6 @@ export async function DELETE(request: NextRequest) {
         userId: session.realUserId,
         realRole: session.realRole,
         role: session.realRole,
-        impersonating: false,
         inspectedEventId: null,
       },
       session.expiresAt,

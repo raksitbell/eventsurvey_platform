@@ -13,12 +13,7 @@ import {
 import { setupErrorResponse } from "@/services/event/setup-response";
 import type { NextRequest } from "next/server";
 
-function inspectOptions(
-  session: Pick<
-    AuthSessionCookie,
-    "realRole" | "impersonating" | "inspectedEventId"
-  >,
-) {
+function inspectOptions(session: AuthSessionCookie) {
   return {
     inspectedEventId: isInspectingEvent(session)
       ? session.inspectedEventId
