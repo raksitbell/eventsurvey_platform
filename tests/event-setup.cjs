@@ -387,6 +387,10 @@ test("workspace binding returns localized safe DTOs and only active assistants",
       ];
     throw new Error(`Unexpected fixture query: ${query}`);
   };
+  t.mock.method(mockApi, "getFresh", (query) => {
+    assert.equal(query, "/events/event-a");
+    return mockApi.get(query);
+  });
   const { getEventWorkspace } = load("src/services/event/workspace.ts");
   const workspace = await getEventWorkspace("owner", "th");
   assert.equal(workspace.eventName, "กิจกรรม");
@@ -505,6 +509,7 @@ test("Setup keeps a failed replacement local and clears it only after an accepte
   } = loadSource({
     "@/core/api": {
       api: {
+        post: async () => ({ mode: "disk" }),
         async postForm(route, body) {
           assert.equal(route, "/event/setup/media");
           assert.equal(body.get("eventId"), "event-a");
@@ -545,6 +550,55 @@ test("Setup keeps a failed replacement local and clears it only after an accepte
   assert.ok(values.has(key));
   clearUnneededSetupLocalMedia(key, accepted.pendingMedia);
   assert.ok(!values.has(key));
+});
+test("direct uploads complete through the BFF and a failed PUT keeps the saved image", async (t) => {
+  storage(t);
+  const eventId = "event-a";
+  const id = "11111111-1111-4111-8111-111111111111";
+  const url = `/api/event/setup/media/${id}`;
+  const uploadUrl = "https://blob.example.com/signed";
+  const requests = [];
+  const { prepareSetupBranding } = loadSource({
+    "@/core/api": {
+      api: {
+        async post(route, body) {
+          assert.equal(route, "/event/setup/media");
+          requests.push(body);
+          return body.action === "prepare" ? { mode: "blob", id, uploadUrl } : { url };
+        },
+      },
+    },
+  })("src/core/event/setup-media-local.ts");
+  let uploadStatus = 503;
+  const put = t.mock.method(globalThis, "fetch", async (target, init) => {
+    assert.equal(target, uploadUrl);
+    assert.equal(init.method, "PUT");
+    assert.equal(init.credentials, "omit");
+    assert.equal(init.body.type, "image/png");
+    return new Response(null, { status: uploadStatus });
+  });
+  const stored = {
+    ...defaultEventBranding,
+    logo: { name: "previous.png", url: "/api/event/setup/media/22222222-2222-4222-8222-222222222222" },
+  };
+  const logo = { name: "replacement.png", url: "data:image/png;base64,AA==" };
+  const save = () => prepareSetupBranding(
+    { ...stored, logo }, stored, [], new Set(["logo"]), "browser-media", eventId,
+  );
+  const metadata = { eventId, kind: "logo", contentType: "image/png" };
+  const prepare = { ...metadata, action: "prepare", size: 1 };
+  const failed = await save();
+  assert.equal(put.mock.callCount(), 1);
+  assert.deepEqual(requests, [prepare]);
+  assert.deepEqual(failed.value.logo, stored.logo);
+  assert.deepEqual(failed.pendingMedia, ["logo"]);
+
+  uploadStatus = 200;
+  const saved = await save();
+  assert.equal(put.mock.callCount(), 2);
+  assert.deepEqual(requests, [prepare, prepare, { ...metadata, action: "complete", id }]);
+  assert.deepEqual(saved.value.logo, { name: logo.name, url });
+  assert.deepEqual(saved.pendingMedia, []);
 });
 test("a successful same-tab save advances only local edits from its revision", async () => {
   const cells = [];
@@ -864,6 +918,7 @@ test("a banner above the browser limit can be staged and uploaded at the require
   const { prepareSetupBranding, setupLocalMediaKey } = loadSource({
     "@/core/api": {
       api: {
+        post: async () => ({ mode: "disk" }),
         async postForm(_route, body) {
           const file = body.get("file");
           uploads.push([file.type, file.size]);
@@ -1029,6 +1084,7 @@ test("an SVG PNG export keeps the original pending if uploading fails, then retr
   } = loadSource({
     "@/core/api": {
       api: {
+        post: async () => ({ mode: "disk" }),
         async postForm(route, body) {
           assert.equal(route, "/event/setup/media");
           assert.equal(body.get("eventId"), "event-a");
@@ -2053,6 +2109,34 @@ function renderFormComponent(relative, mocks) {
     async mount() { mount(); await new Promise((resolve) => setImmediate(resolve)); },
   };
 }
+
+test("setup navigation cannot use a cached revision while the next workspace read is pending", async (t) => {
+  const windowBefore = globalThis.window;
+  globalThis.window = new EventTarget();
+  t.after(() => {
+    if (windowBefore === undefined) delete globalThis.window;
+    else globalThis.window = windowBefore;
+  });
+  const stale = { ...seed, setup: { revision: 1 } };
+  const saved = { ...seed, setup: { revision: 2 } };
+  let finish;
+  const response = new Promise((resolve) => { finish = resolve; });
+  const hook = renderFormComponent("src/hooks/useEventWorkspace.ts", {
+    "@/context/AuthContext": { useAuth: () => ({ user: { id: "owner" } }) },
+    "@/core/api": { api: { get: () => response } },
+    "@/core/event/local-events": { eventSetupStateKey: (id) => id, subscribeToEventSetup: () => () => {} },
+    "@/core/event/workspace": load("src/core/event/workspace.ts"),
+    "@/core/event/workspace-cache": { readWorkspaceCache: () => stale, writeWorkspaceCache() {} },
+  });
+  const render = () => hook.render({ requireFresh: true });
+  assert.equal(render().loading, true);
+  await hook.mount();
+  assert.equal(render().workspace, null);
+  finish(saved);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(render().loading, false);
+  assert.equal(render().workspace.setup.revision, 2);
+});
 
 test("Form Management schedules unconfigured legacy drafts only when their lifecycle and permissions allow it", async () => {
   const legacyWindow = { startsAt: null, endsAt: null };

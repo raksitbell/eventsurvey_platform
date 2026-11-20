@@ -27,7 +27,7 @@ type SetupContext = Awaited<ReturnType<typeof getSetupContext>>;
 type BrandingChange = { locale: string; value: EventBranding; pendingMedia?: EventSetupMediaKind[] };
 
 async function loadSetupEvent(eventId: string): Promise<MockEvent> {
-  const event = await mockApi.get<MockEvent>(`/events/${encodeURIComponent(eventId)}`).catch((error: unknown) => {
+  const event = await mockApi.getFresh<MockEvent>(`/events/${encodeURIComponent(eventId)}`).catch((error: unknown) => {
     if (error instanceof MockApiError && error.status === 404) return null;
     throw error;
   });

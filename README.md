@@ -56,7 +56,8 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 1. ตั้งค่าจาก [ตาราง ENV](#environment-variables) ในระบบจัดการ Environment Variables ของโฮสต์ สำหรับ Vercel ให้เลือก **Preview** หรือ **Production** ตามการใช้งาน [คู่มือ Environment Variables ของ Vercel](https://vercel.com/docs/environment-variables)
 2. เก็บ `AUTH_SESSION_SECRET` และ `MAIL_PASSWORD` (เมื่อเปิดใช้ SMTP) ในช่อง secrets ของโฮสต์ ใช้ค่า session secret ที่สุ่มแยกกันในแต่ละ environment ตั้ง `APP_URL` เป็น HTTPS origin ที่ผู้รับอีเมลและผู้สแกน QR เปิดได้
 3. ตั้ง `MOCK_API_BASE_URL` ให้โฮสต์เข้าถึงได้ และใช้ Mock API ที่บันทึกข้อมูลได้หากต้องสร้างหรือแก้ไขอีเวนต์
-4. Deploy ด้วยค่าที่ตั้งไว้ การเปลี่ยน ENV บน Vercel มีผลกับ deployment ใหม่
+4. สำหรับรูป Branding บน Vercel ไปที่ **Project → Storage → Create Storage → Blob** เลือก **Private** และเชื่อมด้วย OIDC สร้าง store แยกสำหรับ Preview และ Production แล้วเลือกเฉพาะ environment ของแต่ละ store ใน **Projects → Update Project Connection** หากมีรูปบน volume เดิม ให้ทำตามขั้นตอนย้ายรูปด้านล่างก่อนสลับระบบ [คู่มือการเชื่อม Blob store](https://vercel.com/docs/vercel-blob/client-upload)
+5. Deploy ด้วยค่าที่ตั้งไว้ การเปลี่ยน ENV บน Vercel มีผลกับ deployment ใหม่ ทดสอบบน Preview ด้วยแบนเนอร์ที่มีขนาดหลังเตรียมไฟล์มากกว่า 4.5 MB และต่ำกว่า 10 MiB เปิด Branding ใหม่หลัง Save แล้วเปิดอีเวนต์ทดสอบที่เผยแพร่แล้วจากเบราว์เซอร์ที่ยังไม่ได้เข้าสู่ระบบ ตรวจว่ารูปจาก draft เปิดได้เฉพาะผู้มีสิทธิ์
 
 ลิงก์ที่เปิดข้ามเครื่องใช้อีเวนต์และฟอร์มจาก Mock API สำหรับการตั้งค่าและเผยแพร่อีเวนต์ ดู [การบันทึก Event Setup](#การบันทึก-event-setup)
 
@@ -69,7 +70,9 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 | `NEXT_PUBLIC_API_BASE_URL` | URL สำรองเมื่อไม่มี `MOCK_API_BASE_URL` ใช้เฉพาะค่าที่เปิดเผยได้ |
 | `APP_URL` | Origin ของ EventSurvey สำหรับลิงก์ตั้งรหัสผ่าน ลิงก์อีเวนต์ และ QR ค่า local คือ `http://localhost:3000` ค่า hosting คือ HTTPS origin จริง |
 | `EVENT_SETUP_DATA_SECRET` | คีย์เข้ารหัสข้อมูล Event Setup อย่างน้อย 32 อักขระ ใช้ค่าคงที่แยกตาม environment แนะนำให้ตั้งแยกจาก `AUTH_SESSION_SECRET` บน hosting |
-| `EVENT_SETUP_MEDIA_DIR` | พาธแบบ absolute ไปยัง volume ที่เขียนได้และคงอยู่ข้ามการรีสตาร์ต รับรูปขนาดต่ำกว่า 10 MiB เมื่ออัปโหลดไม่สำเร็จ เบราว์เซอร์เก็บสำรองได้สูงสุด 1 MiB ต่อรูป |
+| `EVENT_SETUP_MEDIA_PROVIDER` | เลือก `blob` สำหรับ Vercel Blob หรือ `disk` สำหรับ volume ถาวร เมื่อเว้นว่าง แอปบน Vercel ที่เชื่อม `BLOB_STORE_ID` จะใช้ Blob และ local development จะใช้ดิสก์ |
+| `BLOB_STORE_ID` | Vercel กำหนดจากการเชื่อม private store ของ environment นั้น SDK ใช้ OIDC ของโปรเจกต์ฝั่งเซิร์ฟเวอร์ |
+| `EVENT_SETUP_MEDIA_DIR` | พาธแบบ absolute ไปยัง volume ถาวรสำหรับโหมด `disk` และการอ่านรูปเดิมที่ยังอยู่บน volume เมื่อใช้ Blob บน self-hosted server |
 
 คุกกี้ session มีอายุ 8 ชั่วโมงและถูกล้างเมื่อออกจากระบบ เมื่อเปลี่ยน `AUTH_SESSION_SECRET` ผู้ใช้ต้องเข้าสู่ระบบใหม่ และต้องออกลิงก์ตั้งรหัสผ่านใหม่สำหรับคำเชิญที่ยังไม่ได้ใช้
 
@@ -92,8 +95,18 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 - **กู้ร่างเดิม** เปิด Event Setup หรือ Whitelist จากโปรไฟล์เบราว์เซอร์และ URL เดิม แล้วเลือกกู้ข้อมูล หน้าจอขอยืนยันเมื่อจะใช้ร่างเบราว์เซอร์แทนร่างเซิร์ฟเวอร์ การกู้ snapshot เก่าเก็บไว้เป็นข้อมูลกู้คืนส่วนตัวและไม่เผยแพร่อัตโนมัติ ร่างจากโหมดทดลองของอีเวนต์ที่ปิดการแก้ไขแล้วยังเก็บอยู่ในเบราว์เซอร์เดิม
 - **Publish** ใช้ข้อมูลที่บันทึกจาก Event Setup และ Form Builder เพื่อสร้าง snapshot ของอีเวนต์ อีเวนต์สาธารณะเลือกเปิดได้ตั้งแต่ศูนย์ถึงสองฟอร์ม อีเวนต์ส่วนตัวใช้ฟอร์มลงทะเบียนและต้องมีผู้มีสิทธิ์อย่างน้อยหนึ่งคนก่อนเผยแพร่
 - **การส่งฟอร์ม** หลังเผยแพร่ เซิร์ฟเวอร์ตรวจช่วงเวลา ความจุ และคำตอบก่อนบันทึก เมื่อลงทะเบียนสำเร็จ เบราว์เซอร์จะได้รับคุกกี้หลักฐานของอีเวนต์นั้น แบบสอบถามที่กำหนดให้ลงทะเบียนก่อนตอบจะเปิดเมื่อเซิร์ฟเวอร์ตรวจพบรายการลงทะเบียนที่ยังมีผล โหมด Preview ใช้ดูตัวอย่างเท่านั้น
-- **รูป** ตั้ง `EVENT_SETUP_MEDIA_DIR` หากมี volume ถาวร ใช้ PNG, JPEG, WebP, AVIF, GIF หรือ BMP เบราว์เซอร์จะแปลง SVG เป็น PNG ก่อนอัปโหลด รูปที่อัปโหลดไม่ได้ยังเก็บในเบราว์เซอร์เดิมได้ ให้ลองอัปโหลดใหม่หรือนำรูปที่รออัปโหลดออกก่อนเผยแพร่
+- **รูป** รองรับ PNG, JPEG, WebP, AVIF, GIF และ BMP เบราว์เซอร์แปลง SVG เป็น PNG ก่อนส่ง เมื่อใช้ Blob เซิร์ฟเวอร์ตรวจสิทธิ์ของอีเวนต์ก่อนออก signed URL ให้เบราว์เซอร์อัปโหลดตรง แล้วตรวจไฟล์จริงก่อนส่ง URL ถาวรให้ draft เมื่ออัปโหลดไม่สำเร็จ เบราว์เซอร์เดิมเก็บรูปได้สูงสุด 1 MiB ต่อรูป ให้ลองอัปโหลดอีกครั้งหรือนำรูปที่รออัปโหลดออกก่อนเผยแพร่
 - **การโฮสต์** เมื่อรับคำตอบจริง ให้ตั้ง `MOCK_API_BASE_URL` ไปยัง API ที่เข้าถึงได้เฉพาะฝั่งเซิร์ฟเวอร์และเก็บข้อมูลลงที่จัดเก็บถาวร สำหรับ JSON Server ให้ใช้ Next.js หนึ่ง instance ที่เขียน Event Setup เพราะ JSON Server ไม่มีการเขียนแบบ compare-and-set ข้อมูล Event Setup ใน Mock API ถูกเข้ารหัสด้วย `EVENT_SETUP_DATA_SECRET` หรือ `AUTH_SESSION_SECRET` เมื่อไม่ตั้งคีย์แยก เก็บคีย์เดิมไว้เพื่อให้อ่านร่าง ข้อมูลเผยแพร่ และหลักฐานการลงทะเบียนหลังรีสตาร์ตหรือ deploy ใหม่ได้
+
+### ย้ายรูป Branding จาก volume เดิมไป Vercel Blob
+
+ใช้ขั้นตอนนี้เมื่อ draft หรือ snapshot ใช้ URL `/api/event/setup/media/<uuid>` จาก volume เดิม ทำงานจากเครื่องที่อ่าน volume และเชื่อม private store เป้าหมายได้
+
+1. เก็บสำเนา volume และบันทึกรายการ UUID จากร่างและข้อมูลที่เผยแพร่ทุกภาษาของ environment นั้น แต่ละโฟลเดอร์ `<uuid>/` มี `data` และ `metadata.json` ซึ่งระบุ `eventId`, `type` และ `size` ดูฟิลด์ Branding ที่อ้าง URL เพื่อระบุ `kind` เป็น `logo`, `wordmark` หรือ `banner` ตรวจว่าไฟล์ต้นทางมีชนิดและขนาดตรงกับ metadata
+2. สร้าง pathname รูปเป็น `event-setup/media/<eventKey>/<kind>/<uuid>.<ext>` โดย `eventKey` คือ `Buffer.from(eventId, "utf8").toString("base64url")` และ `ext` คือส่วนหลัง `image/` ของ MIME เช่น `jpeg` ตั้งค่า CLI ให้ชี้ไปยัง store ของ environment เป้าหมาย
+3. คัดลอกไบต์ต้นฉบับด้วย `vercel blob put <uuid>/data --pathname <pathname> --content-type <type> --access private` แล้วดาวน์โหลดลงไฟล์ชั่วคราวด้วย `vercel blob get <pathname> --access private --output <temporary-file>` เทียบ SHA-256 ของทั้งสองไฟล์ด้วย `shasum -a 256` หาก pathname มีอยู่แล้ว ให้ดาวน์โหลดมาตรวจ checksum ก่อนใช้ไฟล์นั้นต่อ หากต่างกันให้หยุดตรวจสอบ UUID และ store [คำสั่ง Vercel Blob CLI](https://vercel.com/docs/cli/blob)
+4. เมื่อ checksum ตรง ให้สร้างไฟล์ JSON ชั่วคราวที่คัด `eventId`, `type`, `size` จาก metadata เดิมและเติม `kind` จากข้อ 1 อัปโหลดเป็น `event-setup/metadata/<uuid>.json` ด้วย `--access private --content-type application/json` อ่าน manifest กลับมาเทียบค่าทั้งสี่ฟิลด์ กรณีที่มี manifest อยู่แล้ว ให้ตรวจข้อมูลเดิมก่อนดำเนินการต่อ
+5. ตรวจรายการรูปอีกครั้งขณะสลับผู้เขียนไปยัง Blob เพื่อเก็บรูปที่เพิ่งบันทึก เปิด URL เดิมจากร่างด้วยบัญชีผู้จัดที่มีสิทธิ์ และเปิดรูปใน snapshot จากหน้าผู้เข้าร่วม ตรวจ checksum ของรูปที่ส่งผ่าน URL เดิมเทียบกับต้นทาง เก็บ volume ต้นฉบับและบัญชีรายการไว้สำหรับการกู้คืน
 
 ## บัญชีทดลอง
 
