@@ -17,6 +17,7 @@ import {
 } from "@/core/event/public-form-response";
 import { Link } from "@/i18n/navigation";
 import { completeFormLocale } from "@/core/forms/content";
+import { formatDateTime } from "@/core/i18n/format-datetime";
 import type { ParticipantFormEventDetails, ParticipantFormKind } from "@/types/event/participant";
 import type { PublicForm, PublicFormSubmissionResult } from "@/types/event/public-event";
 import { useLocale, useTranslations } from "next-intl";
@@ -52,7 +53,6 @@ function forgetSubmissionRequestId(storageKey: string) {
 
 type PublicParticipantFormProps = {
   kind: ParticipantFormKind;
-  result: PublicForm;
   branding: EventBranding;
   bannerUrl: string | null;
   eventDetails: ParticipantFormEventDetails;
@@ -60,6 +60,7 @@ type PublicParticipantFormProps = {
 } & (
   | {
       readOnly: true;
+      result: PublicForm | { status: "previewEmpty" | "previewDisabled" | "previewRestricted" };
       fillViewport?: boolean;
       eventHref?: never;
       registrationHref?: never;
@@ -70,6 +71,7 @@ type PublicParticipantFormProps = {
     }
   | {
       readOnly?: false;
+      result: PublicForm;
       fillViewport?: never;
       eventHref: string;
       registrationHref?: string;
@@ -120,7 +122,9 @@ export default function PublicParticipantForm({
   const storageKey = `eventsurvey:form-request:${eventHref}:${kind}`;
   const current = readOnly ? result : response ?? result;
   const status = current.status;
-  const form = current.status === "open" ? current.form : null;
+  const form = current.status === "open" || current.status === "scheduled" ? current.form : null;
+  const opensAt = current.status === "scheduled" ? current.opensAt : null;
+  const cannotSubmit = readOnly || status !== "open" || submitting;
   const verifiedId = granted?.fieldId;
   const legacyLocale = !form || form.head[preferredLocale].title.trim()
     ? preferredLocale : preferredLocale === "th" ? "en" : "th";
@@ -149,28 +153,49 @@ export default function PublicParticipantForm({
     return () => { active = false; };
   }, [confirmSubmission, readOnly, recoverSubmission, storageKey]);
 
-  // An attendee can complete registration in another tab or return after the form opens.
+  // Recheck the server when the window opens, or when a guest returns after registering elsewhere.
   useEffect(() => {
     if (readOnly || !checkEligibility ||
       (status !== "registrationRequired" && status !== "scheduled" && status !== "full")) return;
     let active = true;
-    const refresh = () => {
-      if (globalThis.document.visibilityState !== "visible") return;
+    let checking = false;
+    let timer: number;
+    async function refresh() {
+      if (checking || !active || globalThis.document.visibilityState !== "visible" || !checkEligibility) return;
+      checking = true;
       const data = new FormData();
       if (granted) data.set("identifier", granted.identifier);
-      void checkEligibility(data).then((next) => {
+      try {
+        const next = await checkEligibility(data);
         if (active) setResponse((previous) => previous?.status === "submitted" ? previous : next);
-      }).catch(() => { /* Keep the current state on a transient read failure. */ });
-    };
+      } catch { /* The form remains locked until the server confirms it is open. */ }
+      finally { checking = false; }
+    }
+    if (status === "scheduled") {
+      const opening = opensAt ? Date.parse(opensAt) : NaN;
+      // Long timeouts overflow in browsers. Recalculate distant opening dates without polling the API.
+      function scheduleCheck() {
+        const delay = opening - Date.now();
+        if (delay > 0) {
+          timer = globalThis.window.setTimeout(scheduleCheck, Math.min(delay, 2_147_483_647));
+        } else {
+          void refresh();
+          timer = globalThis.window.setTimeout(scheduleCheck, 30_000);
+        }
+      }
+      if (Number.isFinite(opening)) scheduleCheck();
+      else timer = globalThis.window.setTimeout(scheduleCheck, 30_000);
+    }
     globalThis.document.addEventListener("visibilitychange", refresh);
     return () => {
       active = false;
+      globalThis.clearTimeout(timer);
       globalThis.document.removeEventListener("visibilitychange", refresh);
     };
-  }, [checkEligibility, granted, readOnly, status]);
+  }, [checkEligibility, granted, opensAt, readOnly, status]);
 
   function receiveEligibility(next: PublicForm, value: string) {
-    if (next.status === "open" && current.status === "eligibility") {
+    if ((next.status === "open" || next.status === "scheduled") && current.status === "eligibility") {
       const identifier = normalizeWhitelistId(value, current.fieldType);
       const unique = kind === "registration" && next.form.questions.find(({ question }) => question.is_unique);
       const fieldId = unique ? publicQuestionId(unique.question) : undefined;
@@ -241,7 +266,7 @@ export default function PublicParticipantForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (readOnly || !form || !submitResponse || requestInFlight.current) return;
+    if (cannotSubmit || !form || !submitResponse || requestInFlight.current) return;
     setSubmitError(null);
 
     const nextErrors: Record<string, PublicFormAnswerIssue> = {};
@@ -306,7 +331,7 @@ export default function PublicParticipantForm({
   const verifiedRegistration = !readOnly && kind === "survey" && eventDetails.surveyAccess === "registered_only";
   const verifiedInvitation = !readOnly && kind === "registration" && eventDetails.isPrivate && granted !== null;
   const fields =
-    status === "open" && form ? (
+    form ? (
       <fieldset disabled={readOnly || submitting} className="flex min-w-0 flex-col gap-4">
         <div className="space-y-2 border-b border-preview-border pb-4">
           <h1 className="text-2xl leading-snug font-bold wrap-anywhere @4xl/participant:text-3xl">{heading}</h1>
@@ -314,6 +339,15 @@ export default function PublicParticipantForm({
             <p className="text-theme-sm whitespace-pre-line text-participant-muted">{form.head[locale].description}</p>
           )}
         </div>
+        {status === "scheduled" && (
+          <p role="status" className="flex items-center gap-2 rounded-lg bg-event-display-tint p-3 text-theme-sm font-semibold">
+            <InformationCircleIcon className="size-5 shrink-0" aria-hidden="true" />
+            {opensAt ? t("acceptingAt", { time: formatDateTime(opensAt, portalLocale === "en" ? "en" : "th", {
+              dateStyle: "medium", timeStyle: "short", hourCycle: "h23", timeZone: "Asia/Bangkok",
+            }) }) : t("scheduled")}
+          </p>
+        )}
+        {readOnly && !form.questions.length && <p className="text-theme-sm text-participant-muted">{t("previewEmpty")}</p>}
         {(verifiedRegistration || verifiedInvitation) && (
           <p className="flex items-center gap-2 rounded-lg bg-event-display-tint p-3 text-theme-sm font-semibold">
             <CheckCircleIcon className="size-5 shrink-0" aria-hidden="true" />{t(verifiedRegistration ? "registrationVerified" : "invitationVerified")}
@@ -349,8 +383,8 @@ export default function PublicParticipantForm({
         )}
         <Button
           type={readOnly ? "button" : "submit"}
-          disabled={readOnly || submitting}
-          className={`min-h-12 w-full bg-(--participant-accent)! text-(--participant-on-accent)! hover:brightness-95 ${readOnly ? "opacity-100!" : ""}`}
+          disabled={cannotSubmit}
+          className="min-h-12 w-full bg-(--participant-accent)! text-(--participant-on-accent)! enabled:hover:brightness-95"
         >
           {t(submitting ? "submitting" : kind === "registration" ? "submitRegistration" : "submitSurvey")}
         </Button>
@@ -414,6 +448,11 @@ export default function PublicParticipantForm({
           )}
           {status === "registrationRequired" && registrationHref && (
             <Link href={registrationHref} className={statusLink}>{t("goToRegistration")}</Link>
+          )}
+          {status === "previewEmpty" && (
+            <Button type="button" disabled className="min-h-12 w-full bg-(--participant-accent)! text-(--participant-on-accent)!">
+              {t(kind === "registration" ? "submitRegistration" : "submitSurvey")}
+            </Button>
           )}
           {status === "submitted" && kind === "registration" && surveyHref && (
             <Link href={surveyHref} prefetch={false} className={statusLink}>{t("goToSurvey")}</Link>

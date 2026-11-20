@@ -2110,7 +2110,7 @@ test("Branding preview tabs show the selected participant surface and implement 
     },
   );
   const props = {
-    workspace: { ...seed, canAccessForms: true },
+    workspace: { ...seed, canAccessForms: true, viewableFormTypes: ["registration", "survey"] },
     draft: seed,
     branding: { ...defaultEventBranding, primary: "#123456" },
     bannerUrl: null,
@@ -2202,7 +2202,9 @@ test("Branding preview tabs show the selected participant surface and implement 
   assert.equal(getPublicForm(render()).branding, props.branding);
   assert.deepEqual(getPublicForm(render()).result, { status: "open", form: forms[1] });
   const disabled = render({ draft: { ...seed, hasSurvey: false, hasRegistration: false } });
-  assert.deepEqual(getPublicForm(disabled).result, { status: "unavailable" });
+  assert.deepEqual(getPublicForm(disabled).result, { status: "previewDisabled" });
+  assert.deepEqual(getPublicForm(render({ formState: { forms: [] } })).result, { status: "previewEmpty" });
+  assert.deepEqual(getPublicForm(render({ workspace: { ...props.workspace, viewableFormTypes: ["registration"] } })).result, { status: "previewRestricted" });
   const failed = render({ formState: { error: true, forms: [] } });
   assert.ok(findSetupElement(failed, (node) => node.props?.role === "alert"));
   assert.equal(findSetupElement(failed, (node) => node.type === PublicForm || node.type === PreviewSkeleton), null);

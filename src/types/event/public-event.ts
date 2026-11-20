@@ -35,8 +35,9 @@ export type PublicFormStatus =
 
 export type PublicForm =
   | { status: "open"; form: Form }
+  | { status: "scheduled"; form: Form; opensAt: string | null }
   | { status: "eligibility"; fieldType: WhitelistUniqueKind; label: Record<"th" | "en", string> }
-  | { status: PublicFormStatus };
+  | { status: Exclude<PublicFormStatus, "scheduled"> };
 
 export interface RegistrationProof {
   eventId: string;

@@ -93,6 +93,78 @@ test("Public form rejects invalid answers and concurrent registrations respect t
   assert.equal((await submit("survey", input("survey", { [ids.topic]: ids.yes }))).status, "submitted");
 });
 
+function schedulePublishedForms(db, registrationStart, surveyStart) {
+  const { encodeSetupRecord, readSetupRecord } = loadSource()("src/core/event/setup-storage.ts");
+  const event = db.events[0];
+  const setup = readSetupRecord(event);
+  event.status = "scheduled";
+  event.start_at = new Date(registrationStart).toISOString();
+  setup.publication.draft.startsAt = event.start_at;
+  setup.publication.forms.registration.opensAt = event.start_at;
+  setup.publication.forms.survey.opensAt = new Date(surveyStart).toISOString();
+  event.setup = encodeSetupRecord(event.id, setup);
+}
+
+test("Published registration and survey show real questions before opening and accept responses at the exact instant", async (t) => {
+  const { db, ids, input, read, submit } = fixture(t, { privateEvent: false, surveyAccess: "public" });
+  const opening = Date.parse("2030-01-03T08:20:00Z");
+  let now = opening - 1;
+  t.mock.method(Date, "now", () => now);
+  schedulePublishedForms(db, opening, opening);
+  const registration = input("registration", { [ids.email]: "early@example.test" });
+  const survey = input("survey", { [ids.topic]: ids.yes });
+  for (const [kind, field, request] of [["registration", ids.email, registration], ["survey", ids.topic, survey]]) {
+    const early = await read(kind);
+    assert.equal(early.status, "scheduled");
+    assert.equal(early.opensAt, new Date(opening).toISOString());
+    assert.equal(early.form.questions[0].question.id, field);
+    assert.equal((await submit(kind, request)).status, "scheduled");
+  }
+  assert.deepEqual(db.form_submissions, []);
+  assert.deepEqual(db.submission_answers, []);
+  assert.deepEqual(db.registrations, []);
+  now = opening;
+  for (const [kind, request] of [["registration", registration], ["survey", survey]]) {
+    assert.equal((await read(kind)).status, "open");
+    assert.equal((await submit(kind, request)).status, "submitted");
+  }
+  assert.equal(db.events[0].status, "scheduled");
+  assert.equal(db.form_submissions.length, 2);
+  db.forms.find((row) => row.type === "survey").status = "paused";
+  assert.deepEqual(await read("survey"), { status: "unavailable" });
+  db.forms.find((row) => row.type === "registration").status = "closed";
+  assert.deepEqual(await read("registration"), { status: "closed" });
+});
+
+test("Scheduled private forms release questions only to invited or registered participants", async (t) => {
+  const { db, ids, input, read, submit } = fixture(t);
+  const regStart = Date.parse("2030-02-10T09:00:00Z");
+  const surveyStart = regStart + 60_000;
+  let now = regStart - 1;
+  t.mock.method(Date, "now", () => now);
+  schedulePublishedForms(db, regStart, surveyStart);
+  const email = "member@example.test";
+  const registration = input("registration", { [ids.email]: email }, email);
+  const survey = input("survey", { [ids.topic]: ids.yes });
+  const gate = await read("registration", "unknown@example.test");
+  assert.equal(gate.status, "eligibility");
+  assert.equal(gate.form, undefined);
+  assert.equal((await read("registration", email)).form.questions[0].question.id, ids.email);
+  assert.equal((await submit("registration", registration)).status, "scheduled");
+  assert.deepEqual(await read("survey"), { status: "registrationRequired" });
+  assert.equal(db.whitelist_entries.length, 0);
+  now = regStart;
+  const proof = (await submit("registration", registration)).registration;
+  assert.ok(proof);
+  const earlySurvey = await read("survey", undefined, proof);
+  assert.equal(earlySurvey.status, "scheduled");
+  assert.equal(earlySurvey.form.questions[0].question.id, ids.topic);
+  assert.equal((await submit("survey", survey, proof)).status, "scheduled");
+  assert.equal(db.form_submissions.length, 1);
+  now = surveyStart;
+  assert.equal((await submit("survey", survey, proof)).status, "submitted");
+});
+
 test("A failed answer write grants no registration and retry commits exactly one response", async (t) => {
   const { ids, db, failures, read, submit, input, recover } = fixture(t, { privateEvent: false });
   const registration = input("registration", { [ids.email]: "member@example.test" });

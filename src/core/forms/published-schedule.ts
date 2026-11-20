@@ -49,7 +49,7 @@ export function readPublishedForm(
 ): MockForm | null {
   if (event.id !== form.event_id) return null;
   const projected = matchPublishedForm(form, saved);
-  if (!projected || (event.status !== "open" && event.status !== "closed")) return projected;
+  if (!projected || !["scheduled", "open", "closed"].includes(event.status)) return projected;
   const status = nextCronFormStatus(projected, event);
   return status ? { ...projected, status } : projected;
 }

@@ -88,6 +88,9 @@ export default function BrandingPreviewGallery({
   const form = publication
     ? forms.find((item) => item.type === kind && item.id === frozen?.id)
     : available[kind];
+  const formEnabled = kind === "registration" ? draft.hasRegistration : draft.hasSurvey;
+  const canViewForm = workspace.canAccessForms && workspace.viewableFormTypes.includes(kind);
+  const emptyStatus = !formEnabled ? "previewDisabled" : canViewForm ? "previewEmpty" : "previewRestricted";
   function selectWithKeyboard(event: KeyboardEvent<HTMLButtonElement>) {
     let next: ParticipantPreviewSelection["tab"];
     switch (event.key) {
@@ -206,7 +209,7 @@ export default function BrandingPreviewGallery({
                 kind={kind}
                 eventDetails={projectEventContent(draft, contentLocale ?? undefined)}
                 result={
-                  form ? { status: "open", form } : { status: "unavailable" }
+                  form && formEnabled && canViewForm ? { status: "open", form } : { status: emptyStatus }
                 }
                 branding={branding}
                 bannerUrl={bannerUrl}

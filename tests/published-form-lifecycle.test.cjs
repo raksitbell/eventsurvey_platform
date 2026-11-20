@@ -195,10 +195,11 @@ test("a published draft is scheduled without a form row write and progresses usi
   );
   assert.equal(row.status, "draft");
   assert.deepEqual(writes, []);
-  assert.deepEqual(
-    await participant.getPublicFormBySlug(event.slug, row.type),
-    { status: "scheduled" },
-  );
+  const upcoming = await participant.getPublicFormBySlug(event.slug, row.type);
+  assert.equal(upcoming.status, "scheduled");
+  assert.equal(upcoming.opensAt, new Date(opens).toISOString());
+  assert.deepEqual(upcoming.form.head, record.head);
+  assert.deepEqual(upcoming.form.questions, record.questions);
   assert.ok(
     (await participant.getPublicEventBySlug(event.slug, "en")).formLinks.survey,
   );

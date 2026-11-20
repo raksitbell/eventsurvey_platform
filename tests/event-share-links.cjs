@@ -178,13 +178,13 @@ test("shows a scheduled event, hides a draft and protects private events without
   assert.equal(await getPublicEventBySlug(event.slug, "th"), null);
   assert.equal(await getPublicFormBySlug(event.slug, "registration"), null);
   event.status = "scheduled";
-  assert.deepEqual(
-    (await getPublicEventBySlug(event.slug, "th")).formLinks,
-    {},
-  );
-  assert.deepEqual(await getPublicFormBySlug(event.slug, "survey"), {
-    status: "scheduled",
-  });
+  const scheduledEvent = await getPublicEventBySlug(event.slug, "th");
+  assert.equal(scheduledEvent.formLinks.registration.href, "/event/book-expo/register");
+  assert.equal(scheduledEvent.formLinks.survey.href, "/event/book-expo/survey");
+  const earlySurvey = await getPublicFormBySlug(event.slug, "survey");
+  assert.equal(earlySurvey.status, "scheduled");
+  assert.equal(earlySurvey.form.questions[0].question.id, "question-1");
+  assert.equal(earlySurvey.opensAt, null);
   event.status = "open";
   event.is_private = true;
   event.survey_access = "registered_only";
@@ -449,6 +449,7 @@ test("public forms show the localized published event and its banner for both fo
     "@/core/api/mock-client": {
       mockApi: { get: async (resource) => {
         if (resource.startsWith("/events?")) return [{ ...event, status: "scheduled" }];
+        if (resource.startsWith("/forms?")) return [];
         if (resource.startsWith("/event_banners?")) return [{ event_id: event.id, banner_url: bannerUrl }];
         if (resource.startsWith("/event_translations?")) {
           assert.equal(setup.publication, null);
@@ -462,7 +463,7 @@ test("public forms show the localized published event and its banner for both fo
   const { getPublicFormPageBySlug } = read("src/services/event/public-event.ts");
   for (const kind of ["registration", "survey"]) {
     assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en"), {
-      result: { status: "scheduled" }, branding: english, bannerUrl, hasSurvey: false,
+      result: { status: "unavailable" }, branding: english, bannerUrl, hasSurvey: false,
       eventDetails: {
         eventName: en.title, description: en.description, locationName: en.locationName, locationDetail: en.floorZone,
         startsAt: event.start_at, endsAt: event.end_at, isPrivate: false, surveyAccess: "public",
@@ -550,8 +551,8 @@ test("private participant forms disclose questions only after a matching publish
   eventStatus = "scheduled";
   const organizer = await read("src/services/event/public-event.ts").getAssignedShareLinks(user.id);
   assert.ok(organizer.links.registration.endsWith("/register"));
-  assert.deepEqual(await enter("person@example.com"), { status: "scheduled" });
-  assert.deepEqual((await home(event.slug, "en")).formLinks, {});
+  assert.deepEqual(await enter("person@example.com"), { status: "closed" });
+  assert.ok((await home(event.slug, "en")).formLinks.survey);
   eventStatus = "open";
   setup.publication.draft.surveyAccess = "public";
   snapshots.registration.eventId = "other-event";
