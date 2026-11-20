@@ -11,18 +11,10 @@ import {
 import { isActiveMockUser } from "@/core/mock/map-user";
 import type { MockEvent, MockUser } from "@/types/mock";
 import { IMAGE_MAX_INPUT_BYTES } from "@/utils/image-upload";
+import { blobMediaAvailable, findBlobMedia, readBlobMedia, usesBlobMedia } from "./setup-media-blob";
+import { isSupportedType, matchesImageType, type MediaContentType } from "./setup-media-image";
 
 export { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
-
-const supportedTypes = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/avif",
-  "image/gif",
-  "image/bmp",
-] as const;
-type MediaContentType = (typeof supportedTypes)[number];
 
 type MediaMetadata = {
   eventId: string;
@@ -30,12 +22,8 @@ type MediaMetadata = {
   size: number;
 };
 
-export type EventSetupMedia = MediaMetadata & { id: string };
+export type EventSetupMedia = MediaMetadata & { id: string; blobPath?: string };
 const maxFormBytes = IMAGE_MAX_INPUT_BYTES + 64 * 1024;
-
-function isSupportedType(type: unknown): type is MediaContentType {
-  return typeof type === "string" && supportedTypes.some((entry) => entry === type);
-}
 
 function mediaDirectory() {
   const path = process.env.EVENT_SETUP_MEDIA_DIR;
@@ -47,36 +35,6 @@ function mediaDirectory() {
 
 function isMissingFile(error: unknown) {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
-}
-
-function matchesImageType(bytes: Buffer, type: MediaContentType) {
-  const tag = (start: number, size: number) =>
-    bytes.toString("latin1", start, start + size);
-
-  if (bytes.length < 16) return false;
-
-  switch (type) {
-    case "image/png":
-      return tag(0, 8) === "\x89PNG\r\n\x1a\n" && tag(12, 4) === "IHDR";
-    case "image/jpeg":
-      return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-    case "image/webp":
-      return tag(0, 4) === "RIFF" && tag(8, 4) === "WEBP";
-    case "image/avif": {
-      const size = bytes.readUInt32BE(0);
-      if (tag(4, 4) !== "ftyp" || size < 16 || size > bytes.length) return false;
-      if (tag(8, 4) === "avif" || tag(8, 4) === "avis") return true;
-      for (let offset = 16; offset + 4 <= size; offset += 4) {
-        const brand = tag(offset, 4);
-        if (brand === "avif" || brand === "avis") return true;
-      }
-      return false;
-    }
-    case "image/gif":
-      return tag(0, 6) === "GIF87a" || tag(0, 6) === "GIF89a";
-    case "image/bmp":
-      return tag(0, 2) === "BM";
-  }
 }
 
 async function readUploadBytes(request: Request) {
@@ -173,7 +131,9 @@ export async function getSetupMediaUploadEvent(
 }
 
 export async function storeEventSetupMedia(eventId: string, request: Request) {
-  const dir = mediaDirectory();
+  const diskDisabled = usesBlobMedia() ||
+    (process.env.VERCEL === "1" && process.env.EVENT_SETUP_MEDIA_PROVIDER !== "disk");
+  const dir = diskDisabled ? null : mediaDirectory();
   if (!dir) throw new ServiceError("SETUP_MEDIA_STORAGE_UNAVAILABLE", 503);
   const { type, bytes } = await readUpload(request, eventId);
   const id = randomUUID();
@@ -197,8 +157,13 @@ export async function storeEventSetupMedia(eventId: string, request: Request) {
 }
 
 export async function findEventSetupMedia(id: string): Promise<EventSetupMedia | null> {
+  if (!eventSetupMediaIdPattern.test(id)) return null;
+  if (usesBlobMedia()) {
+    const blob = await findBlobMedia(id);
+    if (blob) return blob;
+  }
   const dir = mediaDirectory();
-  if (!dir || !eventSetupMediaIdPattern.test(id)) return null;
+  if (!dir) return null;
   try {
     const metadata = JSON.parse(
       await readFile(join(dir, id, "metadata.json"), "utf8"),
@@ -223,6 +188,7 @@ export async function findEventSetupMedia(id: string): Promise<EventSetupMedia |
 }
 
 export async function readEventSetupMedia(asset: EventSetupMedia) {
+  if (asset.blobPath) return readBlobMedia(asset.blobPath, asset.type, asset.size);
   const dir = mediaDirectory();
   if (!dir || !eventSetupMediaIdPattern.test(asset.id)) return null;
   try {
@@ -240,7 +206,11 @@ export async function assertEventSetupMedia(eventId: string, urls: Iterable<stri
   for (const url of new Set(urls)) {
     if (!isEventSetupMediaUrl(url)) throw new ServiceError("INVALID_SETUP_MEDIA", 400);
     const asset = await findEventSetupMedia(url.slice(url.lastIndexOf("/") + 1));
-    if (!asset || asset.eventId !== eventId || !(await readEventSetupMedia(asset))) {
+    if (!asset || asset.eventId !== eventId) throw new ServiceError("SETUP_MEDIA_UNAVAILABLE", 409);
+    const available = asset.blobPath
+      ? await blobMediaAvailable(asset.blobPath, asset.type, asset.size)
+      : Boolean(await readEventSetupMedia(asset));
+    if (!available) {
       throw new ServiceError("SETUP_MEDIA_UNAVAILABLE", 409);
     }
   }

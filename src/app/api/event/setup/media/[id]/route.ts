@@ -12,6 +12,7 @@ import {
   getSetupMediaEvent,
   readEventSetupMedia,
 } from "@/services/event/setup-media";
+import { signBlobMediaRead } from "@/services/event/setup-media-blob";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,14 @@ export async function GET(
         session,
       );
       if (denied) return notFound();
+    }
+
+    if (asset.blobPath) {
+      const location = await signBlobMediaRead(asset.blobPath);
+      return new Response(null, {
+        status: 307,
+        headers: { Location: location, "Cache-Control": "private, no-store" },
+      });
     }
 
     const bytes = await readEventSetupMedia(asset);
