@@ -178,7 +178,8 @@ function safeBannerUrl(value: string | null | undefined) {
   }
 }
 
-async function readEventBanner(eventId: string) {
+async function readEventBanner(eventId: string, savedUrl?: string | null) {
+  if (savedUrl != null) return savedUrl;
   const banners = await mockApi.get<MockEventBanner[]>(
     `/event_banners?event_id=${encodeURIComponent(eventId)}`,
   );
@@ -346,7 +347,7 @@ export async function getPublicFormPageBySlug(
     : defaultEventBranding;
   const [details, bannerUrl] = await Promise.all([
     publication ? projectEventContent(publication.draft, locale) : readLegacyEventDetails(event, locale),
-    branding.banner?.url ?? readEventBanner(event.id),
+    readEventBanner(event.id, branding.banner?.url),
   ]);
   const eventDetails: ParticipantFormEventDetails = {
     eventName: details.eventName,

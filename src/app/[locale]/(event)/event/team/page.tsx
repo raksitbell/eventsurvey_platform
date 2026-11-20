@@ -143,6 +143,7 @@ export default function EventTeamPage() {
         <TeamListSkeleton />
       ) : (
         <SubUsersTable
+          key={subUsers.length}
           subUsers={subUsers}
           canManage={canManage}
           currentUserId={user?.id}

@@ -591,6 +591,10 @@ export default function FormBuilder({
     if (!eventId || !canEdit || !loadedEditableForm || saving.current) return false;
     saving.current = true;
     setIsSaving(true);
+    const reportSaveError = (error: unknown) => {
+      showToast({ title: resolveErrorMessage(error, tbuilder("saveError")), variant: "error" });
+      return false;
+    };
     try {
       const create = () => api.post<FormRecord>("/event/forms", {
         ...buildPayloadForApi(form, false),
@@ -609,7 +613,7 @@ export default function FormBuilder({
             err.status === 404 || err.code === "FORM_NOT_FOUND" ||
             err.code === "QUESTION_NOT_OWNED_BY_FORM" || err.code === "OPTION_NOT_OWNED_BY_QUESTION"
           );
-          if (leaving || !staleId) throw err;
+          if (leaving || !staleId) return reportSaveError(err);
           saved = await create();
         }
       }
@@ -617,11 +621,7 @@ export default function FormBuilder({
       showToast({ title: tbuilder("saveSuccess"), variant: "success" });
       return true;
     } catch (err) {
-      showToast({
-        title: resolveErrorMessage(err, tbuilder("saveError")),
-        variant: "error",
-      });
-      return false;
+      return reportSaveError(err);
     } finally {
       saving.current = false;
       setIsSaving(false);

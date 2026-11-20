@@ -1,4 +1,4 @@
-"use client";
+import Image from "next/image";
 
 export default function AuthBrandPanel({
   headline,
@@ -10,7 +10,7 @@ export default function AuthBrandPanel({
   return (
     <div className="relative hidden min-h-dvh w-full overflow-hidden bg-[var(--color-event-sidebar)] lg:flex lg:w-1/2 lg:items-center lg:justify-center">
       <div className="relative z-10 mx-auto flex w-full flex-col items-center px-6 text-center xl:px-10">
-        <img
+        <Image
           src="/images/auth/login-hero.svg"
           alt=""
           width={656}
