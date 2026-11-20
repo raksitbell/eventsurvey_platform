@@ -127,6 +127,14 @@ test("8 MiB Blob only becomes publicly readable after the saved event snapshot p
   const other = await signIn(otherOwner);
   const bytes = Buffer.alloc(8 * 1024 * 1024);
   bytes.write("BM");
+  // 2048 × 1023 uncompressed, 32 bits per pixel, starting at byte 8192.
+  bytes.writeUInt32LE(bytes.length, 2);
+  bytes.writeUInt32LE(8192, 10);
+  bytes.writeUInt32LE(40, 14);
+  bytes.writeInt32LE(2048, 18);
+  bytes.writeInt32LE(1023, 22);
+  bytes.writeUInt16LE(1, 26);
+  bytes.writeUInt16LE(32, 28);
   const prepared = await post(cookie, "prepare", { size: bytes.length });
   assert.equal(prepared.status, 200);
   const { mode, id } = await prepared.json();
