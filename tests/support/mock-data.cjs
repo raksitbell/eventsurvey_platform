@@ -173,7 +173,11 @@ function setupMockData(t, { eventWrites = false } = {}) {
       const row = rows.find((item) => item.id === decodeURIComponent(id));
       if (!row) return new Response(null, { status: 404 });
       if (method === "GET") return Response.json(row);
-      if (method === "PATCH" && collection === "users") {
+      if (method === "PUT" && eventWrites && collection === "forms") {
+        rows[rows.indexOf(row)] = body;
+        return Response.json(body);
+      }
+      if (method === "PATCH" && (eventWrites || collection === "users")) {
         Object.assign(row, body);
         return Response.json(row);
       }
@@ -189,6 +193,7 @@ function setupMockData(t, { eventWrites = false } = {}) {
     }
     // Allow audit POSTs even when the fixture is otherwise read-only.
     if ((eventWrites || collection === "audit_logs") && method === "POST" && !id) {
+      if (body.id && rows.some((row) => row.id === body.id)) return new Response(null, { status: 409 });
       rows.push(body);
       return Response.json(body, { status: 201 });
     }

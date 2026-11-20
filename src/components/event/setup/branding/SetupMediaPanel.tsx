@@ -11,18 +11,26 @@ import {
   type BannerLayout,
 } from "@/core/event/banner-layout";
 import type { EventBranding } from "@/types/event/branding";
+import type { EventDraft } from "@/types/event/setup";
 import { useModal } from "@/hooks/useModal";
 import BannerCropDialog from "./BannerCropDialog";
 import SetupBrandingDialog from "./SetupBrandingDialog";
+import type { EventWorkspace } from "@/types/event/workspace";
 
 interface Props {
+  workspace: EventWorkspace;
+  contentLocale?: string | null;
   branding: EventBranding;
+  draft: EventDraft;
   bannerUrl: string | null;
   readOnly: boolean;
   onChange: (changes: Partial<EventBranding>) => boolean;
 }
 export default function SetupMediaPanel({
+  workspace,
+  contentLocale,
   branding,
+  draft,
   bannerUrl,
   readOnly,
   onChange,
@@ -43,7 +51,7 @@ export default function SetupMediaPanel({
     } else onChange({ layout: next });
   }
   return (
-    <section className={styles.media}>
+    <section id="event-media" tabIndex={-1} className={styles.media}>
       <h2>
         <BrandingIcon name="photograph" />
         {t("bannerRatio")}
@@ -133,6 +141,7 @@ export default function SetupMediaPanel({
         variant="outline"
         disabled={readOnly}
         startIcon={<BrandingIcon name="open-branding" size={18} />}
+        id="event-branding-settings"
         onClick={brand.openModal}
       >
         {t("branding")}
@@ -153,7 +162,10 @@ export default function SetupMediaPanel({
       )}
       {brand.isOpen && (
         <SetupBrandingDialog
+          workspace={workspace}
+          contentLocale={contentLocale}
           branding={branding}
+          draft={draft}
           bannerUrl={src}
           onClose={brand.closeModal}
           onSave={onChange}

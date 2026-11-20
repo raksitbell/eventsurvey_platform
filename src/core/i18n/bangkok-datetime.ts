@@ -15,3 +15,8 @@ export function fromBangkokInput(value: string) {
     return null;
   return date.toISOString();
 }
+
+export function shiftBangkokMinute(value: string | null, offset: number) {
+  const minute = fromBangkokInput(toBangkokInput(value));
+  return minute ? new Date(Date.parse(minute) + offset * 60_000).toISOString() : null;
+}

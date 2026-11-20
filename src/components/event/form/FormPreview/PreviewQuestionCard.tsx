@@ -2,7 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
-import { FormLocale, Question } from "@/types/event/form";
+import type { FormLocale, Question } from "@/types/event/form";
+import { answerChoicesWithIds } from "@/core/event/public-form-response";
 import PreviewShortText from "./fields/PreviewShortText";
 import PreviewLongText from "./fields/PreviewLongText";
 import PreviewEmail from "./fields/PreviewEmail";
@@ -18,6 +19,8 @@ export type AnswerValue = string | string[] | number;
 
 interface PreviewQuestionCardProps {
   question: Question["question"];
+  appearance?: "card" | "participant";
+  number?: number;
   locale?: FormLocale;
   answer?: AnswerValue;
   errorMessage?: string;
@@ -29,6 +32,8 @@ interface PreviewQuestionCardProps {
 
 export default function PreviewQuestionCard({
   question,
+  appearance = "card",
+  number,
   locale = "th",
   answer,
   errorMessage,
@@ -42,7 +47,7 @@ export default function PreviewQuestionCard({
   const qId = question.id!;
   const labelObj = question.label[locale]?.[0] ?? question.label.th[0];
   const questionTitle = labelObj.label.trim() || tPreview("untitledQuestion");
-  const choices = labelObj.choices[locale];
+  const choices = answerChoicesWithIds(labelObj.choices[locale]);
   const scaleMinLabel =
     labelObj.scale_min_label ?? choices[0]?.scale_min_label ?? "";
   const scaleMaxLabel =
@@ -57,19 +62,22 @@ export default function PreviewQuestionCard({
   return (
     <div
       id={`preview-q-${qId}`}
-      className={`rounded-xl border bg-white p-5 shadow-sm transition-all sm:p-6 ${
+      role="group"
+      aria-labelledby={`preview-label-${qId}`}
+      aria-describedby={hasError ? `preview-error-${qId}` : undefined}
+      className={appearance === "participant" ? "participant-form-question @container/question min-w-0 wrap-anywhere" : `rounded-xl border bg-white p-5 shadow-sm transition-all sm:p-6 ${
         hasError ? "border-red-500" : "border-gray-200"
       }`}
     >
       {/* Question Title */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-base font-medium text-gray-900">
-          <span>{questionTitle}</span>
+      <div className={`${appearance === "participant" ? "mb-2" : "mb-4"} flex flex-wrap items-center justify-between gap-2`}>
+        <div id={`preview-label-${qId}`} className="text-base font-medium text-gray-900">
+          <span>{number !== undefined && `${number}. `}{questionTitle}</span>
           {question.is_required && <span className="ms-1 text-red-600">*</span>}
         </div>
 
         {question.is_unique && (
-          <span className="rounded-full bg-[#5C54D1]/10 px-2.5 py-0.5 text-xs font-medium text-[#5C54D1]">
+          <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-(--participant-control-text)">
             {tPreview("uniqueBadge")}
           </span>
         )}
@@ -149,6 +157,7 @@ export default function PreviewQuestionCard({
 
       {question.type === "rating" && (
         <PreviewRating
+          appearance={appearance}
           minNumber={question.min_number}
           maxNumber={ratingMax}
           ratingDisplay={question.rating_display || "icon"}
@@ -171,7 +180,7 @@ export default function PreviewQuestionCard({
 
       {/* Validation Error Message */}
       {hasError && (
-        <div className="mt-4 flex items-center gap-2 text-xs font-medium text-red-600">
+        <div id={`preview-error-${qId}`} role="alert" className="mt-4 flex items-center gap-2 text-xs font-medium text-red-600">
           <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
           <span>{errorMessage}</span>
         </div>

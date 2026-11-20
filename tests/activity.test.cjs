@@ -300,6 +300,9 @@ function fixture({
         async get(path) {
           return lookup(path);
         },
+        async patch(path, body) {
+          return Object.assign(lookup(path), body);
+        },
         async post(path, body) {
           const url = new URL(path, "https://fixture.example.test");
           const collection = url.pathname.split("/").filter(Boolean)[0];
@@ -322,6 +325,7 @@ function fixture({
     resolveActivityModulePath: load("src/core/audit/module-path.ts")
       .resolveActivityModulePath,
     writeAuditLog: load("src/core/audit/write.ts").writeAuditLog,
+    updateUserRoleOrEvent: load("src/services/admin/users.ts").updateUserRoleOrEvent,
     matchesActivitySearch: load(
       "src/components/admin/activity/activity-format.ts",
     ).matchesActivitySearch,
@@ -443,6 +447,103 @@ test("writeAuditLog stores bilingual description fields", async () => {
   assert.equal(body.module, "event_setup");
   assert.equal(body.event_id, env.ids.eventId);
   assert.equal(body.description, undefined);
+});
+
+test("older audit descriptions remain readable in both locales", async () => {
+  const env = fixture();
+  const row = env.collections.audit_logs.find((entry) => entry.id === "log-event-setup");
+  delete row.description_th;
+  delete row.description_en;
+  row.description = "Earlier activity description";
+
+  for (const locale of ["th", "en"]) {
+    const activity = await env.listAdminActivity(locale);
+    assert.equal(activity.items.find((item) => item.id === row.id)?.description, row.description);
+  }
+});
+
+test("activity lists and timelines project invitation and account-edit emails for each viewer", async () => {
+  const env = fixture({ subCanViewActivity: true });
+  const { adminId, subId, eventId } = env.ids;
+  const recipient = "sub@example.com";
+  const updated = "updated@example.net";
+  const metadata = { email: recipient, after: { email: updated }, roleName: "Assistant" };
+  const row = env.collections.audit_logs.find((entry) => entry.id === "log-platform");
+  Object.assign(row, {
+    event_id: eventId, resource_type: "sub_user", resource_id: subId, metadata: structuredClone(metadata),
+    description_en: `Invited <${recipient}>`,
+  });
+
+  const restricted = { userId: adminId, canViewUnmaskedPii: false };
+  const granted = { ...restricted, canViewUnmaskedPii: true };
+  const masked = { email: "s•••@e•••.com", after: { email: "u•••@e•••.net" }, roleName: "Assistant" };
+  const details = (response) => response.items.find((item) => item.id === row.id).metadata;
+
+  const list = await env.listAdminActivity("en", {}, restricted);
+  assert.deepEqual(details(list), masked);
+  assert.equal(list.items.find((item) => item.id === row.id).description, "Invited <s•••@e•••.com>");
+  assert.deepEqual(details(await env.getAdminUserActivity(adminId, "en", {}, restricted)), masked);
+  assert.deepEqual(details(await env.listAdminActivity("en", {}, granted)), metadata);
+
+  const inspection = { inspectedEventId: eventId };
+  assert.deepEqual(details(await env.listEventActivity(adminId, "en", {}, inspection)), masked);
+  env.collections.platform_access[0].matrix.canViewUnmaskedPii = true;
+  assert.deepEqual(details(await env.listEventActivity(adminId, "en", {}, inspection)), metadata);
+  assert.deepEqual(
+    details(await env.getEventUserActivity(adminId, adminId, "en", inspection)),
+    metadata,
+  );
+
+  const ownActivity = await env.listEventActivity(subId, "en");
+  assert.deepEqual(details(ownActivity), { ...masked, email: recipient });
+  const otherProfile = await env.getEventUserActivity(subId, adminId, "en");
+  assert.equal(otherProfile.user.email, "a•••@e•••.com");
+  assert.equal((await env.getEventUserActivity(subId, subId, "en")).user.email, recipient);
+  assert.deepEqual(row.metadata, metadata);
+});
+
+test("activity logs omit passwords when writing and when reading historical rows, including for privileged viewers", async () => {
+  const env = fixture();
+  const { adminId } = env.ids;
+  const legacy = {
+    after: { password: "fixture-only-new-value", email: "other@example.com" },
+    changes: [{ oldPassword: "fixture-only-old-value", passwordSet: true }],
+  };
+  await env.writeAuditLog({
+    actorUserId: adminId, eventId: null, action: "update", resourceType: "user", resourceId: adminId,
+    module: "user_management", descriptionTh: "แก้ไขบัญชี", descriptionEn: "Updated account",
+    metadata: legacy,
+  });
+  const saved = env.posted.at(-1).body;
+  const safe = { after: { email: "other@example.com" }, changes: [{ passwordSet: true }] };
+  assert.deepEqual(saved.metadata, safe);
+
+  env.collections.audit_logs.find((row) => row.id === saved.id).metadata = structuredClone(legacy);
+  for (const canViewUnmaskedPii of [false, true]) {
+    const viewer = { userId: adminId, canViewUnmaskedPii };
+    for (const response of [
+      await env.listAdminActivity("en", {}, viewer),
+      await env.getAdminUserActivity(adminId, "en", {}, viewer),
+    ]) {
+      const metadata = response.items.find((row) => row.id === saved.id).metadata;
+      assert.deepEqual(metadata, {
+        ...safe,
+        after: { email: canViewUnmaskedPii ? "other@example.com" : "o•••@e•••.com" },
+      });
+    }
+  }
+});
+
+test("an administrator can change a user's password without recording it in the audit trail", async () => {
+  const env = fixture();
+  const { adminId, subId } = env.ids;
+  const password = "test-account-change-123";
+  const email = "changed@example.test";
+  await env.updateUserRoleOrEvent(subId, { password, email }, adminId);
+  assert.equal(env.collections.users.find((user) => user.id === subId).password, password);
+  const change = env.posted.find(({ body }) => body.resource_id === subId && body.action === "update");
+  assert.equal(change.body.metadata.after.email, email);
+  assert.equal(JSON.stringify(change.body).includes(password), false);
 });
 
 test("admin activity localizes descriptions and applies filters", async () => {

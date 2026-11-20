@@ -1,25 +1,40 @@
 import { z } from "zod";
 import { isEventSetupMediaUrl } from "@/core/event/setup-media-url";
 import type { EventBranding } from "@/types/event/branding";
+import type { EventSetupState } from "@/types/event/setup";
+import { IMAGE_MAX_INPUT_BYTES } from "@/utils/image-upload";
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i);
-const image = z.object({
-  name: z.string().max(255),
-  url: z
-    .string()
-    .max(1_500_000)
-    .refine((url) => /^data:image\/(png|jpeg|webp|avif|gif|bmp|svg\+xml);base64,/.test(url) || isEventSetupMediaUrl(url)),
-});
+export const brandingDataUrlPrefix = /^data:(image\/(?:png|jpeg|webp|avif|gif|bmp|svg\+xml));base64,/;
+
+function brandingMediaSchema(maxUrlLength: number) {
+  const image = z.object({
+    name: z.string().max(255),
+    url: z.string().max(maxUrlLength).refine(
+      (url) => brandingDataUrlPrefix.test(url) || isEventSetupMediaUrl(url),
+    ),
+  });
+  return {
+    logo: image.nullable(),
+    wordmark: image.nullable().optional(),
+    banner: image
+      .extend({ cropPosition: z.number().min(0).max(100).optional() })
+      .nullable(),
+  };
+}
+
+const savedMedia = brandingMediaSchema(1_500_000);
 export const eventBrandingSchema = z.object({
   layout: z.enum(["portrait", "square", "landscape"]).optional(),
   organizer: z.string().max(255).optional(),
   tagline: z.string().max(500).optional(),
   identity: z.enum(["icon", "wordmark"]).optional(),
-  wordmark: image.nullable().optional(),
+  wordmark: savedMedia.wordmark,
   backgroundMode: z.enum(["solid", "gradient", "blur"]).optional(),
   gradientEnd: color.optional(),
   gradientAngle: z.union([z.literal(0), z.literal(90)]).optional(),
   transparentChrome: z.boolean().optional(),
+  chromeOpacity: z.number().int().min(0).max(100).optional(),
   footerColor: color.optional(),
   channels: z
     .array(
@@ -33,11 +48,16 @@ export const eventBrandingSchema = z.object({
   primary: color,
   secondary: color,
   accent: color,
-  logo: image.nullable(),
-  banner: image
-    .extend({ cropPosition: z.number().min(0).max(100).optional() })
-    .nullable(),
+  logo: savedMedia.logo,
+  banner: savedMedia.banner,
 });
+
+// The editor can hold a full upload in memory before storage is selected.
+const maxEditUrlLength =
+  4 * Math.ceil((IMAGE_MAX_INPUT_BYTES - 1) / 3) + "data:image/svg+xml;base64,".length;
+export const eventBrandingEditSchema = eventBrandingSchema.extend(
+  brandingMediaSchema(maxEditUrlLength),
+);
 export const defaultEventBranding: EventBranding = {
   primary: "#AE85D1",
   secondary: "#E9DBF5",
@@ -45,6 +65,15 @@ export const defaultEventBranding: EventBranding = {
   logo: null,
   banner: null,
 };
+
+export function savedFormBranding(
+  setup: EventSetupState | undefined, locale: string, defaultLocale?: string,
+) {
+  if (setup?.publication)
+    return setup.publishedBranding?.[locale] ?? setup.publication.branding;
+  const saved = setup?.branding;
+  return saved?.[locale] ?? saved?.[defaultLocale ?? "th"] ?? Object.values(saved ?? {})[0] ?? defaultEventBranding;
+}
 export function eventBrandingKey(
   userId: string,
   eventId: string,

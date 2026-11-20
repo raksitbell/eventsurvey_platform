@@ -1,204 +1,177 @@
 "use client";
 
-import BrandingColorSpectrum from "@/components/event/setup/branding/BrandingColorSpectrum";
-import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
-import { Modal } from "@/components/ui/modal";
-import {
-  BRANDING_COLOR_PRESETS,
-  hexToHsv,
-  hsvToHex,
-} from "@/core/event/branding-colors";
-import type { BrandingColorKey } from "@/types/event/branding";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, EyeDropperIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 
 interface BrandingColorPickerProps {
-  embedded?: boolean;
-  colorKey: BrandingColorKey;
+  label: string;
   value: string;
-  onSelect: (color: string) => boolean;
-  onClose: () => void;
+  palette: string[];
+  disabled?: boolean;
+  onSelect: (color: string) => void;
 }
+
 export default function BrandingColorPicker({
-  colorKey,
-  embedded = false,
+  label,
   value,
+  palette,
+  disabled,
   onSelect,
-  onClose,
 }: BrandingColorPickerProps) {
-  const t = useTranslations("eventBranding");
-  const setup = useTranslations("eventSetup");
-  const titleId = useId();
+  const t = useTranslations("eventBranding.colorPicker");
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const [color, setColor] = useState(() => hexToHsv(value));
-  const [hexInput, setHexInput] = useState(value);
-  const [saveFailed, setSaveFailed] = useState(false);
-  function selectColor(hex: string, hsv = hexToHsv(hex)) {
-    const saved = onSelect(hex);
-    setSaveFailed(!saved);
-    if (!saved) {
-      setHexInput(value);
-      return;
-    }
-    setColor(hsv);
-    setHexInput(hex);
-  }
-  useEffect(() => {
-    const previous = globalThis.document.activeElement as HTMLElement | null;
-    const focusFirst = () => panel.current?.querySelector("button")?.focus();
-    const keepFocusInside = (event: FocusEvent) => {
-      if (!panel.current?.contains(event.target as Node)) focusFirst();
+  const [open, setOpen] = useState(false);
+  const hasPalette =
+    palette.length > 0 &&
+    typeof globalThis.HTMLElement?.prototype.showPopover === "function";
+
+  useLayoutEffect(() => {
+    const button = trigger.current;
+    const popover = panel.current;
+    if (!open || !button || !popover) return;
+    const gap = 6;
+    const rect = button.getBoundingClientRect();
+    const width = popover.offsetWidth;
+    const height = popover.offsetHeight;
+    const start =
+      globalThis.getComputedStyle(button).direction === "rtl"
+        ? rect.right - width
+        : rect.left;
+    const left = Math.max(
+      gap,
+      Math.min(start, globalThis.innerWidth - width - gap),
+    );
+    const above =
+      rect.bottom + gap + height > globalThis.innerHeight &&
+      rect.top > height + gap;
+    popover.style.left = left + "px";
+    popover.style.top =
+      (above ? rect.top - gap - height : rect.bottom + gap) + "px";
+    const active =
+      popover.querySelector<HTMLButtonElement>('[aria-pressed="true"]') ??
+      popover.querySelector("button");
+    active?.focus({ preventScroll: true });
+
+    const dismiss = () => {
+      if (popover.matches(":popover-open")) popover.hidePopover();
     };
-    focusFirst();
-    if (!embedded)
-      globalThis.document.addEventListener("focusin", keepFocusInside);
+    globalThis.addEventListener("resize", dismiss);
+    globalThis.addEventListener("scroll", dismiss, true);
     return () => {
-      if (!embedded)
-        globalThis.document.removeEventListener("focusin", keepFocusInside);
-      previous?.focus({ preventScroll: true });
+      globalThis.removeEventListener("resize", dismiss);
+      globalThis.removeEventListener("scroll", dismiss, true);
     };
-  }, [embedded]);
-  const controls = (
-    <div
-      ref={panel}
-      className="flex flex-col gap-2.25"
-      onKeyDown={(event) => {
-        if (embedded || event.key !== "Tab") return;
-        const controls = panel.current?.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), input:not(:disabled)",
-        );
-        if (!controls?.length) return;
-        const first = controls[0],
-          last = controls[controls.length - 1];
-        if (event.shiftKey && globalThis.document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (
-          !event.shiftKey &&
-          globalThis.document.activeElement === last
-        ) {
-          event.preventDefault();
-          first.focus();
-        }
-      }}
-    >
-      <header className="flex h-7.5 shrink-0 items-center justify-between gap-2">
-        <h2
-          id={titleId}
-          className="text-picker-heading font-semibold text-picker-text dark:text-white/90"
-        >
-          {t("colorPicker.title", {
-            name: colorKey === "accent" ? t("colorPicker.accent") : t(colorKey),
-          })}
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t("close")}
-          className="flex size-7.5 items-center justify-center rounded-lg bg-picker-close text-picker-label dark:bg-gray-800 dark:text-gray-300"
-        >
-          <XMarkIcon className="size-5" aria-hidden="true" />
-        </button>
-      </header>
-      <p className="text-picker-small text-picker-muted dark:text-gray-400">
-        {t("colorPicker.hint")}
-      </p>
-      <BrandingColorSpectrum
-        color={color}
-        onChange={(next) => selectColor(hsvToHex(next), next)}
+  }, [open, hasPalette]);
+
+  const swatch = (
+    <>
+      <span
+        aria-hidden="true"
+        className="h-6 w-7 shrink-0 rounded border border-black/15"
+        style={{ backgroundColor: value }}
       />
-      <div className="flex h-10 shrink-0 items-center gap-2.5">
-        <Input
-          type="color"
-          value={value}
-          aria-label={t("colorPicker.native")}
-          onChange={(event) => selectColor(event.target.value.toUpperCase())}
-          className="h-9! w-9! cursor-pointer rounded-picker p-0!"
-        />
-        <div className="flex h-10 flex-col gap-0.5">
-          <p className="text-picker-label text-picker-muted dark:text-gray-400">
-            {t("colorPicker.selected")}
-          </p>
+      <span dir="ltr">{value}</span>
+    </>
+  );
+
+  return (
+    <div className="relative flex min-w-0 items-center rounded-lg border border-gray-300 bg-white text-theme-sm text-gray-800 has-focus-visible:ring-2 has-focus-visible:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+      {hasPalette ? (
+        <button
+          ref={trigger}
+          type="button"
+          disabled={disabled}
+          popoverTarget={id}
+          aria-label={t("bannerPalette", { name: label }) + ", " + value}
+          aria-haspopup="dialog"
+          className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-s-lg px-2 enabled:cursor-pointer disabled:opacity-50"
+        >
+          {swatch}
+          <ChevronDownIcon
+            className="ms-auto size-4 shrink-0"
+            aria-hidden="true"
+          />
+        </button>
+      ) : (
+        <div aria-hidden="true" className="flex h-11 items-center gap-2 px-3">
+          {swatch}
+        </div>
+      )}
+      <div
+        className={
+          hasPalette
+            ? "relative flex size-11 shrink-0 items-center justify-center border-s border-gray-300 dark:border-gray-600"
+            : "absolute inset-0"
+        }
+      >
+        {hasPalette && <EyeDropperIcon className="size-5" aria-hidden="true" />}
+        <div className="absolute inset-0">
           <Input
-            value={hexInput}
-            aria-label={t("colorPicker.hex")}
-            aria-invalid={!/^#[0-9a-f]{6}$/i.test(hexInput)}
-            maxLength={7}
-            spellCheck={false}
-            dir="ltr"
-            onChange={(event) => {
-              const hex = event.target.value.toUpperCase();
-              if (/^#[0-9A-F]{6}$/.test(hex)) selectColor(hex);
-              else setHexInput(hex);
-            }}
-            onBlur={() => setHexInput(value)}
-            className="h-6! w-28! rounded-none! border-0! p-0! text-base! font-semibold text-picker-text shadow-none! dark:text-gray-100"
+            type="color"
+            value={value}
+            disabled={disabled}
+            aria-label={t("title", { name: label })}
+            className="cursor-pointer opacity-0! disabled:cursor-default"
+            onChange={(event) =>
+              onSelect(event.currentTarget.value.toUpperCase())
+            }
           />
         </div>
       </div>
-      <div className="h-px shrink-0 bg-picker-divider dark:bg-gray-700" />
-      <h3 className="text-preview-control font-semibold text-picker-text dark:text-gray-200">
-        {t("colorPicker.palette")}
-      </h3>
-      <div className="flex h-17 shrink-0 items-center justify-between">
-        {BRANDING_COLOR_PRESETS[colorKey].map((hex) => (
-          <button
-            key={hex}
-            type="button"
-            onClick={() => selectColor(hex)}
-            aria-label={t("colorPicker.selectColor", { color: hex })}
-            aria-pressed={value === hex}
-            className="flex h-16.5 min-w-0 flex-1 flex-col items-center justify-center gap-1.25 rounded-lg focus-visible:outline-2 focus-visible:outline-event-action"
-          >
-            <span
-              aria-hidden="true"
-              className="size-picker-swatch shrink-0 rounded-picker border border-picker-swatch-border dark:border-gray-600"
-              style={{ backgroundColor: hex }}
-            />
-            <span className="text-picker-code text-picker-label dark:text-gray-400">
-              {hex}
-            </span>
-          </button>
-        ))}
-      </div>
-      {saveFailed && (
-        <p
-          role="alert"
-          className="text-picker-small text-error-600 dark:text-error-400"
+      {hasPalette && (
+        <div
+          ref={panel}
+          id={id}
+          popover="auto"
+          role="dialog"
+          aria-label={t("bannerPalette", { name: label })}
+          onToggle={(event) => setOpen(event.newState === "open")}
+          onBlur={(event) => {
+            if (
+              event.relatedTarget &&
+              !event.currentTarget.contains(event.relatedTarget) &&
+              event.relatedTarget !== trigger.current
+            ) {
+              event.currentTarget.hidePopover();
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.hidePopover();
+            trigger.current?.focus({ preventScroll: true });
+          }}
+          className="fixed inset-auto m-0 max-w-full rounded-xl border border-gray-300 bg-white p-2 text-gray-800 shadow-theme-lg dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
         >
-          {setup("saveError")}
-        </p>
+          <div className="flex flex-wrap gap-1">
+            {palette.map((color) => (
+              <button
+                key={color}
+                type="button"
+                title={color}
+                aria-label={color}
+                aria-pressed={color.toUpperCase() === value.toUpperCase()}
+                onClick={() => {
+                  onSelect(color);
+                  panel.current?.hidePopover();
+                  trigger.current?.focus({ preventScroll: true });
+                }}
+                className="flex size-11 cursor-pointer items-center justify-center rounded-md hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 aria-pressed:ring-2 aria-pressed:ring-brand-500 dark:hover:bg-gray-800"
+              >
+                <span
+                  className="size-7 rounded border border-black/15"
+                  style={{ backgroundColor: color }}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
       )}
-      <div className="flex h-9 shrink-0 items-center">
-        <Button
-          size="sm"
-          onClick={onClose}
-          className="h-8.5 w-full bg-event-action py-0! text-theme-xs hover:bg-event-action/90 dark:bg-event-action"
-        >
-          {t("colorPicker.done")}
-        </Button>
-      </div>
     </div>
-  );
-  if (embedded)
-    return (
-      <div className="rounded-xl border border-picker-border bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        {controls}
-      </div>
-    );
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      showCloseButton={false}
-      labelledBy={titleId}
-      closeOnBackdropClick={false}
-      backdropClassName="bg-transparent"
-      className="max-h-full max-w-branding-picker overflow-y-auto border border-picker-border px-4.5 py-4 shadow-none dark:border-gray-700"
-    >
-      {controls}
-    </Modal>
   );
 }

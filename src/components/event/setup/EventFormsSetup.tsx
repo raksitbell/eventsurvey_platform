@@ -5,12 +5,14 @@ import SetupFormCard from "@/components/event/setup/forms/SetupFormCard";
 import SetupFormsLoadingSkeleton from "@/components/event/setup/forms/SetupFormsLoadingSkeleton";
 import EventSetupSteps from "@/components/event/setup/EventSetupSteps";
 import EventSetupActions from "@/components/event/setup/EventSetupActions";
+import EventWorkspacePageHeader from "../workspace/EventWorkspacePageHeader";
 import useEventFormSummaries from "@/hooks/useEventFormSummaries";
 import Button from "@/components/ui/button/Button";
 import useEventDraft from "@/hooks/useEventDraft";
 import useSetupApiState from "@/hooks/useSetupApiState";
 import { useRouter } from "@/i18n/navigation";
 import { createSavedNavigation } from "@/core/event/draft";
+import { formBuilderEntryHref } from "@/core/event/form-builder-navigation";
 import { selectSetupForms } from "@/core/event/form-summary";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
@@ -38,11 +40,16 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
         void navigate("/event/publish");
       }}
       aria-busy={setup.pending}
-      className="flex min-h-160 flex-col gap-6 rounded-2xl bg-event-page p-4 sm:p-6 dark:bg-gray-950"
+      className="es-setup-form gap-6 bg-event-page dark:bg-gray-950"
     >
-      <h1 className="text-title-sm font-bold text-gray-900 dark:text-white/90">
-        {t("title")}
-      </h1>
+      <EventWorkspacePageHeader
+        title={t("title")}
+        description={t("description")}
+        back={{
+          onClick: () => void navigate("/event"),
+          disabled: setup.pending,
+        }}
+      />
       <EventSetupSteps current={3} onNavigate={() => !setup.pending && save()} />
       {loading ? (
         <SetupFormsLoadingSkeleton label={t("loading")} />
@@ -53,7 +60,7 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
             enabled={draft.hasRegistration}
             onOpen={
               !readOnly && !setup.pending && workspace.canManageWhitelist
-                ? () => void navigate("/event/setup/registration")
+                ? () => void navigate(formBuilderEntryHref("/event/setup/registration", "forms"))
                 : undefined
             }
             status={registration?.status}
@@ -74,7 +81,7 @@ function FormsSetup({ workspace, userId, locale }: EventSetupPageProps) {
             enabled={draft.hasSurvey}
             onOpen={
               !readOnly && !setup.pending && workspace.canManageSurveyForm
-                ? () => void navigate("/event/setup/survey")
+                ? () => void navigate(formBuilderEntryHref("/event/setup/survey", "forms"))
                 : undefined
             }
             status={survey?.status}

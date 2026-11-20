@@ -9,3 +9,8 @@ export type BannerLayout = keyof typeof bannerLayouts;
 export function bannerObjectPosition(position?: number) {
   return position === undefined ? undefined : `${position}% ${position}%`;
 }
+
+/** Portrait and square banners share the same vertical display canvas. */
+export function displayCanvasSize(layout: BannerLayout) {
+  return layout === "landscape" ? { width: 1920, height: 1080 } : { width: 1080, height: 1920 };
+}

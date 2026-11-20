@@ -62,12 +62,12 @@ function writeGetCache(key: string, value: unknown) {
   });
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, fresh = false): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const method = (init?.method ?? "GET").toUpperCase();
   const isGet = method === "GET";
 
-  if (isGet) {
+  if (isGet && !fresh) {
     const cached = readGetCache<T>(normalizedPath);
     if (cached !== undefined) return cached;
 
@@ -106,6 +106,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return (await response.json()) as T;
   })();
 
+  if (isGet && fresh) return run;
+
   if (isGet) {
     inflightGets.set(normalizedPath, run);
     try {
@@ -127,6 +129,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const mockApi = {
   get: <T>(path: string) => request<T>(path),
+  getFresh: <T>(path: string) => request<T>(path, undefined, true),
   post: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>

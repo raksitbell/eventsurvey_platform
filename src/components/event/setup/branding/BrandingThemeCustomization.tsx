@@ -1,25 +1,24 @@
 "use client";
 
-import { eventColorForeground } from "@/core/event/participant-colors";
 import BrandingColorPicker from "@/components/event/setup/branding/BrandingColorPicker";
-import { useModal } from "@/hooks/useModal";
-import type { BrandingColorKey, EventBranding } from "@/types/event/branding";
+import useBannerPalette from "@/hooks/useBannerPalette";
+import type { EventBranding } from "@/types/event/branding";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
 
 interface BrandingThemeCustomizationProps {
   branding: EventBranding;
+  bannerUrl: string | null;
   readOnly: boolean;
   onChange: (changes: Partial<EventBranding>) => boolean;
 }
 export default function BrandingThemeCustomization({
   branding,
+  bannerUrl,
   readOnly,
   onChange,
 }: BrandingThemeCustomizationProps) {
   const t = useTranslations("eventBranding");
-  const { isOpen, openModal, closeModal } = useModal();
-  const [colorKey, setColorKey] = useState<BrandingColorKey>("primary");
+  const palette = useBannerPalette(branding.banner?.url ?? bannerUrl);
   return (
     <div className="space-y-3.5">
       <h3 className="text-preview-control font-semibold text-gray-800 dark:text-gray-200">
@@ -28,36 +27,22 @@ export default function BrandingThemeCustomization({
       <p className="text-picker-small text-gray-500 dark:text-gray-400">
         {t("paletteHint")}
       </p>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2">
         {(["primary", "secondary", "accent"] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            disabled={readOnly}
-            aria-haspopup="dialog"
-            onClick={() => {
-              setColorKey(key);
-              openModal();
-            }}
-            style={{
-              backgroundColor: branding[key],
-              color: eventColorForeground(branding[key]),
-            }}
-            className={`flex h-13.5 min-w-0 flex-col items-start gap-0.5 rounded-preview-control px-3 py-2 text-start focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-event-action disabled:cursor-default`}
-          >
-            <span className="text-picker-small font-semibold">{t(key)}</span>
-            <span className="text-picker-label">{branding[key]}</span>
-          </button>
+          <div key={key} className="min-w-0 space-y-1">
+            <span className="text-theme-xs font-semibold text-gray-700 dark:text-gray-300">
+              {t(key)}
+            </span>
+            <BrandingColorPicker
+              label={t(key)}
+              value={branding[key]}
+              palette={palette}
+              disabled={readOnly}
+              onSelect={(next) => onChange({ [key]: next })}
+            />
+          </div>
         ))}
       </div>
-      {isOpen && (
-        <BrandingColorPicker
-          colorKey={colorKey}
-          value={branding[colorKey]}
-          onSelect={(value) => onChange({ [colorKey]: value })}
-          onClose={closeModal}
-        />
-      )}
     </div>
   );
 }

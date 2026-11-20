@@ -1,30 +1,38 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
+import ParticipantDisplayPreview from "@/components/event/participant/ParticipantDisplayPreview";
+import type { EventWorkspace } from "@/types/event/workspace";
+import BrandingPreviewGallery from "./BrandingPreviewGallery";
 import { useModal } from "@/hooks/useModal";
-import { eventBrandingSchema } from "@/core/event/branding";
+import { bannerLayouts } from "@/core/event/banner-layout";
+import { eventBrandingEditSchema } from "@/core/event/branding";
+import { getChromeOpacity } from "@/core/event/participant-colors";
 import type { BrandingColorKey, EventBranding } from "@/types/event/branding";
+import type { ParticipantEventData } from "@/types/event/participant";
 import BrandingUploadDialog from "./BrandingUploadDialog";
-import BrandingMaterialPreview from "./BrandingMaterialPreview";
 import BrandingColorPicker from "./BrandingColorPicker";
+import useBannerPalette from "@/hooks/useBannerPalette";
 import BrandingDialogFrame from "./BrandingDialogFrame";
 import BrandingIcon from "./BrandingIcon";
 import BrandingIdentitySection from "./BrandingIdentitySection";
 import styles from "./BrandingDialog.module.css";
 
 type ColorKey = BrandingColorKey | "gradientEnd" | "footerColor";
-type Editor = "identity" | "background" | "primary" | "footerColor" | "accent";
-interface Props {
-  branding: EventBranding;
-  bannerUrl: string | null;
+
+interface Props extends ParticipantEventData {
+  workspace: EventWorkspace;
+  contentLocale?: string | null;
   onClose: () => void;
   onSave: (changes: Partial<EventBranding>) => boolean;
 }
 export default function SetupBrandingDialog({
+  workspace,
+  contentLocale,
   branding,
   bannerUrl,
+  draft,
   onClose,
   onSave,
 }: Props) {
@@ -32,59 +40,43 @@ export default function SetupBrandingDialog({
   const b = useTranslations("eventBranding");
   const visual = useTranslations("eventBrandVisual");
   const [value, setValue] = useState(branding);
-  const [error, setError] = useState("");
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [picker, setPicker] = useState<ColorKey | null>(null);
+  const [error, setError] = useState<"invalidBrand" | "saveError" | null>(null);
+  const palette = useBannerPalette(value.banner?.url ?? bannerUrl);
+  const previewTitle = useId();
   const upload = useModal();
   const identity = value.identity ?? "icon";
-  const asset = identity === "wordmark" ? value.wordmark : value.logo;
+  const layout = value.layout ?? "portrait";
   const mode = value.backgroundMode ?? "solid";
+  const transparency = 100 - getChromeOpacity(value);
 
   function change(changes: Partial<EventBranding>) {
     setValue((current) => ({ ...current, ...changes }));
-    setError("");
+    setError(null);
   }
-  function selectColor(field: ColorKey, hex: string) {
-    const changes = { [field]: hex };
-    if (!onSave(changes)) return false;
-    change(changes);
-    return true;
-  }
-  function color(key: ColorKey) {
+
+  function colorControl(field: ColorKey, label = t(field)) {
+    const hex =
+      value[field] ??
+      (field === "gradientEnd" ? value.primary : value.secondary);
     return (
-      value[key] ??
-      (key === "gradientEnd" || key === "footerColor"
-        ? value.primary
-        : value.secondary)
+      <div className={styles.modeRow} key={field}>
+        <strong>{label}</strong>
+        <BrandingColorPicker
+          label={label}
+          value={hex}
+          palette={palette}
+          onSelect={(next) => change({ [field]: next })}
+        />
+      </div>
     );
   }
-  function openEditor(target: Editor) {
-    setEditor(target);
-    setPicker(null);
-  }
-  function swatch(field: ColorKey, open: () => void) {
-    return (
-      <button
-        type="button"
-        className={styles.swatch}
-        onClick={open}
-        aria-label={t(field)}
-      >
-        <span style={{ backgroundColor: color(field) }} />
-        {color(field)}
-      </button>
-    );
-  }
-  function dismiss() {
-    if (picker) setPicker(null);
-    else if (editor) setEditor(null);
-    else onClose();
-  }
+
   if (upload.isOpen)
     return (
       <BrandingUploadDialog
         kind="logo"
         identityAsset={identity}
+        initialImage={identity === "wordmark" ? value.wordmark : value.logo}
         onClose={upload.closeModal}
         onSelect={(image) => {
           change({ [identity === "wordmark" ? "wordmark" : "logo"]: image });
@@ -93,12 +85,12 @@ export default function SetupBrandingDialog({
         }}
       />
     );
+
   return (
     <BrandingDialogFrame
       title={t("branding")}
       variant="settings"
       onClose={onClose}
-      onEscape={dismiss}
       actions={
         <>
           <button type="button" onClick={onClose}>
@@ -107,7 +99,7 @@ export default function SetupBrandingDialog({
           <button
             type="button"
             onClick={() => {
-              if (!eventBrandingSchema.safeParse(value).success)
+              if (!eventBrandingEditSchema.safeParse(value).success)
                 setError("invalidBrand");
               else if (onSave(value)) onClose();
               else setError("saveError");
@@ -117,181 +109,136 @@ export default function SetupBrandingDialog({
           </button>
         </>
       }
-      sidecarKind={editor === "identity" ? "identity" : "material"}
-      sidecar={
-        editor && (
-          <>
-            <div className={styles.sideHeading}>
-              <h3>
-                {visual("materialPreview", {
-                  name: t(editor === "identity" ? identity : editor),
-                })}
-              </h3>
-              <button
-                type="button"
-                aria-label={visual("closePreview")}
-                onClick={() => {
-                  setEditor(null);
-                  setPicker(null);
-                }}
-              >
-                <BrandingIcon name="close" size={18} />
-              </button>
-            </div>
-            {editor === "identity" ? (
-              <div className={styles.identitySample}>
-                <strong>{t(identity)}</strong>
-                <div className={styles.identityHeader}>
-                  {asset && (
-                    <Image
-                      unoptimized
-                      src={asset.url}
-                      alt={asset.name}
-                      width={220}
-                      height={54}
-                    />
-                  )}
-                  {(identity === "icon" || !asset) && (
-                    <div>
-                      <strong>{value.organizer || "EventSurvey"}</strong>
-                      {value.tagline && <small>{value.tagline}</small>}
-                    </div>
-                  )}
-                </div>
-                <div className={styles.identityContext}>
-                  {t("yourEvent")}
-                  <span />
-                  <span />
-                </div>
-              </div>
-            ) : (
-              <BrandingMaterialPreview branding={value} bannerUrl={bannerUrl} />
-            )}
-            {editor === "background" ? (
-              <>
-                {mode === "gradient" && (
-                  <p className={styles.colorLabel}>{visual("startColor")}</p>
-                )}
-                {swatch("secondary", () => setPicker("secondary"))}
-                {mode === "gradient" && (
-                  <>
-                    <p className={styles.colorLabel}>{t("gradientEnd")}</p>
-                    {swatch("gradientEnd", () => setPicker("gradientEnd"))}
-                    <button
-                      type="button"
-                      className={styles.control}
-                      onClick={() =>
-                        change({
-                          gradientAngle: value.gradientAngle === 90 ? 0 : 90,
-                        })
-                      }
-                    >
-                      {visual(
-                        value.gradientAngle === 90 ? "horizontal" : "vertical",
-                      )}
-                    </button>
-                  </>
-                )}
-              </>
-            ) : (
-              editor !== "identity" && swatch(editor, () => setPicker(editor))
-            )}
-            {picker && (
-              <BrandingColorPicker
-                key={picker}
-                embedded
-                colorKey={
-                  picker === "gradientEnd"
-                    ? "secondary"
-                    : picker === "footerColor"
-                      ? "primary"
-                      : picker
-                }
-                value={color(picker)}
-                onSelect={(hex) => selectColor(picker, hex)}
-                onClose={() => setPicker(null)}
-              />
-            )}
-          </>
-        )
-      }
     >
-      <div className={styles.settings}>
-        <BrandingIdentitySection
-          value={value}
-          change={change}
-          onPreview={() => openEditor("identity")}
-          onUpload={upload.openModal}
-        />
-        <section>
-          <h3>
-            <BrandingIcon name="photograph" />
-            {t("background")}
-          </h3>
-          <div className={styles.modeRow}>
-            <strong>{visual("mode")}</strong>
-            <div className={styles.segments}>
-              {(["solid", "gradient", "blur"] as const).map((next) => (
+      <div className={styles.settingsLayout}>
+        <div
+          className={styles.settings}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              event.target instanceof HTMLInputElement &&
+              event.target.type !== "color"
+            )
+              event.preventDefault();
+          }}
+        >
+          <BrandingIdentitySection
+            value={value}
+            change={change}
+            onUpload={upload.openModal}
+          />
+          <section>
+            <h3>
+              <BrandingIcon name="photograph" />
+              {t("background")}
+            </h3>
+            <div className={styles.modeRow}>
+              <strong>{visual("mode")}</strong>
+              <div
+                className={styles.segments}
+                role="group"
+                aria-label={visual("mode")}
+              >
+                {(["solid", "gradient", "blur"] as const).map((next) => (
+                  <button
+                    type="button"
+                    className={styles.control}
+                    key={next}
+                    disabled={next === "blur" && !bannerUrl}
+                    aria-pressed={next === mode}
+                    onClick={() => change({ backgroundMode: next })}
+                  >
+                    {visual(next)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {colorControl(
+              "secondary",
+              mode === "gradient" ? visual("startColor") : undefined,
+            )}
+            {mode === "gradient" && (
+              <>
+                {colorControl("gradientEnd")}
                 <button
                   type="button"
                   className={styles.control}
-                  key={next}
-                  disabled={next === "blur" && !bannerUrl}
-                  aria-pressed={next === mode}
-                  onClick={() => {
-                    change({ backgroundMode: next });
-                    openEditor("background");
-                  }}
+                  onClick={() =>
+                    change({
+                      gradientAngle: value.gradientAngle === 90 ? 0 : 90,
+                    })
+                  }
                 >
-                  {visual(next)}
+                  {visual(
+                    value.gradientAngle === 90 ? "horizontal" : "vertical",
+                  )}
                 </button>
-              ))}
-            </div>
-          </div>
-        </section>
-        <section>
-          <h3>
-            <BrandingIcon name="palette" />
-            {visual("headerFooter")}
-          </h3>
-          <div className={styles.transparent}>
-            <button
-              className={styles.control}
-              type="button"
-              aria-pressed={!!value.transparentChrome}
-              onClick={() =>
-                change({ transparentChrome: !value.transparentChrome })
-              }
-            >
-              <span aria-hidden />
-              {visual("transparent")}
-              {value.transparentChrome && <b aria-hidden>✓</b>}
-            </button>
-            <p>
-              {t("transparent")}
-              {value.transparentChrome && mode === "gradient" && (
-                <small>{visual("continuous")}</small>
-              )}
+              </>
+            )}
+          </section>
+          <section>
+            <h3>
+              <BrandingIcon name="palette" />
+              {visual("headerFooter")}
+            </h3>
+            <label className={styles.modeRow}>
+              <strong>{visual("transparency")}</strong>
+              <span className={styles.opacityControl}>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={transparency}
+                  aria-valuetext={`${transparency}%`}
+                  onChange={(event) => {
+                    const next = 100 - event.currentTarget.valueAsNumber;
+                    change({
+                      chromeOpacity: next,
+                      transparentChrome: next === 0,
+                    });
+                  }}
+                />
+                <span aria-hidden="true">{transparency}%</span>
+              </span>
+            </label>
+            {(["primary", "footerColor", "accent"] as const).map((field) =>
+              colorControl(field),
+            )}
+          </section>
+        </div>
+        <section className={styles.livePreview} aria-labelledby={previewTitle}>
+          <div className={styles.previewToolbar}>
+            <h3 id={previewTitle}>{b("preview")}</h3>
+            <p className={styles.previewRatio}>
+              {t("bannerRatio")} {bannerLayouts[layout].ratio}
             </p>
           </div>
-          {!value.transparentChrome &&
-            (["primary", "footerColor"] as const).map((field) => (
-              <div className={styles.modeRow} key={field}>
-                <strong>{t(field)}</strong>
-                {swatch(field, () => openEditor(field))}
-              </div>
-            ))}
-          <div className={styles.modeRow}>
-            <strong>{t("accent")}</strong>
-            {swatch("accent", () => openEditor("accent"))}
-          </div>
+          <BrandingPreviewGallery
+            className="flex-1"
+            viewportClassName={styles.previewViewport}
+            workspace={workspace}
+            contentLocale={contentLocale}
+            draft={draft}
+            branding={value}
+            bannerUrl={bannerUrl}
+          >
+            <div className={styles.previewCanvas} data-layout={layout}>
+              <ParticipantDisplayPreview
+                contentLocale={contentLocale}
+                draft={draft}
+                branding={value}
+                bannerUrl={bannerUrl}
+              />
+            </div>
+          </BrandingPreviewGallery>
         </section>
-        {error && (
-          <p role="alert" className={styles.error}>
-            {t(error)}
-          </p>
-        )}
       </div>
+      {error && (
+        <p role="alert" className={styles.settingsError}>
+          {t(error)}
+        </p>
+      )}
     </BrandingDialogFrame>
   );
 }

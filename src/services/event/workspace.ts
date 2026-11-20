@@ -1,7 +1,7 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import {
   DEFAULT_ADMIN_MATRIX,
-  satisfiesAccessLevel,
+  viewableFormTypes,
 } from "@/core/auth/event-permissions";
 import {
   eventContentSchema,
@@ -10,7 +10,9 @@ import {
   resolveEventTranslation,
 } from "@/core/event/content";
 import { readSetupState } from "@/core/event/setup-storage";
+import { savedFormBranding } from "@/core/event/branding";
 import { canAccessEventDashboard } from "@/core/event/dashboard-policy";
+import { normalizeEventAccess } from "@/core/event/access";
 import { getEventAccessForUser } from "@/core/mock/access";
 import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
@@ -134,15 +136,39 @@ async function loadWorkspacePayload(
     (row) => row.event_id === eventId && row.form_type === "survey",
   );
   const canEditEvent = event.status === "draft" && matrix.event === "can_edit";
-  const setup = readSetupState(event);
+  const visibleTypes = options.hasAccessRow === false ? [] : viewableFormTypes(matrix);
+  const setup = readSetupState(event, visibleTypes);
+  // Platform creation accepts localized titles. A title alone does not enable a
+  // second language in a new setup. Existing translated event details stay active.
+  const titleTemplates = event.status === "draft" && !setup.publication
+    ? content.translations.filter((row) => row.localeCode !== content.defaultLocale &&
+        !row.description?.trim() && !row.locationName?.trim() && !row.floorZone?.trim())
+    : [];
+  const canAccessForms = visibleTypes.length > 0;
+  const showSetup = canEditEvent || !!setup.publication;
+  const { primary, secondary, accent, backgroundMode, gradientEnd, gradientAngle, banner } =
+    savedFormBranding(setup, locale, content.defaultLocale);
   const canManageWhitelist = matrix.registrationForm === "can_edit";
+  const eventAccess = {
+    isPrivate: event.is_private,
+    hasRegistration: event.has_registration,
+    hasSurvey: event.has_survey,
+    surveyAccess: event.survey_access,
+  };
+  const access = event.status === "draft" && !setup.publication
+    ? normalizeEventAccess(eventAccess)
+    : eventAccess;
   const whitelistEnabledForSetup =
     canManageWhitelist &&
-    (setup.draft?.isPrivate ?? event.is_private) &&
-    (setup.draft?.hasRegistration ?? event.has_registration);
+    (setup.draft?.isPrivate ?? access.isPrivate) &&
+    (setup.draft?.hasRegistration ?? access.hasRegistration);
 
   return {
-    setup: canEditEvent || setup.publication ? setup : readSetupState({}),
+    setup: showSetup ? setup : readSetupState({}),
+    formAppearance: !showSetup && canAccessForms ? {
+      primary, secondary, accent, backgroundMode, gradientEnd, gradientAngle,
+      banner: backgroundMode === "blur" ? banner : null,
+    } : undefined,
     whitelistEnabledForSetup,
     registrationCapacity: registrationSettings?.is_unlimited
       ? null
@@ -153,16 +179,18 @@ async function loadWorkspacePayload(
     canManageSurveyForm: matrix.surveyForm === "can_edit",
     canManageWhitelist,
     canEditEvent,
-    surveyAccess: event.survey_access,
-    content,
+    content: titleTemplates.length
+      ? { ...content, translations: content.translations.filter((row) => !titleTemplates.includes(row)) }
+      : content,
+    contentTitleTemplates: canEditEvent && titleTemplates.length
+      ? Object.fromEntries(titleTemplates.map((row) => [row.localeCode, row.title]))
+      : undefined,
     description: translation.description,
     locationName: translation.locationName,
     locationDetail: translation.floorZone ?? undefined,
     startsAt: event.start_at,
     endsAt: event.end_at,
-    isPrivate: event.is_private,
-    hasRegistration: event.has_registration,
-    hasSurvey: event.has_survey,
+    ...access,
     bannerUrl:
       banners.find((banner) => banner.event_id === eventId)?.banner_url ?? null,
     subUserCount: subUsers.length,
@@ -175,12 +203,10 @@ async function loadWorkspacePayload(
     canAccessDashboard:
       (options.hasAccessRow !== false) &&
       canAccessEventDashboard(event.status, matrix.dashboard, "view_only"),
-    canAccessForms:
-      (options.hasAccessRow !== false) &&
-      (satisfiesAccessLevel(matrix.registrationForm, "view_only") ||
-        satisfiesAccessLevel(matrix.surveyForm, "view_only")),
+    canAccessForms,
+    viewableFormTypes: visibleTypes,
     canViewActivity:
-      (options.hasAccessRow !== false) && matrix.canViewActivity === true,
+      (options.hasAccessRow !== false) && matrix.canViewActivity,
   };
 }
 

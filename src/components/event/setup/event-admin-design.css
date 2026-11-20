@@ -5,6 +5,7 @@
 
 /* Event Admin · Design System (491:40) and the role's canonical screen instances. */
 .event-admin-shell {
+  --es-setup-chrome-inline: clamp(1rem, 3.3vw, 1.5rem);
   --es-platform-sidebar-background: #4f3e64;
   --es-platform-sidebar-text-strong: #fff;
   --es-platform-sidebar-text-muted: #b5b3b7;
@@ -12,7 +13,7 @@
   --es-platform-sidebar-action-active: #8365a0;
   --es-green-50: #e6f6ee;
   --es-green-700: #077c44;
-  --es-background-page: #f3f1f1;
+  --es-background-page: var(--color-event-page);
   --es-background-surface: #fff;
   --es-background-surface-subtle: #f7f3fa;
   --es-action-primary: #8365a0;
@@ -28,11 +29,6 @@
   --es-banner-fill: #f8f5fa;
   --es-banner-line: #e6dfec;
   --es-banner-text: #4f3e64;
-  --es-gradient-start: #bca7ef;
-  --es-gradient-end: #b0dcfa;
-  --es-gradient-lilac: #ebd0f3;
-  --es-gradient-pink: #f8deec;
-  --es-gradient-sky: #d4e7fc;
   --overview-font-inter: var(--es-font-inter), var(--es-font-thai), sans-serif;
   --workspace-font-ui-inter: var(--overview-font-inter);
   --workspace-font-outfit: Outfit, var(--es-font-thai), sans-serif;
@@ -40,6 +36,7 @@
   color: var(--es-text-primary);
 }
 .dark .event-admin-shell {
+  --es-background-page: var(--color-gray-950);
   --es-green-50: var(--color-success-950);
   --es-green-700: var(--color-success-300);
   --es-background-surface: var(--color-gray-900);
@@ -54,31 +51,44 @@
   --es-banner-fill: var(--color-gray-800);
   --es-banner-line: var(--color-gray-700);
   --es-banner-text: var(--color-brand-300);
-  --es-gradient-start: var(--color-gray-950);
-  --es-gradient-end: var(--color-gray-900);
-  --es-gradient-lilac: var(--color-gray-950);
-  --es-gradient-pink: var(--color-gray-900);
-  --es-gradient-sky: var(--color-gray-900);
 }
 .event-admin-main {
-  background: linear-gradient(
-    to right,
-    var(--es-gradient-start),
-    var(--es-gradient-end)
-  );
+  background: var(--es-background-page);
 }
 .event-admin-main:is([data-screen="/event/publish"], [data-screen="/event/qr"]),
 .event-admin-main:has([data-published-overview]) {
   background: var(--es-background-surface);
 }
 .event-admin-body {
+  --es-content-width: 1536px;
+  --es-content-gutter: 32px;
   flex: 1;
   width: 100%;
   min-inline-size: 0;
-  max-inline-size: 1536px;
+  max-inline-size: var(--es-content-width);
   margin-inline: auto;
-  padding: 28px 32px 24px;
+  padding: 28px var(--es-content-gutter) 24px;
   font-family: var(--overview-font-inter), sans-serif;
+}
+/* Let the form's sticky action bar share the outer header's edges. Only the
+   page content and the optional recovery notice use the reading width. */
+.event-admin-body:has(> .es-setup-form) {
+  display: flex;
+  flex-direction: column;
+  max-inline-size: none;
+  padding-inline: 0;
+  padding-block-end: 0;
+}
+.event-admin-body > .es-setup-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.es-setup-form > :not(.es-setup-actionbar),
+.event-admin-body:has(> .es-setup-form) > section {
+  inline-size: calc(min(100%, var(--es-content-width)) - 2 * var(--es-content-gutter));
+  margin-inline: auto;
 }
 .event-admin-main:is([data-screen="/event/publish"], [data-screen="/event/qr"])
   .event-admin-body {
@@ -145,11 +155,20 @@
 }
 @media (max-width: 639px) {
   .event-admin-body {
-    padding: 16px 12px;
+    --es-content-gutter: 12px;
+    padding: 16px var(--es-content-gutter);
   }
   .event-overview-sheet,
   .event-details-sheet {
     padding: 16px;
     gap: 18px;
   }
+}
+
+.es-setup-primary {
+  background-color: var(--color-event-action);
+  color: var(--color-white);
+}
+.es-setup-primary:enabled:hover {
+  background-color: color-mix(in srgb, var(--color-event-action) 90%, transparent);
 }

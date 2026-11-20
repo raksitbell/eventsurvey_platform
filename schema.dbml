@@ -86,7 +86,9 @@ Enum field_type {
 }
 
 Enum submission_status {
+  pending
   submitted
+  cancelled
   soft_deleted
 }
 
@@ -413,6 +415,7 @@ Table whitelist_entries [headercolor: #D97706] {
   normalized_unique_value varchar(500) [not null]
   status whitelist_entry_status [not null, default: 'available']
   used_at timestamptz
+  participant_submission_id uuid [ref: > form_submissions.id]
   created_at timestamptz [not null]
   deleted_at timestamptz
 
@@ -426,7 +429,9 @@ Table whitelist_entries [headercolor: #D97706] {
     leaves the current list unchanged. After confirmation, unused current entries are
     replaced by the uploaded values. Entries already used by Registrations remain only
     to preserve references and are excluded from the active eligibility list. Import
-    history is not retained.
+    history is not retained. New participant writes link the current registration
+    in participant_submission_id. Count that entry as used once the linked
+    registration is submitted and active. Legacy used entries omit the link.
   '''
 }
 
@@ -437,38 +442,65 @@ Table whitelist_entries [headercolor: #D97706] {
 Table form_submissions [headercolor: #059669] {
   id uuid [pk]
   form_id uuid [not null, ref: > forms.id]
+  event_id uuid [ref: > events.id]
+  participant_kind form_type
+  participant_sequence bigint
+  participant_request char(64)
+  participant_fingerprint char(64)
+  participant_unique char(64)
+  registration_submission_id uuid [ref: > form_submissions.id]
+  receipt_expires_at timestamptz
+  pending_write jsonb
   status submission_status [not null, default: 'submitted']
   submitted_language varchar(35)
   submitted_at timestamptz [not null]
+  cancelled_by_user_id uuid [ref: > users.id]
+  cancelled_at timestamptz
   deleted_by_user_id uuid [ref: > users.id]
   deleted_at timestamptz
 
   indexes {
     (form_id, submitted_at)
     (form_id, status, submitted_at)
+    (form_id, participant_sequence) [unique]
+    (event_id, form_id, participant_request) [unique]
+    (form_id, participant_unique)
+    (form_id, registration_submission_id)
     (deleted_at)
   }
 
   Note: '''
     Shared submission header for Registration and Survey. Registration submissions
     additionally have one registrations row. Survey submissions are identified through
-    forms.type = survey and require no subtype table.
+    forms.type = survey and require no subtype table. A registered-only survey
+    links its completed registration in registration_submission_id.
+
+    Participant writes reserve the next form sequence with a deterministic primary
+    key. A pending row temporarily holds the validated answer values, option IDs
+    and registration details needed for idempotent recovery. Clear pending_write
+    once all related records are durable. Counts, receipts and reports use active
+    submitted rows. Private request and payload digests bind retries to the same
+    intent. Participant_unique is a keyed digest for the form's unique field.
+    These storage fields stay server-side. Legacy submissions may omit them.
   '''
 }
 
 Table registrations [headercolor: #D97706] {
   submission_id uuid [pk, ref: - form_submissions.id]
-  whitelist_entry_id uuid [unique, ref: > whitelist_entries.id]
+  whitelist_entry_id uuid [ref: > whitelist_entries.id]
   confirmation_code varchar(6) [not null]
 
   indexes {
     (confirmation_code)
+    (whitelist_entry_id)
   }
 
   Note: '''
     Registration is never anonymous. A deleted Registration cannot be restored,
     releases its Whitelist entry, and does not consume Capacity. Deletion status
     is read from form_submissions.status to avoid duplicate state columns.
+    When the entry is reused, the previous registration keeps its historical
+    link. JSON Server uses the submission ID as the physical row ID.
   '''
 }
 
@@ -491,7 +523,8 @@ Table submission_answers [headercolor: #059669] {
   }
 
   Note: '''
-    Use exactly one typed value column according to form_fields.type. Radio, Dropdown,
+    Use the typed value column for form_fields.type. The date-and-time picker stores
+    its Bangkok wall date in value_date and time in value_time. Radio, Dropdown,
     and Checkbox values are stored in answer_option_selections instead of text.
     This structure is the primary source for Dashboard aggregation and Export.
   '''
@@ -506,7 +539,7 @@ Table answer_option_selections [headercolor: #059669] {
     (option_id, answer_id)
   }
 
-  Note: 'One row for Radio/Dropdown; multiple rows for Checkbox.'
+  Note: 'Radio and Dropdown store one option. Checkbox can store several. JSON Server derives the physical row ID from the answer and option IDs.'
 }
 
 ////////////////////////////////////////////////////

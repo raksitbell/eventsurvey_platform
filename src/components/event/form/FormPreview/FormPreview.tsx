@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 import { useTranslations } from "next-intl";
+import { completeFormLocale, hasCompleteFormTranslation } from "@/core/forms/content";
 import { Form, FormLocale, Question, QuestionType } from "@/types/event/form";
 import PreviewTopBar from "./PreviewTopBar";
 import PreviewHeaderCard from "./PreviewHeaderCard";
@@ -13,8 +14,9 @@ interface FormPreviewProps {
   form: Form;
   hasEnglish?: boolean;
   onExitPreview: () => void;
-  /** When false, exit returns to the forms list instead of the editor. */
+  /** When false, exit returns to the source page. */
   allowEdit?: boolean;
+  backLabel?: string;
 }
 
 /**
@@ -41,11 +43,15 @@ export default function FormPreview({
   hasEnglish = false,
   onExitPreview,
   allowEdit = true,
+  backLabel,
 }: FormPreviewProps) {
   const tPreview = useTranslations("form.preview");
 
-  const [previewLocale, setPreviewLocale] = useState<FormLocale>("th");
+  const [previewLocale, setPreviewLocale] = useState<FormLocale>(() => completeFormLocale(form, "th") ?? "th");
   const activeLocale: FormLocale = hasEnglish ? previewLocale : "th";
+  // Incomplete drafts can still be inspected in either language.
+  const canSwitchLanguage = hasEnglish &&
+    (allowEdit || hasCompleteFormTranslation(form, "th") === hasCompleteFormTranslation(form, "en"));
   const currentHead = form.head[activeLocale];
 
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
@@ -244,29 +250,31 @@ export default function FormPreview({
     return (
       <PreviewSubmittedCard
         title={currentHead.title}
-        hasEnglish={hasEnglish}
+        hasEnglish={canSwitchLanguage}
         previewLocale={activeLocale}
         onChangeLocale={setPreviewLocale}
         onResetForm={clearForm}
         onExitPreview={onExitPreview}
         allowEdit={allowEdit}
+        backLabel={backLabel}
       />
     );
   }
 
   return (
-    <div className="font-sans min-h-screen px-3 pt-4 pb-20 text-gray-800 sm:px-6 sm:pt-8 dark:text-gray-100">
+    <div className="event-form-surface font-sans min-h-screen px-3 pt-4 pb-20 text-gray-800 sm:px-6 sm:pt-8 dark:text-gray-100">
       <div className="mx-auto max-w-2xl">
         {/* Top bar to return to editor or forms list */}
         <PreviewTopBar
           onExitPreview={onExitPreview}
           allowEdit={allowEdit}
-          hasEnglish={hasEnglish}
+          backLabel={backLabel}
+          hasEnglish={canSwitchLanguage}
           previewLocale={activeLocale}
           onChangeLocale={setPreviewLocale}
         />
 
-        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} noValidate className="event-form-paper flex flex-col gap-4">
           {/* 1. Header Card */}
           <PreviewHeaderCard
             title={currentHead.title}

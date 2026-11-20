@@ -3,25 +3,38 @@
 import useEventBranding from "@/hooks/useEventBranding";
 import type { EventSetupPageProps } from "@/components/event/setup/EventSetupBoundary";
 import PublishedOverview from "@/components/event/qr/PublishedOverview";
+import { PublicationStatus } from "@/components/event/qr/PublishedEventSummary";
 import EventWorkspaceCard from "@/components/event/workspace/EventWorkspaceCard";
 import Button from "@/components/ui/button/Button";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
 import useEventWorkspace from "@/hooks/useEventWorkspace";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
+import EventWorkspacePageHeader from "./EventWorkspacePageHeader";
 
-function WorkspaceCard({ workspace, userId, locale }: EventSetupPageProps) {
+function WorkspaceCard({ workspace, userId, locale, published }: EventSetupPageProps & { published: boolean }) {
   const { branding } = useEventBranding(workspace, userId, locale);
-  if (workspace.setup?.publication || workspace.localPublishedAt)
+  if (published)
     return <PublishedOverview workspace={workspace} branding={branding} />;
   return <EventWorkspaceCard workspace={workspace} banner={branding.banner} />;
 }
 export default function EventWorkspacePanel() {
   const t = useTranslations("eventHome");
+  const overview = useTranslations("eventPublishedView");
   const { workspace, error, loading, retry, identity, userId, locale } =
     useEventWorkspace();
+  const published = !loading && !error && !!userId &&
+    !!(workspace?.setup?.publication || workspace?.localPublishedAt);
   return (
     <div className="space-y-6 rounded-2xl dark:bg-gray-950">
+      <EventWorkspacePageHeader
+        title={overview("overview")}
+        description={published ? overview("readOnly") : t("description")}
+        back={false}
+        action={published && workspace && (
+          <PublicationStatus closed={workspace.eventStatus === "closed" && !workspace.localPublishedAt} />
+        )}
+      />
       {loading ? (
         <WorkspaceSkeleton label={t("loading")} />
       ) : error ? (
@@ -39,6 +52,7 @@ export default function EventWorkspacePanel() {
       ) : workspace && userId ? (
         <WorkspaceCard
           key={identity}
+          published={published}
           workspace={workspace}
           userId={userId}
           locale={locale}

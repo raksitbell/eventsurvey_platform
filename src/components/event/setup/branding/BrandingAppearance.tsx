@@ -10,11 +10,13 @@ import { useState } from "react";
 
 interface BrandingAppearanceProps {
   branding: EventBranding;
+  bannerUrl: string | null;
   readOnly: boolean;
   onChange: (changes: Partial<EventBranding>) => boolean;
 }
 export default function BrandingAppearance({
   branding,
+  bannerUrl,
   readOnly,
   onChange,
 }: BrandingAppearanceProps) {
@@ -28,6 +30,7 @@ export default function BrandingAppearance({
       </h2>
       <BrandingThemeCustomization
         branding={branding}
+        bannerUrl={bannerUrl}
         readOnly={readOnly}
         onChange={onChange}
       />
@@ -86,6 +89,7 @@ export default function BrandingAppearance({
       {isOpen && (
         <BrandingUploadDialog
           kind={kind}
+          initialImage={kind === "logo" ? branding.logo : null}
           onClose={closeModal}
           onSelect={(image) => {
             if (!onChange({ [kind]: image })) return false;

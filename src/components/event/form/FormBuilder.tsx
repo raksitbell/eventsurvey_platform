@@ -1,19 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import {
-  ArrowPathIcon,
   CheckCircleIcon,
   EyeIcon,
   LockClosedIcon,
   PlusIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspacePageHeader";
 import Skeleton from "@/components/ui/skeleton/Skeleton";
+import { useConfirm } from "@/hooks/useConfirm";
+import useWhitelistNavigationGuard from "@/hooks/useWhitelistNavigationGuard";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
+import { canToggleUniqueField, supportsUniqueField } from "@/core/forms/unique-field";
+import { completeFormLocale } from "@/core/forms/content";
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
 import {
   Choice,
@@ -28,7 +32,6 @@ import {
   QUESTIONS_TYPES,
   QuestionType,
   RATING_DISPLAY,
-  UNIQUE_QUESTION_TYPES,
 } from "@/types/event/form";
 import type { EventWorkspace } from "@/types/event/workspace";
 import { showToast } from "@/utils/alert";
@@ -36,6 +39,9 @@ import FormHeaderCard from "./FormHeaderCard";
 import QuestionCard from "./QuestionCard";
 import FloatingToolbar from "./FloatingToolbar";
 import FormPreview from "./FormPreview/FormPreview";
+
+const builderSurface =
+  "event-form-surface font-outfit min-h-screen px-3 pb-24 text-gray-800 sm:px-6 md:px-8 md:pb-8 dark:text-gray-100";
 
 const CHOICE_QUESTION_TYPES: QuestionType[] = [
   "multiple_choice",
@@ -52,6 +58,8 @@ const PERSISTED_CHOICE_TYPES = new Set<QuestionType>([
 
 const KNOWN_FORM_ERROR_CODES = new Set([
   "FORM_SCHEDULE_REQUIRED",
+  "FORM_SCHEDULE_IN_PAST",
+  "DATE_RANGE_INVALID",
   "FORM_NOT_READY",
   "FORM_NOT_EDITABLE",
   "FORM_NOT_DELETABLE",
@@ -60,6 +68,8 @@ const KNOWN_FORM_ERROR_CODES = new Set([
   "INVALID_FORM_STATUS_TRANSITION",
   "FORM_TYPE_EXISTS",
   "FORM_TYPE_NOT_ENABLED",
+  "FORM_UNIQUE_FIELD_LIMIT",
+  "FORM_UNIQUE_FIELD_TYPE",
   "FORM_NOT_FOUND",
   "EVENT_NOT_FOUND",
   "FORBIDDEN",
@@ -74,30 +84,6 @@ const KNOWN_FORM_ERROR_CODES = new Set([
   "MOCK_READ_ONLY",
   "MOCK_API_ERROR",
 ]);
-
-function toFlatpickrDateTime(raw: string | null | undefined): string {
-  if (!raw) return "";
-  const trimmed = raw.trim();
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(trimmed)) return trimmed;
-  const d = new Date(trimmed);
-  if (Number.isNaN(d.getTime())) return trimmed;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
-}
-
-function toApiIsoDateTime(raw: string | null | undefined): string | null {
-  const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  const normalized = trimmed.includes("T")
-    ? trimmed
-    : trimmed.replace(" ", "T");
-  const d = new Date(normalized);
-  return Number.isNaN(d.getTime()) ? trimmed : d.toISOString();
-}
 
 function createChoicePair(order: number): { th: Choice; en: Choice } {
   const id = crypto.randomUUID();
@@ -159,13 +145,25 @@ function createQuestion(order: number): Question {
   };
 }
 
-export default function FormBuilder({ type }: { type: FormType }) {
+export default function FormBuilder({
+  type,
+  insideSetup = false,
+  backHref,
+  backLabel,
+}: {
+  type: FormType;
+  insideSetup?: boolean;
+  backHref?: string;
+  backLabel?: string;
+}) {
   const t = useTranslations("form");
   const tbuilder = useTranslations("form.builder");
   const terrors = useTranslations("form.errors");
-  const tcommon = useTranslations("common");
+  const tSetup = useTranslations("eventSetup");
   const router = useRouter();
+  const { confirmSaveChanges } = useConfirm();
   const { user } = useAuth();
+  const returnHref = backHref ?? (insideSetup ? "/event/details" : "/event/form");
 
   const resolveErrorMessage = useCallback(
     (err: unknown, fallback: string): string => {
@@ -197,10 +195,13 @@ export default function FormBuilder({ type }: { type: FormType }) {
   const [canEdit, setCanEdit] = useState<boolean>(true);
   /** Permission matrix is view_only — stay in FormPreview; never reopen editor. */
   const [previewOnly, setPreviewOnly] = useState<boolean>(false);
-  const [canChangeStatus, setCanChangeStatus] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
+  const [loadedEditableForm, setLoadedEditableForm] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const saving = useRef(false);
+  const deciding = useRef(false);
   const serverQuestionIdsRef = useRef<Set<string>>(new Set());
   const serverChoiceIdsRef = useRef<Set<string>>(new Set());
 
@@ -222,11 +223,14 @@ export default function FormBuilder({ type }: { type: FormType }) {
         },
       },
       type,
-      opens_at: "",
-      closes_at: "",
+      opens_at: null,
+      closes_at: null,
       questions: [firstQuestion],
     };
   });
+
+  const currentSnapshot = useMemo(() => JSON.stringify([form, hasEnglish]), [form, hasEnglish]);
+  const dirty = type === "survey" && !isLoading && loadedEditableForm && canEdit && currentSnapshot !== savedSnapshot;
 
   const [isPreview, setIsPreview] = useState<boolean>(false);
   const [activeSectionId, setActiveSectionId] = useState<string>(
@@ -252,13 +256,14 @@ export default function FormBuilder({ type }: { type: FormType }) {
   } | null>(null);
 
   const applyServerRecord = useCallback(
-    (record: FormRecord, preserveHasEnglish = false) => {
+    (record: FormRecord, editorEnglish?: boolean) => {
       const qIds = new Set<string>();
       const cIds = new Set<string>();
+      const hasEnglishTranslation = (en?: string, th?: string) =>
+        Boolean(en?.trim()) && en?.trim() !== th?.trim();
       let detectedEnglishDiff =
-        record.head.en.title.trim() !== record.head.th.title.trim() ||
-        record.head.en.description.trim() !==
-          record.head.th.description.trim();
+        hasEnglishTranslation(record.head.en.title, record.head.th.title) ||
+        hasEnglishTranslation(record.head.en.description, record.head.th.description);
 
       const normalizedQuestions: Question[] = (
         record.questions.length > 0 ? record.questions : [createQuestion(1)]
@@ -270,9 +275,10 @@ export default function FormBuilder({ type }: { type: FormType }) {
         const enLbl = q.label.en[0];
         const thLbl = q.label.th[0];
         if (
-          (enLbl?.label ?? "").trim() !== (thLbl?.label ?? "").trim() ||
-          (enLbl?.scale_min_label ?? "") !== (thLbl?.scale_min_label ?? "") ||
-          (enLbl?.scale_max_label ?? "") !== (thLbl?.scale_max_label ?? "")
+          hasEnglishTranslation(enLbl?.label, thLbl?.label) ||
+          hasEnglishTranslation(enLbl?.placeholder, thLbl?.placeholder) ||
+          hasEnglishTranslation(enLbl?.scale_min_label, thLbl?.scale_min_label) ||
+          hasEnglishTranslation(enLbl?.scale_max_label, thLbl?.scale_max_label)
         ) {
           detectedEnglishDiff = true;
         }
@@ -295,9 +301,9 @@ export default function FormBuilder({ type }: { type: FormType }) {
             const enC = rawEnChoices[i];
             const thC = rawThChoices[i];
             const sharedId = enC?.id || thC?.id || crypto.randomUUID();
-            const thText = thC?.label ?? enC?.label ?? `Option ${i + 1}`;
-            const enText = enC?.label ?? thC?.label ?? `Option ${i + 1}`;
-            if (thText !== enText) detectedEnglishDiff = true;
+            const thText = thC?.label ?? "";
+            const enText = enC?.label ?? "";
+            if (hasEnglishTranslation(enText, thText)) detectedEnglishDiff = true;
             thList.push({
               id: sharedId,
               label: thText,
@@ -336,7 +342,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
               ],
               en: [
                 {
-                  label: enLbl?.label ?? thLbl?.label ?? "",
+                  label: enLbl?.label ?? "",
                   placeholder: enLbl?.placeholder ?? thLbl?.placeholder ?? "",
                   scale_min_label:
                     enLbl?.scale_min_label ?? thLbl?.scale_min_label ?? "",
@@ -356,20 +362,18 @@ export default function FormBuilder({ type }: { type: FormType }) {
       setFormId(record.id);
       setFormStatus(record.status);
       setCanEdit(record.canEdit);
-      setCanChangeStatus(record.canChangeStatus);
-      if (!preserveHasEnglish) {
+      if (editorEnglish === undefined) {
         setHasEnglish(detectedEnglishDiff);
+        setMobileTab(completeFormLocale(record, "th") ?? "th");
       }
 
       const defaultTitle =
         record.type === "registration" ? t("registration") : t("survey");
-      const thTitle =
-        record.head.th.title.trim() ||
-        record.head.en.title.trim() ||
-        defaultTitle;
-      const enTitle = record.head.en.title.trim() || thTitle;
+      const thTitle = record.head.th.title.trim() ||
+        (record.head.en.title.trim() ? "" : defaultTitle);
+      const enTitle = record.head.en.title.trim();
 
-      setForm({
+      const editorForm: Form = {
         id: record.id,
         type: record.type,
         head: {
@@ -382,10 +386,12 @@ export default function FormBuilder({ type }: { type: FormType }) {
             description: record.head.en.description,
           },
         },
-        opens_at: toFlatpickrDateTime(record.opensAt ?? record.opens_at),
-        closes_at: toFlatpickrDateTime(record.closesAt ?? record.closes_at),
+        opens_at: record.opensAt ?? record.opens_at ?? null,
+        closes_at: record.closesAt ?? record.closes_at ?? null,
         questions: normalizedQuestions,
-      });
+      };
+      setForm(editorForm);
+      setSavedSnapshot(JSON.stringify([editorForm, editorEnglish ?? detectedEnglishDiff]));
 
       setActiveSectionId(normalizedQuestions[0]?.question.id ?? "header");
     },
@@ -398,6 +404,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
 
     async function loadInitial() {
       setIsLoading(true);
+      setLoadedEditableForm(false);
       try {
         const ws = await api.get<EventWorkspace>("/event/workspace");
         if (cancelled) return;
@@ -434,6 +441,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
         if (existing) {
           applyServerRecord(existing);
         }
+        setLoadedEditableForm(true);
       } catch (err) {
         if (!cancelled) {
           showToast({
@@ -467,13 +475,15 @@ export default function FormBuilder({ type }: { type: FormType }) {
     return () => window.removeEventListener("resize", updatePosition);
   }, [activeSectionId, form.questions, hasEnglish, mobileTab]);
 
-  const buildPayloadForApi = (currentForm: Form, isUpdate: boolean): Form => {
+  const buildPayloadForApi = (
+    currentForm: Form,
+    isUpdate: boolean,
+  ): Omit<Form, "opens_at" | "closes_at"> => {
     const fallbackTitle =
       type === "registration" ? t("registration") : t("survey");
-    const thTitle = currentForm.head.th.title.trim() || fallbackTitle;
-    const enTitle = hasEnglish
-      ? currentForm.head.en.title.trim() || thTitle
-      : thTitle;
+    const englishTitle = hasEnglish ? currentForm.head.en.title.trim() : "";
+    const thTitle = currentForm.head.th.title.trim() || (englishTitle ? "" : fallbackTitle);
+    const enTitle = hasEnglish ? englishTitle : thTitle;
     const thDesc = currentForm.head.th.description;
     const enDesc = hasEnglish ? currentForm.head.en.description : thDesc;
 
@@ -573,118 +583,74 @@ export default function FormBuilder({ type }: { type: FormType }) {
         en: { title: enTitle, description: enDesc },
         th: { title: thTitle, description: thDesc },
       },
-      opens_at: toApiIsoDateTime(currentForm.opens_at),
-      closes_at: toApiIsoDateTime(currentForm.closes_at),
       questions: mappedQuestions,
     };
   };
 
-  const handleSave = async (silent = false): Promise<FormRecord | null> => {
-    if (!eventId) return null;
+  const handleSave = async (leaving = false): Promise<boolean> => {
+    if (!eventId || !canEdit || !loadedEditableForm || saving.current) return false;
+    saving.current = true;
     setIsSaving(true);
-
+    const reportSaveError = (error: unknown) => {
+      showToast({ title: resolveErrorMessage(error, tbuilder("saveError")), variant: "error" });
+      return false;
+    };
     try {
+      const create = () => api.post<FormRecord>("/event/forms", {
+        ...buildPayloadForApi(form, false),
+        eventId,
+      });
       let saved: FormRecord;
       if (!formId) {
-        const payload = buildPayloadForApi(form, false);
-        saved = await api.post<FormRecord>("/event/forms", {
-          ...payload,
-          eventId,
-        });
+        saved = await create();
       } else {
         try {
-          const payload = buildPayloadForApi(form, true);
-          saved = await api.put<FormRecord>(`/event/forms/${formId}`, payload);
-        } catch (putErr) {
-          if (
-            putErr instanceof ApiError &&
-            (putErr.status === 404 ||
-              putErr.code === "FORM_NOT_FOUND" ||
-              putErr.code === "QUESTION_NOT_OWNED_BY_FORM" ||
-              putErr.code === "OPTION_NOT_OWNED_BY_QUESTION")
-          ) {
-            const createPayload = buildPayloadForApi(form, false);
-            saved = await api.post<FormRecord>("/event/forms", {
-              ...createPayload,
-              eventId,
-            });
-          } else {
-            showToast({
-              title: resolveErrorMessage(putErr, tbuilder("saveError")),
-              variant: "error",
-            });
-            return null;
-          }
+          saved = await api.put<FormRecord>(`/event/forms/${formId}`, buildPayloadForApi(form, true));
+        } catch (err) {
+          // Explicit draft Save supports recovery from stale server IDs. Returning
+          // from the editor needs a successful update of the original form.
+          const staleId = err instanceof ApiError && (
+            err.status === 404 || err.code === "FORM_NOT_FOUND" ||
+            err.code === "QUESTION_NOT_OWNED_BY_FORM" || err.code === "OPTION_NOT_OWNED_BY_QUESTION"
+          );
+          if (leaving || !staleId) return reportSaveError(err);
+          saved = await create();
         }
       }
-
-      applyServerRecord(saved, true);
-      if (!silent) {
-        showToast({ title: tbuilder("saveSuccess"), variant: "success" });
-      }
-      return saved;
+      applyServerRecord(saved, hasEnglish);
+      showToast({ title: tbuilder("saveSuccess"), variant: "success" });
+      return true;
     } catch (err) {
-      showToast({
-        title: resolveErrorMessage(err, tbuilder("saveError")),
-        variant: "error",
-      });
-      return null;
+      return reportSaveError(err);
     } finally {
+      saving.current = false;
       setIsSaving(false);
     }
   };
 
-  const handleToggleSchedule = async () => {
-    if (
-      formStatus === "draft" &&
-      !form.opens_at?.trim() &&
-      !form.closes_at?.trim()
-    ) {
-      showToast({
-        title: tbuilder("scheduleRequiredError"),
-        variant: "warning",
-      });
-      setActiveSectionId("header");
-      return;
-    }
-
-    setIsSaving(true);
+  const confirmLeave = async () => {
+    if (saving.current || deciding.current) return false;
+    if (!dirty) return true;
+    deciding.current = true;
     try {
-      let targetId = formId;
-      if (formStatus === "draft") {
-        // Save latest draft edits before transitioning to scheduled
-        const saved = await handleSave(true);
-        if (!saved) return;
-        targetId = saved.id;
-      }
-      if (!targetId) return;
-
-      const nextStatus = formStatus === "draft" ? "scheduled" : "draft";
-      const updated = await api.patch<FormRecord>(
-        `/event/forms/${targetId}/status`,
-        {
-          status: nextStatus,
-          opensAt: toApiIsoDateTime(form.opens_at),
-          closesAt: toApiIsoDateTime(form.closes_at),
-        },
-      );
-
-      applyServerRecord(updated, true);
-      showToast({
-        title:
-          nextStatus === "scheduled"
-            ? tbuilder("scheduleSuccess")
-            : tbuilder("revertSuccess"),
-        variant: "success",
+      const choice = await confirmSaveChanges({
+        title: tbuilder("leaveTitle"),
+        message: tbuilder("leaveMessage"),
+        confirmLabel: tbuilder("saveAndLeave"),
+        discardLabel: tbuilder("discardAndLeave"),
+        cancelLabel: tbuilder("keepEditing"),
+        appearance: "event",
       });
-    } catch (err) {
-      showToast({
-        title: resolveErrorMessage(err, tbuilder("saveError")),
-        variant: "error",
-      });
+      if (choice === "save") return await handleSave(true);
+      return choice === "discard";
     } finally {
-      setIsSaving(false);
+      deciding.current = false;
     }
+  };
+  useWhitelistNavigationGuard(dirty || (type === "survey" && isSaving), confirmLeave);
+
+  const back = async () => {
+    if (await confirmLeave()) router.push(returnHref);
   };
 
   /**
@@ -848,6 +814,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
       question: {
         ...source,
         id: newId,
+        is_unique: false,
         label: {
           th: [
             {
@@ -948,9 +915,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
 
   const updateQuestion = (id: string, nextType: QuestionType) => {
     if (!canEdit) return;
-    const isUniqueEligible = (
-      UNIQUE_QUESTION_TYPES as readonly QuestionType[]
-    ).includes(nextType);
+    const isUniqueEligible = supportsUniqueField(nextType);
 
     setForm((prev) => ({
       ...prev,
@@ -1027,20 +992,19 @@ export default function FormBuilder({ type }: { type: FormType }) {
 
   const toggleUnique = (id: string) => {
     if (!canEdit) return;
-    setForm((prev) => ({
-      ...prev,
-      questions: prev.questions.map((item) =>
-        item.question.id === id
-          ? {
-              ...item,
-              question: {
-                ...item.question,
-                is_unique: !item.question.is_unique,
-              },
-            }
-          : item,
-      ),
-    }));
+    setForm((prev) => {
+      const field = prev.questions.find(({ question }) => question.id === id)?.question;
+      const hasUnique = prev.questions.some(({ question }) => question.is_unique);
+      if (!field || !canToggleUniqueField(field, hasUnique)) return prev;
+      return {
+        ...prev,
+        questions: prev.questions.map((item) =>
+          item.question === field
+            ? { question: { ...field, is_unique: !field.is_unique } }
+            : item,
+        ),
+      };
+    });
   };
 
   const updateQuestionRange = (id: string, min: number, max: number) => {
@@ -1430,22 +1394,6 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
-  const setOpensAt = (opensAt: string) => {
-    if (!canEdit) return;
-    setForm((prev) => ({
-      ...prev,
-      opens_at: opensAt,
-    }));
-  };
-
-  const setClosesAt = (closesAt: string) => {
-    if (!canEdit) return;
-    setForm((prev) => ({
-      ...prev,
-      closes_at: closesAt,
-    }));
-  };
-
   const setQuestionLabel = (
     id: string,
     locale: FormLocale,
@@ -1482,19 +1430,16 @@ export default function FormBuilder({ type }: { type: FormType }) {
     }));
   };
 
-  if (isLoading) {
-    return <FormBuilderSkeleton title={t("title") + t(type)} />;
-  }
-
-  if (isPreview) {
+  if (!isLoading && isPreview) {
     return (
       <FormPreview
         form={form}
         hasEnglish={hasEnglish}
         allowEdit={!previewOnly}
+        backLabel={backLabel}
         onExitPreview={() => {
           if (previewOnly) {
-            router.push("/event/form");
+            void back();
             return;
           }
           setIsPreview(false);
@@ -1503,21 +1448,40 @@ export default function FormBuilder({ type }: { type: FormType }) {
     );
   }
 
+  const pageHeader = (
+    <EventWorkspacePageHeader
+      title={tSetup(type)}
+      description={tbuilder("workspaceDescription")}
+      back={{
+        label: backLabel ?? (insideSetup ? tSetup("backSetup") : t("preview.backToForms")),
+        onClick: () => void back(),
+        disabled: isSaving,
+      }}
+    />
+  );
+  const surfaceClassName = `${builderSurface} ${insideSetup ? "pt-4 sm:pt-6 md:pt-10" : "pt-5"}`;
+  if (isLoading) {
+    return (
+      <>
+        {pageHeader}
+        <FormBuilderSkeleton className={surfaceClassName} />
+      </>
+    );
+  }
+
   const localesToRender: FormLocale[] = hasEnglish ? ["th", "en"] : ["th"];
+  const hasUniqueField = form.questions.some(({ question }) => question.is_unique);
   const containerWidthClass = hasEnglish
     ? "max-w-4xl lg:max-w-7xl"
     : "max-w-4xl";
 
-  return (
-    <div className="font-outfit min-h-screen px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100">
+  const editor = (
+    <div className={surfaceClassName} inert={isSaving} aria-busy={isSaving}>
       {/* Header Area */}
       <div
         className={`mx-auto mb-6 flex ${containerWidthClass} flex-wrap items-center justify-between gap-3 md:mb-8`}
       >
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold sm:text-2xl md:text-3xl text-white">
-            {t("title") + t(type)}
-          </h1>
           <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
             {formId ? t(`status.${formStatus}`) : t("status.draft")}
           </span>
@@ -1539,28 +1503,12 @@ export default function FormBuilder({ type }: { type: FormType }) {
           {canEdit && (
             <button
               type="button"
-              disabled={isSaving || isLoading || !eventId}
+              disabled={isSaving || isLoading || !loadedEditableForm || !eventId}
               onClick={() => void handleSave()}
-              className="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-(--participant-accent) px-4 py-2 text-sm font-medium text-(--form-on-accent) shadow-theme-xs transition-colors hover:brightness-95 disabled:opacity-50"
             >
               <CheckCircleIcon className="h-4 w-4" />
               <span>{isSaving ? tbuilder("saving") : tbuilder("save")}</span>
-            </button>
-          )}
-
-          {canChangeStatus && (formId || canEdit) && (
-            <button
-              type="button"
-              disabled={isSaving || isLoading || !eventId}
-              onClick={() => void handleToggleSchedule()}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <ArrowPathIcon className="h-4 w-4" />
-              <span>
-                {formStatus === "draft"
-                  ? tbuilder("schedule")
-                  : tbuilder("revertToDraft")}
-              </span>
             </button>
           )}
 
@@ -1571,14 +1519,6 @@ export default function FormBuilder({ type }: { type: FormType }) {
           >
             <EyeIcon className="h-4 w-4" />
             <span>{t("preview.button")}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            {tcommon("back")}
           </button>
         </div>
       </div>
@@ -1708,14 +1648,10 @@ export default function FormBuilder({ type }: { type: FormType }) {
                   showLocaleBadge
                   title={form.head[loc].title}
                   description={form.head[loc].description}
-                  opensAt={form.opens_at ?? ""}
-                  closesAt={form.closes_at ?? ""}
                   isActive={activeSectionId === "header"}
                   onSelect={() => setActiveSectionId("header")}
                   onChangeTitle={(val) => setTitle(loc, val)}
                   onChangeDescription={(val) => setDescription(loc, val)}
-                  onChangeOpensAt={setOpensAt}
-                  onChangeClosesAt={setClosesAt}
                 />
               </div>
             ))}
@@ -1794,6 +1730,7 @@ export default function FormBuilder({ type }: { type: FormType }) {
                   >
                     <QuestionCard
                       question={question}
+                      showUniqueField={canToggleUniqueField(question, hasUniqueField)}
                       locale={loc}
                       showLocaleBadge={hasEnglish}
                       isActive={activeSectionId === qId}
@@ -1879,25 +1816,23 @@ export default function FormBuilder({ type }: { type: FormType }) {
       </div>
     </div>
   );
+
+  return (
+    <>
+      {pageHeader}
+      {editor}
+    </>
+  );
 }
 
-function FormBuilderSkeleton({ title }: { title: string }) {
+function FormBuilderSkeleton({ className }: { className: string }) {
   return (
-    <div
-      className="font-outfit min-h-screen px-3 pt-4 pb-24 text-gray-800 sm:px-6 sm:pt-6 md:p-8 md:pt-10 dark:bg-gray-950 dark:text-gray-100"
-      aria-busy="true"
-    >
+    <div className={className} aria-busy="true">
       <div className="mx-auto mb-6 flex max-w-4xl flex-wrap items-center justify-between gap-3 md:mb-8">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">
-            {title}
-          </h1>
-          <Skeleton className="h-6 w-20 rounded-full" />
-        </div>
+        <Skeleton className="h-6 w-20 rounded-full" />
 
         <div className="flex flex-wrap items-center gap-2 md:me-16">
           <Skeleton className="h-9 w-28 rounded-lg" />
-          <Skeleton className="h-9 w-24 rounded-lg" />
           <Skeleton className="h-9 w-24 rounded-lg" />
           <Skeleton className="h-9 w-20 rounded-lg" />
         </div>
@@ -1906,28 +1841,18 @@ function FormBuilderSkeleton({ title }: { title: string }) {
       <div className="relative mx-auto flex max-w-4xl items-start gap-4">
         <div className="relative flex min-w-0 flex-1 flex-col gap-4">
           {/* Header Card Skeleton */}
-          <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white px-4 pt-6 pb-5 shadow-theme-xs sm:px-6 sm:pt-8 dark:border-gray-800 dark:bg-gray-900">
-            <div className="absolute top-0 start-0 h-2 w-full bg-brand-500" />
+          <div className="event-form-paper relative overflow-hidden rounded-xl border border-gray-200 bg-white px-4 pt-6 pb-5 shadow-theme-xs sm:px-6 sm:pt-8 dark:border-gray-800 dark:bg-gray-900">
+            <div className="absolute top-0 start-0 h-2 w-full bg-(--participant-accent)" />
             <Skeleton className="mb-3 h-6 w-24 rounded-full" />
             <Skeleton className="h-8 w-64 max-w-full" />
             <Skeleton className="mt-3 h-5 w-96 max-w-full" />
-            <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 sm:gap-4 dark:border-gray-800">
-              <div className="space-y-1.5">
-                <Skeleton className="h-3.5 w-24" />
-                <Skeleton className="h-10 w-full rounded-lg" />
-              </div>
-              <div className="space-y-1.5">
-                <Skeleton className="h-3.5 w-24" />
-                <Skeleton className="h-10 w-full rounded-lg" />
-              </div>
-            </div>
           </div>
 
           {/* Question Cards Skeleton */}
           {Array.from({ length: 2 }).map((_, i) => (
             <div
               key={i}
-              className="flex flex-col rounded-xl border border-gray-200 bg-white px-4 pt-3 pb-4 shadow-theme-xs sm:px-6 sm:pb-6 dark:border-gray-800 dark:bg-gray-900"
+              className="event-form-paper flex flex-col rounded-xl border border-gray-200 bg-white px-4 pt-3 pb-4 shadow-theme-xs sm:px-6 sm:pb-6 dark:border-gray-800 dark:bg-gray-900"
             >
               <div className="mb-3 flex justify-center">
                 <Skeleton className="h-3 w-8" />

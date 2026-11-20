@@ -129,6 +129,8 @@ export interface FormRecord extends Form {
 /** Service payload before the BFF attaches caller permission levels. */
 export interface FormListData {
   eventId: string;
+  /** Standalone scheduling is available for live events without a published Setup. */
+  legacyScheduleWindow: { startsAt: string | null; endsAt: string | null } | null;
   hasRegistration: boolean;
   hasSurvey: boolean;
   forms: FormRecord[];

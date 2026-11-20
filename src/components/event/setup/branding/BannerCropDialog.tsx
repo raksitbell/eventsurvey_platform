@@ -6,7 +6,6 @@ import BrandingIcon from "./BrandingIcon";
 import styles from "./BrandingDialog.module.css";
 import {
   bannerLayouts,
-  bannerObjectPosition,
   type BannerLayout,
 } from "@/core/event/banner-layout";
 import {
@@ -16,7 +15,7 @@ import {
   IMAGE_UPLOAD_ACCEPT,
 } from "@/utils/image-upload";
 import type { BrandingBanner } from "@/types/event/branding";
-import Image from "next/image";
+import BrandingCropFrame from "./BrandingCropFrame";
 
 interface Props {
   initialBanner?: Omit<BrandingBanner, "name"> & { name?: string };
@@ -39,12 +38,6 @@ export default function BannerCropDialog({
   const originalFile = useRef<File | null>(null);
   const initialUrl = initialBanner?.url;
   const initialName = initialBanner?.name;
-  const drag = useRef<{
-    start: number;
-    position: number;
-    overflow: number;
-    horizontal: boolean;
-  } | null>(null);
   const [cropping, setCropping] = useState(!!initialBanner);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<{ file: File; url: string } | null>(
@@ -127,13 +120,14 @@ export default function BannerCropDialog({
         .join(",")}
       onChange={(event) => {
         const next = event.target.files?.[0];
+        event.target.value = "";
         if (!next) return;
-        originalLoad.current?.abort();
         const issue = imageUploadError(next);
         setError(issue ?? "");
-        setFile(issue ? null : next);
+        if (issue) return;
+        originalLoad.current?.abort();
+        setFile(next);
         setPosition(50);
-        event.target.value = "";
       }}
     />
   );
@@ -172,61 +166,14 @@ export default function BannerCropDialog({
           <>
             <p>{visual("positionHint", { ratio: size.ratio })}</p>
             <div className={styles.cropStage}>
-              <div
-                className={styles.cropFrame}
-                style={{
-                  aspectRatio: size.width / size.height,
-                  width: `min(100cqw, calc((100cqh - 32px) * ${size.width / size.height}), ${(352 * size.width) / size.height}px)`,
-                }}
-                onPointerDown={(event) => {
-                  const frame = event.currentTarget;
-                  const img = frame.querySelector("img");
-                  if (busy || !img?.naturalWidth) return;
-                  const scale = Math.max(
-                    frame.clientWidth / img.naturalWidth,
-                    frame.clientHeight / img.naturalHeight,
-                  );
-                  const excessX = img.naturalWidth * scale - frame.clientWidth;
-                  const excessY =
-                    img.naturalHeight * scale - frame.clientHeight;
-                  const horizontal = excessX > excessY;
-                  drag.current = {
-                    start: horizontal ? event.clientX : event.clientY,
-                    position,
-                    overflow: Math.max(1, horizontal ? excessX : excessY),
-                    horizontal,
-                  };
-                  frame.setPointerCapture(event.pointerId);
-                }}
-                onPointerMove={(event) => {
-                  if (!drag.current) return;
-                  const { start, position, overflow, horizontal } =
-                    drag.current;
-                  const delta =
-                    (horizontal ? event.clientX : event.clientY) - start;
-                  setPosition(
-                    Math.max(
-                      0,
-                      Math.min(100, position - (100 * delta) / overflow),
-                    ),
-                  );
-                }}
-                onLostPointerCapture={() => {
-                  drag.current = null;
-                }}
-              >
-                {file && url && (
-                  <Image
-                    unoptimized
-                    fill
-                    draggable={false}
-                    src={url}
-                    alt={file.name}
-                    className="object-cover"
-                    style={{ objectPosition: bannerObjectPosition(position) }}
-                  />
-                )}
-              </div>
+              <BrandingCropFrame
+                ratio={size.width / size.height}
+                src={url}
+                name={file?.name}
+                disabled={busy}
+                position={{ x: position, y: position }}
+                onPosition={(next, axis) => setPosition(next[axis])}
+              />
               <label className={styles.cropHint}>
                 {visual("dragCrop")}
                 <span className="sr-only">{t("cropPosition")}</span>

@@ -19,6 +19,7 @@ import type { ModuleAccessLevel } from "@/types/event/permissions";
 import type { MockPermissionCode, MockUser } from "@/types/mock";
 import {
   isInspectingEvent,
+  isLegacyImpersonation,
   readAuthSession,
   type AuthSessionCookie,
 } from "./cookie";
@@ -58,7 +59,7 @@ export async function requirePortalSession(session: AuthSessionCookie | null) {
     }
   }
 
-  if (!auth.session.impersonating) {
+  if (!isLegacyImpersonation(auth.session)) {
     return { ...auth, impersonatedUser: null };
   }
   try {
@@ -84,7 +85,7 @@ export async function requireAdminSession(request: NextRequest) {
       : rejectCrossOrigin(request);
   if (crossOrigin) return crossOrigin;
   const session = readAuthSession(request);
-  if (session && !canEnterAdminArea(session.realRole, session.impersonating)) {
+  if (session && !canEnterAdminArea(session.realRole, isLegacyImpersonation(session))) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
   const auth = await requireSessionActor(session);
@@ -109,7 +110,7 @@ export async function requireEventSession(request: NextRequest) {
     !canEnterEventArea(
       session.role,
       session.realRole,
-      session.impersonating,
+      isLegacyImpersonation(session),
       session.inspectedEventId,
     )
   ) {
@@ -151,6 +152,7 @@ async function loadActiveEventUser(
 }
 
 export type EventFormAccessLevels = {
+  event: ModuleAccessLevel;
   registrationForm: ModuleAccessLevel;
   surveyForm: ModuleAccessLevel;
 };
@@ -175,6 +177,7 @@ export async function resolveEventFormAccess(
     return {
       ok: true,
       access: {
+        event: DEFAULT_ADMIN_MATRIX.event,
         registrationForm: DEFAULT_ADMIN_MATRIX.registrationForm,
         surveyForm: DEFAULT_ADMIN_MATRIX.surveyForm,
       },
@@ -189,9 +192,13 @@ export async function resolveEventFormAccess(
       loaded.user.id,
       loaded.user.event_id,
     );
+    if (!access.row) {
+      return { ok: false, response: authJson({ error: "FORBIDDEN" }, 403) };
+    }
     return {
       ok: true,
       access: {
+        event: access.matrix.event,
         registrationForm: access.matrix.registrationForm,
         surveyForm: access.matrix.surveyForm,
       },

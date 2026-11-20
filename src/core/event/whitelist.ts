@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { supportsUniqueField } from "@/core/forms/unique-field";
+import type { SetupRecord } from "@/core/event/setup-state";
 import type {
   WhitelistEntry,
   WhitelistImportPreview,
@@ -6,27 +8,31 @@ import type {
   WhitelistUniqueField,
   WhitelistUniqueKind,
 } from "@/types/event/whitelist";
-import type { FormRecord } from "@/types/event/form";
+import type { FormType, Question } from "@/types/event/form";
 import type { EventWorkspace } from "@/types/event/workspace";
 
 const email = z.email().max(500);
 const decimal = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const legacyField = { id: "legacy", type: "email" } as const;
 
+type UniqueFieldQuestion = Pick<
+  Question["question"],
+  "id" | "type" | "min_length" | "max_length" | "min_value" | "max_value"
+> & { is_unique?: boolean };
+
+interface RegistrationDefinition {
+  type: FormType;
+  questions: readonly { question: UniqueFieldQuestion }[];
+}
+
 export function whitelistUniqueField(
-  form: FormRecord,
+  form: RegistrationDefinition | null,
 ): WhitelistUniqueField | null {
-  if (form.type !== "registration") return null;
+  if (form?.type !== "registration") return null;
   const fields = form.questions.filter(({ question }) => question.is_unique);
   if (fields.length !== 1) return null;
   const { question } = fields[0];
-  if (
-    !question.id ||
-    (question.type !== "email" &&
-      question.type !== "short_text" &&
-      question.type !== "number")
-  )
-    return null;
+  if (!question.id?.trim() || !supportsUniqueField(question.type)) return null;
   const field: WhitelistUniqueField = { id: question.id, type: question.type };
   if (question.type === "short_text") {
     field.minLength = question.min_length;
@@ -85,16 +91,51 @@ export function parseWhitelistEntries(
   }
   return result;
 }
+
+/** Only the registration field the organizer saved can grant access to this list. */
+export function boundWhitelistAccess(
+  saved: SetupRecord["whitelist"],
+  registration: (RegistrationDefinition & { id: string }) | null,
+) {
+  const field = whitelistUniqueField(registration);
+  if (
+    !saved || !field || saved.formId !== registration?.id ||
+    saved.fieldId !== field.id || saved.kind !== field.type
+  ) return null;
+
+  const available = parseWhitelistEntries(saved.entries.filter((entry) => entry.status === "available"), field);
+  if (!available) return null;
+  // Previously used IDs survive field constraint changes and cannot be granted again.
+  const joined = saved.entries.filter((entry) => entry.status === "joined").map((entry) => ({
+    ...entry, uniqueId: normalizeWhitelistId(entry.uniqueId, field.type),
+  }));
+  const used = new Set(joined.map((entry) => entry.uniqueId));
+  const entries = [...joined, ...available.filter((entry) => !used.has(entry.uniqueId))];
+  return entries.length ? { field, entries } : null;
+}
+
+export function publishedWhitelistAccess(setup: Pick<SetupRecord, "publication" | "whitelist">) {
+  const snapshot = setup.publication;
+  if (!snapshot?.draft.isPrivate || !snapshot.draft.hasRegistration) return null;
+  return boundWhitelistAccess(setup.whitelist, snapshot.forms.registration);
+}
 export function whitelistKey(userId: string, eventId: string, locale: string) {
   return `eventsurvey:event-whitelist:v1:${userId}:${eventId}:${locale}`;
 }
 export function canEditWhitelist(workspace: EventWorkspace): boolean {
   return (
     !!workspace.canManageWhitelist &&
+    !workspace.setup?.publication &&
     !workspace.localPublishedAt &&
     workspace.eventStatus === "draft" &&
     (workspace.whitelistEnabledForSetup ?? (workspace.isPrivate && workspace.hasRegistration))
   );
+}
+export function whitelistRegistrationBuilderHref(workspace: EventWorkspace) {
+  if (!canEditWhitelist(workspace)) return undefined;
+  return workspace.canEditEvent && workspace.hasRegistration
+    ? "/event/setup/registration"
+    : "/event/form/registration";
 }
 interface LegacyWhitelist {
   key: string;

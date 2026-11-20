@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSessionActor } from "@/core/auth/api-guard";
-import { readAuthSession, setAuthSessionCookie } from "@/core/auth/cookie";
+import {
+  isLegacyImpersonation,
+  readAuthSession,
+  setAuthSessionCookie,
+} from "@/core/auth/cookie";
 import { canEnterAdminArea, isImpersonatableRole } from "@/core/auth/permissions";
 import { projectUserPii } from "@/core/auth/pii";
 import {
@@ -17,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   const auth = await requireSessionActor(readAuthSession(request));
   if (auth instanceof NextResponse) return auth;
-  if (!canEnterAdminArea(auth.session.realRole, auth.session.impersonating)) {
+  if (!canEnterAdminArea(auth.session.realRole, isLegacyImpersonation(auth.session))) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
 
@@ -51,7 +55,6 @@ export async function POST(request: NextRequest) {
         ...session,
         userId: target.user.id,
         role: target.user.role,
-        impersonating: true,
         inspectedEventId: null,
       },
       session.expiresAt,
@@ -77,14 +80,13 @@ export async function DELETE(request: NextRequest) {
     realUser: projectUserPii(realAccount.user, true),
     impersonatedUser: null,
   });
-  if (session.impersonating || session.inspectedEventId) {
+  if (isLegacyImpersonation(session) || session.inspectedEventId) {
     setAuthSessionCookie(
       response,
       {
         ...session,
         userId: session.realUserId,
         role: session.realRole,
-        impersonating: false,
         inspectedEventId: null,
       },
       session.expiresAt,

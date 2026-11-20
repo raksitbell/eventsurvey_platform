@@ -5,11 +5,7 @@ import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { api } from "@/core/api";
-import {
-  canEnterAdminArea,
-  canEnterEventArea,
-  getAdminHomePath,
-} from "@/core/auth";
+import { getAdminHomePath } from "@/core/auth";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { EventWorkspace } from "@/types/event/workspace";
@@ -19,7 +15,6 @@ import {
   ClockIcon,
   Squares2X2Icon,
   UserGroupIcon,
-  UsersIcon,
 } from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -38,36 +33,34 @@ export default function AppSidebar() {
   const {
     user,
     realUser,
-    isImpersonating,
+    allowAdmin,
+    allowEvent,
     inspectedEventId,
     canViewOverview,
     canViewEvents,
     canViewUsers,
     canViewActivity,
   } = useAuth();
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const {
+    isDesktop,
+    isExpanded,
+    isHovered,
+    isMobileOpen,
+    setIsHovered,
+    closeMobileSidebar,
+  } = useSidebar();
 
   const isAdminArea = pathname.startsWith("/admin");
   const isEventArea = pathname === "/event" || pathname.startsWith("/event/");
-  const isFormArea = pathname === "/form" || pathname.startsWith("/form/");
   const isDashboardPath = isEventReportingPath(pathname);
   const expanded = isExpanded || isHovered || isMobileOpen;
 
-  const allowAdmin = canEnterAdminArea(realUser?.role, isImpersonating);
-  const allowEvent = canEnterEventArea(
-    user?.role,
-    realUser?.role,
-    isImpersonating,
-    inspectedEventId,
-  );
-
   const dashboardAccessKey =
-    allowEvent && (isEventArea || isFormArea)
+    allowEvent && isEventArea
       ? JSON.stringify([
           user?.id,
           user?.role,
           realUser?.id,
-          isImpersonating,
           inspectedEventId,
           locale,
           pathname,
@@ -192,7 +185,7 @@ export default function AppSidebar() {
     ? allowAdmin
       ? adminNav
       : []
-    : isEventArea || isFormArea
+    : isEventArea
       ? allowEvent
         ? eventNav
         : []
@@ -220,17 +213,30 @@ export default function AppSidebar() {
     return pathname === path || pathname.startsWith(`${path}/`);
   };
 
+  function handleNavigation(event: { preventDefault: () => void }, href: string) {
+    if (!isMobileOpen) return;
+
+    const isCurrentPage = href === pathname;
+    if (isCurrentPage) event.preventDefault();
+    closeMobileSidebar(isCurrentPage);
+  }
+
   return (
     <aside
       id="app-sidebar"
       data-expanded={expanded}
       onMouseEnter={() => {
-        if (!isExpanded) setIsHovered(true);
+        if (isDesktop && !isExpanded) setIsHovered(true);
       }}
       onMouseLeave={() => setIsHovered(false)}
       className={`${styles.sidebar} ${isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full xl:visible xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
     >
-      <Link href={homePath} className={styles.brand} aria-label="EventSurvey">
+      <Link
+        href={homePath}
+        onNavigate={(event) => handleNavigation(event, homePath)}
+        className={styles.brand}
+        aria-label="EventSurvey"
+      >
         <span className={styles.mark}>
           <Image
             alt=""
@@ -253,6 +259,7 @@ export default function AppSidebar() {
         </h2>
         <ul className="space-y-1">
           {navItems.map((item) => {
+            const { path } = item;
             const label = t(`items.${item.key}`);
             const active = isActive(item.path);
             const content = (
@@ -264,7 +271,7 @@ export default function AppSidebar() {
 
             return (
               <li key={item.key}>
-                {item.disabled || !item.path ? (
+                {item.disabled || !path ? (
                   <button
                     type="button"
                     disabled
@@ -276,7 +283,8 @@ export default function AppSidebar() {
                   </button>
                 ) : (
                   <Link
-                    href={item.path}
+                    href={path}
+                    onNavigate={(event) => handleNavigation(event, path)}
                     className={styles.item}
                     aria-label={label}
                     aria-current={active ? "page" : undefined}

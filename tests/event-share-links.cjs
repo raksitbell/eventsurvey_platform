@@ -166,7 +166,7 @@ test("uses shared Mock data for QR links and restricts distribution to the assig
   });
 });
 
-test("shows a scheduled event, hides a draft and blocks unintegrated eligibility checks", async (t) => {
+test("shows a scheduled event, hides a draft and protects private events without a bound whitelist", async (t) => {
   t.after(() =>
     Object.assign(event, {
       status: "open",
@@ -178,13 +178,13 @@ test("shows a scheduled event, hides a draft and blocks unintegrated eligibility
   assert.equal(await getPublicEventBySlug(event.slug, "th"), null);
   assert.equal(await getPublicFormBySlug(event.slug, "registration"), null);
   event.status = "scheduled";
-  assert.deepEqual(
-    (await getPublicEventBySlug(event.slug, "th")).formLinks,
-    {},
-  );
-  assert.deepEqual(await getPublicFormBySlug(event.slug, "survey"), {
-    status: "scheduled",
-  });
+  const scheduledEvent = await getPublicEventBySlug(event.slug, "th");
+  assert.equal(scheduledEvent.formLinks.registration.href, "/event/book-expo/register");
+  assert.equal(scheduledEvent.formLinks.survey.href, "/event/book-expo/survey");
+  const earlySurvey = await getPublicFormBySlug(event.slug, "survey");
+  assert.equal(earlySurvey.status, "scheduled");
+  assert.equal(earlySurvey.form.questions[0].question.id, "question-1");
+  assert.equal(earlySurvey.opensAt, null);
   event.status = "open";
   event.is_private = true;
   event.survey_access = "registered_only";
@@ -241,6 +241,21 @@ test("honors server capacity and keeps a direct post-event survey available", as
   for (const status of ["pending_approval", "approved", "rejected", "paused", "archived"]) {
     assert.equal(nextCronFormStatus({ ...forms[1], status }, event, surveyClose), null);
   }
+});
+
+test("legacy registration receipts cover the survey's effective post-event or unbounded window", async (t) => {
+  const survey = forms[1];
+  const original = { ...survey };
+  t.after(() => Object.assign(survey, original));
+  const { resolvePublicForm } = load("@/services/event/public-event");
+  const { readSetupRecord } = load("@/core/event/setup-storage");
+  const registeredOnly = { ...event, survey_access: "registered_only" };
+  const read = () => resolvePublicForm(registeredOnly, "registration", readSetupRecord(registeredOnly));
+  assert.equal((await read()).receiptClosesAt, "2099-01-09T00:00:00.000Z");
+  survey.closes_at = null;
+  assert.equal((await read()).receiptClosesAt, null);
+  survey.opens_at = null;
+  assert.equal((await read()).receiptClosesAt, "2099-01-08T00:00:00.000Z");
 });
 
 test("does not distribute a missing or draft form, including by direct URL", async (t) => {
@@ -312,7 +327,6 @@ test("both cron jobs honor the published Survey window after the Event closes", 
   const { withPublishedFormSchedule } = cronLoad("src/core/forms/published-schedule.ts");
   const { encodeSetupRecord } = load("@/core/event/setup-storage");
   const { defaultEventBranding } = load("@/core/event/branding");
-  const { surveyClosingTime } = load("@/core/event/schedule");
   const secret = process.env.EVENT_SETUP_DATA_SECRET;
   process.env.EVENT_SETUP_DATA_SECRET = "eventsurvey-schedule-regression-test-key";
   t.after(() => {
@@ -331,7 +345,9 @@ test("both cron jobs honor the published Survey window after the Event closes", 
     hasSurvey: true,
     surveyAccess: "public",
   };
-  const publishedClose = surveyClosingTime(draft);
+  // Historical publications stored the resolved closing time even when the
+  // draft omitted its (then one-week) default.
+  const publishedClose = "2099-01-15T00:00:00.000Z";
   const head = {
     en: { title: "Survey", description: "" },
     th: { title: "แบบสอบถาม", description: "" },
@@ -406,4 +422,142 @@ test("both cron jobs honor the published Survey window after the Event closes", 
   assert.equal((await getPublicFormBySlug(event.slug, "survey")).status, "closed");
   survey.status = "open";
   assert.deepEqual((await runEventLifecycleCron("platform-admin")).formsClosed, [survey.id]);
+});
+
+test("public forms show the localized published event and its banner for both form kinds and status pages", async () => {
+  const { defaultEventBranding } = load("@/core/event/branding");
+  const fallback = { ...defaultEventBranding, primary: "#123456" };
+  const english = { ...fallback, footerColor: "#765432", chromeOpacity: 60 };
+  const th = { localeCode: "th", title: "เวิร์กช็อป", description: "เรียนรู้", locationName: "ห้อง A", floorZone: "ชั้น 1" };
+  const en = { localeCode: "en", title: "Workshop", description: "Learn", locationName: "Hall A", floorZone: "1F" };
+  const bannerUrl = "https://example.org/banner.png";
+  const setup = {
+    publication: {
+      draft: {
+        eventName: th.title, content: { defaultLocale: "th", translations: [th, en] },
+        startsAt: event.start_at, endsAt: event.end_at, isPrivate: false, surveyAccess: "public",
+        hasRegistration: true, hasSurvey: true, registrationCapacity: 230,
+      },
+      forms: { registration: null, survey: null },
+      branding: fallback,
+    },
+    publishedBranding: { en: english },
+    branding: { en: { ...english, primary: "#ABCDEF" } },
+  };
+  const read = loadSource({
+    ...substitutions,
+    "@/core/api/mock-client": {
+      mockApi: { get: async (resource) => {
+        if (resource.startsWith("/events?")) return [{ ...event, status: "scheduled" }];
+        if (resource.startsWith("/forms?")) return [];
+        if (resource.startsWith("/event_banners?")) return [{ event_id: event.id, banner_url: bannerUrl }];
+        if (resource.startsWith("/event_translations?")) {
+          assert.equal(setup.publication, null);
+          return [{ event_id: event.id, locale_code: "th", title: th.title, location_name: th.locationName }];
+        }
+        throw new Error("Unexpected resource " + resource);
+      } },
+    },
+    "@/core/event/setup-storage": { readSetupRecord: () => setup },
+  });
+  const { getPublicFormPageBySlug } = read("src/services/event/public-event.ts");
+  for (const kind of ["registration", "survey"]) {
+    assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en"), {
+      result: { status: "unavailable" }, branding: english, bannerUrl, hasSurvey: false,
+      eventDetails: {
+        eventName: en.title, description: en.description, locationName: en.locationName, locationDetail: en.floorZone,
+        startsAt: event.start_at, endsAt: event.end_at, isPrivate: false, surveyAccess: "public",
+      },
+    });
+    assert.equal((await getPublicFormPageBySlug(event.slug, kind, "th")).branding, fallback);
+  }
+  setup.publication = null;
+  const legacy = await getPublicFormPageBySlug(event.slug, "survey", "en");
+  assert.deepEqual(legacy.branding, defaultEventBranding);
+  assert.equal(legacy.eventDetails.eventName, th.title);
+  assert.equal(legacy.eventDetails.locationName, th.locationName);
+  assert.equal(legacy.bannerUrl, bannerUrl);
+});
+
+test("private participant forms disclose questions only after a matching published whitelist identifier", async (t) => {
+  const { defaultEventBranding } = load("@/core/event/branding");
+  const snapshots = Object.fromEntries(forms.map((form) => [form.type, {
+    id: form.id, eventId: event.id, type: form.type, status: "open",
+    opensAt: event.start_at, closesAt: event.end_at,
+    head: { th: { title: "Private title" }, en: { title: "Private title" } },
+    questions: [
+      { question: { id: "member", type: "email", is_unique: form.type === "registration",
+        label: { th: [{ label: "อีเมล" }], en: [{ label: "Email" }] } } },
+      { question: { id: "secret", type: "short_text", label: { th: [{ label: "Private question" }], en: [{ label: "Private question" }] } } },
+    ],
+  }]));
+  const whitelist = {
+    formId: snapshots.registration.id, fieldId: "member", kind: "email",
+    entries: [{ id: "1", name: "Private person", uniqueId: "person@example.com", status: "available" }],
+  };
+  const setup = { publication: {
+    draft: { isPrivate: true, hasRegistration: true, hasSurvey: true, surveyAccess: "public", registrationCapacity: 1 },
+    forms: snapshots, branding: defaultEventBranding,
+  }, whitelist };
+  let joined = [], capacityTaken = false, eventStatus = "open";
+  const mockedGet = substitutions["@/core/api/mock-client"].mockApi.get;
+  const readMock = async (resource) => {
+      if (resource === "/events/event-1") return { ...event, status: eventStatus };
+      if (resource.startsWith("/events?")) return [{ ...event, status: eventStatus }];
+      if (resource.startsWith("/whitelist_entries?")) return joined;
+      if (resource.startsWith("/form_submissions?")) return capacityTaken ? [{ form_id: snapshots.registration.id, status: "submitted" }] : [];
+      return mockedGet(resource);
+  };
+  const read = loadSource({
+    ...substitutions,
+    "@/core/event/setup-storage": { readSetupRecord: () => setup },
+    "@/core/api/mock-client": { mockApi: { get: readMock, getFresh: readMock } },
+  });
+  const { getPublicFormBySlug: open, getPublicFormPageBySlug: page, getPublicEventBySlug: home } = read("src/services/event/public-event.ts");
+  const enter = (value) => open(event.slug, "registration", value);
+  const gate = { status: "eligibility", fieldType: "email", label: { th: "อีเมล", en: "Email" } };
+  const initial = await page(event.slug, "registration", "en");
+  assert.deepEqual(initial.result, gate);
+  assert.doesNotMatch(JSON.stringify(initial), /Private question|Private person|person@example.com|Private title/);
+  assert.deepEqual(await enter({ lookup: true }), gate);
+  assert.deepEqual(await enter("unknown@example.com"), gate);
+  assert.deepEqual(await open(event.slug, "survey"), gate);
+  assert.equal((await enter(" PERSON@example.com ")).status, "open");
+  assert.equal((await open(event.slug, "survey", "person@example.com")).status, "open");
+  assert.equal(whitelist.entries[0].status, "available");
+  assert.ok((await home(event.slug, "en")).formLinks.registration);
+
+  joined = [{ event_id: event.id, access_code: "PERSON@example.com", deleted_at: null, status: "joined" }];
+  assert.deepEqual(await enter("person@example.com"), gate);
+  joined = [];
+  whitelist.entries[0].status = "joined";
+  assert.deepEqual(await enter("person@example.com"), gate);
+  assert.equal((await open(event.slug, "survey", "person@example.com")).status, "open");
+  whitelist.entries[0].status = "available";
+  capacityTaken = true;
+  assert.deepEqual(await enter("person@example.com"), { status: "full" });
+  capacityTaken = false;
+  snapshots.registration.closesAt = "2000-01-01T00:00:00Z";
+  assert.deepEqual(await enter("person@example.com"), { status: "closed" });
+  setup.publication.draft.surveyAccess = "registered_only";
+  assert.deepEqual(await open(event.slug, "survey", "person@example.com"), { status: "registrationRequired" });
+  assert.ok((await home(event.slug, "en")).formLinks.survey);
+  const previousOrigin = process.env.APP_URL;
+  process.env.APP_URL = origin;
+  t.after(() => {
+    if (previousOrigin === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previousOrigin;
+  });
+  eventStatus = "scheduled";
+  const organizer = await read("src/services/event/public-event.ts").getAssignedShareLinks(user.id);
+  assert.ok(organizer.links.registration.endsWith("/register"));
+  assert.deepEqual(await enter("person@example.com"), { status: "closed" });
+  assert.ok((await home(event.slug, "en")).formLinks.survey);
+  eventStatus = "open";
+  setup.publication.draft.surveyAccess = "public";
+  snapshots.registration.eventId = "other-event";
+  assert.deepEqual(await open(event.slug, "survey", "person@example.com"), { status: "restricted" });
+  snapshots.registration.eventId = event.id;
+  whitelist.fieldId = "wrong-question";
+  assert.deepEqual(await enter("person@example.com"), { status: "restricted" });
 });

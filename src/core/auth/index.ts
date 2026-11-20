@@ -1,7 +1,6 @@
 export {
   ADMIN_ROLES,
   EVENT_ROLES,
-  MOCK_DEMO_PASSWORD,
   PORTAL_ROLES,
 } from "./constants";
 
@@ -11,7 +10,6 @@ export {
   canAccessPortal,
   canEnterAdminArea,
   canEnterEventArea,
-  canImpersonate,
   canInspectEvent,
   getAdminHomePath,
   getHomePathForRole,
@@ -23,10 +21,8 @@ export { clearLegacyAuthStorage, type AuthSnapshot } from "./session";
 
 export {
   endEventInspection,
-  endImpersonation,
   getAuthSnapshot,
   loginWithCredentials,
   signOut,
   startEventInspection,
-  startImpersonation,
 } from "./service";

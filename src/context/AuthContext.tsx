@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  canEnterAdminArea,
+  canEnterEventArea,
   clearLegacyAuthStorage,
   endEventInspection,
   getAuthSnapshot,
@@ -10,8 +12,8 @@ import {
   startEventInspection,
   type AuthSnapshot,
 } from "@/core/auth";
+import { EMPTY_AUTH_SNAPSHOT } from "@/core/auth/session";
 import { usePathname, useRouter } from "@/i18n/navigation";
-import type { User } from "@/types/user";
 import type React from "react";
 import {
   createContext,
@@ -23,22 +25,10 @@ import {
   useState,
 } from "react";
 
-interface AuthContextValue {
-  user: User | null;
-  realUser: User | null;
-  /** @deprecated Impersonation removed — always false. */
-  isImpersonating: boolean;
-  inspectedEventId: string | null;
-  inspectedEventName: string | null;
+interface AuthContextValue extends AuthSnapshot {
+  allowAdmin: boolean;
+  allowEvent: boolean;
   isInspectingEvent: boolean;
-  canViewOverview: boolean;
-  canViewEvents: boolean;
-  canViewUsers: boolean;
-  canViewActivity: boolean;
-  /** Platform canInspection — open event workspace with full platform rights. */
-  canInspection: boolean;
-  /** Platform events module is can_edit — create / edit / start / close. */
-  canManageEvents: boolean;
   /** True while restoring the server session or navigating after an auth change. */
   isLoading: boolean;
   authUnavailable: boolean;
@@ -48,26 +38,9 @@ interface AuthContextValue {
   stopInspectingEvent: () => Promise<void>;
   /** Re-read `/api/auth/session` (e.g. after editing own platform flags). */
   refreshAuth: () => Promise<void>;
-  /** @deprecated Use inspectEvent. */
-  impersonate: (userId: string) => Promise<void>;
-  /** @deprecated Use stopInspectingEvent. */
-  stopImpersonating: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-const EMPTY: AuthSnapshot = {
-  realUser: null,
-  impersonatedUser: null,
-  inspectedEventId: null,
-  inspectedEventName: null,
-  canViewOverview: false,
-  canViewEvents: false,
-  canViewUsers: false,
-  canViewActivity: false,
-  canInspection: false,
-  canManageEvents: false,
-};
 
 /** Safety net so a redirect that never reaches the target cannot strand the UI */
 const HOLD_TIMEOUT_MS = 3000;
@@ -79,7 +52,7 @@ function normalizePath(path: string) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [snapshot, setSnapshot] = useState<AuthSnapshot>(EMPTY);
+  const [snapshot, setSnapshot] = useState<AuthSnapshot>(EMPTY_AUTH_SNAPSHOT);
   const [sessionStatus, setSessionStatus] = useState<
     "loading" | "ready" | "unavailable"
   >("loading");
@@ -101,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionStatus("ready");
     } catch {
       if (request.signal.aborted) return;
-      setSnapshot(EMPTY);
+      setSnapshot(EMPTY_AUTH_SNAPSHOT);
       setSessionStatus("unavailable");
     }
   }, []);
@@ -122,12 +95,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : null;
     authChannel.current = channel;
     channel?.addEventListener("message", onChannelMessage);
-    window.addEventListener("focus", onFocus);
+    globalThis.addEventListener("focus", onFocus);
     void refreshAuth();
 
     return () => {
       sessionRequest.current?.abort();
-      window.removeEventListener("focus", onFocus);
+      globalThis.removeEventListener("focus", onFocus);
       channel?.removeEventListener("message", onChannelMessage);
       channel?.close();
       authChannel.current = null;
@@ -156,13 +129,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [pathname, router],
   );
 
-  const realUser = snapshot.realUser;
-  const inspectedEventId = snapshot.inspectedEventId;
-  const inspectedEventName = snapshot.inspectedEventName;
-  const isInspectingEvent = Boolean(inspectedEventId);
-  const isImpersonating = false;
-  const user = realUser;
-
   const changeSession = useCallback(
     async (
       updateSession: () => Promise<AuthSnapshot>,
@@ -175,15 +141,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const next = await updateSession();
         const path =
           nextPath === undefined
-            ? next.realUser
+            ? next.user
               ? next.inspectedEventId
                 ? "/event"
-                : getHomePathForRole(next.realUser.role, {
-                    canViewOverview: next.canViewOverview,
-                    canViewEvents: next.canViewEvents,
-                    canViewUsers: next.canViewUsers,
-                    canViewActivity: next.canViewActivity,
-                  })
+                : getHomePathForRole(next.user.role, next)
               : "/login"
             : nextPath;
         if (path) softGo(path);
@@ -210,7 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await changeSession(async () => {
       await signOut();
-      return EMPTY;
+      return EMPTY_AUTH_SNAPSHOT;
     });
   }, [changeSession]);
 
@@ -225,52 +186,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await changeSession(endEventInspection, "/admin/events");
   }, [changeSession]);
 
-  const canViewOverview = snapshot.canViewOverview === true;
-  const canViewEvents = snapshot.canViewEvents === true;
-  const canViewUsers = snapshot.canViewUsers === true;
-  const canViewActivity = snapshot.canViewActivity === true;
-  const canInspection = snapshot.canInspection === true;
-  const canManageEvents = snapshot.canManageEvents === true;
-
   const value = useMemo<AuthContextValue>(
-    () => ({
-      user,
-      realUser,
-      isImpersonating,
-      inspectedEventId,
-      inspectedEventName,
-      isInspectingEvent,
-      canViewOverview,
-      canViewEvents,
-      canViewUsers,
-      canViewActivity,
-      canInspection,
-      canManageEvents,
-      isLoading: sessionStatus === "loading" || isHolding,
-      authUnavailable: sessionStatus === "unavailable",
-      login,
-      logout,
-      inspectEvent,
-      stopInspectingEvent,
-      refreshAuth,
-      impersonate: async () => {
-        throw new Error("IMPERSONATION_REMOVED");
-      },
-      stopImpersonating: stopInspectingEvent,
-    }),
+    () => {
+      const { user, realUser, inspectedEventId } = snapshot;
+      const actingAsAnotherUser = user?.id !== realUser?.id;
+      return {
+        ...snapshot,
+        allowAdmin: canEnterAdminArea(realUser?.role, actingAsAnotherUser),
+        allowEvent: canEnterEventArea(
+          user?.role,
+          realUser?.role,
+          actingAsAnotherUser,
+          inspectedEventId,
+        ),
+        isInspectingEvent: Boolean(inspectedEventId),
+        isLoading: sessionStatus === "loading" || isHolding,
+        authUnavailable: sessionStatus === "unavailable",
+        login,
+        logout,
+        inspectEvent,
+        stopInspectingEvent,
+        refreshAuth,
+      };
+    },
     [
-      user,
-      realUser,
-      isImpersonating,
-      inspectedEventId,
-      inspectedEventName,
-      isInspectingEvent,
-      canViewOverview,
-      canViewEvents,
-      canViewUsers,
-      canViewActivity,
-      canInspection,
-      canManageEvents,
+      snapshot,
       sessionStatus,
       isHolding,
       login,

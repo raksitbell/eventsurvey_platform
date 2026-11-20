@@ -1,10 +1,13 @@
 /* Event Admin sidebar and header, component instances in 844:1413. */
+:is(.sidebar, .header) {
+  --workspace-header-height: 76px;
+}
 .sidebar {
   --es-platform-sidebar-background: var(--color-event-sidebar);
   --es-platform-sidebar-text-strong: var(--color-white);
   --es-platform-sidebar-text-default: #ebe1f4;
   --es-platform-sidebar-text-muted: #b5b3b7;
-  --es-platform-sidebar-action-active: #8365a0;
+  --es-platform-sidebar-action-active: var(--color-event-sidebar-active);
   position: fixed;
   z-index: var(--z-index-99999, 99999);
   inset-block: 0;
@@ -59,32 +62,32 @@
     "Noto Sans Thai",
     sans-serif
   );
-  font-size: 10px;
+  font-size: var(--text-portal-caption, 0.8125rem);
   font-weight: 400;
-  line-height: 16px;
+  line-height: 1.35;
 }
 .section {
-  height: 28.5px;
+  min-block-size: 1.78125rem;
   padding-inline: 12px;
   color: var(--es-platform-sidebar-text-muted);
-  font-size: 12px;
+  font-size: var(--text-portal-caption, 0.8125rem);
   font-weight: 600;
-  line-height: 18px;
+  line-height: 1.4;
   letter-spacing: 1.76px;
 }
 .item {
   display: flex;
   width: 100%;
-  height: 44px;
+  min-block-size: 44px;
   gap: 12px;
   align-items: center;
   padding-inline: 12px;
   border-radius: var(--radius-full, 9999px);
   color: var(--es-platform-sidebar-text-default);
   text-align: start;
-  font-size: 14px;
+  font-size: var(--text-portal-label, 0.875rem);
   font-weight: 500;
-  line-height: 20px;
+  line-height: 1.4;
 }
 .item img,
 .item svg {
@@ -99,11 +102,13 @@ a.item:hover {
   background: var(--es-platform-sidebar-action-active);
 }
 .item:disabled {
-  cursor: default;
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 .sidebar[data-expanded="false"] :is(.item, .brand) {
   justify-content: center;
 }
+
 
 .header {
   --es-workspace-header-border: #e9e3ef;
@@ -116,7 +121,7 @@ a.item:hover {
   z-index: var(--z-index-99, 99);
   inset-block-start: 0;
   display: flex;
-  height: 76px;
+  height: var(--workspace-header-height);
   flex: none;
   align-items: center;
   justify-content: space-between;
@@ -125,6 +130,10 @@ a.item:hover {
   background: var(--color-white);
   color: var(--color-participant-text);
   box-shadow: inset 0 -1px var(--es-workspace-header-border);
+}
+.header[data-mobile-sidebar-open="true"] {
+  /* Keep the header toggle above the mobile drawer. */
+  z-index: var(--z-index-99999, 99999);
 }
 .headerActions {
   display: flex;
@@ -241,6 +250,11 @@ a.item:hover {
 }
 :global(.dark) .header :is(.toggle, .account) img {
   filter: brightness(0) invert(1);
+}
+@media (width < 1280px) {
+  .sidebar {
+    inset-block-start: var(--workspace-header-height);
+  }
 }
 @media (max-width: 639px) {
   .header {

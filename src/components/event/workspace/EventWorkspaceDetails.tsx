@@ -66,7 +66,7 @@ export default function EventWorkspaceDetails({
       aria-labelledby="workspace-event-heading"
     >
       <header className="workspace-details__heading">
-        <h1 id="workspace-event-heading">{setup("yourEvent")}</h1>
+        <h2 id="workspace-event-heading">{setup("yourEvent")}</h2>
         <span className="workspace-details__status">
           <span aria-hidden="true">●</span>
           {published
@@ -78,7 +78,7 @@ export default function EventWorkspaceDetails({
       </header>
       <Link href="/event/details" className="workspace-details__excerpt">
         <p className="workspace-details__name-label">{home("details.name")}</p>
-        <h2
+        <h3
           className={
             workspace.eventName
               ? "workspace-details__name"
@@ -86,7 +86,7 @@ export default function EventWorkspaceDetails({
           }
         >
           {workspace.eventName || setup("unnamed")}
-        </h2>
+        </h3>
         <div className="workspace-details__excerpt-row">
           <div className="min-w-0">
             <p className="workspace-details__description-label">

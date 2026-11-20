@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { isAuthSession, requireEventSession } from "@/core/auth/api-guard";
-import { isInspectingEvent } from "@/core/auth/cookie";
+import { isInspectingEvent, isLegacyImpersonation } from "@/core/auth/cookie";
 import { authJson, readJsonObject } from "@/core/auth/route-response";
 import { routing, type Locale } from "@/i18n/routing";
 import { ReportingError } from "@/services/event/reporting";
@@ -23,8 +23,7 @@ export async function eventRoute(
 
   const isWrite = request.method !== "GET" && request.method !== "HEAD";
   const inspecting = isInspectingEvent(session);
-  // Legacy impersonation stays read-only; platform event inspection may write.
-  if (session.impersonating && !inspecting && isWrite) {
+  if (isWrite && isLegacyImpersonation(session)) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
 

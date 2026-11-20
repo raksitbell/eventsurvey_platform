@@ -1,18 +1,13 @@
 "use client";
 
+import { displayCanvasSize } from "@/core/event/banner-layout";
 import EventDisplay, { type EventDisplayProps } from "@/components/participant/EventDisplay";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-
-const SIZE = {
-  portrait: { width: 1080, height: 1920 },
-  square: { width: 1080, height: 1920 },
-  landscape: { width: 1920, height: 1080 },
-} as const;
 
 export default function EventDisplayViewport(props: EventDisplayProps) {
   const frame = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState({ width: 0, height: 0 });
-  const size = SIZE[props.layout];
+  const size = displayCanvasSize(props.layout);
 
   useEffect(() => {
     if (!frame.current) return;

@@ -18,6 +18,7 @@ export interface EventBranding {
   gradientAngle?: 0 | 90;
   footerColor?: string;
   transparentChrome?: boolean;
+  chromeOpacity?: number;
   channels?: { platform: string; url: string }[];
   primary: string;
   secondary: string;
@@ -25,3 +26,7 @@ export interface EventBranding {
   logo: BrandingImage | null;
   banner: BrandingBanner | null;
 }
+
+export type EventFormAppearance = Pick<EventBranding,
+  "primary" | "secondary" | "accent" | "backgroundMode" | "gradientEnd" | "gradientAngle" | "banner"
+>;

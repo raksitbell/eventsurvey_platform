@@ -1,5 +1,6 @@
 import { mockApi } from "@/core/api/mock-client";
 import { randomUUID } from "node:crypto";
+import { projectAuditMetadata } from "./metadata";
 
 /** Stable keys stored in audit_logs.module — UI translates via i18n. */
 export type AuditModuleKey =
@@ -40,7 +41,7 @@ export async function writeAuditLog(input: AuditWriteInput): Promise<void> {
       module: input.module,
       description_th: input.descriptionTh,
       description_en: input.descriptionEn,
-      metadata: input.metadata ?? null,
+      metadata: projectAuditMetadata(input.metadata),
       includes_unmasked_pii: input.includesUnmaskedPii === true,
       occurred_at: input.occurredAt ?? new Date().toISOString(),
     });

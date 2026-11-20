@@ -4,14 +4,24 @@ import path from "node:path";
 import { mockApi, MockApiError } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { writeAuditLog } from "@/core/audit/write";
+import { isPastScheduleMinute } from "@/core/event/schedule";
+import { readSetupRecord } from "@/core/event/setup-storage";
+import { writeSerially } from "@/core/event/serial-write";
 import {
   assertManualFormStatusTransition,
   formMutationFlags,
   nextCronFormStatus,
+  registrationOutsideEvent,
   resolveEffectiveFormStatus,
 } from "@/core/forms/lifecycle";
-import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
-import { validatePublishReady } from "@/core/validation/forms";
+import {
+  getPublishedForm,
+  readPublishedForm,
+  publishedFormDefinition,
+  withPublishedFormSchedule,
+} from "@/core/forms/published-schedule";
+import { uniqueFieldIssue } from "@/core/forms/unique-field";
+import { validatePublishReady } from "@/core/forms/content";
 import type {
   Choice,
   Form,
@@ -297,20 +307,45 @@ async function getLiveForm(id: string): Promise<MockForm> {
   return form;
 }
 
-async function loadEvent(eventId: string): Promise<MockEvent> {
+async function loadEvent(eventId: string, { fresh = false } = {}): Promise<MockEvent> {
   let event: MockEvent;
   try {
-    event = await mockApi.get<MockEvent>(`/events/${eventId}`);
+    const resource = `/events/${eventId}`;
+    event = fresh
+      ? await mockApi.getFresh<MockEvent>(resource)
+      : await mockApi.get<MockEvent>(resource);
   } catch (error) {
     if (error instanceof MockApiError && error.status === 404) {
       throw new ServiceError("EVENT_NOT_FOUND", 404);
     }
     throw error;
   }
-  if (!event || event.deleted_at) {
+  if (!event || event.id !== eventId || event.deleted_at) {
     throw new ServiceError("EVENT_NOT_FOUND", 404);
   }
   return event;
+}
+
+async function writeFormSerially<T>(
+  id: string,
+  operation: (form: MockForm, event: MockEvent) => Promise<T>,
+) {
+  const { event_id: eventId } = await getLiveForm(id);
+  return writeSerially(eventId, async () => {
+    const form = await getLiveForm(id);
+    const event = await loadEvent(form.event_id, { fresh: true });
+    return operation(form, event);
+  });
+}
+
+function assertUnpublishedForm(
+  form: MockForm,
+  event: MockEvent,
+  code: "FORM_NOT_EDITABLE" | "FORM_NOT_DELETABLE" | "FORM_STATUS_LOCKED",
+) {
+  if (getPublishedForm(event, form.type)?.id === form.id) {
+    throw new ServiceError(code, 409, "Published event forms are read-only");
+  }
 }
 
 function assertCanEdit(status: FormStatus): void {
@@ -342,6 +377,33 @@ function assertCanChangeStatus(status: FormStatus): void {
       409,
       "open/closed forms cannot be changed manually — cron owns those transitions",
     );
+  }
+}
+
+function assertFormSchedule(
+  opensAt: string | null,
+  closesAt: string | null,
+  now: number,
+  previous?: Pick<MockForm, "opens_at" | "closes_at">,
+): void {
+  const opensChanged = opensAt !== previous?.opens_at;
+  const closesChanged = closesAt !== previous?.closes_at;
+  if (!opensChanged && !closesChanged) return;
+
+  const opens = opensAt ? Date.parse(opensAt) : null;
+  const closes = closesAt ? Date.parse(closesAt) : null;
+  if (
+    Number.isNaN(opens) ||
+    Number.isNaN(closes) ||
+    (opens !== null && closes !== null && closes <= opens)
+  ) {
+    throw new ServiceError("DATE_RANGE_INVALID", 400);
+  }
+  if (
+    (opensChanged && isPastScheduleMinute(opensAt, now)) ||
+    (closesChanged && isPastScheduleMinute(closesAt, now))
+  ) {
+    throw new ServiceError("FORM_SCHEDULE_IN_PAST", 400);
   }
 }
 
@@ -435,12 +497,12 @@ async function loadChoices(
     const thRow = translations.find((t) => t.locale_code === "th");
     en.push({
       id: option.id,
-      label: enRow?.label ?? thRow?.label ?? "",
+      label: enRow?.label ?? "",
       display_order: option.display_order,
     });
     th.push({
       id: option.id,
-      label: thRow?.label ?? enRow?.label ?? "",
+      label: thRow?.label ?? "",
       display_order: option.display_order,
     });
   }
@@ -506,31 +568,16 @@ async function loadQuestions(formId: string): Promise<Question[]> {
   return questions;
 }
 
-function headFromTranslations(
-  rows: MockFormTranslation[],
-  fallbackType?: FormType,
-): Form["head"] {
+function headFromTranslations(rows: MockFormTranslation[]): Form["head"] {
   const en = rows.find((r) => r.locale_code === "en");
   const th = rows.find((r) => r.locale_code === "th");
-  const defaultEnTitle =
-    rows.length === 0 && fallbackType
-      ? fallbackType === "registration"
-        ? "Registration"
-        : "Survey"
-      : "";
-  const defaultThTitle =
-    rows.length === 0 && fallbackType
-      ? fallbackType === "registration"
-        ? "ฟอร์มลงทะเบียน"
-        : "แบบสำรวจ"
-      : "";
   return {
     en: {
-      title: en?.title ?? defaultEnTitle,
+      title: en?.title ?? "",
       description: en?.description ?? "",
     },
     th: {
-      title: th?.title ?? defaultThTitle,
+      title: th?.title ?? "",
       description: th?.description ?? "",
     },
   };
@@ -638,10 +685,19 @@ function mergeWithCachedRecord(
 
 async function toFormRecord(
   form: MockForm,
-  event?: MockEvent,
+  loadedEvent?: MockEvent,
 ): Promise<FormRecord> {
-  if (!event) {
-    await loadEvent(form.event_id);
+  const event = loadedEvent ?? (await loadEvent(form.event_id));
+  const published = getPublishedForm(event, form.type);
+  const lifecycle = readPublishedForm(form, published, event);
+  if (published && lifecycle) {
+    const { head, questions } = publishedFormDefinition(published);
+    return {
+      ...buildAuthoritativeFormRecord(lifecycle, head, questions),
+      canEdit: false,
+      canDelete: false,
+      canChangeStatus: false,
+    };
   }
   const cached = getCachedFormRecord(form.id, form.event_id, form.type);
   const translationRows = await loadFormTranslations(form.id);
@@ -659,10 +715,7 @@ async function toFormRecord(
     closesAt: form.closes_at,
     createdAt: form.created_at,
     updatedAt: form.updated_at,
-    head: headFromTranslations(
-      translationRows,
-      cached ? undefined : form.type,
-    ),
+    head: headFromTranslations(translationRows),
     questions,
     canEdit: flags.canEdit,
     canDelete: flags.canDelete,
@@ -727,10 +780,7 @@ async function softDeleteFieldTree(
   });
 }
 
-/**
- * Builder keeps primary choice edits under `label.en[0].choices.en`.
- * Thai labels prefer matching id in `choices.th`, else same index.
- */
+/** Options share IDs/order; a missing translation stays blank. */
 function resolveOptionLocales(
   enLabel: Label | undefined,
   thLabel?: Label,
@@ -738,22 +788,24 @@ function resolveOptionLocales(
   en: Choice[];
   th: Choice[];
 } {
-  const enChoices = enLabel?.choices.en ?? [];
-  const thChoices =
-    (thLabel?.choices.th?.length ? thLabel.choices.th : enLabel?.choices.th) ??
-    [];
-  const thById = new Map(thChoices.filter((c) => c.id).map((c) => [c.id!, c]));
+  const en = enLabel?.choices.en.length ? enLabel.choices.en : thLabel?.choices.en ?? [];
+  const th = thLabel?.choices.th.length ? thLabel.choices.th : enLabel?.choices.th ?? [];
+  const thById = new Map(th.map((choice) => [choice.id, choice]));
+  const thByOrder = new Map(th.map((choice) => [choice.display_order, choice]));
+  const paired = new Set<Choice>();
+  const pairs = en.map((choice) => {
+    const translation = (choice.id ? thById.get(choice.id) : undefined) ?? thByOrder.get(choice.display_order);
+    if (translation) paired.add(translation);
+    return { id: choice.id ?? translation?.id, display_order: choice.display_order, en: choice.label, th: translation?.label ?? "" };
+  });
+  for (const choice of th) {
+    if (!paired.has(choice))
+      pairs.push({ id: choice.id, display_order: choice.display_order, en: "", th: choice.label });
+  }
+  pairs.sort((a, b) => a.display_order - b.display_order);
   return {
-    en: enChoices,
-    th: enChoices.map((c, index) => {
-      const byId = c.id ? thById.get(c.id) : undefined;
-      const byIndex = thChoices[index];
-      return {
-        id: c.id,
-        display_order: c.display_order,
-        label: byId?.label || byIndex?.label || c.label,
-      };
-    }),
+    en: pairs.map(({ id, display_order, en }) => ({ id, display_order, label: en })),
+    th: pairs.map(({ id, display_order, th }) => ({ id, display_order, label: th })),
   };
 }
 
@@ -762,6 +814,11 @@ function suppliedChoiceIds(question: Question["question"]): string[] {
     ...label.choices.en.flatMap((choice) => (choice.id ? [choice.id] : [])),
     ...label.choices.th.flatMap((choice) => (choice.id ? [choice.id] : [])),
   ]);
+}
+
+function assertValidUniqueField(questions: Question[]) {
+  const issue = uniqueFieldIssue(questions);
+  if (issue) throw new ServiceError(issue, 400);
 }
 
 function assertNewQuestionTreeHasNoIds(questions: Question[]): void {
@@ -1054,7 +1111,7 @@ async function replaceQuestionTree(
     for (const [index, enChoice] of enChoices.entries()) {
       const optionId = enChoice.id ?? newId();
       const thChoice = thChoices[index];
-      const thChoiceLabel = thChoice?.label || enChoice.label;
+      const thChoiceLabel = thChoice.label;
       const prevOption = existingOptions.find((o) => o.id === optionId);
       const optionBody: MockFieldOption = {
         id: optionId,
@@ -1317,6 +1374,14 @@ async function compensateOrThrow(
   throw originalError;
 }
 
+function liveEventWindow(event: MockEvent): FormListData["legacyScheduleWindow"] {
+  if (event.status !== "open" && event.status !== "scheduled") return null;
+  return {
+    startsAt: event.start_at ?? event.opens_at ?? null,
+    endsAt: event.end_at ?? event.closes_at ?? null,
+  };
+}
+
 export async function listForms(
   eventId: string,
   allowedTypes: readonly FormType[],
@@ -1343,20 +1408,25 @@ export async function listForms(
 
   for (const cached of getCachedFormsForEvent(eventId, allowed)) {
     if (!seenIds.has(cached.id) && !seenTypes.has(cached.type)) {
+      if (getPublishedForm(event, cached.type)) continue;
       items.push(cached);
       seenIds.add(cached.id);
       seenTypes.add(cached.type);
     }
   }
 
+  const published = !!readSetupRecord(event).publication;
   return {
     eventId: event.id,
+    legacyScheduleWindow: published ? null : liveEventWindow(event),
     hasRegistration:
       (event.has_registration ?? true) ||
       items.some((f) => f.type === "registration"),
     hasSurvey:
       (event.has_survey ?? true) || items.some((f) => f.type === "survey"),
-    forms: items,
+    forms: published
+      ? items.map((record) => record.status === "draft" ? { ...record, canChangeStatus: false } : record)
+      : items,
   };
 }
 
@@ -1404,11 +1474,19 @@ export async function createForm(
   input: FormCreateBody,
   userId: string,
 ): Promise<FormRecord> {
-  const event = await loadEvent(input.eventId);
+  assertValidUniqueField(input.questions);
+  return writeSerially(input.eventId, () => createOrUpdateDraft(input, userId));
+}
+
+async function createOrUpdateDraft(input: FormCreateBody, userId: string): Promise<FormRecord> {
+  const event = await loadEvent(input.eventId, { fresh: true });
+  if (getPublishedForm(event, input.type)) {
+    throw new ServiceError("FORM_TYPE_EXISTS", 409, `A published ${input.type} form already exists for this event`);
+  }
   const existingConflict = await findExistingLiveType(input.eventId, input.type);
   if (existingConflict) {
     if (resolveEffectiveFormStatus(existingConflict) === "draft") {
-      return updateForm(existingConflict.id, input, userId);
+      return updateDraft(existingConflict, input, userId);
     }
     throw new ServiceError(
       "FORM_TYPE_EXISTS",
@@ -1422,6 +1500,7 @@ export async function createForm(
   const id = newId();
   const opensAt = input.opens_at?.trim() || null;
   const closesAt = input.closes_at?.trim() || null;
+  assertFormSchedule(opensAt, closesAt, Date.parse(stamp));
   const form: MockForm = {
     id,
     event_id: input.eventId,
@@ -1487,12 +1566,17 @@ export async function updateForm(
   input: Form,
   userId: string,
 ): Promise<FormRecord> {
-  const form = await getLiveForm(id);
+  return writeFormSerially(id, (form, event) => {
+    assertUnpublishedForm(form, event, "FORM_NOT_EDITABLE");
+    assertValidUniqueField(input.questions);
+    return updateDraft(form, input, userId);
+  });
+}
+
+async function updateDraft(form: MockForm, input: Form, userId: string): Promise<FormRecord> {
+  const { id } = form;
   const effective = resolveEffectiveFormStatus(form);
   assertCanEdit(effective);
-
-  const fields = await assertQuestionTreeOwnership(id, input.questions);
-  const snapshot = await captureFormTree(form);
 
   const stamp = nowIso();
   const opensAt =
@@ -1503,6 +1587,10 @@ export async function updateForm(
     input.closes_at !== undefined
       ? input.closes_at?.trim() || null
       : form.closes_at;
+  assertFormSchedule(opensAt, closesAt, Date.parse(stamp), form);
+
+  const fields = await assertQuestionTreeOwnership(id, input.questions);
+  const snapshot = await captureFormTree(form);
 
   const updatedForm: MockForm = {
     ...form,
@@ -1558,9 +1646,27 @@ export async function updateFormStatus(
   patch: FormStatusPatchInput,
   userId: string,
 ): Promise<FormRecord> {
-  const form = await getLiveForm(id);
-  const event = await loadEvent(form.event_id);
+  return writeFormSerially(id, (form, event) =>
+    changeFormStatus(form, event, patch, userId),
+  );
+}
+
+async function changeFormStatus(
+  form: MockForm,
+  event: MockEvent,
+  patch: FormStatusPatchInput,
+  userId: string,
+): Promise<FormRecord> {
+  const { id } = form;
   const current = resolveEffectiveFormStatus(form);
+  const activating = current === "draft" && patch.status === "scheduled";
+  if (activating) {
+    if (readSetupRecord(event).publication) {
+      throw new ServiceError("FORM_STATUS_LOCKED", 409, "Published event forms are read-only");
+    }
+  } else {
+    assertUnpublishedForm(form, event, "FORM_STATUS_LOCKED");
+  }
   assertCanChangeStatus(current);
   const stamp = nowIso();
   assertManualFormStatusTransition(current, patch.status);
@@ -1571,10 +1677,25 @@ export async function updateFormStatus(
     patch.closesAt !== undefined
       ? patch.closesAt?.trim() || null
       : form.closes_at;
+  const scheduleChanged = opensAt !== form.opens_at || closesAt !== form.closes_at;
+  if (form.type === "registration" && patch.status === "scheduled" && (activating || scheduleChanged)) {
+    const window = liveEventWindow(event);
+    if (event.status === "closed" ||
+      (window && registrationOutsideEvent(window.endsAt, opensAt, closesAt, Date.parse(stamp)))) {
+      throw new ServiceError("REGISTRATION_OUTSIDE_EVENT", 400);
+    }
+  }
+  assertFormSchedule(
+    opensAt,
+    closesAt,
+    Date.parse(stamp),
+    activating ? undefined : form,
+  );
 
   const recordBefore = await toFormRecord(form, event);
 
   if (patch.status === "scheduled") {
+    assertValidUniqueField(recordBefore.questions);
     if (!opensAt && !closesAt) {
       throw new ServiceError(
         "FORM_SCHEDULE_REQUIRED",
@@ -1668,7 +1789,14 @@ export async function runFormsCron(
 }
 
 export async function deleteForm(id: string, userId: string): Promise<void> {
-  const form = await getLiveForm(id);
+  return writeFormSerially(id, (form, event) => {
+    assertUnpublishedForm(form, event, "FORM_NOT_DELETABLE");
+    return removeDraft(form, userId);
+  });
+}
+
+async function removeDraft(form: MockForm, userId: string): Promise<void> {
+  const { id } = form;
   const effective = resolveEffectiveFormStatus(form);
   assertCanDelete(effective);
 

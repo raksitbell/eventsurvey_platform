@@ -44,24 +44,37 @@ function readableAccent(accentHex: string, backgroundHex: string): string {
   return hex(link);
 }
 
+type ChromeBranding = Pick<EventBranding, "chromeOpacity" | "transparentChrome">;
+
+export function getChromeOpacity(branding: ChromeBranding): number {
+  return branding.chromeOpacity ?? (branding.transparentChrome ? 0 : 100);
+}
+
+/** Choose foreground contrast against the selected color composited over the event background. */
+export function chromeSurface(color: string, backdrop: string, opacity: number) {
+  const alpha = opacity / 100;
+  const base = rgb(backdrop);
+  const mixed = rgb(color).map((channel, i) => channel * alpha + base[i] * (1 - alpha));
+  return {
+    backgroundColor: opacity === 0 ? "transparent" : opacity === 100 ? color :
+      color + Math.round(alpha * 255).toString(16).padStart(2, "0"),
+    color: eventColorForeground(hex(mixed)),
+  };
+}
+
 export function participantColors(
-  branding: Pick<
-    EventBranding,
-    "primary" | "secondary" | "accent" | "transparentChrome"
-  >,
+  branding: Pick<EventBranding, "primary" | "secondary" | "accent" | "footerColor"> & ChromeBranding,
 ) {
+  const opacity = getChromeOpacity(branding);
+  const header = chromeSurface(branding.primary, branding.secondary, opacity);
+  const footer = chromeSurface(branding.footerColor ?? branding.secondary, branding.secondary, opacity);
   return {
     "--participant-primary": branding.primary,
     "--participant-secondary": branding.secondary,
-    "--participant-header-surface": branding.transparentChrome
-      ? "transparent"
-      : branding.primary,
-    "--participant-footer-surface": branding.transparentChrome
-      ? "transparent"
-      : branding.secondary,
-    "--participant-on-header": eventColorForeground(
-      branding.transparentChrome ? branding.secondary : branding.primary,
-    ),
+    "--participant-header-surface": header.backgroundColor,
+    "--participant-footer-surface": footer.backgroundColor,
+    "--participant-on-header": header.color,
+    "--participant-on-footer": footer.color,
     "--participant-on-secondary": eventColorForeground(branding.secondary),
     "--participant-link": readableAccent(branding.accent, branding.secondary),
     "--participant-control-text": readableAccent(branding.accent, "#FFFFFF"),

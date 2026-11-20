@@ -11,12 +11,12 @@ import Button from "@/components/ui/button/Button";
 import { api } from "@/core/api";
 import { loadEventPublication } from "@/core/event/publication";
 import useEventDisplayDate from "@/hooks/useEventDisplayDate";
-import { Link } from "@/i18n/navigation";
+import EventWorkspacePageHeader from "@/components/event/workspace/EventWorkspacePageHeader";
 import type { EventShareResponse } from "@/types/event/public-event";
 import { showToast } from "@/utils/alert";
 import PublicationIcon from "./PublicationIcon";
 import PublishedEventSummary, {
-  PublicationHeading,
+  PublicationStatus,
 } from "./PublishedEventSummary";
 import QrLoadingSkeleton, {
   QrShareLinksSkeleton,
@@ -281,6 +281,7 @@ function ShareLinksSection() {
 
 function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
   const t = useTranslations("eventSetup");
+  const labels = useTranslations("eventPublishedView");
   const local = workspace.localPublishedAt
     ? loadEventPublication(
         userId,
@@ -289,23 +290,19 @@ function PublishedQr({ workspace, userId, locale }: EventSetupPageProps) {
         !!workspace.content,
       )
     : null;
-  if (
-    !workspace.setup?.publication &&
-    !local &&
-    workspace.eventStatus !== "open" &&
-    workspace.eventStatus !== "closed"
-  )
-    return (
-      <Link href="/event" className="event-option">
-        {t("backWorkspace")}
-      </Link>
-    );
+  const published = !!workspace.setup?.publication || !!local ||
+    workspace.eventStatus === "open" || workspace.eventStatus === "closed";
+  const heading = (
+    <EventWorkspacePageHeader
+      title={t("qrTitle")}
+      description={published ? t("qrDescription") : labels("linksUnavailable")}
+      action={published && <PublicationStatus closed={workspace.eventStatus === "closed" && !local} />}
+    />
+  );
+  if (!published) return heading;
   return (
-    <article className="published-event published-event--qr">
-      <PublicationHeading
-        title={t("qrTitle")}
-        closed={workspace.eventStatus === "closed" && !local}
-      />
+    <article className="published-event">
+      {heading}
       <PublishedEventSummary
         draft={workspace}
         branding={workspace.setup?.branding[locale] ?? workspace.setup?.publication?.branding ?? local?.branding}

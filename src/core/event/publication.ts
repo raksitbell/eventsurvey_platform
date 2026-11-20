@@ -1,38 +1,13 @@
 import { z } from "zod";
 import {
-  eventDraftSchema,
+  eventDraftFieldsSchema,
   legacyDraftContent,
   legacyEventSetupLocales,
 } from "@/core/event/draft";
 import { eventBrandingSchema } from "@/core/event/branding";
-import type { EventDraft } from "@/types/event/setup";
-import type { FormType } from "@/types/event/form";
-
-/** Minimal form shape accepted by publicationIssues; validated by Zod inside. */
-interface MinimalChoice {
-  label: string;
-}
-interface MinimalLabel {
-  label: string;
-  choices: Record<string, MinimalChoice[]>;
-}
-interface MinimalQuestion {
-  is_unique?: boolean;
-  type: string;
-  label: Record<string, MinimalLabel[]>;
-  min_length: number;
-  max_length: number;
-  min_number: number;
-  max_number: number;
-}
-interface MinimalForm {
-  type: string;
-  questions: Array<{ question: MinimalQuestion }>;
-  head: Record<string, { title: string; description: string }>;
-  opensAt?: string | null;
-  closesAt?: string | null;
-}
-type MinimalForms = Record<FormType, MinimalForm | null>;
+import { uniqueFieldIssue } from "@/core/forms/unique-field";
+import { validatePublishReady } from "@/core/forms/content";
+import type { FormRecord, FormType } from "@/types/event/form";
 
 const choice = z.object({
   id: z.string().optional(),
@@ -44,8 +19,10 @@ const label = z.object({
   placeholder: z.string(),
   scale_min_label: z.string().optional(),
   scale_max_label: z.string().optional(),
-  choices: z.object({ th: z.array(choice), en: z.array(choice) }),
+  choices: z.object({ th: z.array(choice).default([]), en: z.array(choice).default([]) }),
 });
+const heading = z.object({ title: z.string(), description: z.string() })
+  .default({ title: "", description: "" });
 const form = z.object({
   id: z.string(),
   eventId: z.string(),
@@ -69,8 +46,8 @@ const form = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   head: z.object({
-    th: z.object({ title: z.string(), description: z.string() }),
-    en: z.object({ title: z.string(), description: z.string() }),
+    th: heading,
+    en: heading,
   }),
   questions: z.array(
     z.object({
@@ -103,9 +80,9 @@ const form = z.object({
           rating_display: z.enum(["icon", "linear_scale"]).optional(),
           rating_icon: z.enum(["star", "heart", "like"]).optional(),
           label: z.object({
-            th: z.array(label).min(1),
-            en: z.array(label).min(1),
-          }),
+            th: z.array(label).default([]),
+            en: z.array(label).default([]),
+          }).refine((labels) => labels.th.length > 0 || labels.en.length > 0),
         })
         .refine(
           (q) =>
@@ -123,7 +100,7 @@ export type PublicationForms = {
 export const publicationSchema = z.object({
   // Zod v4: z.string().datetime() is deprecated; use z.iso.datetime() instead.
   publishedAt: z.iso.datetime(),
-  draft: eventDraftSchema,
+  draft: eventDraftFieldsSchema,
   branding: eventBrandingSchema,
   forms: z.object({ registration: form.nullable(), survey: form.nullable() }),
 });
@@ -185,115 +162,13 @@ export function loadEventPublication(
   };
 }
 
-type SharedPublishIssue =
-  | "eventName"
-  | "location"
-  | "eventSchedule"
-  | "formContent"
-  | "formStatus"
-  | "surveySchedule"
-  | "uniqueField"
-  | "whitelist"
-  | "capacity";
-export type PublishIssue =
-  | SharedPublishIssue
-  | { key: "contentTitle" | "contentVenue"; localeCode: string };
-/** Validate read-only BFF form definitions; form editing belongs to the Form team's branch. */
-export function publicationIssues(
-  draft: EventDraft,
-  forms: MinimalForms,
-): PublishIssue[] {
-  const issues = new Set<SharedPublishIssue>();
-  const languageIssues: PublishIssue[] = [];
-  if (draft.content) {
-    for (const row of draft.content.translations) {
-      if (!row.title.trim())
-        languageIssues.push({
-          key: "contentTitle",
-          localeCode: row.localeCode,
-        });
-      if (!row.locationName?.trim())
-        languageIssues.push({
-          key: "contentVenue",
-          localeCode: row.localeCode,
-        });
-    }
-  } else {
-    if (!draft.locationName?.trim()) issues.add("location");
-    if (!draft.eventName.trim()) issues.add("eventName");
-  }
-  if (
-    !draft.startsAt ||
-    !draft.endsAt ||
-    !Number.isFinite(Date.parse(draft.startsAt)) ||
-    !Number.isFinite(Date.parse(draft.endsAt)) ||
-    Date.parse(draft.endsAt) <= Date.parse(draft.startsAt)
-  )
-    issues.add("eventSchedule");
-  for (const type of ["registration", "survey"] as const) {
-    if (!(type === "registration" ? draft.hasRegistration : draft.hasSurvey))
-      continue;
-    const definition = forms[type];
-    if (
-      !definition ||
-      definition.type !== type ||
-      !form.safeParse(definition).success ||
-      !definition.questions.length
-    ) {
-      issues.add("formContent");
-      continue;
-    }
-    for (const locale of ["th", "en"] as const) {
-      if (!definition.head[locale].title.trim()) issues.add("formContent");
-      for (const { question: q } of definition.questions) {
-        const item = q.label[locale][0];
-        if (!item?.label.trim()) issues.add("formContent");
-        if (
-          ["multiple_choice", "checkbox", "dropdown"].includes(q.type) &&
-          (!item?.choices[locale].length ||
-            item.choices[locale].some((c) => !c.label.trim()))
-        )
-          issues.add("formContent");
-        if (
-          (q.min_length > q.max_length && q.max_length > 0) ||
-          q.min_number > q.max_number
-        )
-          issues.add("formContent");
-      }
-    }
-    if (
-      type === "survey" &&
-      (!definition.opensAt ||
-        !definition.closesAt ||
-        !Number.isFinite(Date.parse(definition.opensAt)) ||
-        !Number.isFinite(Date.parse(definition.closesAt)) ||
-        Date.parse(definition.closesAt) <= Date.parse(definition.opensAt) ||
-        (draft.endsAt &&
-          Date.parse(definition.closesAt) < Date.parse(draft.endsAt)))
-    )
-      issues.add("surveySchedule");
-  }
-  const unique =
-    forms.registration?.questions.filter(
-      ({ question }) => question.is_unique,
-    ) ?? [];
-  if (
-    (draft.isPrivate ||
-      (draft.hasSurvey && draft.surveyAccess === "registered_only")) &&
-    (!draft.hasRegistration ||
-      unique.length !== 1 ||
-      !["email", "short_text", "number"].includes(unique[0].question.type))
-  )
-    issues.add("uniqueField");
-  // Local email staging alone does not establish validated registration access.
-  if (draft.isPrivate) issues.add("whitelist");
-  for (const capacity of [
-    draft.hasRegistration ? draft.registrationCapacity : null,
-    draft.hasSurvey && draft.surveyAccess === "public"
-      ? draft.surveyCapacity
-      : null,
-  ])
-    if (capacity != null && (!Number.isInteger(capacity) || capacity <= 0))
-      issues.add("capacity");
-  return [...languageIssues, ...issues];
+/** Freeze one enabled form. Activating a draft uses the Form Builder's own validator. */
+export function formForPublication(type: FormType, records: readonly FormRecord[]): PublicationForm | null {
+  const matches = records.filter((record) => record.type === type);
+  if (matches.length !== 1 || !["draft", "scheduled", "open", "published"].includes(matches[0].status)) return null;
+  const parsed = form.safeParse(matches[0]);
+  if (!parsed.success) return null;
+  if (parsed.data.status !== "draft") return parsed.data;
+  if (uniqueFieldIssue(parsed.data.questions) || validatePublishReady(parsed.data)) return null;
+  return { ...parsed.data, status: "scheduled" };
 }

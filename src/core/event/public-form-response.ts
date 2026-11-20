@@ -1,7 +1,12 @@
 import { fromBangkokInput } from "@/core/i18n/bangkok-datetime";
-import type { FormLocale, Question } from "@/types/event/form";
+import type { Choice, Form, FormLocale, Question } from "@/types/event/form";
+import type { MockSubmissionAnswer } from "@/types/mock";
 
 export type PublicFormAnswer = string | string[] | number;
+type PreparedAnswer = Omit<MockSubmissionAnswer, "id" | "submission_id" | "created_at"> & { optionIds: string[] };
+type PreparedSubmission =
+  | { ok: true; answers: PreparedAnswer[] }
+  | { ok: false; fieldId?: string; issue: PublicFormAnswerIssue };
 export type PublicFormAnswerIssue =
   | {
       key:
@@ -12,6 +17,18 @@ export type PublicFormAnswerIssue =
   | { key: "numberMaxError"; max: number };
 
 type PublicQuestion = Question["question"];
+
+/** Older form snapshots can contain ordered choices without a stored ID. */
+export function answerChoicesWithIds(choices: Choice[]): (Choice & { id: string })[] {
+  const ids = new Set(choices.map((choice) => choice.id).filter(Boolean));
+  return choices.map((choice) => {
+    if (choice.id) return { ...choice, id: choice.id };
+    let id = `legacy-choice-${choice.display_order}`;
+    while (ids.has(id)) id = "_" + id;
+    ids.add(id);
+    return { ...choice, id };
+  });
+}
 
 export function publicQuestionId(question: PublicQuestion) {
   return question.id ?? String(question.display_order);
@@ -50,16 +67,16 @@ export function publicAnswerIssue(
         : invalid;
     }
     case "email":
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)
+      return text.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)
         ? null
         : { key: "emailError" };
     case "number": {
       const value = typeof answer === "number" ? answer : Number(text);
-      if ((!text && typeof answer !== "number") || !Number.isFinite(value)) {
+      if ((typeof answer !== "number" && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text)) || !Number.isFinite(value)) {
         return { key: "numberInvalidError" };
       }
-      const min = question.min_value;
-      const max = question.max_value;
+      const min = question.min_value === undefined ? question.min_number || null : question.min_value;
+      const max = question.max_value === undefined ? question.max_number || null : question.max_value;
       if (min != null && max != null && (value < min || value > max)) {
         return { key: "numberRangeError", min, max };
       }
@@ -71,9 +88,9 @@ export function publicAnswerIssue(
     case "dropdown":
     case "checkbox": {
       const language = publicQuestionLocale(question, locale);
-      const choices = question.label[language][0]?.choices[language] ?? [];
+      const choices = answerChoicesWithIds(question.label[language][0]?.choices[language] ?? []);
       const values = Array.isArray(answer) ? answer : [text];
-      if (Array.isArray(answer) !== (question.type === "checkbox"))
+      if (Array.isArray(answer) !== (question.type === "checkbox") || new Set(values).size !== values.length)
         return invalid;
       return values.every((value) =>
         choices.some((choice) => choice.id === value),
@@ -100,4 +117,55 @@ export function publicAnswerIssue(
         : invalid;
     }
   }
+}
+
+/** Bind submitted values to the authoritative form before any answer rows are written. */
+export function preparePublicFormAnswers(form: Form, submitted: unknown, locale: FormLocale): PreparedSubmission {
+  const invalid = { key: "invalidAnswer" } as const;
+  if (!submitted || typeof submitted !== "object" || Array.isArray(submitted) || (locale !== "th" && locale !== "en")) {
+    return { ok: false, issue: invalid };
+  }
+  const values = submitted as Record<string, unknown>;
+  const ids = new Set(form.questions.map(({ question }) => publicQuestionId(question)));
+  if (ids.size !== form.questions.length || Object.keys(values).some((id) => !ids.has(id))) {
+    return { ok: false, issue: invalid };
+  }
+  const answers: PreparedAnswer[] = [];
+  for (const { question } of form.questions) {
+    const fieldId = publicQuestionId(question);
+    const answer = Object.hasOwn(values, fieldId) ? values[fieldId] : undefined;
+    if (answer !== undefined && typeof answer !== "string" && typeof answer !== "number" &&
+      !(question.type === "checkbox" && Array.isArray(answer) && answer.every((id) => typeof id === "string"))) {
+      return { ok: false, fieldId, issue: invalid };
+    }
+    const issue = publicAnswerIssue(question, answer, locale);
+    if (issue) return { ok: false, fieldId, issue };
+    if (answer === undefined || (typeof answer === "string" && !answer.trim()) || (Array.isArray(answer) && !answer.length)) continue;
+    const row: PreparedAnswer = {
+      field_id: fieldId, value_text: null, value_number: null, value_boolean: null,
+      value_date: null, value_time: null, optionIds: [],
+    };
+    const text = typeof answer === "string" ? answer.trim() : "";
+    switch (question.type) {
+      case "number":
+      case "rating":
+        row.value_number = Number(answer);
+        break;
+      case "date":
+        [row.value_date, row.value_time] = text.split(/[T ]/);
+        break;
+      case "time":
+        row.value_time = text;
+        break;
+      case "checkbox":
+      case "dropdown":
+      case "multiple_choice":
+        row.optionIds = Array.isArray(answer) ? answer : [text];
+        break;
+      default:
+        row.value_text = text;
+    }
+    answers.push(row);
+  }
+  return { ok: true, answers };
 }

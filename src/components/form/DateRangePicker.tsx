@@ -1,9 +1,13 @@
+"use client";
+
 import Label from "@/components/form/Label";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import flatpickr from "flatpickr";
 import type { Instance } from "flatpickr/dist/types/instance";
 import "flatpickr/dist/flatpickr.css";
+import { useLocale } from "next-intl";
 import { useEffect, useId, useRef } from "react";
+import { calendarOptions } from "./calendar-options";
 
 export type DateRangeValue = {
   start: string;
@@ -17,12 +21,7 @@ type DateRangePickerProps = {
   onChange: (value: DateRangeValue | null) => void;
 };
 
-function toYmd(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+const storedDateFormat = "Y-m-d";
 
 export default function DateRangePicker({
   label,
@@ -30,63 +29,64 @@ export default function DateRangePicker({
   value,
   onChange,
 }: DateRangePickerProps) {
+  const locale = useLocale();
   const autoId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const fpRef = useRef<Instance | null>(null);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     if (!inputRef.current) return;
 
-    // No altInput — it duplicates the visible field (original + alt).
-    fpRef.current = flatpickr(inputRef.current, {
+    const picker = flatpickr(inputRef.current, {
+      ...calendarOptions(locale),
       mode: "range",
       dateFormat: "d/m/Y",
-      allowInput: false,
-      disableMobile: true,
-      defaultDate:
-        value?.start && value?.end ? [value.start, value.end] : undefined,
-      onChange: (selectedDates) => {
-        if (selectedDates.length === 2) {
+      onChange: ([start, end], _, instance) => {
+        if (start && end) {
           onChangeRef.current({
-            start: toYmd(selectedDates[0]),
-            end: toYmd(selectedDates[1]),
+            start: instance.formatDate(start, storedDateFormat),
+            end: instance.formatDate(end, storedDateFormat),
           });
-          return;
-        }
-        if (selectedDates.length === 0) {
+        } else if (!start) {
           onChangeRef.current(null);
         }
       },
-      onClose: (selectedDates) => {
+      onClose: (selectedDates, _, instance) => {
         if (selectedDates.length === 1) {
-          fpRef.current?.clear();
+          instance.clear(false);
           onChangeRef.current(null);
         }
       },
     });
+    picker.calendarContainer.classList.add("date-range-calendar");
+    fpRef.current = picker;
 
     return () => {
-      fpRef.current?.destroy();
+      picker.destroy();
       fpRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     const fp = fpRef.current;
     if (!fp) return;
     if (value?.start && value?.end) {
-      const current = fp.selectedDates.map(toYmd).join(",");
+      const current = fp.selectedDates
+        .map((day) => fp.formatDate(day, storedDateFormat))
+        .join(",");
       const next = `${value.start},${value.end}`;
       if (current !== next) {
-        fp.setDate([value.start, value.end], false);
+        fp.setDate([value.start, value.end], false, storedDateFormat);
       }
     } else if (fp.selectedDates.length > 0) {
-      fp.clear();
+      fp.clear(false);
     }
-  }, [value]);
+  }, [locale, value]);
 
   return (
     <div>
@@ -97,11 +97,12 @@ export default function DateRangePicker({
           id={autoId}
           type="text"
           placeholder={placeholder}
+          aria-label={label ? undefined : placeholder}
           readOnly
-          className="h-11 w-full rounded-lg border border-gray-300 bg-transparent py-2.5 ps-4 pe-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+          className="h-11 w-full cursor-pointer rounded-lg border border-gray-300 bg-transparent py-2.5 ps-4 pe-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
         />
         <span className="pointer-events-none absolute end-3.5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
-          <CalendarDaysIcon className="size-5" />
+          <CalendarDaysIcon className="size-5" aria-hidden="true" />
         </span>
       </div>
     </div>

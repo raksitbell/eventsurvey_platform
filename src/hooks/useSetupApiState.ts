@@ -28,7 +28,7 @@ export default function useSetupApiState(workspace: EventWorkspace) {
   const ownRevisions = useRef(new Map<number, number>());
   const writing = useRef(false);
   const [pending, setPending] = useState(false);
-  const [conflict, setConflict] = useState(false);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const getRevision = () =>
     Math.max(acknowledgedRevision.current, workspace.setup?.revision ?? 0);
 
@@ -46,7 +46,7 @@ export default function useSetupApiState(workspace: EventWorkspace) {
     if (writing.current) return null;
     writing.current = true;
     setPending(true);
-    setConflict(false);
+    setErrorCode(null);
     try {
       const revision = revisionForWrite(revisionAtEdit ?? getRevision());
       const saved = await api.patch<EventSetupState & { savedFromRevision?: number }>("/event/setup/draft", {
@@ -64,8 +64,8 @@ export default function useSetupApiState(workspace: EventWorkspace) {
       notifyEventSetupSaved(eventSetupStateKey(workspace.eventId));
       return saved;
     } catch (error) {
-      if (error instanceof ApiError && error.code === "SETUP_CONFLICT") {
-        setConflict(true);
+      if (error instanceof ApiError) {
+        setErrorCode(error.code ?? null);
       }
       return null;
     } finally {
@@ -74,7 +74,7 @@ export default function useSetupApiState(workspace: EventWorkspace) {
     }
   }
 
-  return { save, getRevision, pending, conflict };
+  return { save, getRevision, pending, conflict: errorCode === "SETUP_CONFLICT", errorCode };
 }
 
 export type SetupDraftApi = ReturnType<typeof useSetupApiState>;

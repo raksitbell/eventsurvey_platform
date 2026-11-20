@@ -2,13 +2,17 @@ import type {
   EventPermissionMatrix,
   ModuleAccessLevel,
 } from "@/types/event/permissions";
-import type { FormType } from "@/types/event/form";
+import { FORM_TYPES, type FormType } from "@/types/event/form";
 import type { MockPermissionCode } from "@/types/mock";
 
 export type FormPermissionModule = "registrationForm" | "surveyForm";
 
 export function formPermissionModule(type: FormType): FormPermissionModule {
   return type === "registration" ? "registrationForm" : "surveyForm";
+}
+
+export function viewableFormTypes(access: Pick<EventPermissionMatrix, FormPermissionModule>) {
+  return FORM_TYPES.filter((type) => satisfiesAccessLevel(access[formPermissionModule(type)], "view_only"));
 }
 
 export const DEFAULT_ADMIN_MATRIX: EventPermissionMatrix = {

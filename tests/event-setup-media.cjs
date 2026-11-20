@@ -5,6 +5,8 @@ const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const test = require("node:test");
 const { loadSource } = require("./support/load-source.cjs");
+const { IMAGE_MAX_INPUT_BYTES, IMAGE_MAX_LOCAL_BYTES } =
+  loadSource()("src/utils/image-upload.ts");
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==",
@@ -36,8 +38,8 @@ function oversizedUploadRequest(onCancel) {
       "",
       "",
     ].join("\r\n")),
-    Buffer.alloc(768 * 1024),
-    Buffer.alloc(768 * 1024),
+    Buffer.alloc(IMAGE_MAX_INPUT_BYTES),
+    Buffer.alloc(128 * 1024),
     Buffer.from(`\r\n--${boundary}--\r\n`),
   ];
   const body = new ReadableStream({
@@ -56,11 +58,15 @@ function oversizedUploadRequest(onCancel) {
   });
 }
 
-async function configureMediaDirectory(t) {
+async function configureMediaDirectory(t, mode) {
+  const oldMode = process.env.NODE_ENV;
+  if (mode) process.env.NODE_ENV = mode;
   const previous = process.env.EVENT_SETUP_MEDIA_DIR;
   const dir = await mkdtemp(join(tmpdir(), "eventsurvey-setup-media-"));
   process.env.EVENT_SETUP_MEDIA_DIR = dir;
   t.after(async () => {
+    if (oldMode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = oldMode;
     if (previous === undefined) delete process.env.EVENT_SETUP_MEDIA_DIR;
     else process.env.EVENT_SETUP_MEDIA_DIR = previous;
     await rm(dir, { recursive: true, force: true });
@@ -70,7 +76,7 @@ async function configureMediaDirectory(t) {
 
 test("media storage reports when browser fallback is needed and rejects invalid files", async (t) => {
   const { storeEventSetupMedia } = loadSource()("src/services/event/setup-media.ts");
-  const dir = await configureMediaDirectory(t);
+  const dir = await configureMediaDirectory(t, "production");
   delete process.env.EVENT_SETUP_MEDIA_DIR;
   await assert.rejects(
     storeEventSetupMedia("event-a", uploadRequest(png, "image/png")),
@@ -89,6 +95,10 @@ test("media storage reports when browser fallback is needed and rejects invalid 
     storeEventSetupMedia("event-a", uploadRequest(png, "image/svg+xml")),
     { status: 415 },
   );
+  await assert.rejects(
+    storeEventSetupMedia("event-a", uploadRequest(Buffer.alloc(IMAGE_MAX_INPUT_BYTES), "image/png")),
+    { code: "SETUP_MEDIA_TOO_LARGE", status: 413 },
+  );
   let cancelled = false;
   const oversized = oversizedUploadRequest(() => { cancelled = true; });
   assert.equal(oversized.headers.has("Content-Length"), false);
@@ -98,6 +108,34 @@ test("media storage reports when browser fallback is needed and rejects invalid 
   );
   assert.equal(cancelled, true);
 });
+
+for (const useDefault of [false, true]) {
+  const storage = useDefault ? "default development media directory" : "configured media directory";
+  test(`${storage} saves and reopens original images above one MiB`, async (t) => {
+    const dir = await configureMediaDirectory(t, useDefault ? "development" : "production");
+    if (useDefault) {
+      delete process.env.EVENT_SETUP_MEDIA_DIR;
+      t.mock.method(process, "cwd", () => dir);
+    }
+    const { storeEventSetupMedia, findEventSetupMedia, readEventSetupMedia } =
+      loadSource()("src/services/event/setup-media.ts");
+    // A 24-bit BMP with 1024 × 768 pixels and uncompressed rows.
+    const bmp = Buffer.alloc(54 + 1024 * 768 * 3);
+    bmp.write("BM");
+    bmp.writeUInt32LE(bmp.length, 2);
+    bmp.writeUInt32LE(54, 10);
+    bmp.writeUInt32LE(40, 14);
+    bmp.writeInt32LE(1024, 18);
+    bmp.writeInt32LE(768, 22);
+    bmp.writeUInt16LE(1, 26);
+    bmp.writeUInt16LE(24, 28);
+    assert.ok(bmp.length > IMAGE_MAX_LOCAL_BYTES);
+    const { url } = await storeEventSetupMedia("event-a", uploadRequest(bmp, "image/bmp"));
+    const asset = await findEventSetupMedia(url.split("/").pop());
+    assert.equal(asset.size, bmp.length);
+    assert.deepEqual(Buffer.from(await readEventSetupMedia(asset)), bmp);
+  });
+}
 
 test("event media is served publicly only when referenced by its published event", async (t) => {
   await configureMediaDirectory(t);

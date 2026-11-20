@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
+import Select from "@/components/form/Select";
 import Table, {
   TableBody,
   TableCell,
@@ -31,32 +32,23 @@ export default function WhitelistTable({
   const t = useTranslations("eventWhitelist");
   const v = useTranslations("eventWhitelistDesign");
   const s = useTranslations("eventSetup");
-  const labels = useTranslations("eventWhitelistImport");
   const [query, setQuery] = useState("");
-  const filtered = entries.filter((e) =>
-    (e.uniqueId + " " + e.name)
-      .toLowerCase()
-      .includes(query.trim().toLowerCase()),
+  const [status, setStatus] = useState("all");
+  const search = query.trim().toLowerCase();
+  const filtered = entries.filter((entry) =>
+    (status === "all" || entry.status === status) &&
+    (entry.uniqueId + " " + entry.name).toLowerCase().includes(search),
   );
-  const used = entries.filter((e) => e.status === "joined").length;
+  const used = entries.filter((entry) => entry.status === "joined").length;
   return (
     <section className="es-list-registry">
-      <dl className="es-list-totals" aria-live="polite">
-        {(
-          [
-            ["total", entries.length],
-            ["used", used],
-            ["unused", entries.length - used],
-          ] as const
-        ).map(([key, count]) => (
-          <div key={key}>
-            <dt>{v(key)}</dt>
-            <dd>{count}</dd>
-          </div>
-        ))}
-      </dl>
       <div className="es-list-tools">
-        <h2>{v("attendees")}</h2>
+        <div className="es-list-intro">
+          <h2>{v("attendees")}</h2>
+          <p className="es-list-summary" role="status">
+            {t("summary", { used, total: entries.length })}
+          </p>
+        </div>
         <input
           type="search"
           aria-label={s("searchList")}
@@ -64,6 +56,15 @@ export default function WhitelistTable({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <Select
+          aria-label={t("statusFilter")}
+          value={status}
+          onChange={(event) => setStatus(event.currentTarget.value)}
+        >
+          <option value="all">{t("allStatuses")}</option>
+          <option value="available">{t("available")}</option>
+          <option value="joined">{t("joined")}</option>
+        </Select>
         <button
           type="button"
           className="es-list-import"
@@ -81,11 +82,6 @@ export default function WhitelistTable({
           {v("add")}
         </button>
       </div>
-      {editor && (
-        <p className="whitelist-inline-total" aria-live="polite">
-          {labels("total", { count: entries.length })}
-        </p>
-      )}
       <div className="es-list-grid">
         <Table className="text-start text-theme-sm text-gray-800 dark:text-gray-200">
           <TableHeader className="bg-participant-page text-theme-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
@@ -118,7 +114,7 @@ export default function WhitelistTable({
                       <span
                         className={`rounded-full px-2.5 py-1 ${entry.status === "joined" ? "bg-success-50 text-success-700 dark:bg-success-900/30 dark:text-success-300" : "bg-participant-page text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
                       >
-                        {v(entry.status)}
+                        {t(entry.status)}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -140,7 +136,7 @@ export default function WhitelistTable({
                       colSpan={4}
                       className="py-12 text-center text-gray-500 dark:text-gray-400"
                     >
-                      {t("empty")}
+                      {t(entries.length ? "noMatches" : "empty")}
                     </TableCell>
                   </TableRow>
                 )}

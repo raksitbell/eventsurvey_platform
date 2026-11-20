@@ -13,7 +13,7 @@ import {
   UserPlusIcon,
 } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 const PAGE_SIZE = 10;
 
@@ -89,16 +89,6 @@ export default function SubUsersTable({
     () => subUsers.slice(startIndex, endIndex),
     [subUsers, startIndex, endIndex],
   );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [subUsers.length]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
 
   const handleRemove = async (subUser: EventSubUserItem) => {
     const confirmed = await confirm({

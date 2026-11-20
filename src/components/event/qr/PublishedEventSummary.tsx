@@ -16,27 +16,13 @@ interface PublishedDataProps {
   bannerUrl: string | null;
 }
 
-export function PublicationHeading({
-  title,
-  subtitle,
-  closed = false,
-}: {
-  title: string;
-  subtitle?: string;
-  closed?: boolean;
-}) {
+export function PublicationStatus({ closed = false }: { closed?: boolean }) {
   const t = useTranslations("eventSetup");
   return (
-    <header className="published-event__heading">
-      <div>
-        <h1>{title}</h1>
-        {subtitle && <p>{subtitle}</p>}
-      </div>
-      <span className="published-event__status">
-        <PublicationIcon name="status" size={14} />
-        {t(closed ? "closed" : "published")}
-      </span>
-    </header>
+    <span className="published-event__status">
+      <PublicationIcon name="status" size={14} />
+      {t(closed ? "closed" : "published")}
+    </span>
   );
 }
 

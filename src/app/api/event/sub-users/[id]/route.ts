@@ -6,6 +6,7 @@ import {
 } from "@/core/auth/api-guard";
 import {
   isInspectingEvent,
+  isLegacyImpersonation,
   type AuthSessionCookie,
 } from "@/core/auth/cookie";
 import { authJson, readJsonObject } from "@/core/auth/route-response";
@@ -19,12 +20,7 @@ import type { NextRequest } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-function workspaceOptions(
-  session: Pick<
-    AuthSessionCookie,
-    "realRole" | "impersonating" | "inspectedEventId"
-  >,
-) {
+function workspaceOptions(session: AuthSessionCookie) {
   return {
     inspectedEventId: isInspectingEvent(session)
       ? session.inspectedEventId
@@ -36,7 +32,7 @@ function workspaceOptions(
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
-  if (sessionOrDeny.impersonating && !sessionOrDeny.inspectedEventId) {
+  if (isLegacyImpersonation(sessionOrDeny)) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
 
@@ -107,7 +103,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const sessionOrDeny = await requireEventSession(request);
   if (!isAuthSession(sessionOrDeny)) return sessionOrDeny;
-  if (sessionOrDeny.impersonating && !sessionOrDeny.inspectedEventId) {
+  if (isLegacyImpersonation(sessionOrDeny)) {
     return authJson({ error: "FORBIDDEN" }, 403);
   }
 

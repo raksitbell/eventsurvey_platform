@@ -361,7 +361,7 @@ async function resolveEventAdmin(input: CreateAdminEventInput) {
     ) {
       throw new ServiceError("USER_NOT_ASSIGNABLE", 409);
     }
-    return { mode: "existing" as const, userId: existing.id };
+    return { mode: "existing" as const, userId: existing.id, hasLegacyRole: "role_id" in existing };
   }
 
   const email = input.adminEmail?.trim().toLowerCase();
@@ -420,7 +420,6 @@ export async function createAdminEvent(
   const translationRows: MockEventTranslation[] = [];
   const assignment = {
     event_id: eventId,
-    role_id: null,
     role_assigned_by_user_id: platformAdminUserId,
     role_assigned_at: now,
     updated_at: now,
@@ -484,7 +483,6 @@ export async function createAdminEvent(
         password: randomBytes(18).toString("base64url"),
         display_name: admin.name,
         system_role: "event_user",
-        platform_role_id: null,
         status: "invited",
         invited_by_user_id: platformAdminUserId,
         joined_at: null,
@@ -496,7 +494,7 @@ export async function createAdminEvent(
       operation = "PATCH /users";
       const path = `/users/${encodeURIComponent(admin.userId)}`;
       adminUser = await mockApi
-        .patch<MockUser>(path, assignment)
+        .patch<MockUser>(path, admin.hasLegacyRole ? { ...assignment, role_id: null } : assignment)
         .catch(async (error: unknown) => {
           const current = await mockApi.get<MockUser>(path).catch(() => null);
           if (current?.event_id === eventId) {
@@ -741,97 +739,6 @@ export async function updateAdminEventStatus(
   const { translations, users } = await loadEventBundle();
   return toListItem(updated, translations, users, locale, viewer);
 }
-
-export type ScheduleEventInput = {
-  startsAt?: string | null;
-  endsAt?: string | null;
-  description?: string | null;
-  locationName?: string | null;
-  addressText?: string | null;
-};
-
-/** @deprecated alias — event owner schedules the event (draft → scheduled) */
-export type SubmitEventApprovalInput = ScheduleEventInput;
-
-/** Event owner completes schedule/details and moves draft → scheduled */
-export async function scheduleEvent(
-  userId: string,
-  input: ScheduleEventInput,
-  locale: Locale = routing.defaultLocale,
-): Promise<AdminEventListItem> {
-  const user = await mockApi.get<MockUser>(`/users/${userId}`);
-  if (!user?.event_id) {
-    throw new ServiceError("FORBIDDEN", 403);
-  }
-
-  let event: MockEvent;
-  try {
-    event = await mockApi.get<MockEvent>(`/events/${user.event_id}`);
-  } catch {
-    throw new ServiceError("EVENT_NOT_FOUND", 404);
-  }
-  if (!event) {
-    throw new ServiceError("EVENT_NOT_FOUND", 404);
-  }
-  if (event.status !== "draft") {
-    throw new ServiceError(
-      "INVALID_TRANSITION",
-      409,
-      "Only draft events can be scheduled",
-    );
-  }
-
-  const startsAt = input.startsAt?.trim() || null;
-  const endsAt = input.endsAt?.trim() || null;
-  if (!startsAt || !endsAt) {
-    throw new ServiceError(
-      "VALIDATION_ERROR",
-      400,
-      "startsAt and endsAt are required to schedule",
-    );
-  }
-  const startMs = Date.parse(startsAt);
-  const endMs = Date.parse(endsAt);
-  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
-    throw new ServiceError(
-      "VALIDATION_ERROR",
-      400,
-      "endsAt must be after startsAt",
-    );
-  }
-
-  const now = nowIso();
-  const updated = await mockApi.patch<MockEvent>(`/events/${event.id}`, {
-    start_at: startsAt,
-    end_at: endsAt,
-    status: "scheduled",
-    updated_at: now,
-    updated_by: userId,
-  });
-
-  const translations = await mockApi.get<MockEventTranslation[]>(
-    `/event_translations?event_id=${encodeURIComponent(event.id)}`,
-  );
-  const primary =
-    translations.find((row) => row.locale_code === locale) ?? translations[0];
-  if (primary) {
-    await mockApi.patch(`/event_translations/${primary.id}`, {
-      description: input.description ?? primary.description,
-      location_name: input.locationName ?? primary.location_name,
-      address_text: input.addressText ?? primary.address_text,
-      updated_at: now,
-    });
-  }
-
-  const users = await mockApi.get<MockUser[]>("/users");
-  const refreshedTranslations = await mockApi.get<MockEventTranslation[]>(
-    `/event_translations?event_id=${encodeURIComponent(event.id)}`,
-  );
-  return toListItem(updated, refreshedTranslations, users, locale);
-}
-
-/** @deprecated use scheduleEvent */
-export const submitEventForApproval = scheduleEvent;
 
 export type RunEventLifecycleCronResult = {
   opened: string[];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { Modal } from "@/components/ui/modal";
 import BrandingIcon from "./BrandingIcon";
@@ -10,22 +11,16 @@ interface Props {
   title: string;
   variant: "banner" | "crop" | "asset" | "settings";
   onClose: () => void;
-  onEscape?: () => void;
   children: ReactNode;
   actions: ReactNode;
-  sidecar?: ReactNode;
-  sidecarKind?: "identity" | "material";
 }
 
 export default function BrandingDialogFrame({
   title,
   variant,
   onClose,
-  onEscape,
   children,
   actions,
-  sidecar,
-  sidecarKind,
 }: Props) {
   const t = useTranslations("eventBranding");
   const titleId = useId();
@@ -34,26 +29,14 @@ export default function BrandingDialogFrame({
 
   useEffect(() => {
     const previous =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
+      globalThis.document.activeElement instanceof HTMLElement
+        ? globalThis.document.activeElement
         : null;
     closeButton.current?.focus({ preventScroll: true });
     return () => previous?.focus({ preventScroll: true });
   }, []);
 
-  useEffect(() => {
-    if (!onEscape) return;
-    function dismissEditor(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      onEscape?.();
-    }
-    document.addEventListener("keydown", dismissEditor, true);
-    return () => document.removeEventListener("keydown", dismissEditor, true);
-  }, [onEscape]);
-
-  return (
+  const modal = (
     <Modal
       isOpen
       onClose={onClose}
@@ -66,7 +49,6 @@ export default function BrandingDialogFrame({
         ref={panel}
         className={styles.rail}
         data-variant={variant}
-        data-sidecar={!!sidecar}
         onKeyDown={(event) => {
           if (event.key !== "Tab") return;
           const controls = Array.from(
@@ -75,14 +57,19 @@ export default function BrandingDialogFrame({
             ) ?? [],
           ).filter(
             (control) =>
-              control.getClientRects().length && control.tabIndex >= 0,
+              control.getClientRects().length &&
+              control.tabIndex >= 0 &&
+              !control.closest("[inert]"),
           );
           const first = controls[0],
             last = controls.at(-1);
-          if (event.shiftKey && document.activeElement === first) {
+          if (event.shiftKey && globalThis.document.activeElement === first) {
             event.preventDefault();
             last?.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
+          } else if (
+            !event.shiftKey &&
+            globalThis.document.activeElement === last
+          ) {
             event.preventDefault();
             first?.focus();
           }
@@ -106,12 +93,11 @@ export default function BrandingDialogFrame({
           <div className={styles.body}>{children}</div>
           <footer className={styles.actions}>{actions}</footer>
         </div>
-        {sidecar && (
-          <aside className={styles.sidecar} data-kind={sidecarKind}>
-            {sidecar}
-          </aside>
-        )}
       </div>
     </Modal>
   );
+
+  // Keep the platform setup tokens while escaping the page stacking context.
+  const eventShell = globalThis.document?.querySelector(".event-admin-shell");
+  return eventShell ? createPortal(modal, eventShell) : modal;
 }

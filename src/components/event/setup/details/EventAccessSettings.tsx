@@ -1,10 +1,12 @@
 "use client";
 import EventCapacitySettings from "./EventCapacitySettings";
+import EventFormSchedule from "./EventFormSchedule";
 import Switch from "@/components/form/switch/Switch";
 import Button from "@/components/ui/button/Button";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { EventDraft } from "@/types/event/setup";
 import type { EventWorkspace } from "@/types/event/workspace";
+import { UserGroupIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 
 interface Props {
@@ -25,9 +27,9 @@ export default function EventAccessSettings({
 }: Props) {
   const t = useTranslations("eventHome.details");
   const s = useTranslations("eventSetup");
-  const v = useTranslations("eventSetupDesign");
   const { confirm } = useConfirm();
   async function toggleRegistration(value: boolean) {
+    if (draft.isPrivate) return;
     if (
       !value &&
       draft.surveyAccess === "registered_only" &&
@@ -43,7 +45,7 @@ export default function EventAccessSettings({
     onChange({ hasRegistration: value });
   }
   return (
-    <section className="es-access">
+    <section id="event-access" tabIndex={-1} className="es-access">
       <fieldset disabled={readOnly} className="grid grid-cols-2 gap-2">
         <legend className="mb-2 font-semibold">{s("access")}</legend>
         {([false, true] as const).map((value) => (
@@ -63,19 +65,26 @@ export default function EventAccessSettings({
         const enabled = registration ? draft.hasRegistration : draft.hasSurvey;
         const label = t(registration ? "hasRegistration" : "hasSurvey");
         return (
-          <div key={kind} className="es-feature space-y-3">
+          <section
+            key={kind}
+            className="es-feature"
+            aria-labelledby={kind + "-label"}
+            id={!registration && !enabled ? "survey-schedule" : undefined}
+            tabIndex={!registration && !enabled ? -1 : undefined}
+          >
             <div className="flex items-center justify-between">
               <label
                 htmlFor={kind + "-on"}
+                id={kind + "-label"}
                 className={`es-icon-label es-${kind}-label`}
               >
-                {v(registration ? "registrationForm" : "survey")}
+                {label}
               </label>
               <Switch
                 id={kind + "-on"}
                 label={label}
                 checked={enabled}
-                disabled={readOnly}
+                disabled={readOnly || (registration && draft.isPrivate)}
                 onChange={(value) =>
                   registration
                     ? void toggleRegistration(value)
@@ -83,6 +92,11 @@ export default function EventAccessSettings({
                 }
               />
             </div>
+            {registration && draft.isPrivate && enabled && !workspace.setup?.publication && (
+              <p className="text-theme-xs text-gray-600 dark:text-gray-400">
+                {t("privateRegistrationHint")}
+              </p>
+            )}
             {!registration && enabled && (
               <label className="es-survey-requirement">
                 <input
@@ -134,22 +148,20 @@ export default function EventAccessSettings({
                   }
                 />
               )}
-            {registration && draft.isPrivate && !enabled && (
-              <p className="text-theme-xs text-gray-600 dark:text-gray-400">
-                {t("privateRegistrationHint")}
-              </p>
+            {enabled && (
+              <EventFormSchedule kind={kind} draft={draft} readOnly={readOnly} onChange={onChange} />
             )}
             {registration && draft.isPrivate && enabled && (
               <Button
-                variant="outline"
                 className="es-whitelist-link"
+                startIcon={<UserGroupIcon className="size-4.5 shrink-0" aria-hidden="true" />}
                 disabled={readOnly || !workspace.canManageWhitelist}
                 onClick={onOpenWhitelist}
               >
                 {t("manageWhitelist")}
               </Button>
             )}
-          </div>
+          </section>
         );
       })}
     </section>

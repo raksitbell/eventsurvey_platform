@@ -85,8 +85,9 @@ function sessionCookie(role, realRole = role, inspectedEventId = null) {
   return response.cookies.get(AUTH_SESSION_COOKIE).value;
 }
 
-function navigate(path, cookie) {
-  const headers = cookie ? { cookie: `${AUTH_SESSION_COOKIE}=${cookie}` } : undefined;
+function navigate(path, cookie, requestHeaders) {
+  const headers = new Headers(requestHeaders);
+  if (cookie) headers.set("cookie", `${AUTH_SESSION_COOKIE}=${cookie}`);
   return proxy(new NextRequest(`https://portal.example.test${path}`, { headers }));
 }
 
@@ -114,6 +115,9 @@ test("proxy routes the full auth-state matrix before forwarding to localization"
         ["/admin", admin],
         ["/admin/users", admin],
         ["/event", event],
+        ["/event/form", event],
+        ["/en/event/form/survey", event],
+        ["/event/activity", event],
         ["/event/forms", event],
         ["/preview/event", event],
       ];
@@ -127,10 +131,24 @@ test("proxy routes the full auth-state matrix before forwarding to localization"
   }
 });
 
+test("localized workspace rewrites complete after authorization while direct prefixed URLs follow locale routing", () => {
+  const owner = sessionCookie("event_owner");
+  for (const locale of ["th", "en"]) {
+    const path = `/${locale}/event/details`;
+    const headers = { "x-next-intl-locale": locale };
+    const internal = navigate(path, owner, headers);
+    assert.equal(internal.headers.get("x-middleware-next"), "1");
+    assert.equal(internal.headers.has("x-test-intl"), false);
+    assert.equal(navigate(path, owner).headers.get("x-test-intl"), "forwarded");
+    assert.equal(new URL(navigate(path, undefined, headers).headers.get("location")).pathname, "/login");
+    assert.equal(new URL(navigate(path, sessionCookie("super_admin"), headers).headers.get("location")).pathname, "/error/403");
+  }
+});
+
 test("proxy passes through the localized Full Preview rewrite after checking the event session", () => {
   const owner = sessionCookie("event_owner");
   for (const prefix of ["/th", "/en"]) {
-    const path = `${prefix}/preview/event?device=desktop&from=branding`;
+    const path = `${prefix}/preview/event?from=publish&tab=form&form=survey`;
     const allowed = navigate(path, owner);
     assert.equal(allowed.headers.get("x-middleware-next"), "1", path);
     assert.equal(allowed.headers.get("x-test-intl"), null, path);
@@ -147,4 +165,32 @@ test("proxy forwards unrelated paths with similar prefixes to the localized rout
     assert.equal(response.headers.get("location"), null, path);
     assert.equal(response.headers.get("x-test-intl"), "forwarded", path);
   }
+});
+
+test("browser session restoration distinguishes inspection from acting as another user", async () => {
+  const admin = { id: "admin", role: "super_admin" };
+  const owner = { id: "owner", role: "event_owner" };
+  let response = { realUser: admin, inspectedEventId: "event-a", canViewEvents: true };
+  const loadClient = loadSource({
+    "@/core/api/client": { api: { get: async () => response } },
+  });
+  const { getAuthSnapshot } = loadClient("src/core/auth/service.ts");
+  const signal = new AbortController().signal;
+
+  const inspecting = await getAuthSnapshot(signal);
+  assert.equal(inspecting.realUser, admin);
+  assert.equal(inspecting.user, admin);
+  assert.equal(inspecting.inspectedEventId, "event-a");
+  assert.equal(inspecting.canViewEvents, true);
+  assert.equal(inspecting.canManageEvents, false);
+
+  response = { realUser: admin, impersonatedUser: owner, canViewEvents: "true" };
+  const legacy = await getAuthSnapshot(signal);
+  assert.equal(legacy.realUser, admin);
+  assert.equal(legacy.user, owner);
+  assert.equal(legacy.inspectedEventId, null);
+  assert.equal(legacy.canViewEvents, false);
+
+  response = { impersonatedUser: owner };
+  assert.equal((await getAuthSnapshot(signal)).user, null);
 });

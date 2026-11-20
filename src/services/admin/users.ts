@@ -397,7 +397,6 @@ export async function updatePlatformAccessFlags(
 export async function createAdminUser(
   input: AdminUserWriteInput,
   actorUserId: string,
-  locale: Locale = routing.defaultLocale,
 ): Promise<AdminUserWriteResult> {
   const name = input.name.trim();
   const email = normalizeEmail(input.email);
@@ -439,9 +438,7 @@ export async function createAdminUser(
     password,
     display_name: name,
     system_role: isPlatform ? "platform_admin" : "event_user",
-    platform_role_id: null,
     event_id: eventId,
-    role_id: null,
     role_assigned_by_user_id: actorUserId,
     role_assigned_at: now,
     status: "active",
@@ -556,27 +553,29 @@ export async function updateUserRoleOrEvent(
     patchBody.email = email;
   }
 
-  if (typeof updates.password === "string" && updates.password.length > 0) {
-    patchBody.password = validatePassword(updates.password);
-    if (current.status === "invited") {
-      patchBody.status = "active";
-      patchBody.joined_at = current.joined_at ?? new Date().toISOString();
-    }
+  const password = typeof updates.password === "string" && updates.password.length > 0
+    ? validatePassword(updates.password)
+    : undefined;
+  if (password && current.status === "invited") {
+    patchBody.status = "active";
+    patchBody.joined_at = current.joined_at ?? new Date().toISOString();
   }
 
+  // Clear role references only on records created before access matrices.
+  if ("platform_role_id" in current) patchBody.platform_role_id = null;
+  if ("role_id" in current) patchBody.role_id = null;
   if (nextRole === "super_admin") {
     patchBody.system_role = "platform_admin";
-    patchBody.platform_role_id = null;
-    patchBody.role_id = null;
     patchBody.event_id = null;
   } else {
     patchBody.system_role = "event_user";
-    patchBody.platform_role_id = null;
-    patchBody.role_id = null;
     patchBody.event_id = nextEventId;
   }
 
-  await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, patchBody);
+  await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, {
+    ...patchBody,
+    ...(password ? { password } : {}),
+  });
 
   if (nextRole === "super_admin") {
     await softDeleteEventAccess(targetUserId);

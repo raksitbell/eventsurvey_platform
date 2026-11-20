@@ -1,4 +1,5 @@
 import { MockApiError, mockApi } from "@/core/api/mock-client";
+import { projectAuditMetadata } from "@/core/audit/metadata";
 import { normalizeAuditModuleKey } from "@/core/audit/module-path";
 import {
   maskEmail,
@@ -32,7 +33,7 @@ function bindPersonName(
   userId: string,
   viewer?: PiiViewer,
 ): string {
-  if (!viewer || mayViewPii(viewer, userId)) return raw;
+  if (mayViewPii(viewer, userId)) return raw;
   return maskName(raw);
 }
 
@@ -41,8 +42,29 @@ function bindPersonEmail(
   userId: string,
   viewer?: PiiViewer,
 ): string {
-  if (!viewer || mayViewPii(viewer, userId)) return raw;
+  if (mayViewPii(viewer, userId)) return raw;
   return maskEmail(raw);
+}
+
+// Legacy descriptions and metadata can contain more than one address, including
+// recipients other than the actor. Only the requester's own mailbox is exempt.
+function maskActivityEmails(text: string, ownEmail?: string): string {
+  if (!text.includes("@")) return text;
+  return text.replace(
+    /[^\s@<>()\[\]{},;:"\\]{1,64}@[\p{L}\p{M}\p{N}•-]+(?:\.[\p{L}\p{M}\p{N}•-]+)*/gu,
+    (email) => email.toLowerCase() === ownEmail ? email : maskEmail(email),
+  );
+}
+
+function maskActivityField(
+  value: string,
+  field: string,
+  ownEmail?: string,
+): string {
+  if (/email(?:s|address(?:es)?)?$/i.test(field.replace(/[-_]/g, ""))) {
+    return value.trim().toLowerCase() === ownEmail ? value : maskEmail(value);
+  }
+  return maskActivityEmails(value, ownEmail);
 }
 
 function actionKind(action: string): AuditActionKind {
@@ -90,8 +112,9 @@ function bindEventName(
 function localizeAuditDescription(row: MockAuditLog, locale: Locale): string {
   const th = row.description_th?.trim() || "";
   const en = row.description_en?.trim() || "";
-  if (locale === "en") return en || th || row.description?.trim() || row.action;
-  return th || en || row.description?.trim() || row.action;
+  // Older audit records have a single unlocalized description.
+  const legacy = "description" in row && typeof row.description === "string" ? row.description.trim() : "";
+  return (locale === "en" ? en || th : th || en) || legacy || row.action;
 }
 
 async function toActivityItem(
@@ -113,6 +136,8 @@ async function toActivityItem(
   }
 
   const rawName = actor?.display_name?.trim() || row.actor_user_id;
+  const ownEmail = viewer && usersById.get(viewer.userId)?.email.trim().toLowerCase();
+  const description = localizeAuditDescription(row, locale);
 
   return {
     id: row.id,
@@ -127,14 +152,16 @@ async function toActivityItem(
     resourceType: row.resource_type,
     resourceId: row.resource_id,
     module: normalizeAuditModuleKey(row.module || row.resource_type),
-    description: localizeAuditDescription(row, locale),
-    metadata:
-      row.metadata &&
-      typeof row.metadata === "object" &&
-      !Array.isArray(row.metadata)
-        ? row.metadata
-        : null,
-    includesUnmaskedPii: row.includes_unmasked_pii === true,
+    description: viewer?.canViewUnmaskedPii
+      ? description
+      : maskActivityEmails(description, ownEmail),
+    metadata: projectAuditMetadata(
+      row.metadata,
+      viewer?.canViewUnmaskedPii
+        ? undefined
+        : (value, field) => maskActivityField(value, field, ownEmail),
+    ),
+    includesUnmaskedPii: row.includes_unmasked_pii,
   };
 }
 

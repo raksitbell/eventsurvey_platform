@@ -15,7 +15,7 @@ export default function PreviewFooterActions({
     <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
       <button
         type="submit"
-        className="rounded-lg bg-[#5C54D1] px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#4b43b8]"
+        className="rounded-lg bg-(--participant-accent) px-6 py-2.5 text-sm font-medium text-(--form-on-accent) shadow-sm transition-colors hover:brightness-95"
       >
         {tPreview("submit")}
       </button>
@@ -23,7 +23,7 @@ export default function PreviewFooterActions({
       <button
         type="button"
         onClick={onClearForm}
-        className="rounded-lg px-3 py-2 text-sm font-medium text-[#5C54D1] transition-colors hover:bg-indigo-50"
+        className="rounded-lg px-3 py-2 text-sm font-medium bg-(--form-background) text-(--form-link) transition-colors hover:underline"
       >
         {tPreview("clearForm")}
       </button>

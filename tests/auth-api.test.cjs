@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Node's standalone test runner loads compiled TypeScript. */
 process.env.MOCK_API_GET_CACHE_TTL_MS = "0";
 const assert = require("node:assert/strict");
+const { mkdtempSync, rmSync } = require("node:fs");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
 const { test } = require("node:test");
 const { NextRequest } = require("next/server");
 const { loadSource } = require("./support/load-source.cjs");
@@ -151,7 +154,7 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
     ["/api/admin/events/assignable-users", ["GET"]],
     ["/api/admin/events/cron", ["POST"]],
     ["/api/event/workspace", ["GET"]],
-    ["/api/event/workspace/submit-approval", ["PATCH"]],
+    ["/api/event/setup/publish", ["POST"]],
     ["/api/event/setup/whitelist", ["GET", "PATCH"]],
     ["/api/event/forms?eventId=event-a", ["GET", "POST"], "/api/event/forms"],
     ["/api/event/forms/form-a", ["GET", "PUT", "DELETE"], "/api/event/forms/[id]"],
@@ -178,6 +181,139 @@ test("protected BFF routes deny absent, invalid and insufficient portal sessions
   await assertDenied(await getForms(request("/api/event/forms?eventId=event-b", { cookie: own })), 403);
 });
 
+test("Event form lists load only the definitions permitted by the caller's form access", async (t) => {
+  const { owner, collections, calls } = setupMockData(t);
+  const access = collections.event_access.find((row) => row.user_id === owner.id);
+  access.can_manage_sub_users = false;
+  access.matrix.registrationForm = "restricted";
+  access.matrix.surveyForm = "restricted";
+  const stamp = "2026-01-01T12:00:00.000Z";
+  for (const type of ["registration", "survey"]) {
+    collections.forms.push({
+      id: type + "-id", event_id: "event-a", type, status: "draft",
+      opens_at: null, closes_at: null, created_at: stamp, updated_at: stamp, deleted_at: null,
+    });
+  }
+  collections.form_translations = [];
+  collections.form_fields = [];
+  const { cookie } = await signIn(owner);
+  const list = "/api/event/forms?eventId=event-a";
+  // Cached clients may still send the retired query flag.
+  const previousQuery = list + "&publishReview=1";
+  for (const url of [list, previousQuery]) {
+    await assertDenied(await getForms(request(url, { cookie })), 403);
+  }
+  assert.ok(!calls.some(({ url }) => url.pathname === "/forms"));
+
+  access.matrix.surveyForm = "view_only";
+  for (const url of [list, previousQuery]) {
+    const response = await getForms(request(url, { cookie }));
+    assert.equal(response.status, 200);
+    assertNoStore(response);
+    const data = await response.json();
+    assert.deepEqual(data.forms.map((form) => form.id), ["survey-id"]);
+    assert.equal(data.surveyFormAccess, "view_only");
+    assert.equal(data.registrationFormAccess, "restricted");
+    assert.equal(data.restrictedForms, undefined);
+  }
+  assert.ok(calls.some(({ url }) => url.searchParams.get("form_id") === "survey-id"));
+  assert.ok(!calls.some(({ url }) => url.searchParams.get("form_id") === "registration-id"));
+  access.deleted_at = stamp;
+  await assertDenied(await getForms(request(list, { cookie })), 403);
+});
+
+test("editable legacy registration and survey drafts accept their first schedule and open at the chosen time", async (t) => {
+  const { owner, assistant, collections } = setupMockData(t, { eventWrites: true });
+  const event = collections.events[0];
+  Object.assign(event, { status: "open", has_registration: true, has_survey: true });
+  const cacheDir = mkdtempSync(join(tmpdir(), "legacy-form-status-"));
+  t.after(() => rmSync(cacheDir, { recursive: true, force: true }));
+  const local = loadSource({ "node:os": { tmpdir: () => cacheDir } });
+  const { PATCH } = local("src/app/api/event/forms/[id]/status/route.ts");
+  const { GET } = local("src/app/api/event/forms/route.ts");
+  const { runFormsCron } = local("src/services/event/forms.ts");
+  const { cookie } = await signIn(owner);
+  const { cookie: viewOnlyCookie } = await signIn(assistant);
+  const listPath = "/api/event/forms?eventId=" + event.id;
+  const schedule = {
+    status: "scheduled",
+    opensAt: new Date(Date.now() + 3_600_000).toISOString(),
+    closesAt: new Date(Date.now() + 7_200_000).toISOString(),
+  };
+  const endAt = new Date(Date.now() + 10_800_000).toISOString();
+  const surveyClose = new Date(Date.parse(endAt) + 3_600_000).toISOString();
+  Object.assign(event, { start_at: event.updated_at, end_at: endAt });
+  const patch = (id, session, body) => PATCH(
+    request(`/api/event/forms/${id}/status`, { method: "PATCH", cookie: session, body }),
+    context("id", id),
+  );
+  collections.form_fields = [];
+  collections.form_translations = [];
+  collections.field_translations = [];
+  for (const type of ["registration", "survey"]) {
+    const id = "legacy-" + type;
+    collections.forms.push({
+      id, event_id: event.id, type, status: "draft", opens_at: null, closes_at: null,
+      created_at: event.updated_at, updated_at: event.updated_at, deleted_at: null,
+    });
+    collections.form_fields.push({ id: id + "-q", form_id: id, type: "short_text", display_order: 1 });
+    collections.form_translations.push({ form_id: id, locale_code: "en", title: type });
+    collections.field_translations.push({ field_id: id + "-q", locale_code: "en", label: "Answer" });
+  }
+  const response = await GET(request(listPath, { cookie }));
+  assert.equal(response.status, 200);
+  const list = await response.json();
+  assert.equal(list.forms.length, 2);
+  assert.deepEqual(list.legacyScheduleWindow, { startsAt: event.start_at, endsAt: event.end_at });
+  for (const status of ["scheduled", "closed", "draft"]) {
+    event.status = status;
+    const data = await (await GET(request(listPath, { cookie }))).json();
+    assert.deepEqual(data.legacyScheduleWindow, status === "scheduled" ? list.legacyScheduleWindow : null);
+  }
+  event.status = "open";
+  for (const form of list.forms) {
+    assert.equal(form.status, "draft");
+    assert.equal(form.canChangeStatus, true);
+    assert.equal(form.opensAt, null);
+    assert.equal(form.closesAt, null);
+    assert.equal(list[form.type + "FormAccess"], "can_edit");
+    await assertDenied(await patch(form.id, viewOnlyCookie, schedule), 403, form.id);
+    if (form.type === "registration") {
+      const invalid = await patch(form.id, cookie, { status: "scheduled", opensAt: endAt, closesAt: null });
+      assert.equal(invalid.status, 400);
+      assert.equal((await invalid.json()).error, "REGISTRATION_OUTSIDE_EVENT");
+    }
+    const bounds = form.type === "survey" ? { ...schedule, closesAt: surveyClose } : schedule;
+    const saved = await patch(form.id, cookie, bounds);
+    assert.equal(saved.status, 200);
+    const record = await saved.json();
+    assert.equal(record.status, "scheduled");
+    assert.equal(record.opensAt, bounds.opensAt);
+    assert.equal(record.closesAt, bounds.closesAt);
+  }
+  const registrationId = "legacy-registration";
+  const invalidReschedule = await patch(registrationId, cookie, { status: "scheduled", closesAt: surveyClose });
+  assert.equal(invalidReschedule.status, 400);
+  assert.equal((await invalidReschedule.json()).error, "REGISTRATION_OUTSIDE_EVENT");
+  const cleared = await patch(registrationId, cookie, { status: "scheduled", closesAt: null });
+  assert.equal(cleared.status, 200);
+  assert.equal((await cleared.json()).closesAt, null);
+  event.end_at = new Date(Date.now() - 60_000).toISOString();
+  assert.equal((await patch(registrationId, cookie, { status: "scheduled" })).status, 200);
+  assert.equal((await patch(registrationId, cookie, { status: "draft" })).status, 200);
+  event.end_at = endAt;
+  assert.equal((await patch(registrationId, cookie, { status: "scheduled" })).status, 200);
+  assert.deepEqual((await runFormsCron(Date.parse(schedule.opensAt) - 1)).opened, []);
+  const ids = list.forms.map((form) => form.id).sort();
+  assert.deepEqual((await runFormsCron(Date.parse(schedule.opensAt))).opened.sort(), ids);
+  assert.deepEqual((await runFormsCron(Date.parse(endAt) - 1)).closed, []);
+  assert.equal(event.status, "open");
+  assert.deepEqual((await runFormsCron(Date.parse(endAt))).closed, [registrationId]);
+  assert.deepEqual((await runFormsCron(Date.parse(surveyClose))).closed, ["legacy-survey"]);
+  const closed = await (await GET(request(listPath, { cookie }))).json();
+  assert.ok(closed.forms.every((form) => form.status === "closed" && !form.canChangeStatus));
+});
+
 test("Setup Whitelist rejects other-event IDs and requires Registration permission", async (t) => {
   const { owner, assistant, calls } = setupMockData(t);
   const { GET, PATCH } = load("src/app/api/event/setup/whitelist/route.ts");
@@ -191,6 +327,74 @@ test("Setup Whitelist rejects other-event IDs and requires Registration permissi
   })), 409);
   await assertDenied(await GET(request(endpoint + "?eventId=event-a", { cookie: team })), 403);
   assert.ok(!calls.some(({ method, url }) => method === "PATCH" || url.pathname === "/events/event-b"));
+});
+
+test("Workspace and Setup expose only matching form references from an immutable publication", async (t) => {
+  const { owner, assistant, collections } = setupMockData(t);
+  const access = collections.event_access.find((row) => row.user_id === assistant.id);
+  access.matrix.registrationForm = "restricted";
+  const event = collections.events[0];
+  const draft = {
+    eventName: "Guest event", locationName: "Hall", description: null,
+    startsAt: null, endsAt: null, isPrivate: true, hasRegistration: true, hasSurvey: true, surveyAccess: "public",
+  };
+  const publishedAt = "2026-01-01T06:00:00.000Z";
+  const forms = {};
+  for (const type of ["registration", "survey"]) {
+    forms[type] = {
+      id: type + "-id", type, eventId: event.id, status: "open", opensAt: null, closesAt: null,
+      createdAt: publishedAt, updatedAt: publishedAt, questions: [],
+      head: { en: { title: "Saved " + type + " questions", description: "" } },
+    };
+    collections.forms.push({
+      id: forms[type].id, event_id: event.id, type, status: "open", opens_at: null, closes_at: null,
+      created_at: publishedAt, updated_at: publishedAt, deleted_at: null,
+    });
+  }
+  const { encodeSetupRecord } = load("src/core/event/setup-storage.ts");
+  const { defaultEventBranding } = load("src/core/event/branding.ts");
+  event.setup = encodeSetupRecord(event.id, {
+    revision: 1, draft, branding: {}, pendingMedia: {}, whitelist: null,
+    publication: { publishedAt, draft, branding: defaultEventBranding, forms },
+  });
+  const { GET: getDraft } = load("src/app/api/event/setup/draft/route.ts");
+  for (const [account, seesRegistration] of [[owner, true], [assistant, false]]) {
+    const { cookie } = await signIn(account);
+    const workspace = await (await getWorkspace(request("/api/event/workspace", { cookie }))).json();
+    const setup = await (await getDraft(request("/api/event/setup/draft?eventId=event-a", { cookie }))).json();
+    for (const payload of [workspace.setup, setup]) {
+      assert.equal(payload.publication.publishedAt, publishedAt);
+      assert.deepEqual(payload.publication.forms, {
+        registration: seesRegistration ? { id: "registration-id", closesAt: null } : null,
+        survey: { id: "survey-id", closesAt: null },
+      });
+      assert.doesNotMatch(JSON.stringify(payload), /Saved (registration|survey) questions/);
+    }
+    const permitted = await (await getForms(request("/api/event/forms?eventId=event-a", { cookie }))).json();
+    assert.equal(permitted.legacyScheduleWindow, null);
+    assert.deepEqual(permitted.forms.map((form) => form.head.en.title),
+      seesRegistration ? ["Saved registration questions", "Saved survey questions"] : ["Saved survey questions"]);
+  }
+  // A legacy draft that was omitted from the publication still belongs to a snapshot-managed event.
+  event.setup = encodeSetupRecord(event.id, {
+    revision: 2, draft, branding: {}, pendingMedia: {}, whitelist: null,
+    publication: { publishedAt, draft, branding: defaultEventBranding, forms: { ...forms, registration: null } },
+  });
+  collections.forms.find((form) => form.type === "registration").status = "draft";
+  collections.form_fields = [];
+  collections.form_translations = [];
+  const { cookie } = await signIn(owner);
+  const omitted = await (await getForms(request("/api/event/forms?eventId=event-a", { cookie }))).json();
+  assert.equal(omitted.legacyScheduleWindow, null);
+  const hiddenFromPublication = omitted.forms.find((form) => form.id === "registration-id");
+  assert.equal(hiddenFromPublication.canChangeStatus, false);
+  const { PATCH } = load("src/app/api/event/forms/[id]/status/route.ts");
+  const denied = await PATCH(request("/api/event/forms/registration-id/status", {
+    method: "PATCH", cookie,
+    body: { status: "scheduled", opensAt: new Date(Date.now() + 3_600_000).toISOString() },
+  }), context("id", "registration-id"));
+  assert.equal(denied.status, 409);
+  assert.equal((await denied.json()).error, "FORM_STATUS_LOCKED");
 });
 
 test("workspace follows the authenticated account and suspended accounts lose access", async (t) => {
@@ -323,6 +527,7 @@ test("upstream failure details stay in the API layer", async (t) => {
 
 test("admin can create events with either owner mode and an invite failure preserves the draft", async (t) => {
   const { admin, assignable, collections } = setupMockData(t, { eventWrites: true });
+  assignable.role_id = "previous-event-role";
   const { cookie } = await signIn(admin);
   const invitations = [];
   const create = createEventHandler(async (invitation) => {
@@ -353,6 +558,8 @@ test("admin can create events with either owner mode and an invite failure prese
     assert.equal(result.inviteSent, false);
     assert.equal(assigned.status, isExisting ? "active" : "invited");
     assert.equal(assigned.event_id, result.event.id);
+    assert.equal(assigned.role_id, isExisting ? null : undefined);
+    if (!isExisting) assert.equal(assigned.platform_role_id, undefined);
     assert.ok(access);
     assert.equal(access.can_manage_sub_users, true);
     assert.equal(access.matrix.event, "can_edit");

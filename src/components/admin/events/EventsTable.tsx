@@ -9,6 +9,7 @@ import Button from "@/components/ui/button/Button";
 import { TableBodySkeleton } from "@/components/ui/skeleton/Skeleton";
 import { api, ApiError } from "@/core/api";
 import { useAuth } from "@/context/AuthContext";
+import { fromBangkokInput } from "@/core/i18n/bangkok-datetime";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Link } from "@/i18n/navigation";
 import {
@@ -154,13 +155,14 @@ export default function EventsTable() {
       const params = new URLSearchParams({ locale });
       if (q.trim()) params.set("q", q.trim());
       if (status !== "all") params.set("status", status);
-      if (dateRange?.start) {
-        params.set("startDate", new Date(dateRange.start).toISOString());
-      }
-      if (dateRange?.end) {
-        const end = new Date(dateRange.end);
-        end.setHours(23, 59, 59, 999);
-        params.set("endDate", end.toISOString());
+      if (dateRange) {
+        const start = fromBangkokInput(`${dateRange.start}T00:00`);
+        const endMinute = fromBangkokInput(`${dateRange.end}T23:59`);
+        if (start) params.set("startDate", start);
+        if (endMinute) {
+          const end = new Date(Date.parse(endMinute) + 59_999);
+          params.set("endDate", end.toISOString());
+        }
       }
       const data = await api.get<AdminEventsResponse>(
         `/admin/events?${params.toString()}`,

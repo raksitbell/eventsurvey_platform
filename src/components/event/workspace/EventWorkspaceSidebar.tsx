@@ -3,16 +3,25 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { DocumentTextIcon, UserGroupIcon } from "@heroicons/react/24/outline";
+import {
+  ClipboardDocumentCheckIcon,
+  DocumentTextIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
 import { useSidebar } from "@/context/SidebarContext";
 import { isEventReportingPath } from "@/core/event/public-event-paths";
-import useEventWorkspace from "@/hooks/useEventWorkspace";
+import { canEditWhitelist } from "@/core/event/whitelist";
+import type { EventWorkspace } from "@/types/event/workspace";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useEventNavigationGuard } from "./EventNavigationGuard";
 import styles from "./EventWorkspaceChrome.module.css";
 
-export default function EventWorkspaceSidebar() {
-  const { workspace, loading } = useEventWorkspace();
+export default function EventWorkspaceSidebar({
+  workspace, loading,
+}: {
+  workspace: EventWorkspace | null;
+  loading: boolean;
+}) {
   // Prefer cached/loaded workspace; only treat as empty on the first cold load.
   const currentWorkspace = workspace;
   const menuReady = !loading || currentWorkspace !== null;
@@ -22,20 +31,41 @@ export default function EventWorkspaceSidebar() {
     currentWorkspace?.eventStatus === "open" ||
     currentWorkspace?.eventStatus === "closed";
   const t = useTranslations("eventSetup");
+  const whitelist = useTranslations("eventWhitelistDesign");
   const sidebar = useTranslations("sidebar.items");
   const pathname = usePathname();
   const router = useRouter();
   const navigationGuard = useEventNavigationGuard();
-  const { isExpanded, isHovered, isMobileOpen, setIsHovered } = useSidebar();
+  const {
+    isDesktop,
+    isExpanded,
+    isHovered,
+    isMobileOpen,
+    setIsHovered,
+    closeMobileSidebar,
+  } = useSidebar();
   const expanded = isExpanded || isHovered || isMobileOpen;
 
-  function guardLink(event: { preventDefault: () => void }, href: string) {
+  function handleNavigation(event: { preventDefault: () => void }, href: string) {
+    if (href === pathname) {
+      if (isMobileOpen) {
+        event.preventDefault();
+        closeMobileSidebar(true);
+      }
+      return;
+    }
+
     const confirmLeave = navigationGuard?.current;
-    if (!confirmLeave || href === pathname) return;
+    if (!confirmLeave) {
+      if (isMobileOpen) closeMobileSidebar();
+      return;
+    }
 
     event.preventDefault();
     void confirmLeave().then((approved) => {
-      if (approved) router.push(href);
+      if (!approved) return;
+      if (isMobileOpen) closeMobileSidebar();
+      router.push(href);
     });
   }
 
@@ -67,6 +97,15 @@ export default function EventWorkspaceSidebar() {
                   <DocumentTextIcon className="size-5" aria-hidden="true" />
                 ),
                 href: "/event/form",
+              },
+            ]
+          : []),
+        ...(currentWorkspace && canEditWhitelist(currentWorkspace)
+          ? [
+              {
+                label: whitelist("title"),
+                icon: <ClipboardDocumentCheckIcon className="size-5" aria-hidden="true" />,
+                href: "/event/whitelist",
               },
             ]
           : []),
@@ -116,10 +155,17 @@ export default function EventWorkspaceSidebar() {
                 ),
                 href: "/event/qr",
               },
+            ]
+          : []),
+        ...(currentWorkspace
+          ? [
               {
                 label: t("team"),
                 icon: <UserGroupIcon className="size-5" aria-hidden="true" />,
-                href: "/event/team",
+                href:
+                  currentWorkspace.userRole === "event_owner"
+                    ? "/event/team"
+                    : null,
               },
             ]
           : []),
@@ -150,14 +196,14 @@ export default function EventWorkspaceSidebar() {
       id="event-workspace-sidebar"
       data-expanded={expanded}
       onMouseEnter={() => {
-        if (!isExpanded) setIsHovered(true);
+        if (isDesktop && !isExpanded) setIsHovered(true);
       }}
       onMouseLeave={() => setIsHovered(false)}
       className={`${styles.sidebar} ${isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full xl:visible xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
     >
       <Link
         href="/event"
-        onNavigate={(event) => guardLink(event, "/event")}
+        onNavigate={(event) => handleNavigation(event, "/event")}
         className={styles.brand}
         aria-label="EventSurvey"
       >
@@ -165,7 +211,7 @@ export default function EventWorkspaceSidebar() {
           <Image
             alt=""
             width={27}
-            height={26}
+            height={25}
             src="/images/event-workspace/ticket-speech-symbol.svg"
           />
         </span>
@@ -177,7 +223,9 @@ export default function EventWorkspaceSidebar() {
         )}
       </Link>
       <nav aria-label={t("overview")} aria-busy={!menuReady}>
-        <h2 className={expanded ? styles.section : "sr-only"}>WORKSPACE</h2>
+        <h2 className={expanded ? styles.section : "sr-only"}>
+          WORKSPACE
+        </h2>
         <ul className="space-y-1">
           {!menuReady
             ? Array.from({ length: 5 }, (_, index) => (
@@ -206,7 +254,7 @@ export default function EventWorkspaceSidebar() {
                       <Link
                         className={styles.item}
                         href={href}
-                        onNavigate={(event) => guardLink(event, href)}
+                        onNavigate={(event) => handleNavigation(event, href)}
                         aria-label={label}
                         aria-current={href === activeHref ? "page" : undefined}
                       >

@@ -3,7 +3,6 @@ import { api } from "@/core/api";
 import type { FormRecord, FormListResponse } from "@/types/event/form";
 import { useEffect, useState } from "react";
 
-/** Read existing BFF form metadata; the Raksit wizard never edits form definitions. */
 export default function useEventFormSummaries(eventId: string, needed = true) {
   const [attempt, setAttempt] = useState(0);
   const identity = `${eventId}:${attempt}`;
@@ -16,12 +15,10 @@ export default function useEventFormSummaries(eventId: string, needed = true) {
     if (!needed) return;
     let active = true;
     const controller = new AbortController();
-    const timeout = globalThis.setTimeout(() => controller.abort(), 10000);
+    const query = new URLSearchParams({ eventId });
+    const timeout = globalThis.setTimeout(() => controller.abort(), 10_000);
     api
-      .get<FormListResponse>(
-        `/event/forms?eventId=${encodeURIComponent(eventId)}`,
-        controller.signal,
-      )
+      .get<FormListResponse>(`/event/forms?${query}`, controller.signal)
       .then(({ forms, eventId: returnedId }) => {
         if (returnedId !== eventId || !Array.isArray(forms))
           throw new Error("Invalid form summary response");

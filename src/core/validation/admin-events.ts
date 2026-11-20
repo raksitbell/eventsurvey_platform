@@ -57,38 +57,6 @@ export const adminEventStatusBodySchema = z.object({
   force: z.boolean().optional(),
 });
 
-/** Event owner fills schedule/details and moves draft → scheduled */
-export const scheduleEventBodySchema = z
-  .object({
-    startsAt: z.string().min(1),
-    endsAt: z.string().min(1),
-    description: z.string().max(10000).nullable().optional(),
-    locationName: z.string().max(240).nullable().optional(),
-    addressText: z.string().max(2000).nullable().optional(),
-  })
-  .superRefine((data, ctx) => {
-    const startMs = Date.parse(data.startsAt);
-    const endMs = Date.parse(data.endsAt);
-    if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Invalid startsAt or endsAt",
-        path: ["startsAt"],
-      });
-      return;
-    }
-    if (endMs <= startMs) {
-      ctx.addIssue({
-        code: "custom",
-        message: "endsAt must be after startsAt",
-        path: ["endsAt"],
-      });
-    }
-  });
-
-/** @deprecated use scheduleEventBodySchema */
-export const submitEventApprovalBodySchema = scheduleEventBodySchema;
-
 export function formatZodError(error: z.ZodError) {
   return {
     error: "VALIDATION_ERROR",

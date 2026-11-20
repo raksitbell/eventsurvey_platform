@@ -1,6 +1,10 @@
 import { ServiceError } from "@/core/api/service-error";
 import type { FormStatus } from "@/types/event/form";
-import type { MockEvent, MockForm } from "@/types/mock";
+import type { MockEvent, MockForm, MockFormSubmission } from "@/types/mock";
+
+export function activeSubmission(row: MockFormSubmission) {
+  return row.status === "submitted" && !row.cancelled_at && !row.deleted_at;
+}
 
 /** Manual status API: draft ↔ scheduled only. open/closed come from cron. */
 const MANUAL_TRANSITIONS: Record<FormStatus, readonly FormStatus[]> = {
@@ -63,6 +67,20 @@ function parseTime(value: string | null | undefined): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
+/** Registration closes with the event even if the form has a later closing time. */
+export function registrationOutsideEvent(
+  endsAt: string | null,
+  opensAt: string | null,
+  closesAt: string | null,
+  now = Date.now(),
+): boolean {
+  const end = parseTime(endsAt);
+  if (end === null) return false;
+  const opening = parseTime(opensAt);
+  const closing = parseTime(closesAt);
+  return now >= end || (opening !== null && opening >= end) || (closing !== null && closing > end);
+}
+
 /**
  * Stored status is the source of truth.
  * Time-based open/closed promotion is persisted by the forms cron job.
@@ -118,17 +136,14 @@ export function nextCronFormStatus(
   const explicitClose = parseTime(form.closes_at);
   const postSurvey =
     form.type === "survey" && explicitClose !== null && nowMs < explicitClose;
-  const eventClosed = event.status === "closed" && !postSurvey;
-
-  if (form.status === "scheduled") {
-    if (eventClosed) return "closed";
-    if (closesAt !== null && nowMs >= closesAt) return "closed";
-    if (opensAt !== null && nowMs >= opensAt) return "open";
-    return null;
+  const registrationEnd = form.type === "registration" ? parseTime(event.end_at) : null;
+  if (
+    (event.status === "closed" && !postSurvey) ||
+    (registrationEnd !== null && nowMs >= registrationEnd) ||
+    (closesAt !== null && nowMs >= closesAt)
+  ) {
+    return "closed";
   }
 
-  // "published" is the backend equivalent of "open".
-  if (eventClosed) return "closed";
-  if (closesAt !== null && nowMs >= closesAt) return "closed";
-  return null;
+  return form.status === "scheduled" && opensAt !== null && nowMs >= opensAt ? "open" : null;
 }

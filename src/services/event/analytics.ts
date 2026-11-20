@@ -1,5 +1,5 @@
 import { mockApi, MockApiError } from "@/core/api/mock-client";
-import type { AuthSessionCookie } from "@/core/auth/cookie";
+import { isLegacyImpersonation, type AuthSessionCookie } from "@/core/auth/cookie";
 import {
   AnalyticsError,
   localDay,
@@ -46,9 +46,7 @@ async function scope(session: AuthSessionCookie) {
     ...scoped,
     session,
     // Platform inspection keeps full manage; legacy impersonation stays read-only.
-    manage:
-      (!session.impersonating || Boolean(session.inspectedEventId)) &&
-      scoped.canManageDashboard,
+    manage: !isLegacyImpersonation(session) && scoped.canManageDashboard,
   };
 }
 
@@ -77,14 +75,17 @@ async function audit(
       action,
       resource_type: "analytics",
       resource_id: context.event.id,
-      description: JSON.stringify({
+      module: "dashboard",
+      description_th: action === "analytics.view" ? "ดูข้อมูลวิเคราะห์อีเวนต์" : "ส่งออกข้อมูลวิเคราะห์อีเวนต์",
+      description_en: action === "analytics.view" ? "Viewed event analytics" : "Exported event analytics",
+      metadata: {
         effectiveUserId: context.session.userId,
         formId: filters.formId || null,
         from: filters.from,
         to: filters.to,
         locale: filters.locale,
         count,
-      }),
+      },
       includes_unmasked_pii: filters.raw,
       occurred_at: new Date().toISOString(),
     }),

@@ -31,7 +31,7 @@ export default function PreviewNumber({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={tPreview("yourNumber")}
-        className="w-full max-w-xs border-b border-gray-300 bg-transparent pb-1.5 text-sm text-gray-800 transition-colors placeholder:text-gray-400 focus:border-b-2 focus:border-[#5C54D1] focus:outline-none"
+        className="w-full max-w-xs border-b border-gray-300 bg-transparent pb-1.5 text-sm text-gray-800 transition-colors placeholder:text-gray-400 focus:border-b-2 focus:border-[var(--participant-control-text,#5C54D1)] focus:outline-none"
       />
 
       {(hasMin || hasMax) && (

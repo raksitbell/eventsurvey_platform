@@ -22,31 +22,11 @@
   --pub-tint: var(--color-gray-700);
 }
 .published-event--overview {
-  margin-block-start: -10px;
   gap: 16px;
-}
-.published-event--qr {
-  margin-block-start: -6px;
-}
-.published-event__heading {
-  display: flex;
-  min-height: 60px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.published-event__heading h1 {
-  font-size: 26px;
-  line-height: 1.35;
-  font-weight: 700;
-}
-.published-event__heading p {
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--pub-muted);
 }
 .published-event__status {
   display: inline-flex;
+  max-inline-size: max-content;
   align-items: center;
   gap: 7px;
   min-height: 30px;
@@ -324,15 +304,5 @@
   }
   .published-event__dates {
     grid-column: 1/-1;
-  }
-  .published-event__heading {
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 639px) {
-  .published-event--qr,
-  .published-event--overview {
-    margin-block-start: 0;
   }
 }
