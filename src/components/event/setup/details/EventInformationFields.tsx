@@ -159,10 +159,10 @@ export default function EventInformationFields({
               value={draft[key]}
               readOnly={readOnly}
               blockPast
+              showBoundsHint={false}
               min={key === "endsAt" ? shiftBangkokMinute(draft.startsAt, 1) : null}
               max={key === "startsAt" ? shiftBangkokMinute(draft.endsAt, -1) : null}
               range={range}
-              showBoundsHint={false}
               onChange={(value) => onChange({ [key]: value })}
             />
           ))}
