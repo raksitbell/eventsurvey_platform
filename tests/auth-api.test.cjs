@@ -425,6 +425,10 @@ test("event inspection uses canInspection, keeps admin role, and restores the or
   const { cookie: reviewerCookie } = await signIn(reviewer);
   const { cookie: ownerCookie } = await signIn(owner);
   const inspectPath = "/api/auth/inspect-event";
+  for (const [cookie, expected] of [[adminCookie, true], [reviewerCookie, false]]) {
+    const session = await getSession(request("/api/auth/session", { cookie }));
+    assert.equal((await session.json()).canInspection, expected);
+  }
   for (const cookie of [reviewerCookie, ownerCookie]) {
     const denied = await startInspectEvent(request(inspectPath, {
       method: "POST", cookie, body: { eventId: owner.event_id },
@@ -721,4 +725,188 @@ test("setup-password requires a current invitation and masks preview details", a
   assert.equal(invited.password, newPassword);
   await assertDenied(await acceptInvite(request(path, submission), invite), 410);
   assert.equal(calls.filter(({ method }) => method === "PATCH").length, 1);
+});
+
+test("draft deletion requires current management access and rechecks the event lifecycle", async (t) => {
+  const { admin, reviewer, collections } = setupMockData(t, { eventWrites: true });
+  const { DELETE: remove } = load("src/app/api/admin/events/[id]/route.ts");
+  const event = collections.events[0];
+  event.status = "draft";
+  const path = `/api/admin/events/${event.id}`;
+  const params = context("id", event.id);
+  const deleteWith = (cookie) => remove(request(path, { method: "DELETE", cookie }), params);
+  await assertDenied(await deleteWith(), 401);
+  const viewOnly = await signIn(reviewer);
+  await assertDenied(await deleteWith(viewOnly.cookie), 403);
+
+  const { cookie } = await signIn(admin);
+  const details = await getAdminEvent(request(path, { cookie }), params);
+  assert.equal((await details.json()).status, "draft");
+  for (const status of ["scheduled", "open", "closed"]) {
+    event.status = status;
+    const response = await deleteWith(cookie);
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error, "EVENT_NOT_DELETABLE");
+    assert.equal(event.status, status);
+    assert.equal(event.deleted_at, undefined);
+  }
+  assert.equal(collections.audit_logs.some((row) => row.action === "delete"), false);
+});
+
+test("deleting a draft hides it, preserves its history and releases its owner for assignment", async (t) => {
+  const { admin, assignable, collections, failures } = setupMockData(t, { eventWrites: true });
+  const { DELETE: remove, PATCH: edit } = load("src/app/api/admin/events/[id]/route.ts");
+  const { PATCH: changeStatus } = load("src/app/api/admin/events/[id]/status/route.ts");
+  const { POST: runCron } = load("src/app/api/admin/events/cron/route.ts");
+  const event = collections.events[0];
+  event.status = "draft";
+  assignable.event_id = event.id;
+  collections.forms.push({
+    id: "expired-form", event_id: event.id, type: "survey", status: "open",
+    closes_at: "2000-01-01T00:00:00.000Z",
+  });
+  const { cookie } = await signIn(admin);
+  const path = `/api/admin/events/${event.id}`;
+  const params = context("id", event.id);
+  const deleteEvent = () => remove(request(path, { method: "DELETE", cookie }), params);
+
+  failures.set("PATCH /events/" + event.id, "fixture write failure");
+  assert.equal((await deleteEvent()).status, 502);
+  assert.equal(event.deleted_at, undefined);
+  failures.clear();
+  const results = await Promise.all([deleteEvent(), deleteEvent()]);
+  assert.deepEqual(results.map((response) => response.status).sort(), [200, 404]);
+  assert.equal(event.status, "draft");
+  assert.ok(Number.isFinite(Date.parse(event.deleted_at)));
+  assert.equal(event.updated_by, admin.id);
+  const deletions = collections.audit_logs.filter((row) => row.action === "delete");
+  assert.equal(deletions.length, 1);
+  assert.equal(deletions[0].resource_id, event.id);
+  assert.equal(deletions[0].actor_user_id, admin.id);
+
+  const list = await getAdminEvents(request("/api/admin/events", { cookie }));
+  assert.deepEqual((await list.json()).events.map((row) => row.id), ["event-b"]);
+  for (const response of [
+    await getAdminEvent(request(path, { cookie }), params),
+    await edit(request(path, {
+      method: "PATCH", cookie, body: { slug: event.slug, titleEn: "Edited", titleTh: "" },
+    }), params),
+    await changeStatus(request(path + "/status", {
+      method: "PATCH", cookie, body: { action: "start" },
+    }), params),
+    await deleteEvent(),
+  ]) {
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).error, "EVENT_NOT_FOUND");
+  }
+  const cron = await runCron(request("/api/admin/events/cron", { method: "POST", cookie }));
+  assert.deepEqual(await cron.json(), { opened: [], closed: [], formsClosed: [] });
+  assert.equal(collections.forms[0].status, "open");
+
+  collections.form_submissions = [];
+  const { GET: getOverview } = load("src/app/api/admin/overview/route.ts");
+  const overview = await getOverview(request("/api/admin/overview", { cookie }));
+  assert.equal(overview.status, 200);
+  const { metrics } = await overview.json();
+  assert.equal(metrics.events.total, 1);
+  assert.equal(metrics.surveys.total, 0);
+
+  const owners = await getAssignableUsers(request("/api/admin/events/assignable-users", { cookie }));
+  assert.ok((await owners.json()).users.some((user) => user.id === assignable.id));
+  const replacement = await createEventHandler()(createEventRequest(cookie, {
+    mode: "existing", existingUserId: assignable.id, slug: "replacement-event", titleEn: "Replacement", titleTh: "",
+  }));
+  assert.equal(replacement.status, 201);
+  const created = (await replacement.json()).event;
+  assert.notEqual(created.id, event.id);
+  assert.equal(assignable.event_id, created.id);
+});
+
+test("Trash lists deleted drafts and restores only with current event-management access", async (t) => {
+  const { admin, reviewer, owner, collections, failures } = setupMockData(t, { eventWrites: true });
+  const { POST: restore } = load("src/app/api/admin/events/[id]/restore/route.ts");
+  const { DELETE: moveToTrash } = load("src/app/api/admin/events/[id]/route.ts");
+  const { cookie } = await signIn(admin);
+  const viewOnly = await signIn(reviewer);
+  const event = collections.events[0];
+  event.status = "draft";
+  const params = context("id", event.id);
+  const detailPath = `/api/admin/events/${event.id}`;
+  const restoreWith = (session) => restore(request(detailPath + "/restore", { method: "POST", cookie: session }), params);
+  const trashPath = "/api/admin/events?trash=true";
+  const list = (path, session) => getAdminEvents(request(path, { cookie: session }));
+
+  await assertDenied(await list(trashPath), 401);
+  await assertDenied(await list(trashPath, (await signIn(owner)).cookie), 403);
+  assert.equal((await moveToTrash(request(detailPath, { method: "DELETE", cookie }), params)).status, 200);
+  const trash = await list(trashPath, viewOnly.cookie);
+  assert.equal(trash.status, 200);
+  assertNoStore(trash);
+  assert.deepEqual((await trash.json()).events.map((row) => row.id), [event.id]);
+  assert.deepEqual((await (await list(trashPath + "&q=unrelated", cookie)).json()).events, []);
+  assert.equal((await getAdminEvent(request(detailPath, { cookie }), params)).status, 404);
+  await assertDenied(await restoreWith(), 401);
+  await assertDenied(await restoreWith(viewOnly.cookie), 403);
+
+  const deletedAt = event.deleted_at;
+  failures.set("PATCH /events/" + event.id, "fixture write failure");
+  assert.equal((await restoreWith(cookie)).status, 502);
+  assert.equal(event.deleted_at, deletedAt);
+  failures.clear();
+  const results = await Promise.all([restoreWith(cookie), restoreWith(cookie)]);
+  assert.deepEqual(results.map((response) => response.status).sort(), [200, 409]);
+  assert.equal(event.deleted_at, null);
+  assert.equal(event.updated_by, admin.id);
+  assert.equal(event.status, "draft");
+  assert.deepEqual((await (await list(trashPath, cookie)).json()).events, []);
+  assert.ok((await (await list("/api/admin/events", cookie)).json()).events.some((row) => row.id === event.id));
+  assert.equal((await getAdminEvent(request(detailPath, { cookie }), params)).status, 200);
+  const restorations = collections.audit_logs.filter((row) => row.action === "restore");
+  assert.equal(restorations.length, 1);
+  assert.equal(restorations[0].resource_id, event.id);
+  assert.equal(restorations[0].actor_user_id, admin.id);
+  const again = await restoreWith(cookie);
+  assert.equal((await again.json()).error, "EVENT_NOT_RESTORABLE");
+});
+
+test("restoring a draft preserves its content and the current assignments of moved users", async (t) => {
+  const { admin, owner, collections } = setupMockData(t, { eventWrites: true });
+  const { POST: restore } = load("src/app/api/admin/events/[id]/restore/route.ts");
+  const { getAdminUserActivity } = load("src/services/admin/activity.ts");
+  const { cookie } = await signIn(admin);
+  const event = collections.events[0];
+  const other = collections.events[1];
+  const path = `/api/admin/events/${event.id}`;
+  const restoreById = (id) => restore(request(`/api/admin/events/${id}/restore`, {
+    method: "POST", cookie,
+  }), context("id", id));
+  assert.equal((await restoreById("absent-event")).status, 404);
+  event.deleted_at = "2026-11-01T00:00:00.000Z";
+  assert.equal((await restoreById(event.id)).status, 409, "post-publication records cannot be restored");
+  event.status = "draft";
+  event.setup = "existing-draft-data";
+  collections.forms.push({ id: "existing-form", event_id: event.id, status: "draft" });
+  const previousAccess = collections.event_access.find((row) => row.user_id === owner.id);
+  owner.event_id = other.id;
+  collections.event_access.push({ ...previousAccess, id: "current-access", event_id: other.id });
+  const grants = structuredClone(collections.event_access);
+
+  const otherSlug = other.slug;
+  other.slug = event.slug;
+  const conflict = await restoreById(event.id);
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).error, "SLUG_EXISTS");
+  assert.ok(event.deleted_at);
+  other.slug = otherSlug;
+
+  const restored = await restoreById(event.id);
+  assert.equal(restored.status, 200);
+  assert.equal(event.setup, "existing-draft-data");
+  assert.equal(collections.forms[0].id, "existing-form");
+  assert.equal(owner.event_id, other.id);
+  assert.deepEqual(collections.event_access, grants);
+  const detail = await getAdminEvent(request(path, { cookie }), context("id", event.id));
+  assert.ok(!(await detail.json()).users.some((row) => row.id === owner.id));
+  const profile = await getAdminUserActivity(owner.id);
+  assert.deepEqual(profile.memberships.map((membership) => membership.id), [other.id]);
 });

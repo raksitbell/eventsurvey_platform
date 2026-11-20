@@ -12,7 +12,7 @@ import type {
   AdminActivityResponse,
   AdminUserActivityProfile,
 } from "@/types/admin/activity";
-import type { MockUser } from "@/types/mock";
+import type { MockEvent, MockUser } from "@/types/mock";
 import { routing, type Locale } from "@/i18n/routing";
 
 async function requireEventActivityAccess(
@@ -23,25 +23,30 @@ async function requireEventActivityAccess(
   const actor = await mockApi.get<MockUser>(
     `/users/${encodeURIComponent(userId)}`,
   );
+  const eventId = inspected || actor?.event_id;
+  if (!eventId || (inspected && actor?.system_role !== "platform_admin")) {
+    throw new ReportingError(403, "FORBIDDEN");
+  }
+  const event = await mockApi.getFresh<MockEvent>(`/events/${encodeURIComponent(eventId)}`).catch((error: unknown) => {
+    if (error instanceof MockApiError && error.status === 404) return null;
+    throw error;
+  });
+  if (!event || event.id !== eventId || event.deleted_at) {
+    throw new ReportingError(404, "EVENT_NOT_FOUND");
+  }
   if (inspected) {
-    if (!actor || actor.system_role !== "platform_admin") {
-      throw new ReportingError(403, "FORBIDDEN");
-    }
     return {
-      eventId: inspected,
+      eventId,
       viewer: await getPlatformPiiViewer({ userId, platformRoleId: actor.id }),
     };
   }
 
-  if (!actor?.event_id) {
-    throw new ReportingError(403, "FORBIDDEN");
-  }
-  const access = await getEventAccessForUser(actor.id, actor.event_id);
+  const access = await getEventAccessForUser(actor.id, eventId);
   if (!access.matrix.canViewActivity) {
     throw new ReportingError(403, "FORBIDDEN");
   }
   return {
-    eventId: actor.event_id,
+    eventId,
     viewer: { userId, canViewUnmaskedPii: false },
   };
 }

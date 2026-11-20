@@ -23,7 +23,6 @@ import type {
 import type {
   MockAuditLog,
   MockEvent,
-  MockEventAccess,
   MockEventTranslation,
   MockUser,
 } from "@/types/mock";
@@ -247,42 +246,22 @@ async function loadUserMemberships(
   user: MockUser,
   locale: Locale,
 ): Promise<AdminUserEventMembership[]> {
-  const [accessRows, events, translations] = await Promise.all([
-    mockApi
-      .get<MockEventAccess[]>(
-        `/event_access?user_id=${encodeURIComponent(user.id)}`,
-      )
-      .catch((error: unknown) => {
-        if (error instanceof MockApiError && error.status === 404) return [];
-        throw error;
-      }),
-    mockApi.get<MockEvent[]>("/events"),
-    mockApi.get<MockEventTranslation[]>("/event_translations"),
+  const eventId = user.event_id;
+  if (!eventId) return [];
+  const [events, translations, access] = await Promise.all([
+    mockApi.getFresh<MockEvent[]>(`/events?id=${encodeURIComponent(eventId)}`),
+    mockApi.get<MockEventTranslation[]>(`/event_translations?event_id=${encodeURIComponent(eventId)}`),
+    getEventAccessForUser(user.id, eventId),
   ]);
-
-  const eventIds = new Set<string>();
-  for (const row of accessRows) {
-    if (!row.deleted_at && row.user_id === user.id) {
-      eventIds.add(row.event_id);
-    }
-  }
-  if (user.event_id) eventIds.add(user.event_id);
-
-  const memberships: AdminUserEventMembership[] = [];
-  for (const eventId of eventIds) {
-    const event = events.find((row) => row.id === eventId && !row.deleted_at);
-    if (!event) continue;
-    const access = await getEventAccessForUser(user.id, eventId);
-    memberships.push({
-      id: eventId,
-      name: bindEventName(eventId, events, translations, locale) ?? event.slug,
-      roleName: access.roleName,
-      isEventAdmin: access.canManageSubUsers,
-      permissions: access.matrix,
-    });
-  }
-
-  return memberships.sort((a, b) => a.name.localeCompare(b.name));
+  const event = events.find((row) => row.id === eventId && !row.deleted_at);
+  if (!event) return [];
+  return [{
+    id: eventId,
+    name: bindEventName(eventId, events, translations, locale) ?? event.slug,
+    roleName: access.roleName,
+    isEventAdmin: access.canManageSubUsers,
+    permissions: access.matrix,
+  }];
 }
 
 export async function getAdminUserActivity(
@@ -293,7 +272,7 @@ export async function getAdminUserActivity(
 ): Promise<AdminUserActivityProfile | null> {
   let user: MockUser;
   try {
-    user = await mockApi.get<MockUser>(`/users/${encodeURIComponent(userId)}`);
+    user = await mockApi.getFresh<MockUser>(`/users/${encodeURIComponent(userId)}`);
   } catch (error) {
     if (error instanceof MockApiError && error.status === 404) return null;
     throw error;
@@ -314,7 +293,7 @@ export async function getAdminUserActivity(
 
   const permissions = await getRolePermissions(
     user.id,
-    user.event_id ?? undefined,
+    user.event_id,
   );
   const mapped = mapMockUserToUser(user, permissions);
 

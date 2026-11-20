@@ -686,3 +686,13 @@ test("platform activity permission flag is honored for admins", async () => {
   assert.equal(allowed, true);
   assert.equal(denied, false);
 });
+
+test("deleted events no longer expose the event activity feed to members or inspectors", async () => {
+  const env = fixture({ ownerCanViewActivity: true });
+  const { eventId, ownerId, adminId } = env.ids;
+  env.collections.events.find((event) => event.id === eventId).deleted_at = "2026-11-20T00:00:00Z";
+  for (const [actor, scope] of [[ownerId, {}], [adminId, { inspectedEventId: eventId }]]) {
+    await assert.rejects(env.listEventActivity(actor, "en", {}, scope),
+      (error) => error instanceof env.ReportingError && error.status === 404);
+  }
+});
