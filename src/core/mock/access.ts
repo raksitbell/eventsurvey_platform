@@ -65,19 +65,19 @@ export function normalizePlatformMatrix(value: unknown): PlatformAccessMatrix {
   };
 }
 
-/** Load the event_access row for a user (optional event filter). */
+/** An omitted event filter allows a user lookup. A null assignment has no grant. */
 export async function getEventAccessRow(
   userId: string,
   eventId?: string | null,
 ): Promise<MockEventAccess | null> {
-  if (!userId) return null;
+  if (!userId || eventId === null) return null;
   const rows = await mockApi.get<MockEventAccess[]>(
     `/event_access?user_id=${encodeURIComponent(userId)}`,
   );
   const match = rows.find(
     (row) =>
       row.user_id === userId &&
-      (!eventId || row.event_id === eventId) &&
+      (eventId === undefined || row.event_id === eventId) &&
       !row.deleted_at,
   );
   return match ?? null;

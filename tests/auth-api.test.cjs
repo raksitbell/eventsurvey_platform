@@ -20,7 +20,7 @@ const { POST: logout } = load("src/app/api/auth/logout/route.ts");
 const { GET: getSession } = load("src/app/api/auth/session/route.ts");
 const { POST: startInspectEvent, DELETE: stopInspectEvent } = load("src/app/api/auth/inspect-event/route.ts");
 const { GET: getAdminUsers } = load("src/app/api/admin/users/route.ts");
-const { GET: getAdminUser } = load("src/app/api/admin/users/[id]/route.ts");
+const { GET: getAdminUser, PATCH: patchAdminUser } = load("src/app/api/admin/users/[id]/route.ts");
 const { GET: getAdminEvents } = load("src/app/api/admin/events/route.ts");
 const { GET: getAdminEvent } = load("src/app/api/admin/events/[id]/route.ts");
 const { GET: getAssignableUsers } = load("src/app/api/admin/events/assignable-users/route.ts");
@@ -479,40 +479,104 @@ test("event inspection uses canInspection, keeps admin role, and restores the or
   assert.equal((await restored.json()).inspectedEventId, null);
 });
 
-test("admin user and event responses mask fields until the viewer has the current PII grant", async (t) => {
-  const fixture = setupMockData(t);
-  const { cookie: adminCookie } = await signIn(fixture.admin);
-  const { cookie: reviewerCookie } = await signIn(fixture.reviewer);
-  const { owner, assistant, assignable, reviewer, platformPermissions } = fixture;
-  const paths = [
-    [getAdminUsers, "/api/admin/users"],
-    [getAdminUser, `/api/admin/users/${owner.id}`, context("id", owner.id)],
+test("User Management returns full display fields to user viewers and restricts reads and edits by module access", async (t) => {
+  const { reviewer, assistant, owner, platformPermissions } = setupMockData(t);
+  const matrix = platformPermissions.find((row) => row.user_id === reviewer.id).matrix;
+  matrix.canViewUnmaskedPii = false;
+  assistant.phone = "+66 89 123 4567";
+  const { cookie } = await signIn(reviewer);
+  const detail = `/api/admin/users/${assistant.id}`;
+  const params = context("id", assistant.id);
+
+  const list = await getAdminUsers(request("/api/admin/users", { cookie }));
+  assert.equal(list.status, 200);
+  assertNoStore(list);
+  const row = (await list.json()).users.find((user) => user.id === assistant.id);
+  assert.equal(row.name, assistant.display_name);
+  assert.equal(row.email, assistant.email);
+  assert.equal(row.phone, assistant.phone);
+  assert.equal(row.ownerName, owner.display_name);
+  assert.equal("password" in row, false);
+
+  const profile = await getAdminUser(request(detail, { cookie }), params);
+  assert.equal(profile.status, 200);
+  assertNoStore(profile);
+  assert.deepEqual((await profile.json()).user, row);
+  await assertDenied(await patchAdminUser(request(detail, {
+    method: "PATCH", cookie, body: { role: "event_owner" },
+  }), params), 403);
+
+  matrix.users = "restricted";
+  matrix.canViewUnmaskedPii = true;
+  await assertDenied(await getAdminUsers(request("/api/admin/users", { cookie })), 403);
+  await assertDenied(await getAdminUser(request(detail, { cookie }), params), 403);
+});
+
+test("saving a role change from the edit form keeps the full name and email", async (t) => {
+  const { admin, assistant } = setupMockData(t, { eventWrites: true });
+  const { cookie } = await signIn(admin);
+  const detail = `/api/admin/users/${assistant.id}`;
+  const params = context("id", assistant.id);
+  const expectedName = assistant.display_name;
+  const expectedEmail = assistant.email;
+  const { user } = await (await getAdminUser(request(detail, { cookie }), params)).json();
+  const result = await patchAdminUser(request(detail, {
+    method: "PATCH", cookie,
+    body: { name: user.name, email: user.email, role: "event_owner" },
+  }), params);
+  assert.equal(result.status, 200);
+  assert.equal(assistant.display_name, expectedName);
+  assert.equal(assistant.email, expectedEmail);
+  const saved = await (await getAdminUser(request(detail, { cookie }), params)).json();
+  assert.equal(saved.user.role, "event_owner");
+});
+
+test("users from a deleted draft can be assigned to another event with the selected role", async (t) => {
+  const { admin, assistant, owner, collections } = setupMockData(t, { eventWrites: true });
+  Object.assign(collections.events[0], { status: "draft", deleted_at: "2026-11-20T00:00:00Z" });
+  const { cookie } = await signIn(admin);
+  const list = await (await getAdminUsers(request("/api/admin/users", { cookie }))).json();
+  assert.equal(list.events.some(({ id }) => id === "event-a"), false);
+  for (const [account, role] of [[assistant, "sub_user"], [owner, "event_owner"]]) {
+    const row = list.users.find((item) => item.id === account.id);
+    assert.equal(row.eventId, null);
+    assert.equal(row.customRoleName, null);
+    assert.equal(row.role, role);
+    const detail = `/api/admin/users/${account.id}`;
+    const params = context("id", account.id);
+    const response = await patchAdminUser(request(detail, {
+      method: "PATCH", cookie, body: { eventId: "event-b" },
+    }), params);
+    assert.equal(response.status, 200);
+    const { user } = await (await getAdminUser(request(detail, { cookie }), params)).json();
+    assert.equal(user.eventId, "event-b");
+    assert.equal(user.role, role);
+    const access = collections.event_access.filter((entry) => entry.user_id === account.id && !entry.deleted_at);
+    assert.deepEqual(access.map((entry) => entry.event_id), ["event-b"]);
+    assert.equal(access[0].can_manage_sub_users, role === "event_owner");
+  }
+});
+
+test("admin event responses still respect the current PII grant", async (t) => {
+  const { reviewer, owner, assistant, assignable, platformPermissions } = setupMockData(t);
+  const { cookie } = await signIn(reviewer);
+  const response = await getAdminEvents(request("/api/admin/events", { cookie }));
+  assert.equal(response.status, 200);
+  const event = (await response.json()).events.find((item) => item.id === owner.event_id);
+  assert.equal(event.adminName, owner.display_name);
+  assert.equal(event.adminEmail, owner.email);
+
+  platformPermissions.find((row) => row.user_id === reviewer.id).matrix.canViewUnmaskedPii = false;
+  for (const [handler, path, params] of [
     [getAdminEvents, "/api/admin/events"],
     [getAdminEvent, "/api/admin/events/event-a", context("id", "event-a")],
     [getAssignableUsers, "/api/admin/events/assignable-users"],
-  ];
-  for (const [handler, path, params] of paths) {
-    const response = await handler(request(path, { cookie: adminCookie }), params);
-    assert.equal(response.status, 200, path);
-    assertNoStore(response);
-    assertNoPersonalDetails(await response.json(), [owner, assistant, assignable, reviewer]);
+  ]) {
+    const restricted = await handler(request(path, { cookie }), params);
+    assert.equal(restricted.status, 200, path);
+    assertNoStore(restricted);
+    assertNoPersonalDetails(await restricted.json(), [owner, assistant, assignable]);
   }
-
-  const responseWithGrant = await getAdminUsers(request("/api/admin/users", { cookie: reviewerCookie }));
-  assert.equal(responseWithGrant.status, 200);
-  assertNoStore(responseWithGrant);
-  const unmasked = (await responseWithGrant.json()).users.find((user) => user.id === owner.id);
-  assert.equal(unmasked.name, owner.display_name);
-  assert.equal(unmasked.email, owner.email);
-  assert.equal("password" in unmasked, false);
-
-  const reviewerAccess = platformPermissions.find(
-    (row) => row.user_id === reviewer.id,
-  );
-  reviewerAccess.matrix.canViewUnmaskedPii = false;
-  const afterRevocation = await getAdminUsers(request("/api/admin/users", { cookie: reviewerCookie }));
-  assert.equal(afterRevocation.status, 200);
-  assertNoPersonalDetails(await afterRevocation.json(), [owner, assistant]);
 });
 
 test("upstream failure details stay in the API layer", async (t) => {

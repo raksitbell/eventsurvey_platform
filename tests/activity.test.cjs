@@ -300,6 +300,9 @@ function fixture({
         async get(path) {
           return lookup(path);
         },
+        async getFresh(path) {
+          return lookup(path);
+        },
         async patch(path, body) {
           return Object.assign(lookup(path), body);
         },

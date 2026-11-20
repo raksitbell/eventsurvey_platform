@@ -8,7 +8,6 @@ import {
   getAdminUserById,
   updateUserRoleOrEvent,
 } from "@/services/admin/users";
-import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import type { UserRole } from "@/types/user";
 import type { NextRequest } from "next/server";
 
@@ -22,14 +21,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const session = await requireAdminSession(request);
   if (!isAuthSession(session)) return session;
 
+  if (
+    !(await hasPlatformPermission(session.realUserId, "view_platform_users"))
+  ) {
+    return authJson({ error: "FORBIDDEN" }, 403);
+  }
+
   try {
     const { id } = await context.params;
     const requestedLocale = request.nextUrl.searchParams.get("locale");
     const locale = routing.locales.includes(requestedLocale as Locale)
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
-    const viewer = await getPlatformPiiViewer(session);
-    const user = await getAdminUserById(id, locale, viewer);
+    const user = await getAdminUserById(id, locale);
     if (!user) return authJson({ error: "USER_NOT_FOUND" }, 404);
     return authJson({ user });
   } catch {

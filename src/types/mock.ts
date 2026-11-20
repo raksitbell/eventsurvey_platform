@@ -56,6 +56,7 @@ export type MockPlatformPermissionCode =
 export interface MockUser {
   id: string;
   email: string;
+  phone?: string | null;
   /** Mock login only — never return to the browser */
   password: string;
   display_name: string;

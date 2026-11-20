@@ -7,7 +7,6 @@ import {
   createAdminUser,
   getBoundAdminUsers,
 } from "@/services/admin/users";
-import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import type { UserRole } from "@/types/user";
 import type { NextRequest } from "next/server";
 
@@ -29,8 +28,7 @@ export async function GET(request: NextRequest) {
     const locale = routing.locales.includes(requestedLocale as Locale)
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
-    const viewer = await getPlatformPiiViewer(session);
-    const data = await getBoundAdminUsers(role, locale, viewer);
+    const data = await getBoundAdminUsers(role, locale);
     return authJson(data);
   } catch {
     return authJson({ error: "Failed to load users" }, 502);
