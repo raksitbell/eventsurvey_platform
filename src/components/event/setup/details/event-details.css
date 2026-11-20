@@ -317,10 +317,6 @@
   font-size: 14px;
   box-shadow: none;
 }
-.es-feature .es-builder-link::after {
-  content: "↗";
-  font-size: 18px;
-}
 .es-feature .es-whitelist-link {
   justify-content: center;
   border-color: var(--es-banner-text);

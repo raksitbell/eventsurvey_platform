@@ -6,7 +6,7 @@ import Button from "@/components/ui/button/Button";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { EventDraft } from "@/types/event/setup";
 import type { EventWorkspace } from "@/types/event/workspace";
-import { UserGroupIcon } from "@heroicons/react/24/outline";
+import { ArrowTopRightOnSquareIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 
 interface Props {
@@ -118,6 +118,12 @@ export default function EventAccessSettings({
               <Button
                 variant="outline"
                 className="es-builder-link"
+                endIcon={
+                  <ArrowTopRightOnSquareIcon
+                    aria-hidden="true"
+                    className="size-4.5 shrink-0 rtl:-scale-x-100"
+                  />
+                }
                 disabled={
                   readOnly ||
                   !(registration
