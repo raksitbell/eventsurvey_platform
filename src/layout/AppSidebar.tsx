@@ -1,16 +1,27 @@
 "use client";
 
+import type { ReactNode } from "react";
+import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
-import { GridIcon, GroupIcon, HorizontaLDots } from "@/icons";
+import { api } from "@/core/api";
+import { getAdminHomePath } from "@/core/auth";
+import { isEventReportingPath } from "@/core/event/public-event-paths";
 import { Link, usePathname } from "@/i18n/navigation";
-import { canAccessAdmin, canAccessEvent } from "@/core/auth";
-import { cn } from "@/utils";
-import { useTranslations } from "next-intl";
+import type { EventWorkspace } from "@/types/event/workspace";
+import styles from "@/components/event/workspace/EventWorkspaceChrome.module.css";
+import {
+  ChartPieIcon,
+  ClockIcon,
+  Squares2X2Icon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
+import { useLocale, useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 
 type NavItem = {
   key: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   path?: string;
   disabled?: boolean;
 };
@@ -18,171 +29,274 @@ type NavItem = {
 export default function AppSidebar() {
   const t = useTranslations("sidebar");
   const pathname = usePathname();
-  const { user } = useAuth();
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const locale = useLocale();
+  const {
+    user,
+    realUser,
+    allowAdmin,
+    allowEvent,
+    inspectedEventId,
+    canViewOverview,
+    canViewEvents,
+    canViewUsers,
+    canViewActivity,
+  } = useAuth();
+  const {
+    isDesktop,
+    isExpanded,
+    isHovered,
+    isMobileOpen,
+    setIsHovered,
+    closeMobileSidebar,
+  } = useSidebar();
 
   const isAdminArea = pathname.startsWith("/admin");
-  const showExpanded = isExpanded || isHovered || isMobileOpen;
+  const isEventArea = pathname === "/event" || pathname.startsWith("/event/");
+  const isDashboardPath = isEventReportingPath(pathname);
+  const expanded = isExpanded || isHovered || isMobileOpen;
+
+  const dashboardAccessKey =
+    allowEvent && isEventArea
+      ? JSON.stringify([
+          user?.id,
+          user?.role,
+          realUser?.id,
+          inspectedEventId,
+          locale,
+          pathname,
+        ])
+      : null;
+  const [moduleAccess, setModuleAccess] = useState<{
+    key: string;
+    dashboard: boolean;
+    forms: boolean;
+    activity: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!dashboardAccessKey) return;
+    let current = true;
+    api.get<EventWorkspace | null>(`/event/workspace?locale=${locale}`).then(
+      (workspace) => {
+        if (current) {
+          setModuleAccess({
+            key: dashboardAccessKey,
+            dashboard: workspace?.canAccessDashboard === true,
+            forms: workspace?.canAccessForms === true,
+            activity: workspace?.canViewActivity === true,
+          });
+        }
+      },
+      () => {
+        if (current)
+          setModuleAccess({
+            key: dashboardAccessKey,
+            dashboard: false,
+            forms: false,
+            activity: false,
+          });
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [dashboardAccessKey, locale]);
 
   const adminNav: NavItem[] = [
-    { key: "overview", icon: <GridIcon />, path: "/admin" },
-    { key: "owners", icon: <GroupIcon />, path: "/admin/users" },
+    ...(canViewOverview
+      ? [
+          {
+            key: "overview",
+            icon: <Squares2X2Icon className="size-5" />,
+            path: "/admin",
+          } satisfies NavItem,
+        ]
+      : []),
+    ...(canViewEvents
+      ? [
+          {
+            key: "events",
+            icon: <Squares2X2Icon className="size-5" />,
+            path: "/admin/events",
+          } satisfies NavItem,
+        ]
+      : []),
+    ...(canViewUsers
+      ? [
+          {
+            key: "owners",
+            icon: <UserGroupIcon className="size-5" />,
+            path: "/admin/users",
+          } satisfies NavItem,
+        ]
+      : []),
+    ...(canViewActivity
+      ? [
+          {
+            key: "activity",
+            icon: <ClockIcon className="size-5" />,
+            path: "/admin/activity",
+          } satisfies NavItem,
+        ]
+      : []),
   ];
 
   const eventNav: NavItem[] = [
-    { key: "eventHome", icon: <GridIcon />, path: "/event" },
+    {
+      key: "eventHome",
+      icon: <Squares2X2Icon className="size-5" />,
+      path: "/event",
+    },
   ];
 
-  const navItems =
-    isAdminArea && user && canAccessAdmin(user.role)
-      ? adminNav
-      : user && canAccessEvent(user.role)
-        ? eventNav
-        : user && canAccessAdmin(user.role)
-          ? adminNav
-          : eventNav;
+  if (moduleAccess?.key === dashboardAccessKey && moduleAccess.forms) {
+    eventNav.push({
+      key: "Form",
+      icon: <Squares2X2Icon className="size-5" />,
+      path: "/event/form",
+    });
+  }
 
-  const homePath =
-    user && canAccessAdmin(user.role)
-      ? "/admin"
-      : user && canAccessEvent(user.role)
-        ? "/event"
-        : "/login";
+  if (user?.role === "event_owner") {
+    eventNav.push({
+      key: "eventTeam",
+      icon: <UserGroupIcon className="size-5" />,
+      path: "/event/team",
+    });
+  }
+
+  if (moduleAccess?.key === dashboardAccessKey && moduleAccess.dashboard) {
+    eventNav.push({
+      key: "dashboard",
+      icon: <ChartPieIcon className="size-5" />,
+      path: "/event/dashboard",
+    });
+  }
+
+  if (moduleAccess?.key === dashboardAccessKey && moduleAccess.activity) {
+    eventNav.push({
+      key: "activity",
+      icon: <ClockIcon className="size-5" />,
+      path: "/event/activity",
+    });
+  }
+
+  const navItems = isAdminArea
+    ? allowAdmin
+      ? adminNav
+      : []
+    : isEventArea
+      ? allowEvent
+        ? eventNav
+        : []
+      : allowAdmin
+        ? adminNav
+        : allowEvent
+          ? eventNav
+          : [];
+
+  const homePath = allowAdmin
+    ? getAdminHomePath({
+        canViewOverview,
+        canViewEvents,
+        canViewUsers,
+        canViewActivity,
+      })
+    : allowEvent
+      ? "/event"
+      : "/login";
 
   const isActive = (path?: string) => {
     if (!path) return false;
+    if (path === "/event/dashboard") return isDashboardPath;
     if (path === "/admin" || path === "/event") return pathname === path;
     return pathname === path || pathname.startsWith(`${path}/`);
   };
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "ES";
+  function handleNavigation(event: { preventDefault: () => void }, href: string) {
+    if (!isMobileOpen) return;
 
-  const roleLabel =
-    user?.role === "super_admin"
-      ? t("roles.superAdmin")
-      : user?.role === "event_owner"
-        ? t("roles.eventOwner")
-        : user?.role === "sub_user"
-          ? t("roles.subUser")
-          : user?.role;
-
-  const roleHint =
-    user?.role === "super_admin"
-      ? t("roles.systemOwner")
-      : user?.email ?? "";
+    const isCurrentPage = href === pathname;
+    if (isCurrentPage) event.preventDefault();
+    closeMobileSidebar(isCurrentPage);
+  }
 
   return (
     <aside
-      className={cn(
-        "fixed top-0 z-99999 flex h-screen flex-col bg-gray-950 px-4 text-white transition-all duration-300 ease-in-out",
-        showExpanded ? "w-[280px]" : "w-[90px]",
-        isMobileOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
-        "rtl:translate-x-full xl:rtl:translate-x-0",
-        isMobileOpen && "rtl:translate-x-0",
-      )}
+      id="app-sidebar"
+      data-expanded={expanded}
       onMouseEnter={() => {
-        if (!isExpanded) setIsHovered(true);
+        if (isDesktop && !isExpanded) setIsHovered(true);
       }}
       onMouseLeave={() => setIsHovered(false)}
+      className={`${styles.sidebar} ${isMobileOpen ? "visible translate-x-0" : "invisible -translate-x-full xl:visible xl:translate-x-0 rtl:translate-x-full xl:rtl:translate-x-0"}`}
     >
-      <div
-        className={cn(
-          "flex items-center gap-3 py-7",
-          !showExpanded ? "xl:justify-center" : "justify-start",
-        )}
+      <Link
+        href={homePath}
+        onNavigate={(event) => handleNavigation(event, homePath)}
+        className={styles.brand}
+        aria-label="EventSurvey"
       >
-        <Link href={homePath} className="flex items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-white">
-            E
+        <span className={styles.mark}>
+          <Image
+            alt=""
+            width={27}
+            height={26}
+            src="/images/event-workspace/ticket-speech-symbol.svg"
+          />
+        </span>
+        {expanded && (
+          <span className={styles.wordmark}>
+            <strong>EventSurvey</strong>
+            <small>{t("appSubtitle")}</small>
           </span>
-          {showExpanded ? (
-            <span className="text-sm font-semibold tracking-[0.18em] text-white">
-              EVENTSURVEY
-            </span>
-          ) : null}
-        </Link>
-      </div>
+        )}
+      </Link>
 
-      <div className="no-scrollbar flex flex-1 flex-col overflow-y-auto pb-6">
-        <div className="mb-3">
-          <h2
-            className={cn(
-              "mb-3 flex px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500",
-              !showExpanded ? "xl:justify-center" : "justify-start",
-            )}
-          >
-            {showExpanded ? t("groups.workspace") : <HorizontaLDots />}
-          </h2>
+      <nav aria-label={t("groups.workspace")}>
+        <h2 className={expanded ? styles.section : "sr-only"}>
+          {t("groups.workspace")}
+        </h2>
+        <ul className="space-y-1">
+          {navItems.map((item) => {
+            const { path } = item;
+            const label = t(`items.${item.key}`);
+            const active = isActive(item.path);
+            const content = (
+              <>
+                {item.icon}
+                {expanded && <span>{label}</span>}
+              </>
+            );
 
-          <ul className="flex flex-col gap-1.5">
-            {navItems.map((item) => {
-              const active = isActive(item.path);
-              const className = cn(
-                "group flex w-full items-center gap-3 rounded-full px-3 py-2.5 text-theme-sm font-medium transition",
-                active
-                  ? "bg-brand-500 text-white"
-                  : "text-gray-400 hover:bg-white/5 hover:text-white",
-                item.disabled && "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-gray-400",
-                !showExpanded && "justify-center px-0",
-              );
-
-              if (item.disabled || !item.path) {
-                return (
-                  <li key={item.key}>
-                    <span className={className} title={t(`items.${item.key}`)}>
-                      <span className="flex size-5 items-center justify-center [&_svg]:size-5">
-                        {item.icon}
-                      </span>
-                      {showExpanded ? <span>{t(`items.${item.key}`)}</span> : null}
-                    </span>
-                  </li>
-                );
-              }
-
-              return (
-                <li key={item.key}>
-                  <Link href={item.path} className={className}>
-                    <span className="flex size-5 items-center justify-center [&_svg]:size-5">
-                      {item.icon}
-                    </span>
-                    {showExpanded ? <span>{t(`items.${item.key}`)}</span> : null}
+            return (
+              <li key={item.key}>
+                {item.disabled || !path ? (
+                  <button
+                    type="button"
+                    disabled
+                    className={styles.item}
+                    aria-label={label}
+                    title={label}
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <Link
+                    href={path}
+                    onNavigate={(event) => handleNavigation(event, path)}
+                    className={styles.item}
+                    aria-label={label}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {content}
                   </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </div>
-
-      {user ? (
-        <div
-          className={cn(
-            "mb-5 rounded-2xl border border-white/10 bg-white/5 p-3",
-            !showExpanded && "flex justify-center p-2",
-          )}
-        >
-          <div className={cn("flex items-center gap-3", !showExpanded && "justify-center")}>
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-theme-sm font-semibold text-white">
-              {initials}
-            </span>
-            {showExpanded ? (
-              <div className="min-w-0">
-                <p className="truncate text-theme-sm font-medium text-white">
-                  {roleLabel}
-                </p>
-                <p className="truncate text-theme-xs text-gray-400">{roleHint}</p>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
     </aside>
   );
 }

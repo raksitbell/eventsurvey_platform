@@ -1,113 +1,225 @@
 "use client";
 
 import {
-  assertCanImpersonate,
-  clearAuthStorage,
+  canEnterAdminArea,
+  canEnterEventArea,
+  clearLegacyAuthStorage,
+  endEventInspection,
+  getAuthSnapshot,
   getHomePathForRole,
-  loadAuthStorage,
   loginWithCredentials,
-  persistAuthStorage,
-  sanitizeUser,
+  signOut,
+  startEventInspection,
+  type AuthSnapshot,
 } from "@/core/auth";
-import { useRouter } from "@/i18n/navigation";
-import type { AuthSession } from "@/types/auth";
-import type { User } from "@/types/user";
+import { EMPTY_AUTH_SNAPSHOT } from "@/core/auth/session";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import type React from "react";
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-interface AuthContextValue {
-  user: User | null;
-  realUser: User | null;
-  isImpersonating: boolean;
+interface AuthContextValue extends AuthSnapshot {
+  allowAdmin: boolean;
+  allowEvent: boolean;
+  isInspectingEvent: boolean;
+  /** True while restoring the server session or navigating after an auth change. */
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<User>;
-  logout: () => void;
-  impersonate: (target: User) => void;
-  stopImpersonating: () => void;
+  authUnavailable: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  inspectEvent: (eventId: string, path?: string) => Promise<void>;
+  stopInspectingEvent: () => Promise<void>;
+  /** Re-read `/api/auth/session` (e.g. after editing own platform flags). */
+  refreshAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+/** Safety net so a redirect that never reaches the target cannot strand the UI */
+const HOLD_TIMEOUT_MS = 3000;
+
+function normalizePath(path: string) {
+  return path.replace(/\/$/, "") || "/";
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [realUser, setRealUser] = useState<User | null>(null);
-  const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
+  const [snapshot, setSnapshot] = useState<AuthSnapshot>(EMPTY_AUTH_SNAPSHOT);
+  const [sessionStatus, setSessionStatus] = useState<
+    "loading" | "ready" | "unavailable"
+  >("loading");
+  const authChannel = useRef<BroadcastChannel | null>(null);
+  const sessionRequest = useRef<AbortController | null>(null);
+  const changingSession = useRef(false);
+  /** Soft-nav target — AuthGuard shows hold instead of 403 during role switches */
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+
+  const refreshAuth = useCallback(async () => {
+    if (changingSession.current) return;
+    sessionRequest.current?.abort();
+    const request = new AbortController();
+    sessionRequest.current = request;
+    try {
+      const current = await getAuthSnapshot(request.signal);
+      if (request.signal.aborted) return;
+      setSnapshot(current);
+      setSessionStatus("ready");
+    } catch {
+      if (request.signal.aborted) return;
+      setSnapshot(EMPTY_AUTH_SNAPSHOT);
+      setSessionStatus("unavailable");
+    }
+  }, []);
 
   useEffect(() => {
-    const stored = loadAuthStorage();
-    setRealUser(stored.realUser);
-    setImpersonatedUser(stored.impersonatedUser);
-    setIsLoading(false);
-  }, []);
+    clearLegacyAuthStorage();
 
-  const persistSession = useCallback((session: AuthSession) => {
-    setRealUser(session.user);
-    setImpersonatedUser(session.impersonatedUser);
-    persistAuthStorage(session.user, session.impersonatedUser);
-  }, []);
+    const onFocus = () => {
+      void refreshAuth();
+    };
+    const onChannelMessage = () => {
+      void refreshAuth();
+    };
+
+    const channel =
+      typeof BroadcastChannel === "function"
+        ? new BroadcastChannel("eventsurvey-auth")
+        : null;
+    authChannel.current = channel;
+    channel?.addEventListener("message", onChannelMessage);
+    globalThis.addEventListener("focus", onFocus);
+    void refreshAuth();
+
+    return () => {
+      sessionRequest.current?.abort();
+      globalThis.removeEventListener("focus", onFocus);
+      channel?.removeEventListener("message", onChannelMessage);
+      channel?.close();
+      authChannel.current = null;
+    };
+  }, [refreshAuth]);
+
+  const isHolding =
+    pendingPath !== null &&
+    normalizePath(pathname) !== normalizePath(pendingPath);
+
+  useEffect(() => {
+    if (!isHolding) return;
+    const timer = setTimeout(() => setPendingPath(null), HOLD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [isHolding, pathname]);
+
+  const softGo = useCallback(
+    (path: string) => {
+      if (normalizePath(pathname) === normalizePath(path)) {
+        setPendingPath(null);
+        return;
+      }
+      setPendingPath(path);
+      router.replace(path);
+    },
+    [pathname, router],
+  );
+
+  const changeSession = useCallback(
+    async (
+      updateSession: () => Promise<AuthSnapshot>,
+      nextPath?: string | null,
+    ) => {
+      if (changingSession.current) throw new Error("AUTH_CHANGE_PENDING");
+      changingSession.current = true;
+      sessionRequest.current?.abort();
+      try {
+        const next = await updateSession();
+        const path =
+          nextPath === undefined
+            ? next.user
+              ? next.inspectedEventId
+                ? "/event"
+                : getHomePathForRole(next.user.role, next)
+              : "/login"
+            : nextPath;
+        if (path) softGo(path);
+        setSnapshot(next);
+        setSessionStatus("ready");
+        authChannel.current?.postMessage("session-changed");
+      } finally {
+        changingSession.current = false;
+      }
+    },
+    [softGo],
+  );
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const safeUser = await loginWithCredentials({ email, password });
-      persistSession({ user: safeUser, impersonatedUser: null });
-      router.replace(getHomePathForRole(safeUser.role));
-      return safeUser;
+      await changeSession(async () => {
+        await loginWithCredentials({ email, password });
+        return getAuthSnapshot(new AbortController().signal);
+      });
     },
-    [persistSession, router],
+    [changeSession],
   );
 
-  const logout = useCallback(() => {
-    setRealUser(null);
-    setImpersonatedUser(null);
-    clearAuthStorage();
-    router.replace("/login");
-  }, [router]);
+  const logout = useCallback(async () => {
+    await changeSession(async () => {
+      await signOut();
+      return EMPTY_AUTH_SNAPSHOT;
+    });
+  }, [changeSession]);
 
-  const impersonate = useCallback(
-    (target: User) => {
-      if (!realUser) throw new Error("FORBIDDEN");
-      assertCanImpersonate(realUser, target);
-      const safeTarget = sanitizeUser(target);
-      persistSession({ user: realUser, impersonatedUser: safeTarget });
-      router.replace(getHomePathForRole(safeTarget.role));
+  const inspectEvent = useCallback(
+    async (eventId: string, path = "/event") => {
+      await changeSession(() => startEventInspection(eventId), path);
     },
-    [persistSession, realUser, router],
+    [changeSession],
   );
 
-  const stopImpersonating = useCallback(() => {
-    if (!realUser) return;
-    persistSession({ user: realUser, impersonatedUser: null });
-    router.replace(getHomePathForRole(realUser.role));
-  }, [persistSession, realUser, router]);
+  const stopInspectingEvent = useCallback(async () => {
+    await changeSession(endEventInspection, "/admin/events");
+  }, [changeSession]);
 
-  const value = useMemo<AuthContextValue>(() => {
-    const effectiveUser = impersonatedUser ?? realUser;
-    return {
-      user: effectiveUser,
-      realUser,
-      isImpersonating: Boolean(impersonatedUser),
-      isLoading,
+  const value = useMemo<AuthContextValue>(
+    () => {
+      const { user, realUser, inspectedEventId } = snapshot;
+      const actingAsAnotherUser = user?.id !== realUser?.id;
+      return {
+        ...snapshot,
+        allowAdmin: canEnterAdminArea(realUser?.role, actingAsAnotherUser),
+        allowEvent: canEnterEventArea(
+          user?.role,
+          realUser?.role,
+          actingAsAnotherUser,
+          inspectedEventId,
+        ),
+        isInspectingEvent: Boolean(inspectedEventId),
+        isLoading: sessionStatus === "loading" || isHolding,
+        authUnavailable: sessionStatus === "unavailable",
+        login,
+        logout,
+        inspectEvent,
+        stopInspectingEvent,
+        refreshAuth,
+      };
+    },
+    [
+      snapshot,
+      sessionStatus,
+      isHolding,
       login,
       logout,
-      impersonate,
-      stopImpersonating,
-    };
-  }, [
-    impersonatedUser,
-    realUser,
-    isLoading,
-    login,
-    logout,
-    impersonate,
-    stopImpersonating,
-  ]);
+      inspectEvent,
+      stopInspectingEvent,
+      refreshAuth,
+    ],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

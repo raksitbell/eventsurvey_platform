@@ -1,0 +1,119 @@
+.es-form-times {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 8px 12px;
+  color: var(--es-text-primary);
+}
+.es-form-times > dl,
+.es-form-times > div {
+  min-inline-size: 0;
+}
+.es-form-times dt,
+.es-form-times > div > label {
+  display: block;
+  margin-block-end: 4px;
+  color: var(--es-text-secondary);
+  font-size: var(--text-portal-caption, 0.8125rem);
+  line-height: 1.4;
+  font-weight: 500;
+}
+.es-form-times dd,
+.es-form-times .event-datetime-popover-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--es-field-border);
+  border-radius: 9px;
+  font-size: var(--text-portal-label, 0.875rem);
+  line-height: 1.4;
+}
+.es-form-times .event-datetime-popover-trigger {
+  inline-size: 100%;
+  justify-content: space-between;
+  background: var(--es-background-surface);
+  color: var(--es-text-primary);
+  text-align: start;
+}
+.es-form-times .event-datetime-popover-trigger:enabled {
+  cursor: pointer;
+}
+.es-form-times:focus-visible,
+.es-form-times .event-datetime-popover-trigger:focus-visible,
+.es-survey-close-actions button:focus-visible {
+  outline: 2px solid var(--es-action-primary);
+  outline-offset: 2px;
+}
+.es-form-times .flatpickr-calendar.event-datetime-popover {
+  position: fixed;
+  width: min(348px, calc(100vw - 16px)) !important;
+  margin: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  border-color: var(--es-field-border) !important;
+  border-radius: 14px !important;
+  background: var(--es-background-surface) !important;
+  box-shadow: var(--shadow-theme-lg) !important;
+}
+.es-form-times .flatpickr-calendar.event-datetime-popover
+  :is(.flatpickr-rContainer, .flatpickr-days, .dayContainer) {
+  width: 100%;
+  max-width: none;
+}
+.event-datetime-popover .flatpickr-weekdays {
+  margin-block: 8px 4px;
+}
+.event-datetime-popover .flatpickr-day {
+  block-size: 35px;
+}
+.es-form-times .flatpickr-calendar.event-datetime-popover .flatpickr-day.selected {
+  border-color: transparent !important;
+  background-color: transparent !important;
+}
+.event-datetime-popover .flatpickr-day.selected::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  margin: auto;
+  inline-size: min(34px, 100%);
+  block-size: 34px;
+  border-radius: 50%;
+  background: var(--color-brand-500);
+}
+.event-datetime-popover .event-datetime-clock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2rem minmax(0, 1fr);
+  gap: 0;
+  text-align: center;
+}
+.event-datetime-popover .event-datetime-clock input {
+  justify-self: center;
+  border-color: var(--es-field-border);
+  background: var(--es-background-surface);
+  color: var(--es-text-primary);
+  font-weight: 400;
+  text-align: center;
+}
+.es-survey-close-actions {
+  display: grid;
+  gap: 8px;
+  margin-block-start: 12px;
+}
+.es-survey-close-actions button {
+  min-block-size: 2.75rem;
+  color: var(--es-text-secondary);
+  font-size: var(--text-portal-label, 0.875rem);
+  font-weight: 500;
+  cursor: pointer;
+}
+.es-survey-close-actions button:first-of-type {
+  padding-inline: 8px;
+  border-radius: 9px;
+  border: 1px solid var(--es-border-default);
+  background: var(--es-background-surface);
+  color: var(--es-text-primary);
+  font-weight: 600;
+}

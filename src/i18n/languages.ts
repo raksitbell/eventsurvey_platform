@@ -1,4 +1,5 @@
 import { ThFlagIcon, UsFlagIcon } from "@/icons";
+import type React from "react";
 
 import type { Locale } from "./routing";
 

@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Link } from "@/i18n/navigation";
 import { getHomePathForRole } from "@/core/auth";
 import { useTranslations } from "next-intl";
+import type React from "react";
 
 interface BreadcrumbProps {
   pageTitle: string;
@@ -11,8 +12,21 @@ interface BreadcrumbProps {
 
 const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
   const t = useTranslations("common");
-  const { user } = useAuth();
-  const homePath = user ? getHomePathForRole(user.role) : "/login";
+  const {
+    user,
+    canViewOverview,
+    canViewEvents,
+    canViewUsers,
+    canViewActivity,
+  } = useAuth();
+  const homePath = user
+    ? getHomePathForRole(user.role, {
+        canViewOverview,
+        canViewEvents,
+        canViewUsers,
+        canViewActivity,
+      })
+    : "/login";
 
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">

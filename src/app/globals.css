@@ -1,6 +1,19 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *):not(:where(.event-form-paper, .event-form-paper *)));
+
+/* Fluid portal sizes retain a readable floor on narrow screens and honor the
+   browser root size. The participant views keep using their own type scale. */
+@theme static {
+  --text-portal-caption: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
+  --text-portal-caption--line-height: 1.5;
+  --text-portal-label: clamp(0.875rem, 0.85rem + 0.1vw, 0.9375rem);
+  --text-portal-label--line-height: 1.5;
+  --text-portal-body: clamp(1rem, 0.975rem + 0.1vw, 1.0625rem);
+  --text-portal-body--line-height: 1.5;
+  --text-portal-heading: clamp(1.25rem, 1.0625rem + 0.75vw, 1.75rem);
+  --text-portal-heading--line-height: 1.3;
+}
 
 @theme {
   --font-*: initial;
@@ -16,22 +29,53 @@
   --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 
-  --text-title-2xl: 72px;
-  --text-title-2xl--line-height: 90px;
-  --text-title-xl: 60px;
-  --text-title-xl--line-height: 72px;
-  --text-title-lg: 48px;
-  --text-title-lg--line-height: 60px;
-  --text-title-md: 36px;
-  --text-title-md--line-height: 44px;
-  --text-title-sm: 30px;
-  --text-title-sm--line-height: 38px;
-  --text-theme-xl: 20px;
-  --text-theme-xl--line-height: 30px;
-  --text-theme-sm: 14px;
-  --text-theme-sm--line-height: 20px;
-  --text-theme-xs: 12px;
-  --text-theme-xs--line-height: 18px;
+  --text-title-2xl: 4.5rem;
+  --text-title-2xl--line-height: 5.625rem;
+  --text-title-xl: 3.75rem;
+  --text-title-xl--line-height: 4.5rem;
+  --text-title-lg: 3rem;
+  --text-title-lg--line-height: 3.75rem;
+  --text-title-md: 2.25rem;
+  --text-title-md--line-height: 2.75rem;
+  --text-title-sm: 1.875rem;
+  --text-title-sm--line-height: 2.375rem;
+  --text-theme-xl: 1.25rem;
+  --text-theme-xl--line-height: 1.875rem;
+  --text-theme-sm: 0.875rem;
+  --text-theme-sm--line-height: 1.25rem;
+  --text-theme-xs: 0.75rem;
+  --text-theme-xs--line-height: 1.125rem;
+
+  /* Event workspace palette from the current Figma design. */
+  --container-event-confirm: 600px;
+  --container-whitelist-entry: 540px;
+  --container-event-language-menu: 19.875rem;
+  --radius-event-language-menu: 14px;
+  --text-event-confirm-title: 1.4375rem;
+  --text-event-confirm-title--line-height: 2.1875rem;
+  --color-event-page: #f7f6fa;
+  --radius-preview-control: 10px;
+  --radius-picker: 9px;
+  --text-picker-heading: 1.0625rem;
+  --text-picker-heading--line-height: 1.25rem;
+  --text-picker-small: 0.6875rem;
+  --text-picker-small--line-height: 0.8125rem;
+  --color-preview-page: #f7f3fa;
+  --color-preview-border: #b5b3b7;
+  --text-preview-title: 0.9375rem;
+  --text-preview-title--line-height: 1.125rem;
+  --text-preview-control: 0.8125rem;
+  --text-preview-control--line-height: 1rem;
+  --color-participant-page: #f3f1f1;
+  --color-participant-text: #242333;
+  --color-participant-muted: #676474;
+  --color-event-sidebar: #4f3e64;
+  --color-event-sidebar-active: #8365a0;
+  --color-event-banner: #ae85d1;
+  --color-event-action: #8263a2;
+  --color-event-subtle: #f8f5fc;
+  --color-event-tile: #eee6f7;
+  --color-event-border: #e6e0eb;
 
   --color-current: currentColor;
   --color-transparent: transparent;
@@ -133,6 +177,20 @@
   --color-theme-pink-500: #ee46bc;
 
   --color-theme-purple-500: #7a5af8;
+
+  --color-event-display-mat: #f4e7fa;
+  --color-event-display-gradient-start: #eddefa;
+  --color-event-display-gradient-middle: #ede5ff;
+  --color-event-display-gradient-end: #ffe8f2;
+  --color-event-display-text: #242333;
+  --color-event-display-muted: #676474;
+  --color-event-display-border: #b5b3b7;
+  --color-event-display-accent: #8365a0;
+  --color-event-display-tint: #ebe1f4;
+  --color-event-display-banner: #ded1ea;
+  --color-event-display-banner-text: #5d4675;
+  --color-event-display-qr: #f7f2fb;
+  --shadow-event-display: 0 8px 24px rgba(64, 43, 84, 0.07);
 
   --shadow-theme-md:
     0px 4px 8px -2px rgba(16, 24, 40, 0.1),
@@ -340,6 +398,14 @@
 }
 .apexcharts-tooltip-text-y-value {
   @apply font-medium!;
+}
+
+/* Donut hover tooltip: series group uses the slice color as background */
+.event-status-chart .apexcharts-tooltip-series-group {
+  @apply px-2.5! py-1.5!;
+}
+.event-status-chart .apexcharts-tooltip-y-group {
+  @apply px-0.5!;
 }
 
 .apexcharts-gridline {
@@ -688,6 +754,87 @@ span.flatpickr-weekday,
 
 .flatpickr-calendar.static {
   @apply right-0 left-auto;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) {
+  --calendar-range-fill: var(--color-event-tile);
+  --calendar-range-endpoint: var(--color-event-action);
+  max-width: calc(100vw - 1rem);
+}
+
+.dark .flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) {
+  --calendar-range-fill: var(--color-gray-700);
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  :is(.flatpickr-rContainer, .flatpickr-days, .dayContainer) {
+  width: min(307px, calc(100vw - 4rem));
+  min-width: 0;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) .dayContainer {
+  justify-content: flex-start;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) .flatpickr-day {
+  position: relative;
+  isolation: isolate;
+  justify-content: center;
+  max-width: none;
+  border-inline-width: 0;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.inRange, .startRange, .endRange, .schedule-range-between, .schedule-range-start, .schedule-range-end) {
+  @apply border-transparent! bg-transparent! shadow-none!;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.inRange, .startRange, .endRange, .schedule-range-between, .schedule-range-start, .schedule-range-end)::before {
+  position: absolute;
+  z-index: -2;
+  inset: 3px 0;
+  background-color: var(--calendar-range-fill);
+  content: "";
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.startRange, .schedule-range-start)::before {
+  inset-inline-start: 50%;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.endRange, .schedule-range-end)::before {
+  inset-inline-end: 50%;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.startRange, .endRange, .schedule-range-start, .schedule-range-end) {
+  @apply text-white! dark:text-white!;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar)
+  .flatpickr-day:is(.startRange, .endRange, .schedule-range-start, .schedule-range-end)::after {
+  position: absolute;
+  z-index: -1;
+  inset-block: 3px;
+  inset-inline: max(0px, calc((100% - 33px) / 2));
+  border-radius: 9999px;
+  background-color: var(--calendar-range-endpoint);
+  content: "";
+}
+
+.flatpickr-calendar.event-datetime-calendar .flatpickr-day.flatpickr-disabled {
+  @apply cursor-not-allowed text-gray-500! dark:text-gray-400!;
+}
+
+.flatpickr-calendar.event-datetime-calendar
+  .flatpickr-day.flatpickr-disabled:is(.schedule-range-start, .schedule-range-end) {
+  @apply text-white! dark:text-white!;
+}
+
+.flatpickr-calendar:is(.event-datetime-calendar, .date-range-calendar) .flatpickr-day:focus-visible {
+  @apply outline-2 -outline-offset-2 outline-event-action dark:outline-brand-300;
 }
 
 [dir="rtl"] .flatpickr-calendar.static {
@@ -1204,6 +1351,10 @@ pre[class*="language-"].line-numbers {
   background: #3641f5 !important;
 }
 
+.es-swal-event-accent {
+  @apply bg-event-action! text-white! hover:bg-event-action/90!;
+}
+
 .es-swal-confirm-warning {
   background: #f79009 !important;
   color: #fff !important;
@@ -1242,4 +1393,82 @@ pre[class*="language-"].line-numbers {
 
 .dark .es-swal-cancel:hover {
   background: #374151 !important;
+}
+
+/* Print only the report contents when exporting from the Dashboard. */
+@media print {
+  body:has(#event-print-report) * {
+    visibility: hidden;
+  }
+
+  body:has(#event-print-report) #event-print-report,
+  body:has(#event-print-report) #event-print-report * {
+    visibility: visible;
+  }
+
+  #event-print-report {
+    position: absolute;
+    inset: 0;
+    padding: 2rem;
+    color: black;
+    background: white;
+  }
+
+  #event-print-report table {
+    width: 100%;
+    margin-block-start: 2rem;
+    border-collapse: collapse;
+  }
+
+  #event-print-report th,
+  #event-print-report td {
+    padding: 0.75rem;
+    border-block-end: 1px solid;
+    text-align: start;
+  }
+}
+
+/* Event lifecycle dialogs share useConfirm; existing dialogs retain their defaults. */
+.es-swal-event.swal2-popup {
+  @apply max-w-full rounded-2xl! border border-preview-border p-8! text-start shadow-none! dark:border-gray-700 dark:bg-gray-900;
+}
+.es-swal-event .es-swal-title {
+  @apply p-0! text-start text-event-confirm-title! font-bold! text-participant-text! dark:text-gray-100!;
+}
+.es-swal-event .es-swal-text {
+  @apply mx-0! mt-2! text-start text-theme-sm! leading-normal! text-participant-text! dark:text-gray-200!;
+}
+.es-event-confirm-subtitle { @apply mb-4 text-theme-xs font-semibold text-participant-muted dark:text-gray-400; }
+.es-event-confirm-note { @apply mt-4 text-theme-xs text-participant-muted dark:text-gray-400; }
+.es-event-confirm-error { @apply font-semibold text-error-600 dark:text-error-400; }
+.es-swal-event .es-swal-actions {
+  @apply mt-5! flex w-full! flex-nowrap justify-end! gap-3!;
+}
+.es-swal-event .es-swal-btn {
+  @apply min-h-11 min-w-0 rounded-preview-control! px-5! py-2! text-theme-sm! font-semibold!;
+}
+.es-swal-event .es-swal-confirm-primary, .es-swal-event .es-swal-confirm-danger {
+  @apply flex-1 bg-event-action! text-white! hover:bg-event-action/90! dark:bg-event-action!;
+}
+.es-swal-event .es-swal-cancel {
+  @apply w-1/3 border! border-preview-border! bg-white! text-participant-text! shadow-none! dark:border-gray-700! dark:bg-gray-900! dark:text-gray-200!;
+}
+
+.es-swal-event .es-swal-save-actions {
+  @apply flex-col sm:flex-row;
+}
+.es-swal-event .es-swal-save-actions .es-swal-btn {
+  @apply w-full sm:w-auto sm:flex-1;
+}
+
+/* Event admin workspace, setup panels and fixed action row. */
+@layer components {
+  .event-workspace-background {
+    @apply bg-event-page dark:bg-gray-950;
+  }
+  .event-sheet { @apply rounded-2xl bg-white p-4 text-participant-text sm:p-6 dark:bg-gray-900 dark:text-gray-100; }
+  .event-section { @apply rounded-xl border border-event-border bg-event-subtle p-4 dark:border-gray-700 dark:bg-gray-800; }
+  .event-input { @apply block w-full rounded-lg border border-event-border bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100; }
+  .event-option { @apply min-h-10 rounded-lg border border-event-border bg-white px-3 py-2 text-sm font-medium text-gray-800 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100; }
+  .event-option[aria-pressed="true"] { @apply border-event-action bg-event-action text-white dark:bg-event-action; }
 }

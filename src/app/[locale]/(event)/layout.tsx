@@ -3,39 +3,105 @@
 import AuthGuard from "@/components/auth/AuthGuard";
 import ImpersonationBanner from "@/components/auth/ImpersonationBanner";
 import { useSidebar } from "@/context/SidebarContext";
+import { isEventReportingPath } from "@/core/event/public-event-paths";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
+import EventNavigationGuardProvider, {
+  useEventNavigationGuard,
+} from "@/components/event/workspace/EventNavigationGuard";
+import EventWorkspaceSidebar from "@/components/event/workspace/EventWorkspaceSidebar";
+import EventWorkspaceHeader from "@/components/event/workspace/EventWorkspaceHeader";
+import { formCanvasStyle } from "@/components/event/form/form-canvas-style";
+import { usePathname } from "@/i18n/navigation";
 import Backdrop from "@/layout/Backdrop";
-import React from "react";
+import type { ReactNode } from "react";
+import useEventWorkspace from "@/hooks/useEventWorkspace";
+import {
+  eventInter,
+  eventThai,
+} from "@/components/event/setup/event-admin-fonts";
+import "@/components/event/setup/event-admin-design.css";
+
+function EventShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const { workspace, loading, userId, locale } = useEventWorkspace();
+  const navigationGuard = useEventNavigationGuard();
+  const isWorkspacePage = [
+    "/event",
+    "/event/details",
+    "/event/branding",
+    "/event/forms",
+    "/event/publish",
+    "/event/qr",
+    "/event/team",
+    "/event/activity",
+    "/event/whitelist",
+    "/event/setup/registration",
+    "/event/setup/survey",
+  ].includes(pathname) || isEventReportingPath(pathname);
+  const isFormPage =
+    pathname === "/event/form" || pathname.startsWith("/event/form/");
+  const isFormBuilder = /^\/event\/(form|setup)\/(registration|survey)$/.test(pathname);
+  const usesWorkspaceChrome = isWorkspacePage || isFormPage;
+  const setupTheme = usesWorkspaceChrome
+    ? `${eventInter.variable} ${eventThai.variable} event-admin-shell`
+    : "";
+  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  // Must match AppSidebar dock breakpoint (`xl`). Using `lg` left a gap
+  // between 1024–1279px where the sidebar is off-canvas but content still indented.
+  const mainContentMargin = isMobileOpen
+    ? "ms-0"
+    : isExpanded || isHovered
+      ? "xl:ms-[280px]"
+      : "xl:ms-[90px]";
+
+  return (
+    <div
+      className={`min-h-screen xl:flex dark:bg-gray-950 ${setupTheme} ${isWorkspacePage ? "" : "bg-gray-50"}`}
+    >
+      {usesWorkspaceChrome ? (
+        <EventWorkspaceSidebar workspace={workspace} loading={loading} />
+      ) : (
+        <AppSidebar />
+      )}
+      <div
+        data-screen={isWorkspacePage ? pathname : undefined}
+        className={`event-workspace-main flex min-h-screen min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin} ${isWorkspacePage ? "event-admin-main" : ""}`}
+      >
+        <Backdrop />
+        <ImpersonationBanner
+          beforeLeave={() => navigationGuard?.current?.() ?? true}
+        />
+        {usesWorkspaceChrome ? (
+          <EventWorkspaceHeader />
+        ) : (
+          <AppHeader />
+        )}
+        <div
+          style={workspace && isFormBuilder ? formCanvasStyle(workspace, locale, userId) : undefined}
+          className={
+            isWorkspacePage
+              ? "event-admin-body"
+              : "mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6"
+          }
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function EventLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
-
-  const mainContentMargin = isMobileOpen
-    ? "ms-0"
-    : isExpanded || isHovered
-      ? "lg:ms-[280px]"
-      : "lg:ms-[90px]";
-
   return (
     <AuthGuard area="event">
-      <div className="min-h-screen bg-gray-50 xl:flex dark:bg-gray-950">
-        <AppSidebar />
-        <Backdrop />
-        <div
-          className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ease-in-out ${mainContentMargin}`}
-        >
-          <ImpersonationBanner />
-          <AppHeader />
-          <div className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 p-4 md:p-6">
-            {children}
-          </div>
-        </div>
-      </div>
+      <EventNavigationGuardProvider>
+        <EventShell>{children}</EventShell>
+      </EventNavigationGuardProvider>
     </AuthGuard>
   );
 }

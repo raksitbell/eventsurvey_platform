@@ -1,6 +1,7 @@
-import { ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 
 interface ButtonProps {
+  id?: string;
   children: ReactNode;
   size?: "sm" | "md";
   variant?: "primary" | "outline";
@@ -12,7 +13,8 @@ interface ButtonProps {
   type?: "button" | "submit" | "reset";
 }
 
-const Button: React.FC<ButtonProps> = ({
+const Button: FC<ButtonProps> = ({
+  id,
   children,
   size = "md",
   variant = "primary",
@@ -39,6 +41,7 @@ const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
+      id={id}
       type={type}
       className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition ${className} ${
         sizeClasses[size]

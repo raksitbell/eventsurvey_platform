@@ -1,0 +1,213 @@
+import { z } from "zod";
+import { invalidQuestionRange } from "@/core/forms/content";
+export { validatePublishReady } from "@/core/forms/content";
+
+const formTypeSchema = z.enum(["registration", "survey"]);
+
+const questionTypeSchema = z.enum([
+  "short_text",
+  "long_text",
+  "email",
+  "multiple_choice",
+  "dropdown",
+  "checkbox",
+  "date",
+  "time",
+  "number",
+  "rating",
+]);
+
+const choiceSchema = z.object({
+  id: z.uuid().optional(),
+  label: z.string(),
+  display_order: z.number().int().positive(),
+  scale_min_label: z.string().optional(),
+  scale_max_label: z.string().optional(),
+});
+
+const labelSchema = z.object({
+  label: z.string(),
+  placeholder: z.string(),
+  scale_min_label: z.string().optional(),
+  scale_max_label: z.string().optional(),
+  choices: z.object({
+    en: z.array(choiceSchema).default([]),
+    th: z.array(choiceSchema).default([]),
+  }),
+});
+
+const ratingDisplaySchema = z.enum(["icon", "linear_scale"]);
+const ratingIconSchema = z.enum(["star", "heart", "like"]);
+
+const rawQuestionInnerSchema = z
+  .object({
+    id: z.uuid().optional(),
+    type: questionTypeSchema,
+    display_order: z.number().int().positive(),
+    min_number: z.number(),
+    max_number: z.number(),
+    min_value: z.number().nullable().optional(),
+    max_value: z.number().nullable().optional(),
+    min_length: z.number().int().nonnegative(),
+    max_length: z.number().int().nonnegative(),
+    is_required: z.boolean().optional(),
+    required: z.boolean().optional(),
+    is_unique: z.boolean().default(false),
+    rating_display: ratingDisplaySchema.default("icon"),
+    rating_icon: ratingIconSchema.default("star"),
+    rating_max: z.number().default(5),
+    label: z.object({
+      en: z.array(labelSchema).default([]),
+      th: z.array(labelSchema).default([]),
+    }),
+  })
+  .superRefine((q, ctx) => {
+    if (typeof q.is_required !== "boolean" && typeof q.required !== "boolean") {
+      ctx.addIssue({
+        code: "custom",
+        message: "is_required (or required) must be a boolean",
+        path: ["is_required"],
+      });
+    }
+  })
+  .transform((q) => {
+    const { required, is_required, ...rest } = q;
+    return {
+      ...rest,
+      is_required: is_required ?? required ?? false,
+    };
+  });
+
+const questionSchema = z
+  .object({
+    question: rawQuestionInnerSchema,
+  })
+  .superRefine((item, ctx) => {
+    const q = item.question;
+    const field = invalidQuestionRange(q);
+    if (field) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Question minimum must be <= maximum",
+        path: ["question", field],
+      });
+    }
+  });
+
+const headLocaleSchema = z.object({
+  title: z.string().trim().max(240),
+  description: z.string().max(5000),
+});
+
+const scheduleRefine = (
+  data: { opens_at?: string | null; closes_at?: string | null },
+  ctx: z.RefinementCtx,
+) => {
+  const opens = data.opens_at?.trim() || null;
+  const closes = data.closes_at?.trim() || null;
+  if (!opens || !closes) return;
+  const openMs = Date.parse(opens);
+  const closeMs = Date.parse(closes);
+  if (Number.isNaN(openMs) || Number.isNaN(closeMs)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Invalid opens_at or closes_at",
+      path: ["opens_at"],
+    });
+    return;
+  }
+  if (closeMs <= openMs) {
+    ctx.addIssue({
+      code: "custom",
+      message: "closes_at must be after opens_at",
+      path: ["closes_at"],
+    });
+  }
+};
+
+const formShapeSchema = z
+  .object({
+    id: z.uuid().optional(),
+    head: z.object({
+      en: headLocaleSchema.default({ title: "", description: "" }),
+      th: headLocaleSchema.default({ title: "", description: "" }),
+    }).refine((head) => Boolean(head.th.title || head.en.title), {
+      message: "A form title is required in at least one language",
+    }),
+    type: formTypeSchema,
+    opens_at: z.string().nullable().optional(),
+    closes_at: z.string().nullable().optional(),
+    questions: z.array(questionSchema),
+  })
+  .superRefine(scheduleRefine);
+
+function refineQuestions(
+  questions: z.infer<typeof questionSchema>[],
+  ctx: z.RefinementCtx,
+) {
+  const orders = new Set<number>();
+  for (const [index, item] of questions.entries()) {
+    const order = item.question.display_order;
+    if (orders.has(order)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "display_order must be unique",
+        path: ["questions", index, "question", "display_order"],
+      });
+    }
+    orders.add(order);
+
+    for (const locale of ["th", "en"] as const) {
+      const choices = item.question.label[locale][0]?.choices[locale] ?? [];
+      const choiceOrders = new Set<number>();
+      for (const [ci, choice] of choices.entries()) {
+        if (choiceOrders.has(choice.display_order)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "choice display_order must be unique",
+            path: ["questions", index, "question", "label", locale, 0, "choices", locale, ci, "display_order"],
+          });
+        }
+        choiceOrders.add(choice.display_order);
+      }
+    }
+  }
+}
+
+/** POST /api/event/forms — builder Form + eventId */
+export const createFormBodySchema = formShapeSchema
+  .extend({
+    eventId: z.uuid(),
+  })
+  .superRefine((body, ctx) => refineQuestions(body.questions, ctx));
+
+/** PUT /api/event/forms/[id] — builder Form (eventId/type optional) */
+export const updateFormBodySchema = formShapeSchema
+  .extend({
+    eventId: z.uuid().optional(),
+  })
+  .superRefine((body, ctx) => refineQuestions(body.questions, ctx));
+
+/** Manual lifecycle only — open/closed are cron-owned. */
+export const formStatusPatchSchema = z.object({
+  status: z.enum(["draft", "scheduled"]),
+  opensAt: z.string().nullable().optional(),
+  closesAt: z.string().nullable().optional(),
+});
+
+export type CreateFormBody = z.infer<typeof createFormBodySchema>;
+export type UpdateFormBody = z.infer<typeof updateFormBodySchema>;
+export type FormStatusPatchBody = z.infer<typeof formStatusPatchSchema>;
+
+export function formatZodError(error: z.ZodError): {
+  error: string;
+  details: { path: string; message: string }[];
+} {
+  return {
+    error: "VALIDATION_ERROR",
+    details: error.issues.map((issue) => ({
+      path: issue.path.join(".") || "(root)",
+      message: issue.message,
+    })),
+  };
+}

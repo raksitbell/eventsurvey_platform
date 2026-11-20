@@ -1,47 +1,44 @@
-import type { User } from "@/types/user";
 import { AUTH_STORAGE_KEY, IMPERSONATE_STORAGE_KEY } from "./constants";
+import type { User } from "@/types/user";
 
-export function sanitizeUser(user: User): User {
-  const { password: _password, ...safeUser } = user;
-  return safeUser;
-}
+export type AuthSnapshot = {
+  realUser: User | null;
+  /** Effective identity used by the current portal session. */
+  user: User | null;
+  inspectedEventId: string | null;
+  inspectedEventName: string | null;
+  /** platform_access.overview is view_only+ */
+  canViewOverview: boolean;
+  /** platform_access.events is view_only+ */
+  canViewEvents: boolean;
+  /** platform_access.users is view_only+ */
+  canViewUsers: boolean;
+  /** From platform_access.canViewActivity (super_admin User Activity). */
+  canViewActivity: boolean;
+  /** From platform_access.canInspection — open event workspace as platform. */
+  canInspection: boolean;
+  /** From platform_access.events === can_edit (create / edit / status). */
+  canManageEvents: boolean;
+};
 
-export function readStoredUser(key: string): User | null {
-  if (typeof window === "undefined") return null;
+export const EMPTY_AUTH_SNAPSHOT: AuthSnapshot = {
+  realUser: null,
+  user: null,
+  inspectedEventId: null,
+  inspectedEventName: null,
+  canViewOverview: false,
+  canViewEvents: false,
+  canViewUsers: false,
+  canViewActivity: false,
+  canInspection: false,
+  canManageEvents: false,
+};
+
+export function clearLegacyAuthStorage() {
   try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    return JSON.parse(raw) as User;
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.localStorage.removeItem(IMPERSONATE_STORAGE_KEY);
   } catch {
-    return null;
+    // Session restoration works even when browser storage is unavailable.
   }
-}
-
-export function writeStoredUser(key: string, user: User | null) {
-  if (typeof window === "undefined") return;
-  if (!user) {
-    window.localStorage.removeItem(key);
-    return;
-  }
-  window.localStorage.setItem(key, JSON.stringify(sanitizeUser(user)));
-}
-
-export function clearAuthStorage() {
-  writeStoredUser(AUTH_STORAGE_KEY, null);
-  writeStoredUser(IMPERSONATE_STORAGE_KEY, null);
-}
-
-export function loadAuthStorage() {
-  return {
-    realUser: readStoredUser(AUTH_STORAGE_KEY),
-    impersonatedUser: readStoredUser(IMPERSONATE_STORAGE_KEY),
-  };
-}
-
-export function persistAuthStorage(
-  realUser: User,
-  impersonatedUser: User | null,
-) {
-  writeStoredUser(AUTH_STORAGE_KEY, realUser);
-  writeStoredUser(IMPERSONATE_STORAGE_KEY, impersonatedUser);
 }

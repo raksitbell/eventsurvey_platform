@@ -1,0 +1,19 @@
+/* EventSurvey Figma semantic tokens, scoped to Dashboard screens and nav. */
+.surface,
+.sidebar {
+  --color-brand-50: #f4eef8;
+  --color-brand-100: #ece3f2;
+  --color-brand-200: #e0cfe9;
+  --color-brand-300: #cbaedb;
+  --color-brand-400: #ae85d1;
+  --color-brand-500: #8365a0;
+  --color-brand-600: #4f3e64;
+}
+
+.sidebar {
+  background-color: var(--color-brand-600);
+}
+
+:global(.dark) .sidebar {
+  background-color: #362a43;
+}

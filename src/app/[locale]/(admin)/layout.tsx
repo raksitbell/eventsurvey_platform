@@ -2,6 +2,11 @@
 
 import AuthGuard from "@/components/auth/AuthGuard";
 import ImpersonationBanner from "@/components/auth/ImpersonationBanner";
+import {
+  eventInter,
+  eventThai,
+} from "@/components/event/setup/event-admin-fonts";
+import "@/components/event/setup/event-admin-design.css";
 import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
@@ -15,15 +20,19 @@ export default function AdminLayout({
 }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
+  // Must match AppSidebar dock breakpoint (`xl`). Using `lg` left a gap
+  // between 1024–1279px where the sidebar is off-canvas but content still indented.
   const mainContentMargin = isMobileOpen
     ? "ms-0"
     : isExpanded || isHovered
-      ? "lg:ms-[280px]"
-      : "lg:ms-[90px]";
+      ? "xl:ms-[280px]"
+      : "xl:ms-[90px]";
 
   return (
     <AuthGuard area="admin">
-      <div className="min-h-screen bg-gray-50 xl:flex dark:bg-gray-950">
+      <div
+        className={`min-h-screen xl:flex dark:bg-gray-950 ${eventInter.variable} ${eventThai.variable} event-admin-shell`}
+      >
         <AppSidebar />
         <Backdrop />
         <div

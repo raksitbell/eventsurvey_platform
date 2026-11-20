@@ -1,42 +1,57 @@
-import { api } from "@/core/api";
+import { api, ApiError } from "@/core/api/client";
+import { EMPTY_AUTH_SNAPSHOT, type AuthSnapshot } from "@/core/auth/session";
 import type { LoginCredentials } from "@/types/auth";
 import type { User } from "@/types/user";
-import { canImpersonate, isImpersonatableRole } from "./permissions";
-import { sanitizeUser } from "./session";
 
-export async function loginWithCredentials({
-  email,
-  password,
-}: LoginCredentials): Promise<User> {
+type SessionResponse = Partial<Omit<AuthSnapshot, "user">> & {
+  impersonatedUser?: User | null;
+};
+
+function normalizeSnapshot(data: SessionResponse): AuthSnapshot {
+  const realUser = data.realUser ?? null;
+  return {
+    realUser,
+    user: realUser && (data.impersonatedUser ?? realUser),
+    inspectedEventId: data.inspectedEventId ?? null,
+    inspectedEventName: data.inspectedEventName ?? null,
+    canViewOverview: data.canViewOverview === true,
+    canViewEvents: data.canViewEvents === true,
+    canViewUsers: data.canViewUsers === true,
+    canViewActivity: data.canViewActivity === true,
+    canInspection: data.canInspection === true,
+    canManageEvents: data.canManageEvents === true,
+  };
+}
+
+export async function loginWithCredentials(
+  credentials: LoginCredentials,
+): Promise<User> {
+  const data = await api.post<{ user: User }>("/auth/login", credentials);
+  return data.user;
+}
+
+export async function getAuthSnapshot(signal: AbortSignal): Promise<AuthSnapshot> {
   try {
-    const data = await api.post<{ user: User }>("/auth/login", {
-      email,
-      password,
-    });
-    return sanitizeUser(data.user);
+    const data = await api.get<SessionResponse>("/auth/session", signal);
+    return normalizeSnapshot(data);
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === "INVALID_CREDENTIALS") {
-        throw new Error("INVALID_CREDENTIALS");
-      }
-      if (error.message === "UNSUPPORTED_ROLE") {
-        throw new Error("UNSUPPORTED_ROLE");
-      }
+    if (error instanceof ApiError && error.status === 401) {
+      return EMPTY_AUTH_SNAPSHOT;
     }
-    throw new Error("INVALID_CREDENTIALS");
+    throw error;
   }
 }
 
-export async function fetchImpersonationTarget(userId: string): Promise<User> {
-  const data = await api.get<{ user: User }>(`/admin/users/${userId}`);
-  return sanitizeUser(data.user);
+export function signOut() {
+  return api.post<void>("/auth/logout", {});
 }
 
-export function assertCanImpersonate(actor: User, target: User) {
-  if (!canImpersonate(actor.role)) {
-    throw new Error("FORBIDDEN");
-  }
-  if (!isImpersonatableRole(target.role)) {
-    throw new Error("INVALID_TARGET");
-  }
+export async function startEventInspection(eventId: string) {
+  const data = await api.post<SessionResponse>("/auth/inspect-event", { eventId });
+  return normalizeSnapshot(data);
+}
+
+export async function endEventInspection() {
+  const data = await api.delete<SessionResponse>("/auth/inspect-event");
+  return normalizeSnapshot(data);
 }

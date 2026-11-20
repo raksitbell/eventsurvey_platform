@@ -1,8 +1,30 @@
+import { ADMIN_ROLES, EVENT_ROLES } from "@/core/auth/constants";
 import type { UserRole } from "@/types/user";
-import { ADMIN_ROLES, EVENT_ROLES } from "./constants";
 
-export function getHomePathForRole(role: UserRole): string {
-  if (ADMIN_ROLES.includes(role)) return "/admin";
+/** Module visibility for platform-admin sidebar + post-login landing. */
+export type PlatformNavAccess = {
+  canViewOverview: boolean;
+  canViewEvents: boolean;
+  canViewUsers: boolean;
+  canViewActivity: boolean;
+};
+
+/** First admin route the account may open (overview → events → users → activity). */
+export function getAdminHomePath(access: PlatformNavAccess): string {
+  if (access.canViewOverview) return "/admin";
+  if (access.canViewEvents) return "/admin/events";
+  if (access.canViewUsers) return "/admin/users";
+  if (access.canViewActivity) return "/admin/activity";
+  return "/admin";
+}
+
+export function getHomePathForRole(
+  role: UserRole,
+  access?: PlatformNavAccess,
+): string {
+  if (ADMIN_ROLES.includes(role)) {
+    return access ? getAdminHomePath(access) : "/admin";
+  }
   if (EVENT_ROLES.includes(role)) return "/event";
   return "/login";
 }
@@ -15,7 +37,35 @@ export function canAccessEvent(role: UserRole): boolean {
   return EVENT_ROLES.includes(role);
 }
 
-export function canImpersonate(role: UserRole): boolean {
+/** Super Admin enters /admin only when not impersonating (inspect keeps admin access). */
+export function canEnterAdminArea(
+  realRole: UserRole | undefined,
+  isImpersonating: boolean,
+): boolean {
+  return Boolean(realRole && canAccessAdmin(realRole) && !isImpersonating);
+}
+
+/**
+ * /event is for event_owner / sub_user.
+ * Platform admin enters only while inspecting a specific event (no role swap).
+ * Legacy impersonation still opens /event for compatibility.
+ */
+export function canEnterEventArea(
+  effectiveRole: UserRole | undefined,
+  realRole: UserRole | undefined,
+  isImpersonating: boolean,
+  inspectedEventId: string | null = null,
+): boolean {
+  if (realRole && canAccessAdmin(realRole)) {
+    if (inspectedEventId && !isImpersonating) return true;
+    return isImpersonating && Boolean(effectiveRole && canAccessEvent(effectiveRole));
+  }
+  if (!effectiveRole || !canAccessEvent(effectiveRole)) return false;
+  return true;
+}
+
+/** Platform admins may open an event workspace for inspection. */
+export function canInspectEvent(role: UserRole): boolean {
   return role === "super_admin";
 }
 

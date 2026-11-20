@@ -1,0 +1,45 @@
+"use client";
+import { api } from "@/core/api";
+import type { FormRecord, FormListResponse } from "@/types/event/form";
+import { useEffect, useState } from "react";
+
+export default function useEventFormSummaries(eventId: string, needed = true) {
+  const [attempt, setAttempt] = useState(0);
+  const identity = `${eventId}:${attempt}`;
+  const [result, setResult] = useState<{
+    identity: string;
+    forms: FormRecord[];
+    error: boolean;
+  }>({ identity: "", forms: [], error: false });
+  useEffect(() => {
+    if (!needed) return;
+    let active = true;
+    const controller = new AbortController();
+    const query = new URLSearchParams({ eventId });
+    const timeout = globalThis.setTimeout(() => controller.abort(), 10_000);
+    api
+      .get<FormListResponse>(`/event/forms?${query}`, controller.signal)
+      .then(({ forms, eventId: returnedId }) => {
+        if (returnedId !== eventId || !Array.isArray(forms))
+          throw new Error("Invalid form summary response");
+        if (active) setResult({ identity, forms, error: false });
+      })
+      .catch(() => {
+        if (active) setResult({ identity, forms: [], error: true });
+      })
+      .finally(() => {
+        globalThis.clearTimeout(timeout);
+      });
+    return () => {
+      active = false;
+      globalThis.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [eventId, identity, needed]);
+  return {
+    forms: needed && result.identity === identity ? result.forms : [],
+    error: needed && result.identity === identity && result.error,
+    loading: needed && result.identity !== identity,
+    retry: () => setAttempt((value) => value + 1),
+  };
+}

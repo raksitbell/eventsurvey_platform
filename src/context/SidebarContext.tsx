@@ -1,22 +1,37 @@
 "use client";
 
 import { usePathname } from "@/i18n/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import type React from "react";
+import { createContext, useContext, useState, useSyncExternalStore } from "react";
 
 type SidebarContextType = {
+  isDesktop: boolean;
   isExpanded: boolean;
   isMobileOpen: boolean;
   isHovered: boolean;
   activeItem: string | null;
   openSubmenu: string | null;
   toggleSidebar: () => void;
-  toggleMobileSidebar: () => void;
+  closeMobileSidebar: (restoreFocus?: boolean) => void;
   setIsHovered: (isHovered: boolean) => void;
   setActiveItem: (item: string | null) => void;
   toggleSubmenu: (item: string) => void;
 };
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
+
+export const sidebarToggleId = "app-sidebar-toggle";
+const sidebarDockQuery = "(min-width: 1280px)";
+
+function subscribeToViewport(onStoreChange: () => void) {
+  const viewport = window.matchMedia(sidebarDockQuery);
+  viewport.addEventListener("change", onStoreChange);
+  return () => viewport.removeEventListener("change", onStoreChange);
+}
+
+function getIsDesktopViewport() {
+  return window.matchMedia(sidebarDockQuery).matches;
+}
 
 export const useSidebar = () => {
   const context = useContext(SidebarContext);
@@ -30,40 +45,35 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [mobileOpenPath, setMobileOpenPath] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const pathname = usePathname();
-  // Close sidebar on route change (for mobile)
-  useEffect(() => {
-    setIsMobileOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (!mobile) {
-        setIsMobileOpen(false);
-      }
-    };
-
-    handleResize();
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
+  const isDesktop = useSyncExternalStore(
+    subscribeToViewport,
+    getIsDesktopViewport,
+    () => true,
+  );
+  if (mobileOpenPath !== null && (isDesktop || mobileOpenPath !== pathname)) {
+    setMobileOpenPath(null);
+  }
+  if (!isDesktop && isHovered) setIsHovered(false);
+  const isMobileOpen = !isDesktop && mobileOpenPath === pathname;
 
   const toggleSidebar = () => {
-    setIsExpanded((prev) => !prev);
+    if (isDesktop) {
+      setIsExpanded((prev) => !prev);
+    } else {
+      setMobileOpenPath((currentPath) =>
+        currentPath === pathname ? null : pathname,
+      );
+    }
   };
 
-  const toggleMobileSidebar = () => {
-    setIsMobileOpen((prev) => !prev);
+  const closeMobileSidebar = (restoreFocus = false) => {
+    setMobileOpenPath(null);
+    if (restoreFocus) document.getElementById(sidebarToggleId)?.focus();
   };
 
   const toggleSubmenu = (item: string) => {
@@ -73,13 +83,14 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   return (
     <SidebarContext.Provider
       value={{
-        isExpanded: isMobile ? false : isExpanded,
+        isDesktop,
+        isExpanded: isDesktop && isExpanded,
         isMobileOpen,
-        isHovered,
+        isHovered: isDesktop && isHovered,
         activeItem,
         openSubmenu,
         toggleSidebar,
-        toggleMobileSidebar,
+        closeMobileSidebar,
         setIsHovered,
         setActiveItem,
         toggleSubmenu,

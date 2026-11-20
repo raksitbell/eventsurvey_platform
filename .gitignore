@@ -7,11 +7,17 @@
 .pnp.js
 .yarn/install-state.gz
 
+# this project uses npm — keep other package managers' lockfiles out of the repo
+pnpm-lock.yaml
+pnpm-workspace.yaml
+yarn.lock
+
 # testing
 /coverage
 
 # next.js
 /.next/
+/.eventsurvey-media/
 /out/
 
 # production
@@ -27,6 +33,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
 
 # vercel
@@ -35,3 +42,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# wiki generator output
+/.wiki-build
+/.wiki-data
+
+# planning
+.cursor
+
+# local working docs (not part of the app)
+/docs
+/docs-build
+/docs-data
