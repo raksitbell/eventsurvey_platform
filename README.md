@@ -11,6 +11,15 @@
   <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
 </p>
 
+## Live Environments
+
+| Environment | Branch | URL |
+| --- | --- | --- |
+| **Production** | [`main`](https://github.com/raksitbell/eventsurvey_platform/tree/main) | [eventsurvey.raksitbell.app](https://eventsurvey.raksitbell.app/) |
+| **Preview** | [`dev`](https://github.com/raksitbell/eventsurvey_platform/tree/dev) | [Open dev Preview](https://eventsurvey-platform-git-dev-raksitbells-projects.vercel.app/) |
+
+Vercel deploys `main` to Production and `dev` to Preview. The Preview URL follows the latest successful deployment of `dev` and may require Vercel sign-in. Each push also appears in GitHub's commit checks and [Deployments](https://github.com/raksitbell/eventsurvey_platform/deployments).
+
 ## ภาพรวม
 
 EventSurvey เป็นหน้าเว็บของ **Event + Survey Management Platform** ตาม SRS v1.0.0 ผู้จัดสร้างอีเวนต์แบบเปิดหรือแบบส่วนตัว เปิดรับลงทะเบียน ส่งแบบสอบถามให้ผู้เข้าร่วม ดูสรุปผล และออกรายงานได้ในระบบเดียว ผู้จัดยังเพิ่มทีมงานและกำหนดสิทธิ์ของแต่ละคนได้
