@@ -145,7 +145,7 @@ test("event media is served publicly only when referenced by its published event
   const load = loadSource({
     "@/core/api/mock-client": {
       mockApi: {
-        get: async (path) => {
+        getFresh: async (path) => {
           assert.equal(path, "/events/event-a");
           return event;
         },

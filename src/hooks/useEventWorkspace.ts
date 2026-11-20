@@ -24,7 +24,7 @@ function cachedResult(userId: string, locale: string, identity: string) {
   };
 }
 
-export default function useEventWorkspace() {
+export default function useEventWorkspace({ requireFresh = false } = {}) {
   const { user } = useAuth();
   const locale = useLocale();
   const [attempt, setAttempt] = useState(0);
@@ -35,7 +35,7 @@ export default function useEventWorkspace() {
     error: boolean;
     identity: string;
   }>(() =>
-    userId
+    userId && !requireFresh
       ? cachedResult(userId, locale, `${userId}:${locale}:0`)
       : { workspace: null, error: false, identity: "" },
   );
@@ -43,9 +43,9 @@ export default function useEventWorkspace() {
   useEffect(() => {
     if (!userId) return;
 
-    const seeded = cachedResult(userId, locale, identity);
-    if (seeded.identity) {
-      setResult(seeded);
+    if (!requireFresh) {
+      const seeded = cachedResult(userId, locale, identity);
+      if (seeded.identity) setResult(seeded);
     }
 
     let unsubscribe: (() => void) | undefined;
@@ -92,7 +92,7 @@ export default function useEventWorkspace() {
       globalThis.window.removeEventListener("focus", refresh);
       controller.abort();
     };
-  }, [identity, locale, userId]);
+  }, [identity, locale, requireFresh, userId]);
 
   return {
     workspace: result.workspace,

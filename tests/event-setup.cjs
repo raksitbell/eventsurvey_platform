@@ -387,6 +387,10 @@ test("workspace binding returns localized safe DTOs and only active assistants",
       ];
     throw new Error(`Unexpected fixture query: ${query}`);
   };
+  t.mock.method(mockApi, "getFresh", (query) => {
+    assert.equal(query, "/events/event-a");
+    return mockApi.get(query);
+  });
   const { getEventWorkspace } = load("src/services/event/workspace.ts");
   const workspace = await getEventWorkspace("owner", "th");
   assert.equal(workspace.eventName, "กิจกรรม");
@@ -2105,6 +2109,34 @@ function renderFormComponent(relative, mocks) {
     async mount() { mount(); await new Promise((resolve) => setImmediate(resolve)); },
   };
 }
+
+test("setup navigation cannot use a cached revision while the next workspace read is pending", async (t) => {
+  const windowBefore = globalThis.window;
+  globalThis.window = new EventTarget();
+  t.after(() => {
+    if (windowBefore === undefined) delete globalThis.window;
+    else globalThis.window = windowBefore;
+  });
+  const stale = { ...seed, setup: { revision: 1 } };
+  const saved = { ...seed, setup: { revision: 2 } };
+  let finish;
+  const response = new Promise((resolve) => { finish = resolve; });
+  const hook = renderFormComponent("src/hooks/useEventWorkspace.ts", {
+    "@/context/AuthContext": { useAuth: () => ({ user: { id: "owner" } }) },
+    "@/core/api": { api: { get: () => response } },
+    "@/core/event/local-events": { eventSetupStateKey: (id) => id, subscribeToEventSetup: () => () => {} },
+    "@/core/event/workspace": load("src/core/event/workspace.ts"),
+    "@/core/event/workspace-cache": { readWorkspaceCache: () => stale, writeWorkspaceCache() {} },
+  });
+  const render = () => hook.render({ requireFresh: true });
+  assert.equal(render().loading, true);
+  await hook.mount();
+  assert.equal(render().workspace, null);
+  finish(saved);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(render().loading, false);
+  assert.equal(render().workspace.setup.revision, 2);
+});
 
 test("Form Management schedules unconfigured legacy drafts only when their lifecycle and permissions allow it", async () => {
   const legacyWindow = { startsAt: null, endsAt: null };

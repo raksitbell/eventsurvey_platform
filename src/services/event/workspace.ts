@@ -91,7 +91,7 @@ async function loadWorkspacePayload(
 ): Promise<EventWorkspace | null> {
   const [event, translations, banners, members, settings] = await Promise.all([
     mockApi
-      .get<MockEvent>(`/events/${encodeURIComponent(eventId)}`)
+      .getFresh<MockEvent>(`/events/${encodeURIComponent(eventId)}`)
       .catch((error: unknown) => {
         if (error instanceof MockApiError && error.status === 404) return null;
         throw error;

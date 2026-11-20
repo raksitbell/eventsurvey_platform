@@ -96,7 +96,7 @@ async function readUpload(request: Request, eventId: string) {
 export async function getSetupMediaEvent(eventId: string) {
   if (!eventId || eventId === "." || eventId === "..") return null;
   try {
-    const event = await mockApi.get<MockEvent>("/events/" + encodeURIComponent(eventId));
+    const event = await mockApi.getFresh<MockEvent>("/events/" + encodeURIComponent(eventId));
     return event?.id === eventId && !event.deleted_at ? event : null;
   } catch (error) {
     if (error instanceof MockApiError && error.status === 404) return null;

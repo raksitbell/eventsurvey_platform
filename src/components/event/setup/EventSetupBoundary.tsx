@@ -24,7 +24,7 @@ export default function EventSetupBoundary({
 }) {
   const t = useTranslations("eventHome");
   const { workspace, userId, locale, identity, loading, error, retry } =
-    useEventWorkspace();
+    useEventWorkspace({ requireFresh: true });
   if (loading)
     return (
       loadingFallback ?? (
