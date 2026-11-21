@@ -1,29 +1,23 @@
+import ParticipantEventScreen from "@/components/event/participant/ParticipantEventScreen";
 import EventDisplayViewport from "@/components/participant/EventDisplayViewport";
-import type { EventDisplayLayout } from "@/types/participant/display";
-import { getTranslations } from "next-intl/server";
+import { routing } from "@/i18n/routing";
+import { getPublicEventBySlug } from "@/services/event/public-event";
+import { hasLocale } from "next-intl";
+import { notFound } from "next/navigation";
 
 interface ParticipantDisplayPageProps {
-  searchParams: Promise<{ layout?: string | string[] }>;
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ event?: string | string[]; lang?: string | string[] }>;
 }
 
-export default async function ParticipantDisplayPage({ searchParams }: ParticipantDisplayPageProps) {
-  const { layout: rawLayout } = await searchParams;
-  const layout: EventDisplayLayout = rawLayout === "square" || rawLayout === "landscape" ? rawLayout : "portrait";
-  const t = await getTranslations("participantDisplay");
-
+export default async function ParticipantDisplayPage({ params, searchParams }: ParticipantDisplayPageProps) {
+  const [{ locale }, { event: slug, lang }] = await Promise.all([params, searchParams]);
+  if (!hasLocale(routing.locales, locale) || typeof slug !== "string") notFound();
+  const event = await getPublicEventBySlug(slug, locale, lang, true);
+  if (!event) notFound();
   return (
-    <EventDisplayViewport
-      layout={layout}
-      data={{
-        title: t("title"), organizer: t("organizer"), organizerInitial: t("organizerInitial"),
-        startsAt: t("startsAt"), endsAt: t("endsAt"), location: t("location"),
-        locationDetail: t("locationDetail"), description: t("description"), socialHandle: t("socialHandle"),
-      }}
-      labels={{
-        hostedBy: t("hostedBy"), hostedBySubtitle: t("hostedBySubtitle"),
-        about: t("about"), aboutSubtitle: t("aboutSubtitle"), registration: t("registration"),
-        survey: t("survey"), bannerPlaceholder: t("bannerPlaceholder"), qrPlaceholder: t("qrPlaceholder"),
-      }}
-    />
+    <EventDisplayViewport layout={event.branding.layout ?? "portrait"}>
+      <ParticipantEventScreen {...event} displayOnly />
+    </EventDisplayViewport>
   );
 }

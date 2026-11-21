@@ -87,31 +87,30 @@ function fixture(t) {
   };
 
   const writes = [];
+  async function readMock(resource) {
+    if (resource === `/forms/${row.id}`) return structuredClone(row);
+    if (
+      resource === "/forms" ||
+      resource === `/forms?event_id=${event.id}`
+    )
+      return [structuredClone(row)];
+    if (resource === `/events/${event.id}`) return structuredClone(event);
+    if (resource === `/events?slug=${event.slug}`)
+      return [structuredClone(event)];
+    if (
+      /^\/(event_translations|event_banners|event_form_settings)\?/.test(
+        resource,
+      )
+    )
+      return [];
+    throw new Error(`Unexpected read ${resource}`);
+  }
   const load = loadSource({
     "node:os": { tmpdir: () => cacheDir },
     "@/core/api/mock-client": {
       mockApi: {
-        async get(resource) {
-          if (resource === `/forms/${row.id}`) return structuredClone(row);
-          if (
-            resource === "/forms" ||
-            resource === `/forms?event_id=${event.id}`
-          )
-            return [structuredClone(row)];
-          if (resource === `/events/${event.id}`) return structuredClone(event);
-          if (resource === `/events?slug=${event.slug}`)
-            return [structuredClone(event)];
-          if (
-            /^\/(event_translations|event_banners|event_form_settings)\?/.test(
-              resource,
-            )
-          )
-            return [];
-          throw new Error(`Unexpected read ${resource}`);
-        },
-        getFresh(resource) {
-          return this.get(resource);
-        },
+        get: readMock,
+        getFresh: readMock,
         async put(resource, body) {
           assert.equal(resource, `/forms/${row.id}`);
           writes.push(body);

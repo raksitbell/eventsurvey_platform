@@ -74,10 +74,8 @@ function isPostEventSurvey(
 }
 
 async function loadEventForms(eventId: string): Promise<MockForm[]> {
-  const forms = await mockApi
-    .get<MockForm[]>(`/forms?event_id=${encodeURIComponent(eventId)}`)
-    .catch(() => [] as MockForm[]);
-  return forms.filter((form) => !form.deleted_at);
+  const forms = await mockApi.get<MockForm[]>(`/forms?event_id=${encodeURIComponent(eventId)}`);
+  return forms.filter((form) => form.event_id === eventId && !form.deleted_at);
 }
 
 async function readEventRecord(eventId: string, read = mockApi.getFresh) {
@@ -216,6 +214,7 @@ function toListItem(
     endsAt: event.end_at ?? null,
     updatedAt: event.updated_at ?? event.created_at ?? "",
     canStart: canStartEvent(event),
+    canCancel: !event.cancelled_at && (event.status === "scheduled" || (event.status === "closed" && event.has_survey)),
   };
 }
 
@@ -755,6 +754,7 @@ const STATUS_TRANSITIONS: Record<
 > = {
   start: { from: ["scheduled"], to: "open" },
   close: { from: ["open"], to: "closed" },
+  cancel: { from: ["scheduled", "open", "closed"], to: "closed" },
 };
 
 export type UpdateAdminEventStatusOptions = {
@@ -769,12 +769,20 @@ export async function updateAdminEventStatus(
   options: UpdateAdminEventStatusOptions = {},
   viewer?: PiiViewer,
 ): Promise<AdminEventListItem> {
+  return writeSerially(eventId, () => applyAdminEventStatus(eventId, action, actorUserId, locale, options, viewer));
+}
+
+async function applyAdminEventStatus(
+  eventId: string, action: AdminEventStatusAction, actorUserId: string, locale: Locale,
+  options: UpdateAdminEventStatusOptions, viewer?: PiiViewer,
+): Promise<AdminEventListItem> {
   const transition = STATUS_TRANSITIONS[action];
   const event = await loadLiveEvent(eventId);
-  if (event.status === "closed") {
+  const retryClose = Boolean(event.cancelled_at) && action !== "start";
+  if (event.status === "closed" && action !== "cancel" && !retryClose) {
     throw new ServiceError("STATUS_LOCKED", 409, "Cannot reverse closed event");
   }
-  if (!transition.from.includes(event.status)) {
+  if (!retryClose && !transition.from.includes(event.status)) {
     throw new ServiceError(
       "INVALID_TRANSITION",
       409,
@@ -790,7 +798,7 @@ export async function updateAdminEventStatus(
     );
   }
 
-  if (action === "close" && !options.force) {
+  if (!retryClose && action === "close" && !options.force) {
     const warnings = await getEventCloseWarnings(eventId);
     if (warnings.length > 0) {
       throw new ServiceError(
@@ -803,25 +811,37 @@ export async function updateAdminEventStatus(
   }
 
   const now = nowIso();
-  const updated = await mockApi.patch<MockEvent>(`/events/${eventId}`, {
+  const updated = retryClose ? event : await mockApi.patch<MockEvent>(`/events/${eventId}`, {
     status: transition.to,
     updated_at: now,
     updated_by: actorUserId,
     ...(action === "start" ? { opens_at: event.opens_at ?? now } : {}),
-    ...(action === "close" ? { closes_at: now } : {}),
+    ...(action !== "start" ? { closes_at: event.status === "closed" ? event.closes_at ?? now : now, cancelled_at: now } : {}),
   });
 
-  await writeAuditLog({
-    actorUserId: actorUserId,
-    eventId: eventId,
-    action: "update",
-    resourceType: "event",
-    resourceId: eventId,
-    module: "event_management",
-    descriptionTh: action === "start" ? "เปิดอีเวนต์" : "ปิดอีเวนต์",
-    descriptionEn: action === "start" ? "Started event" : "Closed event",
-    metadata: { before: { status: event.status }, after: { status: transition.to } },
-  });
+  if (!retryClose) {
+    await writeAuditLog({
+      actorUserId,
+      eventId: eventId,
+      action: "update",
+      resourceType: "event",
+      resourceId: eventId,
+      module: "event_management",
+      descriptionTh: action === "start" ? "เปิดอีเวนต์" : "ปิดอีเวนต์และฟอร์มทั้งหมด",
+      descriptionEn: action === "start" ? "Started event" : "Closed event and all forms",
+      metadata: { before: { status: event.status }, after: { status: transition.to, cancelledAt: updated.cancelled_at } },
+    });
+  }
+
+  if (action !== "start") {
+    // This marker blocks access even if updating one of the form rows needs a retry.
+    for (const form of await loadEventForms(eventId)) {
+      if (form.status === "closed") continue;
+      await mockApi.patch(`/forms/${encodeURIComponent(form.id)}`, {
+        status: "closed", updated_at: now, updated_by: actorUserId,
+      });
+    }
+  }
 
   const { translations, users } = await loadEventBundle();
   return toListItem(updated, translations, users, locale, viewer);
@@ -851,7 +871,7 @@ export async function runEventLifecycleCron(
   const formsClosed: string[] = [];
 
   for (const event of events) {
-    if (event.deleted_at) continue;
+    if (event.deleted_at || event.cancelled_at) continue;
     if (canStartEvent(event)) {
       await mockApi.patch(`/events/${event.id}`, {
         status: "open",
@@ -882,9 +902,7 @@ export async function runEventLifecycleCron(
     const event = eventsById.get(form.event_id);
     if (form.deleted_at || form.status === "closed" || event?.deleted_at) continue;
     const { closes_at } = withPublishedFormSchedule(form, event);
-    if (!closes_at) continue;
-    const closesMs = Date.parse(closes_at);
-    if (Number.isNaN(closesMs) || closesMs > now) continue;
+    if (!event?.cancelled_at && !(closes_at && Date.parse(closes_at) <= now)) continue;
     await mockApi.patch(`/forms/${form.id}`, {
       status: "closed",
       updated_at: stamp,

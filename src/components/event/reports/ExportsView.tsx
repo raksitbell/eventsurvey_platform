@@ -1,20 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { useEventReporting } from "@/hooks/useEventReporting";
-import {
-  approvedResponses,
-  csv,
-  download,
-  responseCsv,
-} from "@/core/event/export";
+import { useExportSummary } from "@/hooks/useEventReporting";
+import { download } from "@/core/event/export";
+import { api } from "@/core/api";
 import Button from "@/components/ui/button/Button";
 import {
   ChartBarIcon,
   DocumentChartBarIcon,
   TableCellsIcon,
 } from "@heroicons/react/24/outline";
-import type { ReportingData } from "@/types/event/reporting";
+import type { ExportSummary } from "@/types/event/reporting";
 import { showToast } from "@/utils/toast";
 import ReportShell, { panelClass } from "./ReportShell";
 
@@ -24,8 +20,7 @@ const formats = [
   { kind: "pdf", Icon: DocumentChartBarIcon },
 ] as const;
 export default function ExportsView() {
-  const { data, identityKey, errorStatus, reload } = useEventReporting();
-  const tErrors = useTranslations("errors");
+  const { data, identityKey, errorStatus, reload } = useExportSummary();
 
   return (
     <ReportShell
@@ -34,41 +29,35 @@ export default function ExportsView() {
       errorStatus={errorStatus}
       retry={reload}
     >
-      {data &&
-        (data.canExport ? (
-          <ExportPanel key={`${identityKey}:${data.eventId}`} data={data} />
-        ) : (
-          <p className={panelClass} role="alert">
-            {tErrors("403.title")}
-          </p>
-        ))}
+      {data && (
+        <ExportPanel key={`${identityKey}:${data.eventId}`} data={data} />
+      )}
     </ReportShell>
   );
 }
 
-function ExportPanel({ data }: { data: ReportingData }) {
+function ExportPanel({ data }: { data: ExportSummary }) {
   const t = useTranslations("eventReports");
   const locale = useLocale();
   const [last, setLast] = useState<{
-    content: string;
+    content: Blob;
     name: string;
     at: string;
   } | null>(null);
-  const forms = data.forms.filter((form) => form.approved);
-  const rows = approvedResponses(data);
+  const forms = data.forms;
+  const hasResponses = forms.some((form) => form.count > 0);
+  const [busy, setBusy] = useState(false);
 
-  function generate(kind: "responses" | "summary") {
+  async function generate(kind: "responses" | "summary") {
+    setBusy(true);
     try {
-      const content =
-        kind === "responses"
-          ? responseCsv(rows, [t("id"), t("respondent"), t("submitted")])
-          : csv([
-              [t("item"), t("count")],
-              ...forms.map((f) => [
-                f.title,
-                rows.filter((r) => r.formId === f.id).length,
-              ]),
-            ]);
+      const params = new URLSearchParams({
+        kind,
+        format: "csv",
+        locale,
+        eventId: data.eventId,
+      });
+      const content = await api.getBlob(`/event/exports?${params}`);
       const name = `${kind}-${data.eventId}.csv`;
       setLast({
         content,
@@ -79,10 +68,12 @@ function ExportPanel({ data }: { data: ReportingData }) {
       void showToast(t("exports.generated", { name }));
     } catch {
       void showToast(t("exports.failed"), "error");
+    } finally {
+      setBusy(false);
     }
   }
 
-  function redownload(content: string, name: string) {
+  function redownload(content: Blob, name: string) {
     try {
       download(content, name);
       void showToast(t("exports.downloaded", { name }));
@@ -129,9 +120,9 @@ function ExportPanel({ data }: { data: ReportingData }) {
                 </p>
               </div>
               <Button
-                disabled={!rows.length}
+                disabled={busy || !hasResponses}
                 onClick={() =>
-                  kind === "pdf" ? printReport() : generate(kind)
+                  kind === "pdf" ? printReport() : void generate(kind)
                 }
               >
                 {t(kind === "pdf" ? "exports.print" : "generate")}
@@ -139,7 +130,7 @@ function ExportPanel({ data }: { data: ReportingData }) {
             </article>
           ))}
         </div>
-        {!rows.length && (
+        {!hasResponses && (
           <p className="text-theme-sm text-gray-500 dark:text-gray-400">
             {t("exports.noApproved")}
           </p>
@@ -183,7 +174,7 @@ function ExportPanel({ data }: { data: ReportingData }) {
             {forms.map((f) => (
               <tr key={f.id}>
                 <td>{f.title}</td>
-                <td>{rows.filter((r) => r.formId === f.id).length}</td>
+                <td>{f.count}</td>
               </tr>
             ))}
           </tbody>

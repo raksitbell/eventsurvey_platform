@@ -70,7 +70,7 @@ function CopyLinkButton({
   );
 }
 
-function EventShareCard({ url }: { url: string }) {
+function EventShareCard({ url, displayUrl }: { url: string; displayUrl: string }) {
   const t = useTranslations("eventSetup");
   const labels = useTranslations("eventPublishedView");
   const field = useRef<HTMLInputElement>(null);
@@ -86,6 +86,10 @@ function EventShareCard({ url }: { url: string }) {
         <a href={url} target="_blank" rel="noopener noreferrer">
           <PublicationIcon name="external" />
           {t("openEvent")}
+        </a>
+        <a href={displayUrl} target="_blank" rel="noopener noreferrer">
+          <PublicationIcon name="external" />
+          {labels("openDisplay")}
         </a>
       </div>
     </section>
@@ -252,7 +256,7 @@ function ShareLinksSection() {
   const { links, windows, eventEndsAt } = result.data;
   return (
     <>
-      <EventShareCard url={links.event} />
+      <EventShareCard url={links.event} displayUrl={result.data.displayUrl} />
       {(links.registration || links.survey) && (
         <div className="published-event__pair">
           {links.registration && (

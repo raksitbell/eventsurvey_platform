@@ -121,6 +121,7 @@ export interface MockEvent {
   setup?: unknown;
   slug: string;
   status: MockEventStatus;
+  cancelled_at?: string | null;
   default_locale: string;
   start_at: string | null;
   end_at: string | null;

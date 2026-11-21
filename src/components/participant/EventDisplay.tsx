@@ -17,6 +17,7 @@ const inter = Inter({
 });
 
 export interface EventDisplayProps {
+  displayOnly?: boolean;
   layout: EventDisplayLayout;
   data: EventDisplayData;
   labels: {
@@ -31,6 +32,7 @@ export interface EventDisplayProps {
   };
   event?: {
     contentLocale: string;
+    languages: string[];
     banner: string | null;
     bannerLabel: string;
     bannerPosition?: string;
@@ -49,6 +51,7 @@ export default function EventDisplay({
   labels,
   event,
   formLinks,
+  displayOnly,
 }: EventDisplayProps) {
   const published = formLinks !== undefined;
   const preview = Boolean(event) && !published;
@@ -60,7 +63,7 @@ export default function EventDisplay({
     <Root
       className={`${inter.variable} participant-display participant-display--${layout}`}
       data-event-display={event ? true : undefined}
-      data-display-mode={published ? "published" : preview ? "preview" : undefined}
+      data-display-mode={displayOnly ? "lcd" : published ? "published" : preview ? "preview" : undefined}
       data-display-preview={preview ? true : undefined}
       style={event?.style}
     >
@@ -84,6 +87,7 @@ export default function EventDisplay({
             labels={labels}
             event={event}
             published={published}
+            displayOnly={displayOnly}
           />
           <EventDisplayQr
             registration={labels.registration}
@@ -92,6 +96,7 @@ export default function EventDisplay({
             vertical={layout === "landscape"}
             forms={forms}
             formLinks={formLinks}
+            displayOnly={displayOnly}
           />
         </div>
       </div>

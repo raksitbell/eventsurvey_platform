@@ -261,7 +261,77 @@ global.fetch = async (url, init = {}) => {
     headers: { "Content-Type": "application/json" },
   });
 };
+async function checkReportPermissions() {
+  const { loadSource } = require("./support/load-source.cjs");
+  const session = { userId: "viewer", realUserId: "viewer" };
+  const load = loadSource({
+    "@/core/auth/api-guard": {
+      requireEventSession: async () => session,
+      isAuthSession: (value) => value === session,
+    },
+    "next-intl/server": {
+      getTranslations: async () => (key) => require("../src/messages/en.json").eventReports[key],
+    },
+  });
+  const getExport = load("src/app/api/event/exports/route.ts").GET;
+  const getData = load("src/app/api/event/data/route.ts").GET;
+  const call = (handler, query) => handler({
+    method: "GET", nextUrl: new URL(`http://localhost/?locale=en&${query}`),
+  });
+  const responseCsvQuery = "kind=responses&format=csv";
+  const access = db.event_access.find((row) => row.user_id === "viewer").matrix;
+  access.surveyForm = "view_only";
+  db.forms.push({ ...db.forms[0], id: "reg", type: "registration" });
+  db.form_submissions.push(
+    { ...db.form_submissions[0], id: "other-type", form_id: "reg" },
+    { ...db.form_submissions[0], id: "unfinished", status: "draft" },
+    { ...db.form_submissions[0], id: "soft-deleted", deleted_at: now },
+    { ...db.form_submissions[0], id: "trashed-form-row", form_id: "deleted-form" },
+  );
+  for (const view of [false, true]) {
+    for (const permitExport of [false, true]) {
+      access.canViewSubmissions = view;
+      access.canExport = permitExport;
+      const detailResponse = await call(getData, "view=responses");
+      assert.equal(detailResponse.status, view ? 200 : 403);
+      const dashboard = await (await call(getData, "")).json();
+      assert.deepEqual(dashboard.responses.map((row) => row.id), view ? ["response-a"] : []);
+      if (view) {
+        const detail = await detailResponse.json();
+        assert.deepEqual(detail.responses.map((row) => row.id), ["response-a"]);
+        assert(!JSON.stringify(detail.responses).includes("PRIVATE NAME"));
+      }
+      const file = await call(getExport, responseCsvQuery);
+      assert.equal(file.status, permitExport ? 200 : 403);
+      if (permitExport) {
+        const contents = await file.text();
+        assert.match(contents, /"response-a"/);
+        assert.match(contents, /••••/);
+        assert.doesNotMatch(contents, /PRIVATE|response-b|other-type|unfinished|soft-deleted|trashed-form-row/);
+      }
+    }
+  }
+  for (const disallowed of ["eventId=event-b", "formId=form-b", "formId=reg", "formId=deleted-form"]) {
+    assert.equal((await call(getExport, responseCsvQuery + "&" + disallowed)).status, 403);
+  }
+  assert.equal((await call(getData, "view=responses&eventId=event-b")).status, 403);
+  for (const deniedForm of ["form-b", "reg", "deleted-form"]) {
+    assert.equal((await call(getData, "view=responses&formId=" + deniedForm)).status, 403);
+  }
+  const filtered = await call(getExport, responseCsvQuery + "&scope=responses&formId=form-a&search=wrong");
+  assert.equal((await filtered.text()).split("\r\n").length, 1);
+  const summary = await (await call(getExport, "")).json();
+  assert.deepEqual(summary.forms, [{ id: "form-a", title: "Survey", count: 1 }]);
+  await load("src/services/event/reporting.ts").restoreTrash("owner", "en", "trash-form");
+  const restored = await (await call(getExport, responseCsvQuery)).text();
+  assert.match(restored, /"trashed-form-row"/);
+  access.dashboard = "restricted";
+  assert.equal((await call(getExport, responseCsvQuery)).status, 403);
+}
+
 (async () => {
+  reset();
+  await checkReportPermissions();
   reset();
   const {
     getReportingData,
@@ -607,7 +677,7 @@ global.fetch = async (url, init = {}) => {
   const dashboardOnly = await getReportingData("owner", "en");
   assert.equal(dashboardOnly.canManage, true);
   assert.equal(dashboardOnly.canViewSubmissions, false);
-  assert.equal(dashboardOnly.canExport, false);
+  assert.equal(dashboardOnly.canExport, true);
   assert.deepEqual(dashboardOnly.forms.map((form) => form.id), ["form-a"]);
   assert.deepEqual(dashboardOnly.responses, []);
   assert.ok(dashboardOnly.trash.every((row) => row.type === "form"));

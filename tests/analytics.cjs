@@ -414,21 +414,22 @@ test("analytics honors submission visibility separately from dashboard editing",
   assert.deepEqual(data.rows, []);
   assert.equal(data.metrics.total, 0);
   const exportRequest = request("sub");
-  await assert.rejects(
-    getAnalytics(exportRequest.request, exportRequest.session, "analytics.export.csv"),
-    { status: 403 },
-  );
+  for (const view of [false, true]) {
+    for (const allowExport of [false, true]) {
+      access.matrix.canViewSubmissions = view;
+      access.matrix.canExport = allowExport;
+      assert.deepEqual((await loadAnalytics("sub")).rows.map((row) => row.id), view ? ["r1"] : []);
+      const exported = getAnalytics(exportRequest.request, exportRequest.session, "analytics.export.csv");
+      if (allowExport) {
+        const report = await exported;
+        assert.deepEqual(report.rows.map((row) => row.id), ["r1"]);
+        assert.equal(report.rows[0].values.name, "••••");
+      } else {
+        await assert.rejects(exported, { status: 403 });
+      }
+    }
+  }
 
-  access.matrix = {
-    ...access.matrix,
-    canViewSubmissions: true,
-    canExport: false,
-  };
-  assert.equal((await loadAnalytics("sub")).rows.length, 1);
-  await assert.rejects(
-    getAnalytics(exportRequest.request, exportRequest.session, "analytics.export.csv"),
-    { status: 403 },
-  );
 });
 
 test("analytics export uses validated locales and escapes report values", async () => {

@@ -82,6 +82,7 @@ const substitutions = {
     }),
   },
 };
+substitutions["@/core/api/mock-client"].mockApi.getFresh = substitutions["@/core/api/mock-client"].mockApi.get;
 function load(importPath) {
   if (Object.hasOwn(substitutions, importPath))
     return substitutions[importPath];
@@ -152,10 +153,10 @@ test("uses shared Mock data for QR links and restricts distribution to the assig
   });
   assert.equal(share.windows.registration.closesAt, "2099-01-08T00:00:00.000Z");
   assert.equal(share.windows.survey.closesAt, "2099-01-09T00:00:00.000Z");
-  const page = await getPublicEventBySlug(event.slug, "en");
+  const page = await getPublicEventBySlug(event.slug, "th", " EN ");
   assert.equal(page.draft.eventName, "Book Expo");
   assert.equal(page.bannerUrl, null);
-  assert.equal(page.formLinks.registration.href, "/event/book-expo/register");
+  assert.equal(page.formLinks.registration.href, "/event/book-expo/register?lang=en");
   assert.match(page.formLinks.survey.qrDataUrl, /^data:image\/png;base64,/);
   const png = await eventQrPng(share.links.survey);
   assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
@@ -179,8 +180,8 @@ test("shows a scheduled event, hides a draft and protects private events without
   assert.equal(await getPublicFormBySlug(event.slug, "registration"), null);
   event.status = "scheduled";
   const scheduledEvent = await getPublicEventBySlug(event.slug, "th");
-  assert.equal(scheduledEvent.formLinks.registration.href, "/event/book-expo/register");
-  assert.equal(scheduledEvent.formLinks.survey.href, "/event/book-expo/survey");
+  assert.equal(scheduledEvent.formLinks.registration.href, "/event/book-expo/register?lang=th");
+  assert.equal(scheduledEvent.formLinks.survey.href, "/event/book-expo/survey?lang=th");
   const earlySurvey = await getPublicFormBySlug(event.slug, "survey");
   assert.equal(earlySurvey.status, "scheduled");
   assert.equal(earlySurvey.form.questions[0].question.id, "question-1");
@@ -444,32 +445,42 @@ test("public forms show the localized published event and its banner for both fo
     publishedBranding: { en: english },
     branding: { en: { ...english, primary: "#ABCDEF" } },
   };
+  const readMock = async (resource) => {
+    if (resource.startsWith("/events?")) return [{ ...event, status: "scheduled" }];
+    if (resource.startsWith("/forms?")) return [];
+    if (resource.startsWith("/event_banners?")) return [{ event_id: event.id, banner_url: bannerUrl }];
+    if (resource.startsWith("/event_translations?")) {
+      assert.equal(setup.publication, null);
+      return [{ event_id: event.id, locale_code: "th", title: th.title, location_name: th.locationName }];
+    }
+    throw new Error("Unexpected resource " + resource);
+  };
   const read = loadSource({
     ...substitutions,
-    "@/core/api/mock-client": {
-      mockApi: { get: async (resource) => {
-        if (resource.startsWith("/events?")) return [{ ...event, status: "scheduled" }];
-        if (resource.startsWith("/forms?")) return [];
-        if (resource.startsWith("/event_banners?")) return [{ event_id: event.id, banner_url: bannerUrl }];
-        if (resource.startsWith("/event_translations?")) {
-          assert.equal(setup.publication, null);
-          return [{ event_id: event.id, locale_code: "th", title: th.title, location_name: th.locationName }];
-        }
-        throw new Error("Unexpected resource " + resource);
-      } },
-    },
+    "@/core/api/mock-client": { mockApi: { get: readMock, getFresh: readMock } },
     "@/core/event/setup-storage": { readSetupRecord: () => setup },
   });
   const { getPublicFormPageBySlug } = read("src/services/event/public-event.ts");
   for (const kind of ["registration", "survey"]) {
-    assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en"), {
+    assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en", null, "en"), {
+      contentLocale: "en", defaultLocale: "th", languages: ["th", "en"],
       result: { status: "unavailable" }, branding: english, bannerUrl, hasSurvey: false,
       eventDetails: {
         eventName: en.title, description: en.description, locationName: en.locationName, locationDetail: en.floorZone,
         startsAt: event.start_at, endsAt: event.end_at, isPrivate: false, surveyAccess: "public",
       },
     });
-    assert.equal((await getPublicFormPageBySlug(event.slug, kind, "th")).branding, fallback);
+    const selected = await getPublicFormPageBySlug(event.slug, kind, "th", null, "en");
+    assert.equal(selected.eventDetails.eventName, en.title);
+    assert.equal(selected.branding, fallback);
+    for (const lang of [undefined, "de", "zz", ["en", "th"]]) {
+      const page = await getPublicFormPageBySlug(event.slug, kind, "en", null, lang);
+      assert.equal(page.contentLocale, "th");
+      assert.equal(page.eventDetails.eventName, th.title);
+    }
+    en.locationName = null;
+    assert.equal((await getPublicFormPageBySlug(event.slug, kind, "th", null, "en")).eventDetails.locationName, null);
+
   }
   setup.publication = null;
   const legacy = await getPublicFormPageBySlug(event.slug, "survey", "en");
@@ -560,4 +571,34 @@ test("private participant forms disclose questions only after a matching publish
   snapshots.registration.eventId = event.id;
   whitelist.fieldId = "wrong-question";
   assert.deepEqual(await enter("person@example.com"), { status: "restricted" });
+});
+
+test("LCD QR windows include opening, exclude closing and hide paused or cancelled forms", async (t) => {
+  t.mock.method(Date, "now", () => Date.parse("2035-01-01T00:00:00Z"));
+  const now = Date.now();
+  const previousOrigin = process.env.APP_URL;
+  process.env.APP_URL = origin;
+  const original = { ...forms[1] };
+  t.after(() => {
+    if (previousOrigin === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previousOrigin;
+    Object.assign(forms[1], original);
+    delete event.cancelled_at;
+  });
+  const links = async () => (await getPublicEventBySlug(event.slug, "en", undefined, true)).formLinks;
+  const iso = offset => new Date(now + offset).toISOString();
+  forms[1].opens_at = iso(1);
+  assert.equal((await links()).survey, undefined);
+  forms[1].opens_at = iso(0);
+  forms[1].closes_at = iso(1);
+  assert.ok((await links()).survey.qrDataUrl);
+  forms[1].closes_at = iso(0);
+  assert.equal((await links()).survey, undefined);
+  forms[1].closes_at = iso(-1);
+  assert.equal((await links()).survey, undefined);
+  forms[1].closes_at = iso(1);
+  forms[1].status = "paused";
+  assert.equal((await links()).survey, undefined);
+  event.cancelled_at = iso(0);
+  assert.deepEqual(await links(), {});
 });

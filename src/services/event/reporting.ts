@@ -176,7 +176,12 @@ export async function getReportingData(
   userId: string,
   locale: Locale,
   _body?: Record<string, unknown>,
-  routeOptions?: { inspectedEventId?: string | null },
+  routeOptions?: {
+    inspectedEventId?: string | null;
+    purpose?: "export" | "responses";
+    formId?: string | null;
+    eventId?: string | null;
+  },
 ): Promise<ReportingData> {
   const scope = await getDashboardScope(userId, {
     inspectedEventId: routeOptions?.inspectedEventId,
@@ -190,6 +195,12 @@ export async function getReportingData(
     canViewSubmissions,
     canExport,
   } = scope;
+  if (routeOptions?.eventId && routeOptions.eventId !== event.id)
+    throw new ReportingError(403, "Forbidden");
+  if (routeOptions?.purpose === "export" && !canExport)
+    throw new ReportingError(403, "Forbidden");
+  if (routeOptions?.purpose === "responses" && !canViewSubmissions)
+    throw new ReportingError(403, "Forbidden");
   const [eventTranslations, eventForms, trash, eventUsers, layout] =
     await Promise.all([
       mockApi.get<MockEventTranslation[]>(
@@ -206,6 +217,8 @@ export async function getReportingData(
   );
   const forms = allowedForms.filter((form) => !form.deleted_at);
   const formIds = new Set(forms.map((form) => form.id));
+  if (routeOptions?.formId && !formIds.has(routeOptions.formId))
+    throw new ReportingError(403, "Forbidden");
   const activeEventFormIds = new Set(
     eventForms
       .filter((form) => form.event_id === event.id && !form.deleted_at)
@@ -219,7 +232,7 @@ export async function getReportingData(
             `/form_translations?form_id=${q(form.id)}`,
           ),
           mockApi.get<ReportingField[]>(`/form_fields?form_id=${q(form.id)}`),
-          canViewSubmissions
+          canViewSubmissions || routeOptions?.purpose === "export"
             ? mockApi.get<ReportingSubmission[]>(
                 `/form_submissions?form_id=${q(form.id)}`,
               )

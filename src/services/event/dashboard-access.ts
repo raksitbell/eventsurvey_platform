@@ -24,7 +24,7 @@ function scopeFromMatrix(
   return {
     event,
     canViewSubmissions: matrix.canViewSubmissions,
-    canExport: matrix.canViewSubmissions && matrix.canExport,
+    canExport: matrix.canExport,
     canManageDashboard: satisfiesAccessLevel(matrix.dashboard, "can_edit"),
     canReadForm: (type) =>
       type === "registration" || type === "survey"

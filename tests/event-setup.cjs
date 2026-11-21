@@ -4057,6 +4057,7 @@ test("Registration and Survey render the current event header before their own f
   const Form = compileSetupComponent("src/components/event/participant/forms/PublicParticipantForm.tsx", {
     ...shared,
     "./ParticipantFormLayout": { default: layout },
+    "@/core/event/participant-answer-draft": load("src/core/event/participant-answer-draft.ts"),
     "./ParticipantCapacityDialog": { default: () => null },
     "./ParticipantEligibilityGate": { default: () => null },
     "@/components/event/form/FormPreview/PreviewQuestionCard": { default: () => null },

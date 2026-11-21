@@ -85,6 +85,12 @@ export default function EventActionsMenu({
       reason: permissionReason,
     });
   }
+  if (event.canCancel) {
+    actions.push({
+      label: t("cancelEvent"), icon: StopIcon, run: () => onChangeStatus("cancel"),
+      danger: true, reason: permissionReason,
+    });
+  }
   const deleteReasons = {
     draft: undefined,
     scheduled: draftReason,

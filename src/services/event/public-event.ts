@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
-import { projectEventContent } from "@/core/event/content";
+import { getEventContent, normalizeContentLocale, projectEventContent, resolveEventTranslation } from "@/core/event/content";
 import { normalizeWhitelistId, publishedWhitelistAccess } from "@/core/event/whitelist";
 import type { SetupRecord } from "@/core/event/setup-state";
 import type { LocalPublication } from "@/core/event/publication";
@@ -19,6 +20,7 @@ import {
 } from "@/core/forms/published-schedule";
 import { isActiveMockUser, resolveAppRole } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
+import { bindEventContent } from "@/core/mock/event-content";
 import type { Locale } from "@/i18n/routing";
 import { getForm } from "@/services/event/forms";
 import type { Form, FormStatus } from "@/types/event/form";
@@ -54,7 +56,7 @@ function isParticipantVisible(event: MockEvent) {
   return event.status === "scheduled" || event.status === "open" || event.status === "closed";
 }
 
-export async function findPublicEvent(slug: string, read = mockApi.get): Promise<MockEvent | null> {
+export async function findPublicEvent(slug: string, read = mockApi.getFresh): Promise<MockEvent | null> {
   if (!isPublicEventSlug(slug)) return null;
 
   const events = await read<MockEvent[]>(
@@ -132,14 +134,35 @@ async function findShareableForm(
   }
 }
 
+function publicWindow(event: MockEvent, row: MockForm, status: FormStatus, published: boolean) {
+  const window = resolveFormWindows(row, event);
+  const eventEnd = row.type === "registration" && event.end_at ? Date.parse(event.end_at) : NaN;
+  const opensAt = window.opensAt;
+  const closesAt = Number.isFinite(eventEnd) ? Math.min(window.closesAt ?? eventEnd, eventEnd) : window.closesAt;
+  const now = Date.now();
+  const beforeOpening = opensAt !== null && now < opensAt;
+  let availability: "open" | "scheduled" | "unavailable" | "closed" = "open";
+  if (row.status === "closed" || status === "closed" || (closesAt !== null && now >= closesAt) ||
+      (row.type === "registration" && event.status === "closed")) {
+    availability = "closed";
+  } else if (row.status === "paused" || status === "paused") {
+    availability = "unavailable";
+  } else if (beforeOpening || row.status === "scheduled" || status === "scheduled" ||
+      (event.status === "scheduled" && (!published || opensAt === null))) {
+    availability = "scheduled";
+  }
+  return { opensAt, closesAt, beforeOpening, availability };
+}
+
 async function loadShareableWindows(
   event: MockEvent,
   setup: SetupRecord,
+  displayOnly = false,
 ): Promise<EventShareResponse["windows"]> {
   const { publication } = setup;
   const empty = { registration: null, survey: null };
   if (
-    !isParticipantVisible(event) ||
+    !isParticipantVisible(event) || event.cancelled_at ||
     formAccess(event, setup) === "restricted" ||
     !formKinds.some((kind) => isEnabled(event, kind, publication))
   ) {
@@ -151,15 +174,11 @@ async function loadShareableWindows(
     formKinds.map(async (kind) => {
       const result = await findShareableForm(event, kind, rows, publication);
       if (!result) return null;
-      const { opensAt, closesAt } = resolveFormWindows(result.row, event);
-      const eventEnd = event.end_at ? Date.parse(event.end_at) : NaN;
-      const close =
-        kind === "registration" && Number.isFinite(eventEnd)
-          ? Math.min(closesAt ?? eventEnd, eventEnd)
-          : closesAt;
+      const { opensAt, closesAt, availability } = publicWindow(event, result.row, result.status, !!publication);
+      if (displayOnly && availability !== "open") return null;
       return {
         opensAt: opensAt === null ? null : new Date(opensAt).toISOString(),
-        closesAt: close === null ? null : new Date(close).toISOString(),
+        closesAt: closesAt === null ? null : new Date(closesAt).toISOString(),
       };
     }),
   );
@@ -186,59 +205,55 @@ async function readEventBanner(eventId: string, savedUrl?: string | null) {
   return safeBannerUrl(banners.find((banner) => banner.event_id === eventId)?.banner_url);
 }
 
-async function readLegacyEventDetails(event: MockEvent, locale: Locale): Promise<ParticipantFormEventDetails> {
-  const translations = await mockApi.get<MockEventTranslation[]>(
-    `/event_translations?event_id=${encodeURIComponent(event.id)}`,
-  );
-  const localized = translations.filter(
-    (translation) => translation.event_id === event.id,
-  );
-  const content =
-    localized.find((translation) => translation.locale_code === locale) ??
-    localized.find(
-      (translation) => translation.locale_code === event.default_locale,
-    ) ??
-    localized[0];
-  return {
-    eventName: content?.title || event.slug,
-    description: content?.description ?? null,
-    locationName: content?.location_name ?? null,
-    locationDetail: content?.floor_zone?.trim() || undefined,
-    startsAt: event.start_at,
-    endsAt: event.end_at,
-    isPrivate: event.is_private,
-    surveyAccess: event.survey_access,
-  };
+async function publicEventDetails(event: MockEvent, publication: LocalPublication | null | undefined, requestedLanguage: unknown) {
+  const content = publication
+    ? getEventContent(publication.draft, event.default_locale)
+    : bindEventContent(event, await mockApi.get<MockEventTranslation[]>(
+      `/event_translations?event_id=${encodeURIComponent(event.id)}`,
+    ));
+  const contentLocale = resolveEventTranslation(content, normalizeContentLocale(requestedLanguage)).localeCode;
+  const details = projectEventContent({
+    ...(publication?.draft ?? {
+      eventName: event.slug, description: null, locationName: null, locationDetail: undefined,
+      startsAt: event.start_at, endsAt: event.end_at,
+      isPrivate: event.is_private, surveyAccess: event.survey_access,
+    }),
+    content,
+  }, contentLocale);
+  return { details, contentLocale };
 }
 
 export async function getPublicEventBySlug(
   slug: string,
   locale: Locale,
+  requestedLanguage?: unknown,
+  displayOnly = false,
 ): Promise<PublicEvent | null> {
   const event = await findPublicEvent(slug);
   if (!event) return null;
 
   const setup = readSetupRecord(event);
-  const [details, bannerUrl, windows] = await Promise.all([
-    setup.publication ? projectEventContent(setup.publication.draft, locale) : readLegacyEventDetails(event, locale),
+  const [{ details, contentLocale }, bannerUrl, windows] = await Promise.all([
+    publicEventDetails(event, setup.publication, requestedLanguage),
     readEventBanner(event.id),
-    loadShareableWindows(event, setup),
+    loadShareableWindows(event, setup, displayOnly),
   ]);
   const origin = eventShareOrigin();
   const formLinks: PublicEvent["formLinks"] = {};
   await Promise.all(
     formKinds
-      .filter((kind) => windows[kind])
+      .filter((kind) => windows[kind] && (!displayOnly || origin))
       .map(async (kind) => {
-        const href = publicEventPath(slug, kind);
+        const href = publicEventPath(slug, kind, contentLocale);
         const qrDataUrl = origin
-          ? await eventQrDataUrl(eventShareUrl(origin, slug, kind))
+          ? await eventQrDataUrl(new URL(href, origin).href)
           : undefined;
         formLinks[kind] = { href, qrDataUrl };
       }),
   );
 
   return {
+    contentLocale,
     draft: {
       registrationCapacity: null,
       surveyCapacity: null,
@@ -313,6 +328,7 @@ export async function getAssignedShareLinks(
         : null,
     },
     windows,
+    displayUrl: new URL(`/participant/display?event=${encodeURIComponent(event.slug)}`, origin).href,
     eventEndsAt: publicEvent.end_at,
   };
 }
@@ -323,7 +339,7 @@ export async function getPublicFormBySlug(
   identifier?: unknown,
   proof?: RegistrationProof | null,
 ): Promise<PublicForm | null> {
-  const read = identifier === undefined && !proof ? mockApi.get : mockApi.getFresh;
+  const read = mockApi.getFresh;
   const event = await findPublicEvent(slug, read);
   if (!event) return null;
   return publicResult(await resolvePublicForm(event, kind, readSetupRecord(event), identifier, proof, read));
@@ -334,6 +350,7 @@ export async function getPublicFormPageBySlug(
   kind: ParticipantFormKind,
   locale: Locale,
   proof?: RegistrationProof | null,
+  requestedLanguage?: unknown,
 ) {
   const event = await findPublicEvent(slug);
   if (!event) return null;
@@ -345,8 +362,8 @@ export async function getPublicFormPageBySlug(
   const branding = publication
     ? publishedBranding?.[locale] ?? publication.branding
     : defaultEventBranding;
-  const [details, bannerUrl] = await Promise.all([
-    publication ? projectEventContent(publication.draft, locale) : readLegacyEventDetails(event, locale),
+  const [{ details, contentLocale }, bannerUrl] = await Promise.all([
+    publicEventDetails(event, publication, requestedLanguage),
     readEventBanner(event.id, branding.banner?.url),
   ]);
   const eventDetails: ParticipantFormEventDetails = {
@@ -362,7 +379,7 @@ export async function getPublicFormPageBySlug(
   const hasSurvey = kind === "registration" && isEnabled(event, "survey", publication) && formAccess(event, setup) !== "restricted" &&
     (publication ? !!publication.forms.survey && hasShareableContent(publication.forms.survey) :
       !!await findShareableForm(event, "survey", await loadPublishedForms(event.id), null));
-  return { result, branding, bannerUrl, eventDetails, hasSurvey };
+  return { result, branding, bannerUrl, eventDetails, hasSurvey, contentLocale, defaultLocale: details.content.defaultLocale, languages: details.content.translations.map((row) => row.localeCode) };
 }
 
 async function hasJoinedRegistration(eventId: string, formId: string, fieldType: "email" | "short_text" | "number", identifier: string) {
@@ -393,7 +410,7 @@ type OpenSubmissionForm = Extract<PublicForm, { status: "open" }> & {
 type SubmissionAccess = Exclude<PublicForm, { status: "open" }> | OpenSubmissionForm;
 
 function publicResult(access: SubmissionAccess | null): PublicForm | null {
-  return access?.status === "open" ? { status: "open", form: access.form } : access;
+  return access?.status === "open" ? { status: "open", form: access.form, draftScope: access.draftScope } : access;
 }
 
 export async function currentPublicFormId(event: MockEvent, setup: SetupRecord, kind: ParticipantFormKind, read: typeof mockApi.get) {
@@ -443,6 +460,7 @@ export async function resolvePublicForm(
 ): Promise<SubmissionAccess | null> {
   const { publication } = setup;
   if (!isEnabled(event, kind, publication)) return null;
+  if (event.cancelled_at) return { status: "closed" };
   const access = formAccess(event, setup);
   if (access === "restricted") return { status: "restricted" };
   if (publication && !publication.forms[kind]) return { status: "unavailable" };
@@ -452,21 +470,8 @@ export async function resolvePublicForm(
   if (!result) return { status: "unavailable" };
 
   const { row, form, status } = result;
-  const { opensAt, closesAt } = resolveFormWindows(row, event);
-  const now = Date.now();
-  const eventEndsAt = event.end_at ? Date.parse(event.end_at) : null;
-  if (
-    row.status === "closed" ||
-    status === "closed" ||
-    (closesAt !== null && now >= closesAt) ||
-    (kind === "registration" &&
-      (event.status === "closed" ||
-        (eventEndsAt !== null && now >= eventEndsAt)))
-  ) {
-    return { status: "closed" };
-  }
-  if (row.status === "paused" || status === "paused")
-    return { status: "unavailable" };
+  const { opensAt, beforeOpening, availability } = publicWindow(event, row, status, !!publication);
+  if (availability === "closed" || availability === "unavailable") return { status: availability };
 
   const requiresRegistration = kind === "survey" &&
     (publication ? publication.draft.surveyAccess : event.survey_access) === "registered_only";
@@ -490,6 +495,7 @@ export async function resolvePublicForm(
     }
   }
 
+  let whitelistEntryId: string | undefined;
   let whitelist: OpenSubmissionForm["whitelist"];
   if (access !== "public" && !requiresRegistration) {
     const { field, entries } = access;
@@ -506,17 +512,20 @@ export async function resolvePublicForm(
         label: { th: question?.label.th[0]?.label ?? "", en: question?.label.en[0]?.label ?? "" },
       };
     }
+    whitelistEntryId = permitted.id;
     if (kind === "registration") {
       whitelist = { id: permitted.id, uniqueId: permitted.uniqueId, name: permitted.name, fieldId: field.id, fieldType: field.type };
     }
   }
+  // Web Storage is already tab-scoped. Bind the draft to server-verified identities as well.
+  const draftScope = createHash("sha256")
+    .update(JSON.stringify([event.id, kind, row.id, whitelistEntryId, registrationId]))
+    .digest("hex");
   const definition = { head: form.head, type: form.type, questions: form.questions };
-  const beforeOpening = opensAt !== null && now < opensAt;
-  const waitingForEvent = event.status === "scheduled" && (!publication || opensAt === null);
-  if (beforeOpening || waitingForEvent || row.status === "scheduled" || status === "scheduled") {
-    return { status: "scheduled", form: definition, opensAt: beforeOpening ? new Date(opensAt).toISOString() : null };
+  if (availability === "scheduled") {
+    return { status: "scheduled", form: definition, draftScope, opensAt: beforeOpening && opensAt !== null ? new Date(opensAt).toISOString() : null };
   }
-  return { status: "open", form: definition,
+  return { status: "open", form: definition, draftScope,
     formId: row.id, capacity, registrationId, whitelist,
     receiptClosesAt: kind === "registration" ? registrationReceiptClosesAt(event, setup, rows) : undefined };
 }

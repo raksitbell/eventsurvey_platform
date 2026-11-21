@@ -250,6 +250,7 @@ Table events [headercolor: #7C3AED] {
   created_by_user_id uuid [not null, ref: > users.id]
   published_at timestamptz
   closed_at timestamptz
+  cancelled_at timestamptz [note: 'Manual cancellation stops all forms including Post-Survey']
   archived_at timestamptz
   created_at timestamptz [not null]
   updated_at timestamptz [not null]

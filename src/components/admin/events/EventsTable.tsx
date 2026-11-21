@@ -288,10 +288,11 @@ export default function EventsTable({ showTrash = false }: { showTrash?: boolean
       return;
     }
 
+    const label = t(action === "cancel" ? "cancelEvent" : "close");
     const firstConfirm = await confirm({
-      title: t("close"),
+      title: label,
       message: t("confirmClose", { title: event.title }),
-      confirmLabel: t("close"),
+      confirmLabel: label,
       cancelLabel: tc("cancel"),
       variant: "danger",
     });
@@ -300,7 +301,7 @@ export default function EventsTable({ showTrash = false }: { showTrash?: boolean
     setPendingId(event.id);
     try {
       await api.patch(`/admin/events/${event.id}/status`, {
-        action: "close",
+        action,
       });
       refreshEvents();
     } catch (err) {

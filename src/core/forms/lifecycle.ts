@@ -120,10 +120,11 @@ export function nextCronFormStatus(
   form: Pick<MockForm, "type" | "status" | "opens_at" | "closes_at">,
   event: Pick<
     MockEvent,
-    "status" | "opens_at" | "closes_at" | "start_at" | "end_at"
+    "status" | "opens_at" | "closes_at" | "start_at" | "end_at" | "cancelled_at"
   >,
   nowMs: number = Date.now(),
 ): FormStatus | null {
+  if (event.cancelled_at) return form.status === "closed" ? null : "closed";
   if (
     form.status !== "scheduled" &&
     form.status !== "open" &&

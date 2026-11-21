@@ -213,7 +213,8 @@ export default function BrandingPreviewGallery({
                 }
                 branding={branding}
                 bannerUrl={bannerUrl}
-                contentLocale={contentLocale}
+                defaultContentLocale={draft.content?.defaultLocale}
+                contentLocale={contentLocale ?? draft.content?.defaultLocale}
               />
             )}
           </div>
