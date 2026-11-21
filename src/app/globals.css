@@ -1397,7 +1397,16 @@ pre[class*="language-"].line-numbers {
 }
 
 /* Print only the report contents when exporting from the Dashboard. */
+@page event-report {
+  size: A4;
+  margin: 16mm;
+}
+
 @media print {
+  body:has(#event-print-report) {
+    page: event-report;
+  }
+
   body:has(#event-print-report) * {
     visibility: hidden;
   }

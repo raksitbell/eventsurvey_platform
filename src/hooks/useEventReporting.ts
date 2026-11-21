@@ -4,14 +4,25 @@ import { useEffect, useState } from "react";
 import { useLocale } from "next-intl";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
-import type { ReportingData } from "@/types/event/reporting";
+import type { ExportSummary, ReportingData } from "@/types/event/reporting";
 
-export function useEventReporting() {
+export function useEventReporting(view?: "responses", formId?: string | null) {
+  const query = new URLSearchParams();
+  if (view) query.set("view", view);
+  if (formId) query.set("formId", formId);
+  return useReportRequest<ReportingData>("/event/data", query.toString());
+}
+
+export function useExportSummary() {
+  return useReportRequest<ExportSummary>("/event/exports");
+}
+
+function useReportRequest<T>(endpoint: string, query = "") {
   const locale = useLocale();
   const { user, realUser, isInspectingEvent } = useAuth();
   const [state, setState] = useState<{
     key: string;
-    data: ReportingData | null;
+    data: T | null;
     errorStatus: number | null;
   }>({ key: "", data: null, errorStatus: null });
   const [version, setVersion] = useState(0);
@@ -21,11 +32,11 @@ export function useEventReporting() {
     realUser?.id,
     isInspectingEvent,
   ]);
-  const key = JSON.stringify([identityKey, locale, version]);
+  const key = JSON.stringify([identityKey, endpoint, query, locale, version]);
 
   useEffect(() => {
     let active = true;
-    api.get<ReportingData>(`/event/data?locale=${locale}`).then(
+    api.get<T>(`${endpoint}?locale=${locale}&${query}`).then(
       (data) => {
         if (active) setState({ key, data, errorStatus: null });
       },
@@ -42,7 +53,7 @@ export function useEventReporting() {
     return () => {
       active = false;
     };
-  }, [key, locale]);
+  }, [key, locale, endpoint, query]);
 
   return {
     identityKey,

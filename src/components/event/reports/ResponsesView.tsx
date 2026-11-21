@@ -9,17 +9,22 @@ import Input from "@/components/form/input/InputField";
 import Select from "@/components/form/Select";
 import Button from "@/components/ui/button/Button";
 import ReportShell, { panelClass } from "./ReportShell";
-import { download, responseCsv } from "@/core/event/export";
+import { api } from "@/core/api";
+import { download } from "@/core/event/export";
 import type { ReportingData } from "@/types/event/reporting";
 import { showToast } from "@/utils/toast";
 export default function ResponsesView() {
-  const { data, identityKey, errorStatus, reload } = useEventReporting();
   const tErrors = useTranslations("errors");
   const searchParams = useSearchParams();
   const initialFormId =
     searchParams.get("scope") === "all"
       ? ""
       : searchParams.get("formId") || null;
+
+  const { data, identityKey, errorStatus, reload } = useEventReporting(
+    "responses",
+    initialFormId,
+  );
 
   return (
     <ReportShell
@@ -55,6 +60,7 @@ function ResponseTable({
   const locale = useLocale();
   const [formFilter, setFormFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [all, setAll] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { isOpen, openModal, closeModal } = useModal();
@@ -109,21 +115,26 @@ function ResponseTable({
           <Button
             variant="outline"
             size="sm"
-            disabled={!data.canExport || !rows.length}
-            onClick={() => {
+            disabled={!data.canExport || !rows.length || exporting}
+            onClick={async () => {
+              setExporting(true);
               try {
+                const query = new URLSearchParams({
+                  scope: "responses",
+                  kind: "responses",
+                  format: "csv",
+                  locale,
+                  eventId: data.eventId,
+                  formId: activeFormId,
+                  search,
+                });
                 const name = `responses-${data.eventId}.csv`;
-                download(
-                  responseCsv(rows, [
-                    t("id"),
-                    t("respondent"),
-                    t("submitted"),
-                  ]),
-                  name,
-                );
+                download(await api.getBlob(`/event/exports?${query}`), name);
                 void showToast(t("exports.generated", { name }));
               } catch {
                 void showToast(t("exports.failed"), "error");
+              } finally {
+                setExporting(false);
               }
             }}
           >

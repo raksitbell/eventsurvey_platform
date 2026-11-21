@@ -66,3 +66,9 @@ export interface ReportingData {
   widgets: DashboardWidget[];
   fields: { id: string; formId: string; label: string; numeric: boolean }[];
 }
+
+export interface ExportSummary {
+  eventId: string;
+  eventName: string;
+  forms: { id: string; title: string; count: number }[];
+}
