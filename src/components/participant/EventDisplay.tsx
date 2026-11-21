@@ -31,6 +31,7 @@ export interface EventDisplayProps {
   };
   event?: {
     contentLocale: string;
+    languages: string[];
     banner: string | null;
     bannerLabel: string;
     bannerPosition?: string;

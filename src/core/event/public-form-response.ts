@@ -34,14 +34,6 @@ export function publicQuestionId(question: PublicQuestion) {
   return question.id ?? String(question.display_order);
 }
 
-export function publicQuestionLocale(
-  question: PublicQuestion,
-  locale: FormLocale,
-): FormLocale {
-  if (question.label[locale][0]?.label.trim()) return locale;
-  return locale === "th" ? "en" : "th";
-}
-
 export function publicAnswerIssue(
   question: PublicQuestion,
   answer: PublicFormAnswer | undefined,
@@ -87,8 +79,7 @@ export function publicAnswerIssue(
     case "multiple_choice":
     case "dropdown":
     case "checkbox": {
-      const language = publicQuestionLocale(question, locale);
-      const choices = answerChoicesWithIds(question.label[language][0]?.choices[language] ?? []);
+      const choices = answerChoicesWithIds(question.label[locale][0]?.choices[locale] ?? []);
       const values = Array.isArray(answer) ? answer : [text];
       if (Array.isArray(answer) !== (question.type === "checkbox") || new Set(values).size !== values.length)
         return invalid;

@@ -25,6 +25,7 @@ export interface EventShareResponse {
 }
 
 export interface PublicEvent extends ParticipantEventData {
+  contentLocale: string;
   formLinks: Partial<
     Record<ParticipantFormKind, { href: string; qrDataUrl?: string }>
   >;

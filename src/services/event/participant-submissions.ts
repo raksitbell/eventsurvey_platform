@@ -2,7 +2,7 @@ import { createHash, createHmac, randomInt } from "node:crypto";
 import { mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import {
-  answerChoicesWithIds, preparePublicFormAnswers, publicQuestionId, publicQuestionLocale,
+  answerChoicesWithIds, preparePublicFormAnswers, publicQuestionId,
 } from "@/core/event/public-form-response";
 import { writeSerially } from "@/core/event/serial-write";
 import type { SetupRecord } from "@/core/event/setup-state";
@@ -162,8 +162,7 @@ async function bindStoredIds(formId: string, form: Form, answers: PreparedAnswer
       answer.field_id = matches[0].id;
     }
     if (!answer.optionIds.length) continue;
-    const language = publicQuestionLocale(question, locale);
-    const choices = question.label[language][0]?.choices[language] ?? [];
+    const choices = question.label[locale][0]?.choices[locale] ?? [];
     if (choices.every((choice) => choice.id)) continue;
     const projected = answerChoicesWithIds(choices);
     const options = await mockApi.getFresh<MockFieldOption[]>(`/field_options?field_id=${encodeURIComponent(answer.field_id)}`);

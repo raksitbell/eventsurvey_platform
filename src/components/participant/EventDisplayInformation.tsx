@@ -59,7 +59,7 @@ export default function EventDisplayInformation({
       {published ? (
         <div className="participant-title-row">
           {title}
-          <EventDisplayLanguage />
+          {event && event.languages.length > 1 && <EventDisplayLanguage locale={event.contentLocale} languages={event.languages} />}
         </div>
       ) : title}
       <div className="participant-section-heading">

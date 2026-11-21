@@ -1,14 +1,13 @@
 "use client";
 
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
-import { languages } from "@/i18n/languages";
+import { contentLanguageName } from "@/core/event/content";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { GlobeAltIcon } from "@heroicons/react/24/outline";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useId, useRef, useState } from "react";
 
-export default function EventDisplayLanguage() {
-  const locale = useLocale();
+export default function EventDisplayLanguage({ locale, languages }: { locale: string; languages: string[] }) {
   const t = useTranslations("participantEvent");
   const pathname = usePathname();
   const router = useRouter();
@@ -51,24 +50,25 @@ export default function EventDisplayLanguage() {
         <div id={menuId} role="group" aria-label={t("language")}>
           {languages.map((language) => (
             <button
-              key={language.id}
+              key={language}
               type="button"
-              lang={language.id}
-              aria-pressed={locale === language.id}
+              lang={language}
+              aria-pressed={locale === language}
               onClick={() => {
                 setOpen(false);
                 trigger.current?.focus();
-                if (locale !== language.id) {
-                  const href = pathname + globalThis.location.search + globalThis.location.hash;
+                if (locale !== language) {
+                  const query = new URLSearchParams(globalThis.location.search);
+                  query.set("lang", language);
+                  const href = pathname + "?" + query + globalThis.location.hash;
                   router.replace(href, {
-                    locale: language.id,
                     scroll: false,
                   });
                 }
               }}
               className="block min-h-11 w-full rounded-lg px-3 text-start text-gray-800 hover:bg-gray-100 aria-pressed:font-semibold dark:text-white dark:hover:bg-gray-800"
             >
-              {language.name}
+              {contentLanguageName(language)}
             </button>
           ))}
         </div>

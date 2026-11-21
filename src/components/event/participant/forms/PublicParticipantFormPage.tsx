@@ -19,6 +19,7 @@ import type { PublicFormSubmissionResult } from "@/types/event/public-event";
 
 interface PublicParticipantFormPageProps {
   eventSlug: string;
+  requestedLanguage?: string | string[];
   kind: ParticipantFormKind;
 }
 
@@ -38,11 +39,12 @@ async function acknowledgeSubmission(slug: string, result: Awaited<ReturnType<ty
 
 export default async function PublicParticipantFormPage({
   eventSlug,
+  requestedLanguage,
   kind,
 }: PublicParticipantFormPageProps) {
   const locale = await getLocale();
   if (!hasLocale(routing.locales, locale)) notFound();
-  const page = await getPublicFormPageBySlug(eventSlug, kind, locale, await currentRegistration(eventSlug));
+  const page = await getPublicFormPageBySlug(eventSlug, kind, locale, await currentRegistration(eventSlug), requestedLanguage);
   if (!page) notFound();
 
   async function checkEligibility(data: FormData) {
@@ -91,13 +93,16 @@ export default async function PublicParticipantFormPage({
     <PublicParticipantForm
       key={publicEventPath(eventSlug, kind)}
       kind={kind}
-      eventHref={publicEventPath(eventSlug)}
+      contentLocale={page.contentLocale}
+      languages={page.languages}
+      defaultContentLocale={page.defaultLocale}
+      eventHref={publicEventPath(eventSlug, "event", page.contentLocale)}
       result={page.result}
       eventDetails={page.eventDetails}
       branding={page.branding}
       bannerUrl={page.bannerUrl}
-      registrationHref={kind === "survey" ? publicEventPath(eventSlug, "registration") : undefined}
-      surveyHref={kind === "registration" && page.hasSurvey ? publicEventPath(eventSlug, "survey") : undefined}
+      registrationHref={kind === "survey" ? publicEventPath(eventSlug, "registration", page.contentLocale) : undefined}
+      surveyHref={kind === "registration" && page.hasSurvey ? publicEventPath(eventSlug, "survey", page.contentLocale) : undefined}
       submitResponse={submitResponse}
       recoverSubmission={recoverSubmission}
       checkEligibility={checkEligibility}

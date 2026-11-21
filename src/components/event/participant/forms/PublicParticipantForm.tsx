@@ -11,7 +11,6 @@ import Button from "@/components/ui/button/Button";
 import {
   publicAnswerIssue,
   publicQuestionId,
-  publicQuestionLocale,
   type PublicFormAnswer,
   type PublicFormAnswerIssue,
 } from "@/core/event/public-form-response";
@@ -57,6 +56,8 @@ type PublicParticipantFormProps = {
   bannerUrl: string | null;
   eventDetails: ParticipantFormEventDetails;
   contentLocale?: string | null;
+  defaultContentLocale?: string;
+  languages?: string[];
 } & (
   | {
       readOnly: true;
@@ -92,6 +93,8 @@ export default function PublicParticipantForm({
   bannerUrl,
   eventDetails,
   contentLocale,
+  defaultContentLocale,
+  languages,
   readOnly = false,
   fillViewport = false,
   submitResponse,
@@ -105,7 +108,7 @@ export default function PublicParticipantForm({
   const preferredLocale =
     contentLocale === "en" || contentLocale === "th"
       ? contentLocale
-      : portalLocale === "en"
+      : (defaultContentLocale ?? "th") === "en"
         ? "en"
         : "th";
   const instanceId = useId();
@@ -119,7 +122,7 @@ export default function PublicParticipantForm({
   const requestInFlight = useRef(false);
   const requestId = useRef<string | null>(null);
   const recovery = useRef<{ id: string; result: Promise<boolean> } | null>(null);
-  const storageKey = `eventsurvey:form-request:${eventHref}:${kind}`;
+  const storageKey = `eventsurvey:form-request:${eventHref?.split("?")[0]}:${kind}`;
   const current = readOnly ? result : response ?? result;
   const status = current.status;
   const form = current.status === "open" || current.status === "scheduled" ? current.form : null;
@@ -355,7 +358,6 @@ export default function PublicParticipantForm({
         )}
         {form.questions.map(({ question }, index) => {
           const id = publicQuestionId(question);
-          const questionLocale = publicQuestionLocale(question, locale);
           const card = (
             <PreviewQuestionCard
               key={id}
@@ -366,7 +368,7 @@ export default function PublicParticipantForm({
                 id: readOnly ? `${instanceId}-${id}` : id,
                 is_unique: false,
               }}
-              locale={questionLocale}
+              locale={locale}
               answer={answers[id]}
               errorMessage={formatIssue(errors[id])}
               onChangeAnswer={(answer) => updateAnswer(id, answer)}
@@ -413,6 +415,7 @@ export default function PublicParticipantForm({
       branding={branding}
       bannerUrl={bannerUrl}
       kind={kind}
+      languages={languages}
       locale={contentLocale || portalLocale}
       showMobileFooter={kind === "registration" && !eventDetails.isPrivate && Boolean(form)}
       readOnly={readOnly}

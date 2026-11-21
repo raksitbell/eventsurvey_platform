@@ -60,10 +60,8 @@ export default function ParticipantEventScreen({
   const dates = useTranslations("eventPublishedView");
   const layout = branding.layout ?? "portrait";
   const size = displayCanvasSize(layout);
-  const translation = resolveEventTranslation(
-    getEventContent(draft, locale),
-    contentLocale ?? (formLinks ? locale : null),
-  );
+  const content = getEventContent(draft, locale);
+  const translation = resolveEventTranslation(content, contentLocale);
   const dateFormatter = new Intl.DateTimeFormat(translation.localeCode, {
     day: "numeric",
     month: "short",
@@ -128,6 +126,7 @@ export default function ParticipantEventScreen({
       formLinks={formLinks}
       event={{
         contentLocale: translation.localeCode,
+        languages: content.translations.map((row) => row.localeCode),
         banner,
         bannerLabel: event("banner"),
         bannerPosition,

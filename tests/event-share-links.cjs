@@ -152,10 +152,10 @@ test("uses shared Mock data for QR links and restricts distribution to the assig
   });
   assert.equal(share.windows.registration.closesAt, "2099-01-08T00:00:00.000Z");
   assert.equal(share.windows.survey.closesAt, "2099-01-09T00:00:00.000Z");
-  const page = await getPublicEventBySlug(event.slug, "en");
+  const page = await getPublicEventBySlug(event.slug, "th", " EN ");
   assert.equal(page.draft.eventName, "Book Expo");
   assert.equal(page.bannerUrl, null);
-  assert.equal(page.formLinks.registration.href, "/event/book-expo/register");
+  assert.equal(page.formLinks.registration.href, "/event/book-expo/register?lang=en");
   assert.match(page.formLinks.survey.qrDataUrl, /^data:image\/png;base64,/);
   const png = await eventQrPng(share.links.survey);
   assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
@@ -179,8 +179,8 @@ test("shows a scheduled event, hides a draft and protects private events without
   assert.equal(await getPublicFormBySlug(event.slug, "registration"), null);
   event.status = "scheduled";
   const scheduledEvent = await getPublicEventBySlug(event.slug, "th");
-  assert.equal(scheduledEvent.formLinks.registration.href, "/event/book-expo/register");
-  assert.equal(scheduledEvent.formLinks.survey.href, "/event/book-expo/survey");
+  assert.equal(scheduledEvent.formLinks.registration.href, "/event/book-expo/register?lang=th");
+  assert.equal(scheduledEvent.formLinks.survey.href, "/event/book-expo/survey?lang=th");
   const earlySurvey = await getPublicFormBySlug(event.slug, "survey");
   assert.equal(earlySurvey.status, "scheduled");
   assert.equal(earlySurvey.form.questions[0].question.id, "question-1");
@@ -462,14 +462,25 @@ test("public forms show the localized published event and its banner for both fo
   });
   const { getPublicFormPageBySlug } = read("src/services/event/public-event.ts");
   for (const kind of ["registration", "survey"]) {
-    assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en"), {
+    assert.deepEqual(await getPublicFormPageBySlug(event.slug, kind, "en", null, "en"), {
+      contentLocale: "en", defaultLocale: "th", languages: ["th", "en"],
       result: { status: "unavailable" }, branding: english, bannerUrl, hasSurvey: false,
       eventDetails: {
         eventName: en.title, description: en.description, locationName: en.locationName, locationDetail: en.floorZone,
         startsAt: event.start_at, endsAt: event.end_at, isPrivate: false, surveyAccess: "public",
       },
     });
-    assert.equal((await getPublicFormPageBySlug(event.slug, kind, "th")).branding, fallback);
+    const selected = await getPublicFormPageBySlug(event.slug, kind, "th", null, "en");
+    assert.equal(selected.eventDetails.eventName, en.title);
+    assert.equal(selected.branding, fallback);
+    for (const lang of [undefined, "de", "zz", ["en", "th"]]) {
+      const page = await getPublicFormPageBySlug(event.slug, kind, "en", null, lang);
+      assert.equal(page.contentLocale, "th");
+      assert.equal(page.eventDetails.eventName, th.title);
+    }
+    en.locationName = null;
+    assert.equal((await getPublicFormPageBySlug(event.slug, kind, "th", null, "en")).eventDetails.locationName, null);
+
   }
   setup.publication = null;
   const legacy = await getPublicFormPageBySlug(event.slug, "survey", "en");

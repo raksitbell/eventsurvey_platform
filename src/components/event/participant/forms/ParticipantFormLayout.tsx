@@ -19,6 +19,7 @@ interface Props {
   bannerUrl: string | null;
   kind: ParticipantFormKind;
   locale: string;
+  languages?: string[];
   showMobileFooter: boolean;
   readOnly: boolean;
   fillViewport: boolean;
@@ -60,7 +61,7 @@ function scheduleLabel(details: ParticipantFormEventDetails, locale: string) {
 }
 
 export default function ParticipantFormLayout({
-  details, branding, bannerUrl, kind, locale, showMobileFooter, readOnly, fillViewport, eventHref, children,
+  details, branding, bannerUrl, kind, locale, languages, showMobileFooter, readOnly, fillViewport, eventHref, children,
 }: Props) {
   const t = useTranslations("publicParticipantForm");
   const labels = useTranslations("participantEvent");
@@ -95,7 +96,7 @@ export default function ParticipantFormLayout({
         ) : <div className="flex min-w-0 items-center gap-3">{identity}</div>}
         {readOnly ? (
           <span className="rounded-full bg-white px-3 py-2 text-theme-xs font-semibold text-participant-text">{locale.toUpperCase()}</span>
-        ) : <EventDisplayLanguage />}
+         ) : languages && languages.length > 1 && <EventDisplayLanguage locale={locale} languages={languages} />}
       </header>
       <div className="relative isolate grow" style={{ backgroundImage }}>
         {branding.backgroundMode === "blur" && banner && (
