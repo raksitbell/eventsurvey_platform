@@ -45,13 +45,13 @@ export default function PreviewQuestionCard({
   const tPreview = useTranslations("form.preview");
 
   const qId = question.id!;
-  const labelObj = question.label[locale]?.[0] ?? question.label.th[0];
-  const questionTitle = labelObj.label.trim() || tPreview("untitledQuestion");
-  const choices = answerChoicesWithIds(labelObj.choices[locale]);
+  const labelObj = question.label[locale]?.[0] ?? (appearance === "card" ? question.label.th[0] : undefined);
+  const questionTitle = labelObj?.label.trim() || tPreview("untitledQuestion");
+  const choices = answerChoicesWithIds(labelObj?.choices[locale] ?? []);
   const scaleMinLabel =
-    labelObj.scale_min_label ?? choices[0]?.scale_min_label ?? "";
+    labelObj?.scale_min_label ?? choices[0]?.scale_min_label ?? "";
   const scaleMaxLabel =
-    labelObj.scale_max_label ?? choices[0]?.scale_max_label ?? "";
+    labelObj?.scale_max_label ?? choices[0]?.scale_max_label ?? "";
   const hasError = !!errorMessage;
 
   const ratingMax =

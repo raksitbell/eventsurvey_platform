@@ -74,6 +74,55 @@ async function configureMediaDirectory(t, mode) {
   return dir;
 }
 
+test("prepare offers disk only when disk uploads are configured for the deployment", async (t) => {
+  const originalEnv = process.env;
+  process.env = { ...originalEnv, NODE_ENV: "production", VERCEL: "1", EVENT_SETUP_MEDIA_DIR: tmpdir() };
+  t.after(() => { process.env = originalEnv; });
+  delete process.env.BLOB_STORE_ID;
+  delete process.env.EVENT_SETUP_MEDIA_PROVIDER;
+
+  const { POST } = loadSource({
+    "@/core/auth/api-guard": {
+      requireEventSession: async () => ({ userId: "owner" }),
+      isAuthSession: () => true,
+      denyUnlessEventPermission: async () => null,
+    },
+    "@/core/api/mock-client": {
+      mockApi: {
+        get: async () => ({ id: "owner", status: "active", event_id: "event-a" }),
+        getFresh: async () => ({ id: "event-a", status: "draft" }),
+      },
+    },
+  })("src/app/api/event/setup/media/route.ts");
+  const prepare = () => POST(new Request("http://localhost/api/event/setup/media", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "prepare",
+      eventId: "event-a",
+      kind: "banner",
+      contentType: "image/bmp",
+      size: 8 * 1024 * 1024,
+    }),
+  }));
+  async function expectUnavailable() {
+    const response = await prepare();
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "SETUP_MEDIA_STORAGE_UNAVAILABLE" });
+  }
+
+  // Even an absolute disk path does not enable disk uploads implicitly on Vercel.
+  await expectUnavailable();
+  process.env.EVENT_SETUP_MEDIA_PROVIDER = "disk";
+  const configured = await prepare();
+  assert.equal(configured.status, 200);
+  assert.deepEqual(await configured.json(), { mode: "disk" });
+
+  delete process.env.VERCEL;
+  delete process.env.EVENT_SETUP_MEDIA_DIR;
+  await expectUnavailable();
+});
+
 test("media storage reports when browser fallback is needed and rejects invalid files", async (t) => {
   const { storeEventSetupMedia } = loadSource()("src/services/event/setup-media.ts");
   const dir = await configureMediaDirectory(t, "production");
@@ -145,7 +194,7 @@ test("event media is served publicly only when referenced by its published event
   const load = loadSource({
     "@/core/api/mock-client": {
       mockApi: {
-        get: async (path) => {
+        getFresh: async (path) => {
           assert.equal(path, "/events/event-a");
           return event;
         },

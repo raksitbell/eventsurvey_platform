@@ -2,6 +2,7 @@ import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { writeAuditLog } from "@/core/audit/write";
 import { maskEmail, maskName, mayViewPii, type PiiViewer } from "@/core/auth/pii";
+import { writeSerially } from "@/core/event/serial-write";
 import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
 import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
 import { resolveEventTitle } from "@/core/mock/event-title";
@@ -33,6 +34,7 @@ import type {
 import { randomBytes, randomUUID } from "crypto";
 
 export type ListAdminEventsQuery = {
+  trash?: boolean;
   q?: string;
   status?: MockEventStatus | "all";
   startDate?: string;
@@ -72,22 +74,30 @@ function isPostEventSurvey(
 }
 
 async function loadEventForms(eventId: string): Promise<MockForm[]> {
-  const forms = await mockApi
-    .get<MockForm[]>(`/forms?event_id=${encodeURIComponent(eventId)}`)
-    .catch(() => [] as MockForm[]);
-  return forms.filter((form) => !form.deleted_at);
+  const forms = await mockApi.get<MockForm[]>(`/forms?event_id=${encodeURIComponent(eventId)}`);
+  return forms.filter((form) => form.event_id === eventId && !form.deleted_at);
+}
+
+async function readEventRecord(eventId: string, read = mockApi.getFresh) {
+  return read<MockEvent>(`/events/${encodeURIComponent(eventId)}`)
+    .catch((error: unknown) => {
+      if (error instanceof MockApiError && error.status === 404) return null;
+      throw error;
+    });
+}
+
+async function loadLiveEvent(eventId: string, read = mockApi.getFresh) {
+  const event = await readEventRecord(eventId, read);
+  if (!event || event.id !== eventId || event.deleted_at) {
+    throw new ServiceError("EVENT_NOT_FOUND", 404);
+  }
+  return event;
 }
 
 export async function getEventCloseWarnings(
   eventId: string,
 ): Promise<EventCloseWarning[]> {
-  let event: MockEvent;
-  try {
-    event = await mockApi.get<MockEvent>(`/events/${eventId}`);
-  } catch {
-    throw new ServiceError("EVENT_NOT_FOUND", 404);
-  }
-  if (!event) throw new ServiceError("EVENT_NOT_FOUND", 404);
+  const event = await loadLiveEvent(eventId, mockApi.get);
 
   const forms = await loadEventForms(eventId);
   const now = Date.now();
@@ -147,14 +157,21 @@ function overlapsRange(
   return effectiveStart <= rangeEnd && effectiveEnd >= rangeStart;
 }
 
-async function loadEventBundle() {
+async function loadEventBundle(trash = false) {
   const [events, translations, users, banners] = await Promise.all([
-    mockApi.get<MockEvent[]>("/events"),
+    mockApi.getFresh<MockEvent[]>("/events"),
     mockApi.get<MockEventTranslation[]>("/event_translations"),
     mockApi.get<MockUser[]>("/users"),
     mockApi.get<MockEventBanner[]>("/event_banners").catch(() => [] as MockEventBanner[]),
   ]);
-  return { events, translations, users, banners };
+  return {
+    events: events.filter((event) =>
+      event && (trash ? event.status === "draft" && event.deleted_at : !event.deleted_at),
+    ),
+    translations,
+    users,
+    banners,
+  };
 }
 
 function adminForEvent(
@@ -197,6 +214,7 @@ function toListItem(
     endsAt: event.end_at ?? null,
     updatedAt: event.updated_at ?? event.created_at ?? "",
     canStart: canStartEvent(event),
+    canCancel: !event.cancelled_at && (event.status === "scheduled" || (event.status === "closed" && event.has_survey)),
   };
 }
 
@@ -212,7 +230,7 @@ export async function listAdminEvents(
   viewer?: PiiViewer,
 ): Promise<AdminEventsResponse> {
   const locale = query.locale ?? routing.defaultLocale;
-  const { events, translations, users } = await loadEventBundle();
+  const { events, translations, users } = await loadEventBundle(query.trash);
 
   const q = query.q?.trim().toLowerCase() ?? "";
   const status = query.status && query.status !== "all" ? query.status : null;
@@ -305,12 +323,18 @@ export async function getAdminEvent(
 export async function listAssignableAdmins(
   viewer?: PiiViewer,
 ): Promise<AssignableAdmin[]> {
-  const users = await mockApi.get<MockUser[]>("/users");
+  const [users, events] = await Promise.all([
+    mockApi.get<MockUser[]>("/users"),
+    mockApi.getFresh<MockEvent[]>("/events"),
+  ]);
+  const deletedEventIds = new Set(
+    events.filter((event) => event.deleted_at).map((event) => event.id),
+  );
   return users
     .filter(
       (user) =>
         user.system_role === "event_user" &&
-        user.event_id === null &&
+        (user.event_id === null || deletedEventIds.has(user.event_id)) &&
         user.status === "active" &&
         !user.removed_at,
     )
@@ -346,7 +370,7 @@ async function resolveEventAdmin(input: CreateAdminEventInput) {
       throw new ServiceError("VALIDATION_ERROR", 400, "existingUserId required");
     }
     const existing = await mockApi
-      .get<MockUser>(`/users/${encodeURIComponent(userId)}`)
+      .getFresh<MockUser>(`/users/${encodeURIComponent(userId)}`)
       .catch((error: unknown) => {
         if (error instanceof MockApiError && error.status === 404)
           throw new ServiceError("USER_NOT_FOUND", 404);
@@ -355,11 +379,14 @@ async function resolveEventAdmin(input: CreateAdminEventInput) {
     if (
       !existing ||
       existing.system_role !== "event_user" ||
-      existing.event_id !== null ||
       existing.status !== "active" ||
       existing.removed_at
     ) {
       throw new ServiceError("USER_NOT_ASSIGNABLE", 409);
+    }
+    if (existing.event_id !== null) {
+      const assignedEvent = await readEventRecord(existing.event_id);
+      if (!assignedEvent?.deleted_at) throw new ServiceError("USER_NOT_ASSIGNABLE", 409);
     }
     return { mode: "existing" as const, userId: existing.id, hasLegacyRole: "role_id" in existing };
   }
@@ -480,6 +507,7 @@ export async function createAdminEvent(
       adminUser = await createRow<MockUser>("/users", {
         id: admin.userId,
         email: admin.email,
+        is_trial: false,
         password: randomBytes(18).toString("base64url"),
         display_name: admin.name,
         system_role: "event_user",
@@ -564,15 +592,20 @@ export async function updateAdminEvent(
   locale: Locale = routing.defaultLocale,
   viewer?: PiiViewer,
 ): Promise<AdminEventListItem> {
-  let event: MockEvent;
-  try {
-    event = await mockApi.get<MockEvent>(`/events/${eventId}`);
-  } catch {
-    throw new ServiceError("EVENT_NOT_FOUND", 404);
-  }
-  if (!event) {
-    throw new ServiceError("EVENT_NOT_FOUND", 404);
-  }
+  return writeSerially(eventId, async () => {
+    const event = await loadLiveEvent(eventId);
+    return editDraftEvent(event, input, actorUserId, locale, viewer);
+  });
+}
+
+async function editDraftEvent(
+  event: MockEvent,
+  input: UpdateAdminEventInput,
+  actorUserId: string,
+  locale: Locale,
+  viewer?: PiiViewer,
+): Promise<AdminEventListItem> {
+  const eventId = event.id;
   if (event.status !== "draft") {
     throw new ServiceError(
       "EVENT_NOT_EDITABLE",
@@ -654,12 +687,74 @@ export async function updateAdminEvent(
   return toListItem(updated, translations, users, locale, viewer);
 }
 
+export async function deleteAdminEvent(eventId: string, actorUserId: string) {
+  return writeSerially(eventId, async () => {
+    const event = await loadLiveEvent(eventId);
+    if (event.status !== "draft") throw new ServiceError("EVENT_NOT_DELETABLE", 409);
+
+    const now = nowIso();
+    const saved = await mockApi.patch<MockEvent>(`/events/${encodeURIComponent(eventId)}`, {
+      deleted_at: now,
+      updated_at: now,
+      updated_by: actorUserId,
+    });
+    if (saved?.id !== eventId || !saved.deleted_at) {
+      throw new ServiceError("EVENT_DELETE_FAILED", 502);
+    }
+    await writeAuditLog({
+      actorUserId,
+      eventId,
+      action: "delete",
+      resourceType: "event",
+      resourceId: eventId,
+      module: "event_management",
+      descriptionTh: "ลบอีเวนต์ฉบับร่าง",
+      descriptionEn: "Deleted draft event",
+      metadata: { slug: event.slug },
+    });
+    return { ok: true };
+  });
+}
+
+export async function restoreAdminEvent(eventId: string, actorUserId: string) {
+  return writeSerially(eventId, async () => {
+    const event = await readEventRecord(eventId);
+    if (!event || event.id !== eventId) throw new ServiceError("EVENT_NOT_FOUND", 404);
+    if (!event.deleted_at || event.status !== "draft") {
+      throw new ServiceError("EVENT_NOT_RESTORABLE", 409);
+    }
+    await assertSlugAvailable(event.slug, eventId);
+
+    const saved = await mockApi.patch<MockEvent>(`/events/${encodeURIComponent(eventId)}`, {
+      deleted_at: null,
+      updated_at: nowIso(),
+      updated_by: actorUserId,
+    });
+    if (saved?.id !== eventId || saved.deleted_at !== null || saved.status !== "draft") {
+      throw new ServiceError("EVENT_RESTORE_FAILED", 502);
+    }
+    await writeAuditLog({
+      actorUserId,
+      eventId,
+      action: "restore",
+      resourceType: "event",
+      resourceId: eventId,
+      module: "event_management",
+      descriptionTh: "กู้คืนอีเวนต์ฉบับร่างจากถังขยะ",
+      descriptionEn: "Restored draft event from Trash",
+      metadata: { slug: event.slug },
+    });
+    return { ok: true };
+  });
+}
+
 const STATUS_TRANSITIONS: Record<
   AdminEventStatusAction,
   { from: MockEventStatus[]; to: MockEventStatus }
 > = {
   start: { from: ["scheduled"], to: "open" },
   close: { from: ["open"], to: "closed" },
+  cancel: { from: ["scheduled", "open", "closed"], to: "closed" },
 };
 
 export type UpdateAdminEventStatusOptions = {
@@ -674,20 +769,20 @@ export async function updateAdminEventStatus(
   options: UpdateAdminEventStatusOptions = {},
   viewer?: PiiViewer,
 ): Promise<AdminEventListItem> {
+  return writeSerially(eventId, () => applyAdminEventStatus(eventId, action, actorUserId, locale, options, viewer));
+}
+
+async function applyAdminEventStatus(
+  eventId: string, action: AdminEventStatusAction, actorUserId: string, locale: Locale,
+  options: UpdateAdminEventStatusOptions, viewer?: PiiViewer,
+): Promise<AdminEventListItem> {
   const transition = STATUS_TRANSITIONS[action];
-  let event: MockEvent;
-  try {
-    event = await mockApi.get<MockEvent>(`/events/${eventId}`);
-  } catch {
-    throw new ServiceError("EVENT_NOT_FOUND", 404);
-  }
-  if (!event) {
-    throw new ServiceError("EVENT_NOT_FOUND", 404);
-  }
-  if (event.status === "closed") {
+  const event = await loadLiveEvent(eventId);
+  const retryClose = Boolean(event.cancelled_at) && action !== "start";
+  if (event.status === "closed" && action !== "cancel" && !retryClose) {
     throw new ServiceError("STATUS_LOCKED", 409, "Cannot reverse closed event");
   }
-  if (!transition.from.includes(event.status)) {
+  if (!retryClose && !transition.from.includes(event.status)) {
     throw new ServiceError(
       "INVALID_TRANSITION",
       409,
@@ -703,7 +798,7 @@ export async function updateAdminEventStatus(
     );
   }
 
-  if (action === "close" && !options.force) {
+  if (!retryClose && action === "close" && !options.force) {
     const warnings = await getEventCloseWarnings(eventId);
     if (warnings.length > 0) {
       throw new ServiceError(
@@ -716,25 +811,37 @@ export async function updateAdminEventStatus(
   }
 
   const now = nowIso();
-  const updated = await mockApi.patch<MockEvent>(`/events/${eventId}`, {
+  const updated = retryClose ? event : await mockApi.patch<MockEvent>(`/events/${eventId}`, {
     status: transition.to,
     updated_at: now,
     updated_by: actorUserId,
     ...(action === "start" ? { opens_at: event.opens_at ?? now } : {}),
-    ...(action === "close" ? { closes_at: now } : {}),
+    ...(action !== "start" ? { closes_at: event.status === "closed" ? event.closes_at ?? now : now, cancelled_at: now } : {}),
   });
 
-  await writeAuditLog({
-    actorUserId: actorUserId,
-    eventId: eventId,
-    action: "update",
-    resourceType: "event",
-    resourceId: eventId,
-    module: "event_management",
-    descriptionTh: action === "start" ? "เปิดอีเวนต์" : "ปิดอีเวนต์",
-    descriptionEn: action === "start" ? "Started event" : "Closed event",
-    metadata: { before: { status: event.status }, after: { status: transition.to } },
-  });
+  if (!retryClose) {
+    await writeAuditLog({
+      actorUserId,
+      eventId: eventId,
+      action: "update",
+      resourceType: "event",
+      resourceId: eventId,
+      module: "event_management",
+      descriptionTh: action === "start" ? "เปิดอีเวนต์" : "ปิดอีเวนต์และฟอร์มทั้งหมด",
+      descriptionEn: action === "start" ? "Started event" : "Closed event and all forms",
+      metadata: { before: { status: event.status }, after: { status: transition.to, cancelledAt: updated.cancelled_at } },
+    });
+  }
+
+  if (action !== "start") {
+    // This marker blocks access even if updating one of the form rows needs a retry.
+    for (const form of await loadEventForms(eventId)) {
+      if (form.status === "closed") continue;
+      await mockApi.patch(`/forms/${encodeURIComponent(form.id)}`, {
+        status: "closed", updated_at: now, updated_by: actorUserId,
+      });
+    }
+  }
 
   const { translations, users } = await loadEventBundle();
   return toListItem(updated, translations, users, locale, viewer);
@@ -764,6 +871,7 @@ export async function runEventLifecycleCron(
   const formsClosed: string[] = [];
 
   for (const event of events) {
+    if (event.deleted_at || event.cancelled_at) continue;
     if (canStartEvent(event)) {
       await mockApi.patch(`/events/${event.id}`, {
         status: "open",
@@ -791,14 +899,10 @@ export async function runEventLifecycleCron(
 
   const eventsById = new Map(events.map((event) => [event.id, event]));
   for (const form of forms) {
-    if (form.deleted_at || form.status === "closed") continue;
-    const { closes_at } = withPublishedFormSchedule(
-      form,
-      eventsById.get(form.event_id),
-    );
-    if (!closes_at) continue;
-    const closesMs = Date.parse(closes_at);
-    if (Number.isNaN(closesMs) || closesMs > now) continue;
+    const event = eventsById.get(form.event_id);
+    if (form.deleted_at || form.status === "closed" || event?.deleted_at) continue;
+    const { closes_at } = withPublishedFormSchedule(form, event);
+    if (!event?.cancelled_at && !(closes_at && Date.parse(closes_at) <= now)) continue;
     await mockApi.patch(`/forms/${form.id}`, {
       status: "closed",
       updated_at: stamp,

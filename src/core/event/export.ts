@@ -1,4 +1,4 @@
-import type { ReportingData, ResponseRow } from "@/types/event/reporting";
+import type { ResponseRow } from "@/types/event/reporting";
 export function responseCsv(rows: ResponseRow[], headers: string[]) {
   const fields = [
     ...new Map(
@@ -40,20 +40,11 @@ export function csv(rows: (string | number)[][]) {
       .join("\r\n")
   );
 }
-export function download(
-  content: string,
-  name: string,
-  type = "text/csv;charset=utf-8",
-) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const a = document.createElement("a");
+export function download(content: Blob, name: string) {
+  const url = URL.createObjectURL(content);
+  const a = globalThis.document.createElement("a");
   a.href = url;
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-export function approvedResponses(data: ReportingData) {
-  return data.responses.filter((r) =>
-    data.forms.some((f) => f.id === r.formId && f.approved),
-  );
 }

@@ -35,11 +35,10 @@ export async function eventRoute(
     ? requested
     : routing.defaultLocale;
   try {
-    return authJson(
-      await action(session.userId, locale, body, {
-        inspectedEventId: inspecting ? session.inspectedEventId : null,
-      }),
-    );
+    const result = await action(session.userId, locale, body, {
+      inspectedEventId: inspecting ? session.inspectedEventId : null,
+    });
+    return result instanceof Response ? result : authJson(result);
   } catch (error) {
     return error instanceof ReportingError
       ? authJson({ error: error.message }, error.status)

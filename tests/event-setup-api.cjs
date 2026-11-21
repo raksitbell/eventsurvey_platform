@@ -24,12 +24,12 @@ function fixture(t, { registration = null, whitelist = [], forms = [], submissio
     "@/core/api/mock-client": {
       mockApi: {
         get: async (url) => {
-          if (url === "/events/event-a") return structuredClone(event);
           if (url === "/forms?event_id=event-a") return registration ? [registration] : [];
           if (url === "/whitelist_entries?event_id=event-a") return whitelist;
           throw Error(`Unexpected fixture request: ${url}`);
         },
         getFresh: async (url) => {
+          if (url === "/events/event-a") return structuredClone(event);
           assert.equal(url, `/form_submissions?form_id=${registration.id}&status=submitted`);
           return submissions;
         },

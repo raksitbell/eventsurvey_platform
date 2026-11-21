@@ -13,6 +13,7 @@ export type AdminEventListItem = {
   updatedAt: string;
   /** scheduled → open is allowed when start time has arrived (or unset) */
   canStart: boolean;
+  canCancel: boolean;
 };
 
 export type EventCloseWarning = {
@@ -92,4 +93,4 @@ export type UpdateAdminEventInput = {
 };
 
 /** Platform admin status actions — no approve step */
-export type AdminEventStatusAction = "start" | "close";
+export type AdminEventStatusAction = "start" | "close" | "cancel";

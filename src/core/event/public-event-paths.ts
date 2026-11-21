@@ -45,12 +45,14 @@ export function isPublicEventSlug(slug: string): boolean {
 export function publicEventPath(
   slug: string,
   kind: EventShareKind = "event",
+  contentLocale?: string,
 ): string {
   if (!isPublicEventSlug(slug))
     throw new RangeError("Invalid public event slug");
   const base = `/event/${slug}`;
   const segment = eventShareSegments[kind];
-  return segment ? `${base}/${segment}` : base;
+  const path = segment ? `${base}/${segment}` : base;
+  return contentLocale ? path + "?" + new URLSearchParams({ lang: contentLocale }) : path;
 }
 
 /** Match canonical participant paths before next-intl adds a locale segment. */

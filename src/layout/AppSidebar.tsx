@@ -13,6 +13,7 @@ import styles from "@/components/event/workspace/EventWorkspaceChrome.module.css
 import {
   ChartPieIcon,
   ClockIcon,
+  Cog6ToothIcon,
   Squares2X2Icon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
@@ -136,6 +137,15 @@ export default function AppSidebar() {
             key: "activity",
             icon: <ClockIcon className="size-5" />,
             path: "/admin/activity",
+          } satisfies NavItem,
+        ]
+      : []),
+    ...(canViewEvents || canViewUsers
+      ? [
+          {
+            key: "configuration",
+            icon: <Cog6ToothIcon className="size-5" />,
+            path: "/admin/configuration",
           } satisfies NavItem,
         ]
       : []),

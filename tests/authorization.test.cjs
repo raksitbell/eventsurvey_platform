@@ -194,3 +194,25 @@ test("browser session restoration distinguishes inspection from acting as anothe
   response = { impersonatedUser: owner };
   assert.equal((await getAuthSnapshot(signal)).user, null);
 });
+
+test("the browser requests session revalidation only for a portal authorization failure", async (t) => {
+  const { api, PORTAL_UNAUTHORIZED_EVENT } = load("src/core/api/client.ts");
+  const browser = new EventTarget();
+  globalThis.window = browser;
+  t.after(() => { delete globalThis.window; });
+  let signals = 0;
+  browser.addEventListener(PORTAL_UNAUTHORIZED_EVENT, () => { signals++; });
+
+  const fetchMock = t.mock.method(globalThis, "fetch");
+  for (const [path, status, code, expected] of [
+    ["/event/workspace", 401, "UNAUTHORIZED", 1],
+    ["/auth/session", 401, "UNAUTHORIZED", 0],
+    ["/auth/login", 401, "INVALID_CREDENTIALS", 0],
+    ["/admin/users", 403, "FORBIDDEN", 0],
+  ]) {
+    signals = 0;
+    fetchMock.mock.mockImplementation(async () => Response.json({ error: code }, { status }));
+    await assert.rejects(api.get(path), { status, code });
+    assert.equal(signals, expected, path);
+  }
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { createAnswerDrafts, emptyAnswerDraft } from "@/core/event/participant-answer-draft";
 import ParticipantCapacityDialog from "./ParticipantCapacityDialog";
 import ParticipantEligibilityGate from "./ParticipantEligibilityGate";
 import { normalizeWhitelistId } from "@/core/event/whitelist";
@@ -11,7 +12,6 @@ import Button from "@/components/ui/button/Button";
 import {
   publicAnswerIssue,
   publicQuestionId,
-  publicQuestionLocale,
   type PublicFormAnswer,
   type PublicFormAnswerIssue,
 } from "@/core/event/public-form-response";
@@ -27,24 +27,35 @@ import {
   useId,
   useRef,
   useState,
+  useSyncExternalStore,
   type FormEvent,
 } from "react";
 
 const retryKeyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function readSubmissionRequestId(storageKey: string) {
+interface PendingRequest { id: string; draftScope?: string }
+
+function readSubmissionRequest(storageKey: string): PendingRequest | null {
   try {
     const previous = globalThis.sessionStorage.getItem(storageKey);
-    return previous && retryKeyPattern.test(previous) ? previous : null;
+    if (!previous) return null;
+    // Older tabs stored the UUID alone.
+    if (retryKeyPattern.test(previous)) return { id: previous };
+    const parsed = JSON.parse(previous);
+    return typeof parsed?.id === "string" && retryKeyPattern.test(parsed.id)
+      && typeof parsed.draftScope === "string" && /^[a-f0-9]{64}$/.test(parsed.draftScope)
+      ? { id: parsed.id, draftScope: parsed.draftScope } : null;
   } catch {
     return null;
   }
 }
 
-function newSubmissionRequestId(storageKey: string) {
-  const id = globalThis.crypto.randomUUID();
-  try { globalThis.sessionStorage.setItem(storageKey, id); } catch { /* Storage is unavailable. */ }
-  return id;
+function newSubmissionRequest(storageKey: string, draftScope?: string): PendingRequest {
+  const request = { id: globalThis.crypto.randomUUID(), draftScope };
+  try {
+    globalThis.sessionStorage.setItem(storageKey, draftScope ? JSON.stringify(request) : request.id);
+  } catch { /* Keep the request ID in memory for retries on this page. */ }
+  return request;
 }
 
 function forgetSubmissionRequestId(storageKey: string) {
@@ -57,6 +68,8 @@ type PublicParticipantFormProps = {
   bannerUrl: string | null;
   eventDetails: ParticipantFormEventDetails;
   contentLocale?: string | null;
+  defaultContentLocale?: string;
+  languages?: string[];
 } & (
   | {
       readOnly: true;
@@ -92,6 +105,8 @@ export default function PublicParticipantForm({
   bannerUrl,
   eventDetails,
   contentLocale,
+  defaultContentLocale,
+  languages,
   readOnly = false,
   fillViewport = false,
   submitResponse,
@@ -105,53 +120,65 @@ export default function PublicParticipantForm({
   const preferredLocale =
     contentLocale === "en" || contentLocale === "th"
       ? contentLocale
-      : portalLocale === "en"
+      : (defaultContentLocale ?? "th") === "en"
         ? "en"
         : "th";
   const instanceId = useId();
   const [response, setResponse] = useState<PublicForm | { status: "submitted"; earlierAnswers: boolean } | null>(null);
   const [granted, setGranted] = useState<{ identifier: string; fieldId?: string } | null>(null);
   const [accessChanged, setAccessChanged] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, PublicFormAnswer>>({});
+  const [drafts] = useState(createAnswerDrafts);
+  const [cleanupFailed, setCleanupFailed] = useState(false);
   const [errors, setErrors] = useState<Record<string, PublicFormAnswerIssue>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<"submitError" | "invalidAnswers" | "duplicate" | "requestChanged" | null>(null);
   const requestInFlight = useRef(false);
-  const requestId = useRef<string | null>(null);
+  const pendingRequest = useRef<PendingRequest | null>(null);
   const recovery = useRef<{ id: string; result: Promise<boolean> } | null>(null);
-  const storageKey = `eventsurvey:form-request:${eventHref}:${kind}`;
+  const storageKey = `eventsurvey:form-request:${eventHref?.split("?")[0]}:${kind}`;
   const current = readOnly ? result : response ?? result;
   const status = current.status;
   const form = current.status === "open" || current.status === "scheduled" ? current.form : null;
   const opensAt = current.status === "scheduled" ? current.opensAt : null;
   const cannotSubmit = readOnly || status !== "open" || submitting;
   const verifiedId = granted?.fieldId;
+  const draftScope = !readOnly && (current.status === "open" || current.status === "scheduled") ? current.draftScope : undefined;
+  const draft = useSyncExternalStore(drafts.subscribe, () => drafts.read(draftScope), () => emptyAnswerDraft);
+  const answers: Record<string, PublicFormAnswer> = {};
+  for (const { question } of form?.questions ?? []) {
+    const id = publicQuestionId(question);
+    if (Object.hasOwn(draft.answers, id)) answers[id] = draft.answers[id];
+  }
+  if (verifiedId && granted) answers[verifiedId] = granted.identifier;
   const legacyLocale = !form || form.head[preferredLocale].title.trim()
     ? preferredLocale : preferredLocale === "th" ? "en" : "th";
   const locale = form ? completeFormLocale(form, preferredLocale) ?? legacyLocale : preferredLocale;
   const heading = form?.head[locale].title.trim() || participant(kind);
 
   const confirmSubmission = useCallback((earlierAnswers: boolean) => {
-    forgetSubmissionRequestId(storageKey);
-    requestId.current = null;
-    setAnswers({});
+    const scope = pendingRequest.current?.draftScope ?? draftScope;
+    const cleaned = !scope || drafts.write(scope, {});
+    setCleanupFailed(!cleaned);
+    if (cleaned) forgetSubmissionRequestId(storageKey);
+    pendingRequest.current = null;
     setGranted(null);
     setResponse({ status: "submitted", earlierAnswers });
-  }, [storageKey]);
+  }, [draftScope, drafts, storageKey]);
 
   useEffect(() => {
-    if (readOnly || !recoverSubmission) return;
-    const id = readSubmissionRequestId(storageKey);
-    if (!id) return;
-    requestId.current = id;
+    if (readOnly || status === "submitted" || !recoverSubmission) return;
+    const pending = readSubmissionRequest(storageKey);
+    if (!pending || (draftScope && pending.draftScope && pending.draftScope !== draftScope)) return;
+    const { id } = pending;
+    pendingRequest.current = pending;
     let active = true;
     if (recovery.current?.id !== id) recovery.current = { id, result: recoverSubmission(id) };
     void recovery.current.result.then((saved) => {
-      if (!active || !saved || requestInFlight.current || requestId.current !== id) return;
+      if (!active || !saved || requestInFlight.current || pendingRequest.current?.id !== id) return;
       confirmSubmission(false);
     }).catch(() => { /* A future retry can recover the same request. */ });
     return () => { active = false; };
-  }, [confirmSubmission, readOnly, recoverSubmission, storageKey]);
+  }, [confirmSubmission, draftScope, readOnly, recoverSubmission, storageKey, status]);
 
   // Recheck the server when the window opens, or when a guest returns after registering elsewhere.
   useEffect(() => {
@@ -201,10 +228,6 @@ export default function PublicParticipantForm({
       const fieldId = unique ? publicQuestionId(unique.question) : undefined;
       setGranted({ identifier, fieldId });
       setAccessChanged(false);
-      setAnswers((previous) => {
-        const retained = granted?.identifier === identifier ? previous : {};
-        return fieldId ? { ...retained, [fieldId]: identifier } : retained;
-      });
       setErrors({});
       setSubmitError(null);
     }
@@ -220,20 +243,19 @@ export default function PublicParticipantForm({
   }
 
   function updateAnswer(id: string, value: PublicFormAnswer) {
-    setAnswers((previous) => ({ ...previous, [id]: value }));
+    if (!draftScope || id === verifiedId) return;
+    const next = { ...answers, [id]: value };
+    if (verifiedId) delete next[verifiedId];
+    drafts.write(draftScope, next);
     clearAnswerError(id);
   }
 
   function toggleCheckbox(id: string, choiceId: string) {
-    setAnswers((previous) => {
-      const stored = previous[id];
-      const current = Array.isArray(stored) ? stored : [];
-      const next = current.includes(choiceId)
-        ? current.filter((value) => value !== choiceId)
-        : [...current, choiceId];
-      return { ...previous, [id]: next };
-    });
-    clearAnswerError(id);
+    const stored = answers[id];
+    const values = Array.isArray(stored) ? stored : [];
+    updateAnswer(id, values.includes(choiceId)
+      ? values.filter((value) => value !== choiceId)
+      : [...values, choiceId]);
   }
 
   function formatIssue(issue: PublicFormAnswerIssue | undefined) {
@@ -284,10 +306,12 @@ export default function PublicParticipantForm({
     setSubmitting(true);
     setErrors({});
     try {
-      // The tab keeps only an opaque retry key. Answers and invitation identifiers stay in memory.
-      requestId.current ??= readSubmissionRequestId(storageKey) ?? newSubmissionRequestId(storageKey);
+      const existing = pendingRequest.current ?? readSubmissionRequest(storageKey);
+      const request = existing && (!existing.draftScope || existing.draftScope === draftScope)
+        ? existing : newSubmissionRequest(storageKey, draftScope);
+      pendingRequest.current = request;
       const data = new FormData();
-      data.set("requestId", requestId.current);
+      data.set("requestId", request.id);
       data.set("answers", JSON.stringify(answers));
       data.set("locale", locale);
       if (granted) data.set("identifier", granted.identifier);
@@ -301,13 +325,13 @@ export default function PublicParticipantForm({
           setSubmitError("duplicate");
           return;
         case "requestChanged":
-          if (recoverSubmission && await recoverSubmission(requestId.current)) {
+          if (recoverSubmission && await recoverSubmission(request.id)) {
             confirmSubmission(true);
             globalThis.window.scrollTo({ top: 0 });
             return;
           }
           forgetSubmissionRequestId(storageKey);
-          requestId.current = null;
+          pendingRequest.current = null;
           setSubmitError("requestChanged");
           return;
         case "submitted":
@@ -355,7 +379,6 @@ export default function PublicParticipantForm({
         )}
         {form.questions.map(({ question }, index) => {
           const id = publicQuestionId(question);
-          const questionLocale = publicQuestionLocale(question, locale);
           const card = (
             <PreviewQuestionCard
               key={id}
@@ -366,7 +389,7 @@ export default function PublicParticipantForm({
                 id: readOnly ? `${instanceId}-${id}` : id,
                 is_unique: false,
               }}
-              locale={questionLocale}
+              locale={locale}
               answer={answers[id]}
               errorMessage={formatIssue(errors[id])}
               onChangeAnswer={(answer) => updateAnswer(id, answer)}
@@ -376,6 +399,7 @@ export default function PublicParticipantForm({
           );
           return id === verifiedId ? <fieldset key={id} disabled className="min-w-0">{card}</fieldset> : card;
         })}
+        {draft.storageError && <p role="alert" className="text-theme-sm text-error-700">{t("draftStorageError")}</p>}
         {submitError && (
           <p role="alert" className="flex items-start gap-3 rounded-lg bg-error-50 px-4 py-3 text-theme-sm text-error-700">
             <InformationCircleIcon aria-hidden="true" className="size-5 shrink-0" />{t(submitError)}
@@ -393,7 +417,7 @@ export default function PublicParticipantForm({
             type="button"
             disabled={submitting}
             onClick={() => {
-              setAnswers(verifiedId && granted ? { [verifiedId]: granted.identifier } : {});
+              if (draftScope) drafts.write(draftScope, {});
               setErrors({});
               setSubmitError(null);
             }}
@@ -413,6 +437,7 @@ export default function PublicParticipantForm({
       branding={branding}
       bannerUrl={bannerUrl}
       kind={kind}
+      languages={languages}
       locale={contentLocale || portalLocale}
       showMobileFooter={kind === "registration" && !eventDetails.isPrivate && Boolean(form)}
       readOnly={readOnly}
@@ -440,6 +465,7 @@ export default function PublicParticipantForm({
                   ? kind === "registration" ? "registrationSubmitted" : "surveySubmitted"
                   : status === "eligibility" ? "restricted" : status === "open" ? "unavailable" : status,
               )}</p>
+              {current.status === "submitted" && cleanupFailed && <p role="alert">{t("draftCleanupError")}</p>}
               {current.status === "submitted" && current.earlierAnswers && <p>{t("earlierAnswersSaved")}</p>}
             </div>
           </div>

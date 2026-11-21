@@ -328,6 +328,7 @@ async function createSubUserInvite(
   const newUser: MockUser = {
     id: userId,
     email,
+    is_trial: false,
     password: randomBytes(18).toString("base64url"),
     display_name: input.name.trim(),
     system_role: "event_user",

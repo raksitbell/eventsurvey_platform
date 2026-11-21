@@ -131,7 +131,7 @@ export async function getAnalytics(
           mockApi.get<Field[]>(`/form_fields?form_id=${q(f.id)}`),
         ),
       ),
-      canViewSubmissions
+      canViewSubmissions || action !== "analytics.view"
         ? Promise.all(
             selected.map((f) =>
               mockApi.get<AnalyticsSubmission[]>(

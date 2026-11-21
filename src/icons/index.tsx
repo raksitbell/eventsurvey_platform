@@ -4,3 +4,4 @@ export { default as EsFlagIcon } from "./flag-es.svg";
 export { default as SaFlagIcon } from "./flag-sa.svg";
 export { default as ThFlagIcon } from "./flag-th.svg";
 export { default as UsFlagIcon } from "./flag-us.svg";
+export { default as LoginAccountIcon } from "./login-account.svg";

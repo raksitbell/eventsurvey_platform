@@ -2,6 +2,7 @@ import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { isActiveMockUser, mapMockUserToUser } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import type { MockUser } from "@/types/mock";
+import { isPublicDemoLoginBlocked } from "./public-demo";
 
 export async function getActivePortalAccount(id: string) {
   if (!id || id === "." || id === "..") return null;
@@ -13,7 +14,10 @@ export async function getActivePortalAccount(id: string) {
     throw error;
   }
 
-  if (!mockUser || mockUser.id !== id || !isActiveMockUser(mockUser)) return null;
+  if (
+    !mockUser || mockUser.id !== id ||
+    !isActiveMockUser(mockUser) || isPublicDemoLoginBlocked(mockUser)
+  ) return null;
   const permissions =
     mockUser.system_role === "event_user"
       ? await getRolePermissions(mockUser.id, mockUser.event_id)

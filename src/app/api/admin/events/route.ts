@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     const viewer = await getPlatformPiiViewer(session);
     const data = await listAdminEvents(
       {
+        trash: params.get("trash") === "true",
         q: params.get("q") ?? undefined,
         status: (params.get("status") as MockEventStatus | "all" | null) ?? "all",
         startDate: params.get("startDate") ?? undefined,

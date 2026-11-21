@@ -83,6 +83,26 @@ export function showError(
   return showAlert({ title, message, confirmLabel, variant: "error" });
 }
 
+/** Keep the operation visible until its result toast replaces this dialog. */
+export function showProgress(title: string, message: string): void {
+  void Swal.fire({
+    titleText: title,
+    text: message,
+    showConfirmButton: false,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    heightAuto: false,
+    customClass: {
+      container: "es-swal-container",
+      popup: "es-swal-popup",
+      title: "es-swal-title",
+      htmlContainer: "es-swal-text",
+      actions: "es-swal-actions",
+    },
+  });
+  Swal.showLoading();
+}
+
 export type ToastOptions = {
   title: string;
   variant?: AlertVariant;

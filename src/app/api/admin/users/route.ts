@@ -7,7 +7,6 @@ import {
   createAdminUser,
   getBoundAdminUsers,
 } from "@/services/admin/users";
-import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import type { UserRole } from "@/types/user";
 import type { NextRequest } from "next/server";
 
@@ -29,8 +28,8 @@ export async function GET(request: NextRequest) {
     const locale = routing.locales.includes(requestedLocale as Locale)
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
-    const viewer = await getPlatformPiiViewer(session);
-    const data = await getBoundAdminUsers(role, locale, viewer);
+    const trialOnly = request.nextUrl.searchParams.get("trial") === "true";
+    const data = await getBoundAdminUsers(role, locale, trialOnly);
     return authJson(data);
   } catch {
     return authJson({ error: "Failed to load users" }, 502);
@@ -50,6 +49,15 @@ export async function POST(request: NextRequest) {
   try {
     const body = await readJsonObject(request);
     if (!body) return authJson({ error: "INVALID_JSON" }, 400);
+    if (body.isTrial !== undefined && typeof body.isTrial !== "boolean") {
+      return authJson({ error: "INVALID_TRIAL_FLAG" }, 400);
+    }
+    if (
+      (body.usePublishedPassword !== undefined && typeof body.usePublishedPassword !== "boolean") ||
+      (body.usePublishedPassword && body.password !== undefined)
+    ) {
+      return authJson({ error: "INVALID_PUBLISHED_PASSWORD" }, 400);
+    }
 
     const name = typeof body.name === "string" ? body.name : "";
     const email = typeof body.email === "string" ? body.email : "";
@@ -63,13 +71,16 @@ export async function POST(request: NextRequest) {
       typeof body.eventId === "string" && body.eventId.trim()
         ? body.eventId.trim()
         : null;
-    const password = typeof body.password === "string" ? body.password : "";
-    if (!password) {
-      return authJson({ error: "PASSWORD_REQUIRED" }, 400);
-    }
-
     const result = await createAdminUser(
-      { name, email, role, eventId, password },
+      {
+        name,
+        email,
+        role,
+        eventId,
+        password: typeof body.password === "string" ? body.password : undefined,
+        isTrial: body.isTrial,
+        usePublishedPassword: body.usePublishedPassword,
+      },
       session.realUserId,
     );
     return authJson(result, 201);

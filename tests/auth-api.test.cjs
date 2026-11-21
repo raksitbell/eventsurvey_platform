@@ -16,11 +16,12 @@ process.env.NODE_ENV = "production";
 const load = loadSource();
 const { AUTH_SESSION_COOKIE, parseAuthSessionCookie } = load("src/core/auth/cookie.ts");
 const { POST: login } = load("src/app/api/auth/login/route.ts");
+const { GET: getLoginTrialAccounts } = load("src/app/api/auth/trial-accounts/route.ts");
 const { POST: logout } = load("src/app/api/auth/logout/route.ts");
 const { GET: getSession } = load("src/app/api/auth/session/route.ts");
 const { POST: startInspectEvent, DELETE: stopInspectEvent } = load("src/app/api/auth/inspect-event/route.ts");
 const { GET: getAdminUsers } = load("src/app/api/admin/users/route.ts");
-const { GET: getAdminUser } = load("src/app/api/admin/users/[id]/route.ts");
+const { GET: getAdminUser, PATCH: patchAdminUser } = load("src/app/api/admin/users/[id]/route.ts");
 const { GET: getAdminEvents } = load("src/app/api/admin/events/route.ts");
 const { GET: getAdminEvent } = load("src/app/api/admin/events/[id]/route.ts");
 const { GET: getAssignableUsers } = load("src/app/api/admin/events/assignable-users/route.ts");
@@ -425,6 +426,10 @@ test("event inspection uses canInspection, keeps admin role, and restores the or
   const { cookie: reviewerCookie } = await signIn(reviewer);
   const { cookie: ownerCookie } = await signIn(owner);
   const inspectPath = "/api/auth/inspect-event";
+  for (const [cookie, expected] of [[adminCookie, true], [reviewerCookie, false]]) {
+    const session = await getSession(request("/api/auth/session", { cookie }));
+    assert.equal((await session.json()).canInspection, expected);
+  }
   for (const cookie of [reviewerCookie, ownerCookie]) {
     const denied = await startInspectEvent(request(inspectPath, {
       method: "POST", cookie, body: { eventId: owner.event_id },
@@ -479,40 +484,412 @@ test("event inspection uses canInspection, keeps admin role, and restores the or
   assert.equal((await restored.json()).inspectedEventId, null);
 });
 
-test("admin user and event responses mask fields until the viewer has the current PII grant", async (t) => {
-  const fixture = setupMockData(t);
-  const { cookie: adminCookie } = await signIn(fixture.admin);
-  const { cookie: reviewerCookie } = await signIn(fixture.reviewer);
-  const { owner, assistant, assignable, reviewer, platformPermissions } = fixture;
-  const paths = [
-    [getAdminUsers, "/api/admin/users"],
-    [getAdminUser, `/api/admin/users/${owner.id}`, context("id", owner.id)],
+test("User Management returns full display fields to user viewers and restricts reads and edits by module access", async (t) => {
+  const { reviewer, assistant, owner, platformPermissions } = setupMockData(t);
+  const matrix = platformPermissions.find((row) => row.user_id === reviewer.id).matrix;
+  matrix.canViewUnmaskedPii = false;
+  assistant.phone = "+66 89 123 4567";
+  const { cookie } = await signIn(reviewer);
+  const detail = `/api/admin/users/${assistant.id}`;
+  const params = context("id", assistant.id);
+
+  const list = await getAdminUsers(request("/api/admin/users", { cookie }));
+  assert.equal(list.status, 200);
+  assertNoStore(list);
+  const row = (await list.json()).users.find((user) => user.id === assistant.id);
+  assert.equal(row.name, assistant.display_name);
+  assert.equal(row.email, assistant.email);
+  assert.equal(row.phone, assistant.phone);
+  assert.equal(row.ownerName, owner.display_name);
+  assert.equal("password" in row, false);
+
+  const profile = await getAdminUser(request(detail, { cookie }), params);
+  assert.equal(profile.status, 200);
+  assertNoStore(profile);
+  assert.deepEqual((await profile.json()).user, row);
+  await assertDenied(await patchAdminUser(request(detail, {
+    method: "PATCH", cookie, body: { role: "event_owner" },
+  }), params), 403);
+
+  matrix.users = "restricted";
+  matrix.canViewUnmaskedPii = true;
+  await assertDenied(await getAdminUsers(request("/api/admin/users", { cookie })), 403);
+  await assertDenied(await getAdminUser(request(detail, { cookie }), params), 403);
+});
+
+test("saving a role change from the edit form keeps the full name and email", async (t) => {
+  const { admin, assistant } = setupMockData(t, { eventWrites: true });
+  const { cookie } = await signIn(admin);
+  const detail = `/api/admin/users/${assistant.id}`;
+  const params = context("id", assistant.id);
+  const expectedName = assistant.display_name;
+  const expectedEmail = assistant.email;
+  const { user } = await (await getAdminUser(request(detail, { cookie }), params)).json();
+  const result = await patchAdminUser(request(detail, {
+    method: "PATCH", cookie,
+    body: { name: user.name, email: user.email, role: "event_owner" },
+  }), params);
+  assert.equal(result.status, 200);
+  assert.equal(assistant.display_name, expectedName);
+  assert.equal(assistant.email, expectedEmail);
+  const saved = await (await getAdminUser(request(detail, { cookie }), params)).json();
+  assert.equal(saved.user.role, "event_owner");
+});
+
+test("the public trial picker exposes only display fields for active, login-eligible trial accounts", async (t) => {
+  const { admin, reviewer, owner, assistant, otherOwner, invited, assignable, collections, failures } = setupMockData(t);
+  Object.assign(admin, { email: "admin@example.com" });
+  Object.assign(reviewer, { email: "kittisak@example.com", is_trial: false });
+  Object.assign(owner, { email: "Thanawat@Example.com" });
+  assistant.is_trial = true;
+  otherOwner.is_trial = true;
+  collections.events[1].deleted_at = "2026-11-20T00:00:00Z";
+  invited.is_trial = true;
+  assignable.is_trial = true;
+  const response = await getLoginTrialAccounts();
+  assert.equal(response.status, 200);
+  assertNoStore(response);
+  assert.equal(response.headers.get("set-cookie"), null);
+  assert.deepEqual(await response.json(), { accounts: [
+    { email: admin.email, role: "super_admin" },
+    { email: owner.email, role: "event_owner" },
+    { email: assistant.email, role: "sub_user" },
+  ] });
+  admin.removed_at = "2026-11-20T00:00:00Z";
+  owner.status = "suspended";
+  collections.event_access.find((row) => row.user_id === assistant.id).can_manage_sub_users = true;
+  assert.deepEqual(await (await getLoginTrialAccounts()).json(), { accounts: [
+    { email: assistant.email, role: "event_owner" },
+  ] });
+
+  failures.set("/users", "private upstream diagnostics");
+  const failed = await getLoginTrialAccounts();
+  assert.equal(failed.status, 503);
+  assertNoStore(failed);
+  assert.deepEqual(await failed.json(), { error: "TRIAL_ACCOUNTS_UNAVAILABLE" });
+});
+
+test("the trial picker signals the published preset only for matching current demo credentials", async (t) => {
+  const { admin, reviewer, owner, assistant, otherOwner } = setupMockData(t);
+  const { PUBLISHED_DEMO_PASSWORD } = load("src/core/auth/demo-preset.ts");
+  Object.assign(admin, { email: "admin@example.com", password: PUBLISHED_DEMO_PASSWORD });
+  Object.assign(owner, { email: "Thanawat@Example.com", password: PUBLISHED_DEMO_PASSWORD });
+  Object.assign(assistant, { email: "kittisak@example.com", password: PUBLISHED_DEMO_PASSWORD });
+  Object.assign(otherOwner, { is_trial: true, password: PUBLISHED_DEMO_PASSWORD });
+  reviewer.password = PUBLISHED_DEMO_PASSWORD;
+
+  async function listed() {
+    const response = await getLoginTrialAccounts();
+    assert.equal(response.status, 200);
+    assertNoStore(response);
+    return (await response.json()).accounts;
+  }
+  const initial = await listed();
+  assert.deepEqual(initial.filter((row) => row.usesPublishedPassword).map((row) => row.email).sort(),
+    [admin.email, owner.email, assistant.email].sort());
+  assert.deepEqual(initial.find((row) => row.email === admin.email), {
+    email: admin.email, role: "super_admin", usesPublishedPassword: true,
+  });
+  assert.deepEqual(initial.find((row) => row.email === otherOwner.email), {
+    email: otherOwner.email, role: "event_owner",
+  });
+  assert.ok(!initial.some((row) => row.email === reviewer.email));
+
+  admin.password = "changed-fixture-only";
+  owner.is_trial = false;
+  assistant.removed_at = "2026-11-20T00:00:00Z";
+  const updated = await listed();
+  assert.deepEqual(updated.find((row) => row.email === admin.email), { email: admin.email, role: "super_admin" });
+  assert.ok(!updated.some((row) => row.email === owner.email || row.email === assistant.email));
+  assert.ok(!updated.some((row) => row.usesPublishedPassword));
+});
+
+test("the trial account filter uses seed identities and explicit flags within User Management permissions", async (t) => {
+  const { admin, reviewer, owner, assistant, otherOwner, invited, platformPermissions } = setupMockData(t);
+  const { cookie } = await signIn(reviewer);
+  const path = "/api/admin/users?trial=true";
+  owner.email = "  Thanawat@Example.com ";
+  assistant.is_trial = true;
+  Object.assign(otherOwner, { email: "kittisak@example.com", is_trial: false });
+  Object.assign(invited, { is_trial: true, removed_at: "2026-01-01T00:00:00Z" });
+  admin.email = "other@example.com";
+
+  await assertDenied(await getAdminUsers(request(path)), 401);
+  const response = await getAdminUsers(request(path, { cookie }));
+  assert.equal(response.status, 200);
+  assertNoStore(response);
+  const { users, meta } = await response.json();
+  assert.deepEqual(users.map((row) => row.id).sort(), [owner.id, assistant.id].sort());
+  assert.deepEqual(meta, { total: 2, byRole: { event_owner: 1, sub_user: 1 } });
+  assert.ok(users.every((row) => !("password" in row)));
+  const owners = await getAdminUsers(request(path + "&role=event_owner", { cookie }));
+  assert.deepEqual((await owners.json()).users.map((row) => row.id), [owner.id]);
+  const ordinary = await getAdminUsers(request("/api/admin/users", { cookie }));
+  assert.ok((await ordinary.json()).users.some((row) => row.id === otherOwner.id));
+
+  platformPermissions.find((row) => row.user_id === reviewer.id).matrix.users = "restricted";
+  await assertDenied(await getAdminUsers(request(path, { cookie })), 403);
+});
+
+function useTrialDemoBackend(t, demoBase) {
+  const previous = process.env.TRIAL_DEMO_API_BASE_URL;
+  process.env.TRIAL_DEMO_API_BASE_URL = demoBase;
+  t.after(() => {
+    if (previous === undefined) delete process.env.TRIAL_DEMO_API_BASE_URL;
+    else process.env.TRIAL_DEMO_API_BASE_URL = previous;
+  });
+  return loadSource();
+}
+
+test("an unconfigured deployment can provision public trial passwords only on the published mock API", (t) => {
+  useTrialDemoBackend(t, "");
+  const canProvision = (base) => loadSource({
+    "@/core/api/mock-client": { ...load("src/core/api/mock-client.ts"), MOCK_API_BASE_URL: base },
+  })("src/services/auth/public-demo.ts").canCreatePublicDemoTrial();
+  assert.equal(canProvision("https://eventmockapi.vercel.app"), true);
+  assert.equal(canProvision("https://eventmockapi.vercel.app.example.test"), false);
+  assert.equal(canProvision(origin), false);
+});
+
+test("a newly published trial signs in from the anonymous picker until its password changes", async (t) => {
+  const { admin, collections } = setupMockData(t, { eventWrites: true });
+  const api = useTrialDemoBackend(t, origin);
+  const { PUBLISHED_DEMO_PASSWORD } = api("src/core/auth/demo-preset.ts");
+  const { POST: create } = api("src/app/api/admin/users/route.ts");
+  const { GET: picker } = api("src/app/api/auth/trial-accounts/route.ts");
+  const { POST: submitLogin } = api("src/app/api/auth/login/route.ts");
+  const { PATCH: edit } = api("src/app/api/admin/users/[id]/route.ts");
+  const { cookie } = await signIn(admin);
+  const email = "published-trial@example.test";
+  const body = {
+    name: "Published trial", email, role: "sub_user", eventId: "event-a",
+    isTrial: true, usePublishedPassword: true,
+  };
+  const result = await create(request("/api/admin/users", { method: "POST", cookie, body }));
+  assert.equal(result.status, 201);
+  const { id } = await result.json();
+  const stored = collections.users.find((row) => row.id === id);
+  assert.equal(stored.uses_published_trial_password, true);
+
+  const publicAccount = async () => {
+    const response = await picker();
+    assert.equal(response.status, 200);
+    assertNoStore(response);
+    return (await response.json()).accounts.find((row) => row.email === email);
+  };
+  const loginAsTrial = (password) => submitLogin(request("/api/auth/login", { method: "POST", body: { email, password } }));
+  assert.deepEqual(await publicAccount(), { email, role: "sub_user", usesPublishedPassword: true });
+  const signedIn = await loginAsTrial(PUBLISHED_DEMO_PASSWORD);
+  assert.equal(signedIn.status, 200);
+  const { GET: readSession } = api("src/app/api/auth/session/route.ts");
+  const session = await readSession(request("/api/auth/session", { cookie: cookieValue(signedIn) }));
+  assert.equal(session.status, 200);
+  assert.equal((await session.json()).realUser.id, id);
+
+  const changed = await edit(request(`/api/admin/users/${id}?trial=true`, {
+    method: "PATCH", cookie, body: { password },
+  }), context("id", id));
+  assert.equal(changed.status, 200);
+  assert.equal(stored.uses_published_trial_password, false);
+  assert.deepEqual(await publicAccount(), { email, role: "sub_user" });
+  assert.equal((await loginAsTrial(PUBLISHED_DEMO_PASSWORD)).status, 401);
+  assert.equal((await loginAsTrial(password)).status, 200);
+});
+
+test("the public trial preset requires a matching demo backend and an explicit trial-only request", async (t) => {
+  const { admin, reviewer, owner, collections } = setupMockData(t, { eventWrites: true });
+  const { cookie } = await signIn(admin);
+  const viewer = await signIn(reviewer);
+  const before = collections.users.length;
+  const body = {
+    name: "New trial", email: "new-trial@example.test", role: "sub_user", eventId: "event-a",
+    isTrial: true, usePublishedPassword: true,
+  };
+  const submit = (handler, input, cookie) => handler(request("/api/admin/users", { method: "POST", cookie, body: input }));
+  await t.test("matching demo API", async (t) => {
+    const api = useTrialDemoBackend(t, origin);
+    const { POST: create } = api("src/app/api/admin/users/route.ts");
+    await assertDenied(await submit(create, body), 401, "anonymous");
+    await assertDenied(await submit(create, body, viewer.cookie), 403, "view-only administrator");
+    for (const invalid of [{ isTrial: false }, { isTrial: undefined }, { password }, { usePublishedPassword: "true" }]) {
+      await assertDenied(await submit(create, { ...body, ...invalid }, cookie), 400, Object.keys(invalid)[0]);
+    }
+    assert.equal(collections.users.length, before);
+  });
+  await t.test("different demo API", async (t) => {
+    const api = useTrialDemoBackend(t, origin + "/other");
+    const { POST: create } = api("src/app/api/admin/users/route.ts");
+    await assertDenied(await submit(create, body, cookie), 403, "another mock API");
+    assert.equal(collections.users.length, before);
+
+    const originalSession = await signIn(owner);
+    const { PUBLISHED_DEMO_PASSWORD } = api("src/core/auth/demo-preset.ts");
+    Object.assign(owner, { is_trial: true, uses_published_trial_password: true, password: PUBLISHED_DEMO_PASSWORD });
+    const { GET: picker } = api("src/app/api/auth/trial-accounts/route.ts");
+    assert.deepEqual((await (await picker()).json()).accounts, []);
+    const { POST: submitLogin } = api("src/app/api/auth/login/route.ts");
+    await assertDenied(await submitLogin(request("/api/auth/login", {
+      method: "POST", body: { email: owner.email, password: PUBLISHED_DEMO_PASSWORD },
+    })), 401, "published trial from another mock API");
+    const { GET: readSession } = api("src/app/api/auth/session/route.ts");
+    await assertDenied(await readSession(request("/api/auth/session", {
+      cookie: originalSession.cookie,
+    })), 401, "existing session for a copied trial");
+  });
+});
+
+test("renaming an account and reusing a seed email preserve the original account's trial classification", async (t) => {
+  const { admin, owner, otherOwner } = setupMockData(t, { eventWrites: true });
+  const { cookie } = await signIn(admin);
+  const { POST: create } = load("src/app/api/admin/users/route.ts");
+  const seedEmail = "kittisak@example.com";
+  owner.email = seedEmail;
+  const rename = (user, email) => patchAdminUser(request("/api/admin/users/" + user.id, {
+    method: "PATCH", cookie, body: { email },
+  }), context("id", user.id));
+  assert.equal((await rename(owner, "changed@example.test")).status, 200);
+  assert.equal(owner.is_trial, true);
+  assert.equal((await rename(otherOwner, "thanawat@example.com")).status, 200);
+  assert.equal(otherOwner.is_trial, false);
+  const created = await create(request("/api/admin/users", {
+    method: "POST", cookie, body: { email: seedEmail, name: "New owner", role: "event_owner", password },
+  }));
+  assert.equal(created.status, 201);
+  const trial = await getAdminUsers(request("/api/admin/users?trial=true", { cookie }));
+  assert.deepEqual((await trial.json()).users.map((row) => row.id), [owner.id]);
+});
+
+test("a user manager can create, edit and remove a trial account while ordinary accounts stay outside trial deletion", async (t) => {
+  const { admin, reviewer, owner, collections } = setupMockData(t, { eventWrites: true });
+  const manager = (await signIn(admin)).cookie;
+  const viewer = (await signIn(reviewer)).cookie;
+  const { POST: create } = load("src/app/api/admin/users/route.ts");
+  const { DELETE: remove } = load("src/app/api/admin/users/[id]/route.ts");
+  const body = {
+    name: "QA Trial Editor", email: "qa-trial@example.test", password,
+    role: "sub_user", eventId: "event-a", isTrial: true,
+  };
+  const createAs = (cookie, input = body) => create(request("/api/admin/users", {
+    method: "POST", cookie, body: input,
+  }));
+  const removeAs = (cookie, id, query = "?trial=true") => remove(
+    request(`/api/admin/users/${id}${query}`, { method: "DELETE", cookie }),
+    context("id", id),
+  );
+  const trialIds = async () => {
+    const response = await getAdminUsers(request("/api/admin/users?trial=true", { cookie: manager }));
+    assert.equal(response.status, 200);
+    return (await response.json()).users.map((row) => row.id);
+  };
+
+  await assertDenied(await createAs(undefined), 401);
+  await assertDenied(await createAs(viewer), 403);
+  const invalid = await createAs(manager, { ...body, isTrial: "true" });
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json()).error, "INVALID_TRIAL_FLAG");
+  assert.deepEqual(await trialIds(), []);
+  const created = await createAs(manager);
+  assert.equal(created.status, 201);
+  const { id } = await created.json();
+  const user = collections.users.find((row) => row.id === id);
+  assert.equal(user.is_trial, true);
+  const access = collections.event_access.find((row) => row.user_id === id);
+  assert.equal(access.event_id, body.eventId);
+  assert.deepEqual(await trialIds(), [id]);
+  const publicAccounts = async () => (await (await getLoginTrialAccounts()).json()).accounts;
+  assert.deepEqual(await publicAccounts(), [{ email: body.email, role: "sub_user" }]);
+  const submit = (email, password) => login(request("/api/auth/login", { method: "POST", body: { email, password } }));
+  assert.equal((await submit(body.email)).status, 400);
+  assert.equal((await submit(body.email, "wrong-password")).status, 401);
+  assert.equal((await submit(body.email, password)).status, 200);
+  assert.equal((await createAs(manager)).status, 409);
+  const detail = (targetId) => getAdminUser(request(`/api/admin/users/${targetId}?trial=true`, {
+    cookie: viewer,
+  }), context("id", targetId));
+  const editEmail = (targetId, email) => patchAdminUser(request(`/api/admin/users/${targetId}?trial=true`, {
+    method: "PATCH", cookie: manager, body: { email },
+  }), context("id", targetId));
+  assert.equal((await detail(id)).status, 200);
+  assert.equal((await detail(owner.id)).status, 404);
+  const originalOwnerEmail = owner.email;
+  assert.equal((await editEmail(owner.id, "stale-trial@example.test")).status, 404);
+  assert.equal(owner.email, originalOwnerEmail);
+  const edit = await editEmail(id, "renamed-trial@example.test");
+  assert.equal(edit.status, 200);
+  assert.deepEqual(await publicAccounts(), [{ email: "renamed-trial@example.test", role: "sub_user" }]);
+  assert.equal((await submit(body.email, password)).status, 401);
+  assert.deepEqual(await trialIds(), [id]);
+
+  await assertDenied(await removeAs(undefined, id), 401);
+  await assertDenied(await removeAs(viewer, id), 403);
+  const self = await removeAs(manager, admin.id);
+  assert.equal(self.status, 400);
+  assert.equal((await self.json()).error, "CANNOT_DELETE_SELF");
+  assert.equal((await removeAs(manager, owner.id, "?trial=yes")).status, 400);
+  assert.equal((await removeAs(manager, owner.id)).status, 404);
+  assert.equal(owner.status, "active");
+  assert.equal(user.removed_at, null);
+
+  const removed = await removeAs(manager, id);
+  assert.equal(removed.status, 200);
+  assert.deepEqual(await removed.json(), { success: true });
+  assert.ok(user.removed_at);
+  assert.ok(access.deleted_at);
+  assert.deepEqual(await publicAccounts(), []);
+  assert.equal((await submit("renamed-trial@example.test", password)).status, 401);
+  assert.deepEqual(await trialIds(), []);
+  assert.equal((await detail(id)).status, 404);
+  assert.equal((await editEmail(id, "removed-trial@example.test")).status, 404);
+  assert.equal((await removeAs(manager, id)).status, 404);
+  assert.equal((await removeAs(manager, owner.id, "")).status, 200);
+});
+
+test("users from a deleted draft can be assigned to another event with the selected role", async (t) => {
+  const { admin, assistant, owner, collections } = setupMockData(t, { eventWrites: true });
+  Object.assign(collections.events[0], { status: "draft", deleted_at: "2026-11-20T00:00:00Z" });
+  const { cookie } = await signIn(admin);
+  const list = await (await getAdminUsers(request("/api/admin/users", { cookie }))).json();
+  assert.equal(list.events.some(({ id }) => id === "event-a"), false);
+  for (const [account, role] of [[assistant, "sub_user"], [owner, "event_owner"]]) {
+    const row = list.users.find((item) => item.id === account.id);
+    assert.equal(row.eventId, null);
+    assert.equal(row.customRoleName, null);
+    assert.equal(row.role, role);
+    const detail = `/api/admin/users/${account.id}`;
+    const params = context("id", account.id);
+    const response = await patchAdminUser(request(detail, {
+      method: "PATCH", cookie, body: { eventId: "event-b" },
+    }), params);
+    assert.equal(response.status, 200);
+    const { user } = await (await getAdminUser(request(detail, { cookie }), params)).json();
+    assert.equal(user.eventId, "event-b");
+    assert.equal(user.role, role);
+    const access = collections.event_access.filter((entry) => entry.user_id === account.id && !entry.deleted_at);
+    assert.deepEqual(access.map((entry) => entry.event_id), ["event-b"]);
+    assert.equal(access[0].can_manage_sub_users, role === "event_owner");
+  }
+});
+
+test("admin event responses still respect the current PII grant", async (t) => {
+  const { reviewer, owner, assistant, assignable, platformPermissions } = setupMockData(t);
+  const { cookie } = await signIn(reviewer);
+  const response = await getAdminEvents(request("/api/admin/events", { cookie }));
+  assert.equal(response.status, 200);
+  const event = (await response.json()).events.find((item) => item.id === owner.event_id);
+  assert.equal(event.adminName, owner.display_name);
+  assert.equal(event.adminEmail, owner.email);
+
+  platformPermissions.find((row) => row.user_id === reviewer.id).matrix.canViewUnmaskedPii = false;
+  for (const [handler, path, params] of [
     [getAdminEvents, "/api/admin/events"],
     [getAdminEvent, "/api/admin/events/event-a", context("id", "event-a")],
     [getAssignableUsers, "/api/admin/events/assignable-users"],
-  ];
-  for (const [handler, path, params] of paths) {
-    const response = await handler(request(path, { cookie: adminCookie }), params);
-    assert.equal(response.status, 200, path);
-    assertNoStore(response);
-    assertNoPersonalDetails(await response.json(), [owner, assistant, assignable, reviewer]);
+  ]) {
+    const restricted = await handler(request(path, { cookie }), params);
+    assert.equal(restricted.status, 200, path);
+    assertNoStore(restricted);
+    assertNoPersonalDetails(await restricted.json(), [owner, assistant, assignable]);
   }
-
-  const responseWithGrant = await getAdminUsers(request("/api/admin/users", { cookie: reviewerCookie }));
-  assert.equal(responseWithGrant.status, 200);
-  assertNoStore(responseWithGrant);
-  const unmasked = (await responseWithGrant.json()).users.find((user) => user.id === owner.id);
-  assert.equal(unmasked.name, owner.display_name);
-  assert.equal(unmasked.email, owner.email);
-  assert.equal("password" in unmasked, false);
-
-  const reviewerAccess = platformPermissions.find(
-    (row) => row.user_id === reviewer.id,
-  );
-  reviewerAccess.matrix.canViewUnmaskedPii = false;
-  const afterRevocation = await getAdminUsers(request("/api/admin/users", { cookie: reviewerCookie }));
-  assert.equal(afterRevocation.status, 200);
-  assertNoPersonalDetails(await afterRevocation.json(), [owner, assistant]);
 });
 
 test("upstream failure details stay in the API layer", async (t) => {
@@ -657,4 +1034,188 @@ test("setup-password requires a current invitation and masks preview details", a
   assert.equal(invited.password, newPassword);
   await assertDenied(await acceptInvite(request(path, submission), invite), 410);
   assert.equal(calls.filter(({ method }) => method === "PATCH").length, 1);
+});
+
+test("draft deletion requires current management access and rechecks the event lifecycle", async (t) => {
+  const { admin, reviewer, collections } = setupMockData(t, { eventWrites: true });
+  const { DELETE: remove } = load("src/app/api/admin/events/[id]/route.ts");
+  const event = collections.events[0];
+  event.status = "draft";
+  const path = `/api/admin/events/${event.id}`;
+  const params = context("id", event.id);
+  const deleteWith = (cookie) => remove(request(path, { method: "DELETE", cookie }), params);
+  await assertDenied(await deleteWith(), 401);
+  const viewOnly = await signIn(reviewer);
+  await assertDenied(await deleteWith(viewOnly.cookie), 403);
+
+  const { cookie } = await signIn(admin);
+  const details = await getAdminEvent(request(path, { cookie }), params);
+  assert.equal((await details.json()).status, "draft");
+  for (const status of ["scheduled", "open", "closed"]) {
+    event.status = status;
+    const response = await deleteWith(cookie);
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error, "EVENT_NOT_DELETABLE");
+    assert.equal(event.status, status);
+    assert.equal(event.deleted_at, undefined);
+  }
+  assert.equal(collections.audit_logs.some((row) => row.action === "delete"), false);
+});
+
+test("deleting a draft hides it, preserves its history and releases its owner for assignment", async (t) => {
+  const { admin, assignable, collections, failures } = setupMockData(t, { eventWrites: true });
+  const { DELETE: remove, PATCH: edit } = load("src/app/api/admin/events/[id]/route.ts");
+  const { PATCH: changeStatus } = load("src/app/api/admin/events/[id]/status/route.ts");
+  const { POST: runCron } = load("src/app/api/admin/events/cron/route.ts");
+  const event = collections.events[0];
+  event.status = "draft";
+  assignable.event_id = event.id;
+  collections.forms.push({
+    id: "expired-form", event_id: event.id, type: "survey", status: "open",
+    closes_at: "2000-01-01T00:00:00.000Z",
+  });
+  const { cookie } = await signIn(admin);
+  const path = `/api/admin/events/${event.id}`;
+  const params = context("id", event.id);
+  const deleteEvent = () => remove(request(path, { method: "DELETE", cookie }), params);
+
+  failures.set("PATCH /events/" + event.id, "fixture write failure");
+  assert.equal((await deleteEvent()).status, 502);
+  assert.equal(event.deleted_at, undefined);
+  failures.clear();
+  const results = await Promise.all([deleteEvent(), deleteEvent()]);
+  assert.deepEqual(results.map((response) => response.status).sort(), [200, 404]);
+  assert.equal(event.status, "draft");
+  assert.ok(Number.isFinite(Date.parse(event.deleted_at)));
+  assert.equal(event.updated_by, admin.id);
+  const deletions = collections.audit_logs.filter((row) => row.action === "delete");
+  assert.equal(deletions.length, 1);
+  assert.equal(deletions[0].resource_id, event.id);
+  assert.equal(deletions[0].actor_user_id, admin.id);
+
+  const list = await getAdminEvents(request("/api/admin/events", { cookie }));
+  assert.deepEqual((await list.json()).events.map((row) => row.id), ["event-b"]);
+  for (const response of [
+    await getAdminEvent(request(path, { cookie }), params),
+    await edit(request(path, {
+      method: "PATCH", cookie, body: { slug: event.slug, titleEn: "Edited", titleTh: "" },
+    }), params),
+    await changeStatus(request(path + "/status", {
+      method: "PATCH", cookie, body: { action: "start" },
+    }), params),
+    await deleteEvent(),
+  ]) {
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).error, "EVENT_NOT_FOUND");
+  }
+  const cron = await runCron(request("/api/admin/events/cron", { method: "POST", cookie }));
+  assert.deepEqual(await cron.json(), { opened: [], closed: [], formsClosed: [] });
+  assert.equal(collections.forms[0].status, "open");
+
+  collections.form_submissions = [];
+  const { GET: getOverview } = load("src/app/api/admin/overview/route.ts");
+  const overview = await getOverview(request("/api/admin/overview", { cookie }));
+  assert.equal(overview.status, 200);
+  const { metrics } = await overview.json();
+  assert.equal(metrics.events.total, 1);
+  assert.equal(metrics.surveys.total, 0);
+
+  const owners = await getAssignableUsers(request("/api/admin/events/assignable-users", { cookie }));
+  assert.ok((await owners.json()).users.some((user) => user.id === assignable.id));
+  const replacement = await createEventHandler()(createEventRequest(cookie, {
+    mode: "existing", existingUserId: assignable.id, slug: "replacement-event", titleEn: "Replacement", titleTh: "",
+  }));
+  assert.equal(replacement.status, 201);
+  const created = (await replacement.json()).event;
+  assert.notEqual(created.id, event.id);
+  assert.equal(assignable.event_id, created.id);
+});
+
+test("Trash lists deleted drafts and restores only with current event-management access", async (t) => {
+  const { admin, reviewer, owner, collections, failures } = setupMockData(t, { eventWrites: true });
+  const { POST: restore } = load("src/app/api/admin/events/[id]/restore/route.ts");
+  const { DELETE: moveToTrash } = load("src/app/api/admin/events/[id]/route.ts");
+  const { cookie } = await signIn(admin);
+  const viewOnly = await signIn(reviewer);
+  const event = collections.events[0];
+  event.status = "draft";
+  const params = context("id", event.id);
+  const detailPath = `/api/admin/events/${event.id}`;
+  const restoreWith = (session) => restore(request(detailPath + "/restore", { method: "POST", cookie: session }), params);
+  const trashPath = "/api/admin/events?trash=true";
+  const list = (path, session) => getAdminEvents(request(path, { cookie: session }));
+
+  await assertDenied(await list(trashPath), 401);
+  await assertDenied(await list(trashPath, (await signIn(owner)).cookie), 403);
+  assert.equal((await moveToTrash(request(detailPath, { method: "DELETE", cookie }), params)).status, 200);
+  const trash = await list(trashPath, viewOnly.cookie);
+  assert.equal(trash.status, 200);
+  assertNoStore(trash);
+  assert.deepEqual((await trash.json()).events.map((row) => row.id), [event.id]);
+  assert.deepEqual((await (await list(trashPath + "&q=unrelated", cookie)).json()).events, []);
+  assert.equal((await getAdminEvent(request(detailPath, { cookie }), params)).status, 404);
+  await assertDenied(await restoreWith(), 401);
+  await assertDenied(await restoreWith(viewOnly.cookie), 403);
+
+  const deletedAt = event.deleted_at;
+  failures.set("PATCH /events/" + event.id, "fixture write failure");
+  assert.equal((await restoreWith(cookie)).status, 502);
+  assert.equal(event.deleted_at, deletedAt);
+  failures.clear();
+  const results = await Promise.all([restoreWith(cookie), restoreWith(cookie)]);
+  assert.deepEqual(results.map((response) => response.status).sort(), [200, 409]);
+  assert.equal(event.deleted_at, null);
+  assert.equal(event.updated_by, admin.id);
+  assert.equal(event.status, "draft");
+  assert.deepEqual((await (await list(trashPath, cookie)).json()).events, []);
+  assert.ok((await (await list("/api/admin/events", cookie)).json()).events.some((row) => row.id === event.id));
+  assert.equal((await getAdminEvent(request(detailPath, { cookie }), params)).status, 200);
+  const restorations = collections.audit_logs.filter((row) => row.action === "restore");
+  assert.equal(restorations.length, 1);
+  assert.equal(restorations[0].resource_id, event.id);
+  assert.equal(restorations[0].actor_user_id, admin.id);
+  const again = await restoreWith(cookie);
+  assert.equal((await again.json()).error, "EVENT_NOT_RESTORABLE");
+});
+
+test("restoring a draft preserves its content and the current assignments of moved users", async (t) => {
+  const { admin, owner, collections } = setupMockData(t, { eventWrites: true });
+  const { POST: restore } = load("src/app/api/admin/events/[id]/restore/route.ts");
+  const { getAdminUserActivity } = load("src/services/admin/activity.ts");
+  const { cookie } = await signIn(admin);
+  const event = collections.events[0];
+  const other = collections.events[1];
+  const path = `/api/admin/events/${event.id}`;
+  const restoreById = (id) => restore(request(`/api/admin/events/${id}/restore`, {
+    method: "POST", cookie,
+  }), context("id", id));
+  assert.equal((await restoreById("absent-event")).status, 404);
+  event.deleted_at = "2026-11-01T00:00:00.000Z";
+  assert.equal((await restoreById(event.id)).status, 409, "post-publication records cannot be restored");
+  event.status = "draft";
+  event.setup = "existing-draft-data";
+  collections.forms.push({ id: "existing-form", event_id: event.id, status: "draft" });
+  const previousAccess = collections.event_access.find((row) => row.user_id === owner.id);
+  owner.event_id = other.id;
+  collections.event_access.push({ ...previousAccess, id: "current-access", event_id: other.id });
+  const grants = structuredClone(collections.event_access);
+
+  const otherSlug = other.slug;
+  other.slug = event.slug;
+  const conflict = await restoreById(event.id);
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).error, "SLUG_EXISTS");
+  assert.ok(event.deleted_at);
+  other.slug = otherSlug;
+
+  const restored = await restoreById(event.id);
+  assert.equal(restored.status, 200);
+  assert.equal(event.setup, "existing-draft-data");
+  assert.equal(collections.forms[0].id, "existing-form");
+  assert.equal(owner.event_id, other.id);
+  assert.deepEqual(collections.event_access, grants);
+  const detail = await getAdminEvent(request(path, { cookie }), context("id", event.id));
+  assert.ok(!(await detail.json()).users.some((row) => row.id === owner.id));
+  const profile = await getAdminUserActivity(owner.id);
+  assert.deepEqual(profile.memberships.map((membership) => membership.id), [other.id]);
 });

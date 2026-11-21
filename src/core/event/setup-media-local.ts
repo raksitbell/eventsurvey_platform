@@ -15,6 +15,10 @@ const localMediaSchema = eventBrandingSchema
   .pick({ logo: true, wordmark: true, banner: true })
   .partial();
 type LocalMedia = Partial<Record<EventSetupMediaKind, BrandingBanner>>;
+type MediaUploadTarget =
+  | { mode: "disk" }
+  | { mode: "blob"; id: string; uploadUrl: string };
+const mediaEndpoint = "/event/setup/media";
 
 export function setupLocalMediaKey(userId: string, eventId: string, locale: string) {
   const scope = [userId, eventId, locale].map(encodeURIComponent).join(":");
@@ -56,6 +60,39 @@ export function applySetupLocalMedia(
   return result;
 }
 
+async function uploadPreparedFile(eventId: string, kind: EventSetupMediaKind, file: File) {
+  const media = { eventId, kind, contentType: file.type };
+  const target = await api.post<MediaUploadTarget>(mediaEndpoint, {
+    ...media,
+    action: "prepare",
+    size: file.size,
+  });
+  if (target.mode === "disk") {
+    const body = new FormData();
+    body.set("eventId", eventId);
+    body.set("file", file);
+    return api.postForm<{ url: string }>(mediaEndpoint, body);
+  }
+  if (target.mode !== "blob") return null;
+  const upload = await globalThis.fetch(target.uploadUrl, {
+    method: "PUT",
+    credentials: "omit",
+    redirect: "error",
+    headers: {
+      "Content-Type": file.type,
+      "x-content-type": file.type,
+      "x-vercel-blob-access": "private",
+    },
+    body: file,
+  });
+  if (!upload.ok) return null;
+  return api.post<{ url: string }>(mediaEndpoint, {
+    ...media,
+    action: "complete",
+    id: target.id,
+  });
+}
+
 async function uploadImage(
   eventId: string,
   image: BrandingBanner,
@@ -70,10 +107,8 @@ async function uploadImage(
           minimumSize: kind === "banner" ? bannerLayouts[layout ?? "portrait"] : undefined,
         })
       : original;
-    const body = new FormData();
-    body.set("eventId", eventId);
-    body.set("file", file);
-    const { url } = await api.postForm<{ url?: string }>("/event/setup/media", body);
+    const result = await uploadPreparedFile(eventId, kind, file);
+    const url = result?.url;
     return typeof url === "string" && isEventSetupMediaUrl(url)
       ? { ...image, name: file.name, url }
       : null;

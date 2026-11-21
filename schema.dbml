@@ -162,6 +162,8 @@ Enum dashboard_comparison_mode {
 Table users [headercolor: #2563EB] {
   id uuid [pk]
   email varchar(320) [unique]
+  is_trial boolean [default: false, note: 'Identifies accounts listed in Platform Configuration under Manage trial accounts.']
+  uses_published_trial_password boolean [note: 'Explicitly provisioned with the public demo password. Legacy records may omit this flag.']
   password varchar(255) [not null]
   display_name varchar(160) [not null]
   system_role system_role [not null, default: 'event_user']
@@ -248,6 +250,7 @@ Table events [headercolor: #7C3AED] {
   created_by_user_id uuid [not null, ref: > users.id]
   published_at timestamptz
   closed_at timestamptz
+  cancelled_at timestamptz [note: 'Manual cancellation stops all forms including Post-Survey']
   archived_at timestamptz
   created_at timestamptz [not null]
   updated_at timestamptz [not null]

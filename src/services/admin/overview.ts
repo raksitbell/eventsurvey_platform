@@ -63,13 +63,6 @@ function countByMonth(timestamps: string[], categories: string[]): number[] {
   return categories.map((key) => counts.get(key) ?? 0);
 }
 
-function formSystemStatus(forms: MockForm[] | null): HealthStatus {
-  if (!forms) return "attention";
-  const liveForms = forms.filter((form) => !form.deleted_at);
-  const hasOpen = liveForms.some((form) => form.status === "open");
-  return hasOpen || liveForms.length === 0 ? "operational" : "attention";
-}
-
 async function settleGet<T>(path: string): Promise<T | null> {
   try {
     return await mockApi.get<T>(path);
@@ -102,22 +95,34 @@ export async function getBoundAdminOverview(
   const database: HealthStatus = coreTables.every((row) => row !== null)
     ? "operational"
     : "attention";
-  const formSystem = formSystemStatus(forms);
-
   assertCoreDataAvailable(coreTables);
 
-  const liveEvents = events ?? [];
+  const liveEvents = (events ?? []).filter((event) => !event.deleted_at);
+  const deletedEventIds = new Set(
+    (events ?? []).filter((event) => event.deleted_at).map((event) => event.id),
+  );
   const liveUsers = (users ?? []).filter((user) => !user.removed_at);
-  const liveForms = (forms ?? []).filter((form) => !form.deleted_at);
+  const eventForms = (forms ?? []).filter(
+    (form) => !deletedEventIds.has(form.event_id),
+  );
+  const liveForms = eventForms.filter((form) => !form.deleted_at);
+  const formSystem =
+    liveForms.length === 0 || liveForms.some((form) => form.status === "open")
+      ? "operational"
+      : "attention";
   const liveRegistrationForms = liveForms.filter(
     (form) => form.type === "registration",
   );
   const liveSurveys = liveForms.filter((form) => form.type === "survey");
-  const liveSubmissions = (submissions ?? []).filter(
-    (row) => row.status === "submitted",
-  );
-
   const formById = new Map(liveForms.map((form) => [form.id, form]));
+  const archivedFormIds = new Set(
+    (forms ?? [])
+      .filter((form) => deletedEventIds.has(form.event_id))
+      .map((form) => form.id),
+  );
+  const liveSubmissions = (submissions ?? []).filter(
+    (row) => row.status === "submitted" && !archivedFormIds.has(row.form_id),
+  );
   const responseCountByEvent = new Map<string, number>();
   for (const submission of liveSubmissions) {
     const form = formById.get(submission.form_id);
@@ -132,8 +137,7 @@ export async function getBoundAdminOverview(
   const topEvents = pickTopEvents(
     liveEvents.map((event) => ({
       eventId: event.id,
-      title:
-        resolveEventTitle(translationRows, event.id, locale) ?? event.slug,
+      title: resolveEventTitle(translationRows, event.id, locale) ?? event.slug,
       responseCount: responseCountByEvent.get(event.id) ?? 0,
     })),
     TOP_EVENTS_LIMIT,

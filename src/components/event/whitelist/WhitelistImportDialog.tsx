@@ -10,10 +10,7 @@ import Table, {
   TableRow,
 } from "@/components/ui/table/Table";
 import { previewWhitelistImport } from "@/core/event/whitelist";
-import {
-  readWhitelistFile,
-  WHITELIST_IMPORT_ACCEPT,
-} from "@/core/event/whitelist-file";
+import { readWhitelistFile } from "@/core/event/whitelist-file";
 import type {
   WhitelistEntry,
   WhitelistImportPreview,
@@ -62,6 +59,11 @@ export default function WhitelistImportDialog({
     } finally {
       if (request === sequence.current) setBusy(false);
     }
+  };
+  const pickFile = (extension: ".csv" | ".xlsx") => {
+    if (!fileInput.current) return;
+    fileInput.current.accept = extension;
+    fileInput.current.click();
   };
   const choose = () => {
     setPreview(null);
@@ -141,7 +143,6 @@ export default function WhitelistImportDialog({
               <input
                 ref={fileInput}
                 type="file"
-                accept={WHITELIST_IMPORT_ACCEPT}
                 hidden
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -152,7 +153,7 @@ export default function WhitelistImportDialog({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => fileInput.current?.click()}
+                onClick={() => pickFile(".csv")}
               >
                 <Image
                   alt=""
@@ -162,7 +163,11 @@ export default function WhitelistImportDialog({
                 />
                 {view("chooseCsv")}
               </button>
-              <button type="button" disabled>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => pickFile(".xlsx")}
+              >
                 <Image
                   alt=""
                   src="/images/event-whitelist/file.svg"

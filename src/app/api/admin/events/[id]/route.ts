@@ -11,7 +11,7 @@ import {
   updateAdminEventBodySchema,
 } from "@/core/validation/admin-events";
 import { routing, type Locale } from "@/i18n/routing";
-import { getAdminEvent, updateAdminEvent } from "@/services/admin/events";
+import { deleteAdminEvent, getAdminEvent, updateAdminEvent } from "@/services/admin/events";
 import { getPlatformPiiViewer } from "@/services/auth/pii-access";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -109,5 +109,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       { error: "Failed to update event" },
       { status: 502 },
     );
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const session = await requireAdminSession(request);
+  if (!isAuthSession(session)) return session;
+
+  try {
+    if (!(await hasPlatformPermission(session.realUserId, "manage_all_events"))) {
+      return authJson({ error: "FORBIDDEN" }, 403);
+    }
+    const { id } = await context.params;
+    return authJson(await deleteAdminEvent(id, session.realUserId));
+  } catch (error) {
+    if (error instanceof ServiceError) return authJson({ error: error.code }, error.status);
+    return authJson({ error: "Failed to delete event" }, 502);
   }
 }
