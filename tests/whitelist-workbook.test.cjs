@@ -28,9 +28,9 @@ const chrome = [
 ].find((p) => p && fs.existsSync(p));
 
 test(
-  "a real XLSX workbook receives the same whitelist preview as CSV",
+  "Chrome reads inline and shared strings from real workbooks",
   {
-    skip: chrome ? false : "Chrome required for the browser XML API",
+    skip: chrome ? false : "Chrome unavailable",
   },
   async (t) => {
     const directory = fs.mkdtempSync(
@@ -56,9 +56,10 @@ test(
       },
     ).outputText;
     const harness = path.join(directory, "test.html");
+    fs.copyFileSync(require.resolve("sax"), path.join(directory, "sax.js"));
     fs.writeFileSync(
       harness,
-      `<body><output></output><script type="module">
+      `<body><output></output><script src="./sax.js"></script><script type="importmap">{"imports":{"sax":"data:text/javascript,export const parser = globalThis.sax.parser"}}</script><script type="module">
     ${source}
     const files = ${JSON.stringify(fixtures)}.map(data => new File([Uint8Array.from(atob(data), c => c.charCodeAt(0))], "example.xlsx"));
     try { document.querySelector("output").textContent = JSON.stringify(await Promise.all(files.map(readWhitelistWorkbook))); }
@@ -81,31 +82,45 @@ test(
     const [rows, sharedRows] = JSON.parse(
       html.match(/<output>([^<]*)<\/output>/)[1],
     );
-    const csv = await readWhitelistFile(
-      new File(
-        [
-          "Unique ID,Name\n HELLO@example.com ,ผู้เข้าร่วม\nhello@example.com,Duplicate\nused@example.com,Already registered\ninvalid,Invalid",
-        ],
-        "list.csv",
-      ),
-    );
-    assert.deepEqual(rows, csv);
-    assert.deepEqual(sharedRows, csv);
-    const used = {
-      id: "existing",
-      uniqueId: "used@example.com",
-      name: "",
-      status: "joined",
-    };
-    const preview = previewWhitelistImport(rows, "list.xlsx", [used]);
-    assert.equal(preview.invalidCount, 3);
-    assert.deepEqual(
-      preview.entries.map(({ uniqueId, name }) => [uniqueId, name]),
-      [["hello@example.com", "ผู้เข้าร่วม"]],
-    );
-    assert.deepEqual(replaceWhitelist([used], preview.entries), [
-      used,
-      ...preview.entries,
-    ]);
+    assert.deepEqual(rows, sharedRows);
+    assert.deepEqual(rows[0], ["Unique ID", "Name"]);
   },
 );
+test("real XLSX workbooks receive the same whitelist preview as CSV", async () => {
+  const [rows, sharedRows] = await Promise.all(
+    ["whitelist.xlsx", "whitelist-shared-strings.xlsx"].map((name) =>
+      readWhitelistFile(
+        new File(
+          [fs.readFileSync(path.join(__dirname, "fixtures", name))],
+          name,
+        ),
+      ),
+    ),
+  );
+  const csv = await readWhitelistFile(
+    new File(
+      [
+        "Unique ID,Name\n HELLO@example.com ,ผู้เข้าร่วม\nhello@example.com,Duplicate\nused@example.com,Already registered\ninvalid,Invalid",
+      ],
+      "list.csv",
+    ),
+  );
+  assert.deepEqual(rows, csv);
+  assert.deepEqual(sharedRows, csv);
+  const used = {
+    id: "existing",
+    uniqueId: "used@example.com",
+    name: "",
+    status: "joined",
+  };
+  const preview = previewWhitelistImport(rows, "list.xlsx", [used]);
+  assert.equal(preview.invalidCount, 3);
+  assert.deepEqual(
+    preview.entries.map(({ uniqueId, name }) => [uniqueId, name]),
+    [["hello@example.com", "ผู้เข้าร่วม"]],
+  );
+  assert.deepEqual(replaceWhitelist([used], preview.entries), [
+    used,
+    ...preview.entries,
+  ]);
+});

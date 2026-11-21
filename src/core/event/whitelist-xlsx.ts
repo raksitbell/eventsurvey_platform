@@ -1,3 +1,5 @@
+import { parser } from "sax";
+
 // Read the first worksheet of an OOXML workbook. Only inflate the XML parts we use.
 const maxXmlBytes = 16 * 1024 * 1024;
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -91,84 +93,142 @@ function openArchive(bytes: Uint8Array<ArrayBuffer>) {
       throw new Error("Corrupt workbook part");
     const xml = decoder.decode(raw);
     if (/<!DOCTYPE/i.test(xml)) throw new Error("Unsupported workbook XML");
-    const document = new DOMParser().parseFromString(xml, "application/xml");
-    if (document.getElementsByTagName("parsererror").length)
-      throw new Error("Invalid workbook XML");
-    return document;
+    return xml;
   };
 }
 
-const elements = (root: XMLDocument | Element, name: string) =>
-  Array.from(root.getElementsByTagNameNS("*", name));
+type Attributes = Record<string, string>;
+interface XmlHandlers {
+  open?(name: string, attributes: Attributes): void;
+  text?(value: string, parents: readonly string[]): void;
+  close?(name: string): void;
+}
 
-function stringValue(node: Element) {
-  return elements(node, "t")
-    .filter((text) => text.parentElement?.localName !== "rPh")
-    .map((text) => text.textContent)
-    .join("");
+// Workbook parts are data. SAX decodes XML text without creating browser elements.
+function readElements(xml: string, handlers: XmlHandlers) {
+  const reader = parser(true, { strictEntities: true });
+  const parents: string[] = [];
+  reader.onopentag = (tag) => {
+    const name = tag.name.split(":").pop()!;
+    parents.push(name);
+    handlers.open?.(name, tag.attributes);
+  };
+  reader.ontext = reader.oncdata = (text) => handlers.text?.(text, parents);
+  reader.onclosetag = () => handlers.close?.(parents.pop()!);
+  reader.onerror = (error) => {
+    throw error;
+  };
+  reader.write(xml).close();
+}
+
+function readStrings(xml: string) {
+  const strings: string[] = [];
+  let value = "";
+  readElements(xml, {
+    open(name) {
+      if (name === "si") value = "";
+    },
+    text(text, parents) {
+      if (parents.at(-1) === "t" && !parents.includes("rPh")) value += text;
+    },
+    close(name) {
+      if (name === "si") strings.push(value);
+    },
+  });
+  return strings;
+}
+
+function readRows(xml: string, strings: string[]) {
+  const rows: string[][] = [];
+  let hasData = false;
+  let insideData = false;
+  let cells: string[] = [];
+  let column = 0;
+  let type = "";
+  let value = "";
+  readElements(xml, {
+    open(name, attrs) {
+      if (name === "sheetData") insideData = hasData = true;
+      if (!insideData) return;
+      if (name === "row") {
+        cells = [];
+        column = 0;
+      }
+      if (name === "f") throw new Error("Expected literal whitelist values");
+      if (name !== "c") return;
+      type = attrs.t;
+      value = "";
+      if (type === "e") throw new Error("Expected literal whitelist values");
+      if (attrs.r) {
+        const letters = attrs.r.match(/^([A-Z]{1,3})[1-9]\d*$/)?.[1];
+        if (!letters) throw new Error("Invalid cell address");
+        column =
+          Array.from(letters).reduce(
+            (n, c) => n * 26 + c.charCodeAt(0) - 64,
+            0,
+          ) - 1;
+      }
+    },
+    text(text, parents) {
+      if (!insideData) return;
+      if (
+        type === "inlineStr"
+          ? parents.at(-1) === "t" && !parents.includes("rPh")
+          : parents.at(-1) === "v"
+      )
+        value += text;
+    },
+    close(name) {
+      if (!insideData) return;
+      if (name === "c") {
+        if (type === "s") {
+          if (!/^\d+$/.test(value) || Number(value) >= strings.length)
+            throw new Error("Invalid shared string");
+          value = strings[Number(value)];
+        }
+        if (value) cells[column] = value;
+        column++;
+      }
+      if (name === "row" && cells.some((v) => v.trim())) rows.push(cells);
+      if (name === "sheetData") insideData = false;
+    },
+  });
+  if (!hasData) throw new Error("Invalid worksheet");
+  return rows;
 }
 
 export async function readWhitelistWorkbook(file: File): Promise<string[][]> {
   if (file.size > 32 * 1024 * 1024) throw new Error("Workbook too large");
   const readXml = openArchive(new Uint8Array(await file.arrayBuffer()));
-  const workbook = await readXml("xl/workbook.xml");
-  const sheet = elements(workbook, "sheet")[0];
-  const relationId =
-    sheet &&
-    Array.from(sheet.attributes).find((attr) => attr.localName === "id")?.value;
-  const relations = elements(
-    await readXml("xl/_rels/workbook.xml.rels"),
-    "Relationship",
-  );
-  const pathOf = (relation?: Element) => {
-    const target = relation?.getAttribute("Target");
-    if (!target || relation?.getAttribute("TargetMode") === "External")
-      throw new Error("Invalid workbook relationship");
-    return decodeURIComponent(
-      new URL(target, "https://workbook.invalid/xl/").pathname.slice(1),
-    );
-  };
-  const relation = relations.find(
-    (item) =>
-      item.getAttribute("Id") === relationId &&
-      item.getAttribute("Type")?.endsWith("/worksheet"),
-  );
-  const document = await readXml(pathOf(relation));
-  const sharedRelation = relations.find((item) =>
-    item.getAttribute("Type")?.endsWith("/sharedStrings"),
-  );
-  const strings = sharedRelation
-    ? elements(await readXml(pathOf(sharedRelation)), "si").map(stringValue)
-    : [];
-  const data = elements(document, "sheetData")[0];
-  if (!data) throw new Error("Invalid worksheet");
-  const result: string[][] = [];
-  for (const row of elements(data, "row")) {
-    const cells: string[] = [];
-    for (const cell of elements(row, "c")) {
-      const address = cell.getAttribute("r");
-      const letters = address?.match(/^([A-Z]{1,3})[1-9]\d*$/)?.[1];
-      if (address && !letters) throw new Error("Invalid cell address");
-      const column = letters
-        ? Array.from(letters).reduce(
-            (index, ch) => index * 26 + ch.charCodeAt(0) - 64,
-            0,
-          ) - 1
-        : cells.length;
-      const type = cell.getAttribute("t");
-      const value = elements(cell, "v")[0]?.textContent ?? "";
-      if (type === "e" || elements(cell, "f").length)
-        throw new Error("Expected literal whitelist values");
-      let text = value;
-      if (type === "inlineStr") text = stringValue(cell);
-      if (type === "s") {
-        if (!/^\d+$/.test(value) || Number(value) >= strings.length)
-          throw new Error("Invalid shared string");
-        text = strings[Number(value)];
+  let sheetId: string | undefined;
+  readElements(await readXml("xl/workbook.xml"), {
+    open(name, attrs) {
+      if (name === "sheet" && sheetId === undefined) {
+        sheetId = Object.entries(attrs).find(
+          ([key]) => key.split(":").pop() === "id",
+        )?.[1];
       }
-      if (text) cells[column] = text;
-    }
-    if (cells.some((v) => v.trim())) result.push(cells);
-  }
-  return result;
+    },
+  });
+  if (!sheetId) throw new Error("Missing worksheet");
+  let sheetPath = "";
+  let stringsPath = "";
+  readElements(await readXml("xl/_rels/workbook.xml.rels"), {
+    open(name, attrs) {
+      if (name !== "Relationship") return;
+      const isSheet =
+        attrs.Id === sheetId && attrs.Type?.endsWith("/worksheet");
+      const isStrings = attrs.Type?.endsWith("/sharedStrings");
+      if (!isSheet && !isStrings) return;
+      if (!attrs.Target || attrs.TargetMode === "External")
+        throw new Error("Invalid workbook relationship");
+      const path = decodeURIComponent(
+        new URL(attrs.Target, "https://workbook.invalid/xl/").pathname.slice(1),
+      );
+      if (isSheet) sheetPath = path;
+      else stringsPath = path;
+    },
+  });
+  const strings = stringsPath ? readStrings(await readXml(stringsPath)) : [];
+  return readRows(await readXml(sheetPath), strings);
 }
