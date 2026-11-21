@@ -1778,6 +1778,8 @@
     "registrationRequired": "Register for this event before completing the survey.",
     "goToRegistration": "Go to registration",
     "goToSurvey": "Go to survey",
+    "draftStorageError": "Your browser could not access the saved draft. You can keep filling in this page, but your answers may not be available after reloading.",
+    "draftCleanupError": "Your response was submitted, but this browser could not clear the saved draft.",
     "submitError": "Could not confirm that your response was saved. Please submit again.",
     "invalidAnswers": "Review your answers and submit again.",
     "requestChanged": "Your earlier response is no longer available. Submit again to save the answers shown here as a new response.",

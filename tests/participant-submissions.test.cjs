@@ -245,3 +245,57 @@ test("manual close with active forms requires confirmation and immediately close
   assert.ok(event.cancelled_at);
   assert.ok(db.forms.every(form => form.status === "closed"));
 });
+
+test("unfinished answers restore only for the same verified participant and form in the same tab", async (t) => {
+  const { ids, read, submit, input, db } = fixture(t, { surveyAccess: "public" });
+  const { createAnswerDrafts } = loadSource()("src/core/event/participant-answer-draft.ts");
+  const rows = new Map();
+  const storage = () => ({
+    getItem: (key) => rows.get(key) ?? null,
+    setItem: (key, value) => rows.set(key, value),
+    removeItem: (key) => rows.delete(key),
+  });
+  const verified = await read("survey", "member@example.test");
+  const otherParticipant = await read("survey", "second@example.test");
+  const otherForm = await read("registration", "member@example.test");
+  assert.equal((await read("survey")).draftScope, undefined);
+  assert.match(verified.draftScope, /^[a-f0-9]{64}$/);
+  assert.notEqual(verified.draftScope, otherParticipant.draftScope);
+  assert.notEqual(verified.draftScope, otherForm.draftScope);
+  const answers = { [ids.topic]: ids.yes };
+  createAnswerDrafts(storage).write(verified.draftScope, answers);
+  const restored = createAnswerDrafts(storage);
+  assert.deepEqual(restored.read((await read("survey", "MEMBER@example.test")).draftScope).answers, answers);
+  assert.deepEqual(restored.read(otherParticipant.draftScope).answers, {});
+  assert.deepEqual(restored.read(otherForm.draftScope).answers, {});
+  assert.deepEqual(db.form_submissions, []);
+  assert.deepEqual(db.submission_answers, []);
+  const denied = await submit("survey", input("survey", answers, "unknown@example.test"));
+  assert.equal(denied.status, "eligibility");
+  assert.deepEqual(createAnswerDrafts(storage).read(verified.draftScope).answers, answers);
+  const saved = await submit("survey", input("survey", answers, "member@example.test"));
+  assert.equal(saved.status, "submitted");
+  assert.ok(restored.write(verified.draftScope, {}));
+  assert.equal(rows.size, 0);
+  assert.deepEqual(createAnswerDrafts(storage).read(verified.draftScope).answers, {});
+});
+
+test("storage errors and malformed drafts preserve editable answers in the current page", () => {
+  const { createAnswerDrafts } = loadSource()("src/core/event/participant-answer-draft.ts");
+  const scope = "a".repeat(64);
+  for (const storage of [
+    () => { throw new Error("storage unavailable"); },
+    () => ({
+      getItem: () => '{"broken":{"id":true}}',
+      setItem: () => { throw new Error("quota"); },
+      removeItem: () => { throw new Error("storage unavailable"); },
+    }),
+  ]) {
+    const drafts = createAnswerDrafts(storage);
+    assert.deepEqual(drafts.read(scope), { answers: {}, storageError: true });
+    assert.equal(drafts.write(scope, { field: "still editing" }), false);
+    assert.deepEqual(drafts.read(scope), { answers: { field: "still editing" }, storageError: true });
+    assert.equal(drafts.write(scope, {}), false);
+    assert.deepEqual(drafts.read(scope).answers, {});
+  }
+});

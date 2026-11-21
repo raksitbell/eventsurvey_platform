@@ -36,8 +36,8 @@ export type PublicFormStatus =
   "scheduled" | "closed" | "full" | "restricted" | "registrationRequired" | "unavailable";
 
 export type PublicForm =
-  | { status: "open"; form: Form }
-  | { status: "scheduled"; form: Form; opensAt: string | null }
+  | { status: "open"; form: Form; draftScope?: string }
+  | { status: "scheduled"; form: Form; draftScope?: string; opensAt: string | null }
   | { status: "eligibility"; fieldType: WhitelistUniqueKind; label: Record<"th" | "en", string> }
   | { status: Exclude<PublicFormStatus, "scheduled"> };
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { MockApiError, mockApi } from "@/core/api/mock-client";
 import { ServiceError } from "@/core/api/service-error";
 import { getEventContent, normalizeContentLocale, projectEventContent, resolveEventTranslation } from "@/core/event/content";
@@ -409,7 +410,7 @@ type OpenSubmissionForm = Extract<PublicForm, { status: "open" }> & {
 type SubmissionAccess = Exclude<PublicForm, { status: "open" }> | OpenSubmissionForm;
 
 function publicResult(access: SubmissionAccess | null): PublicForm | null {
-  return access?.status === "open" ? { status: "open", form: access.form } : access;
+  return access?.status === "open" ? { status: "open", form: access.form, draftScope: access.draftScope } : access;
 }
 
 export async function currentPublicFormId(event: MockEvent, setup: SetupRecord, kind: ParticipantFormKind, read: typeof mockApi.get) {
@@ -494,6 +495,7 @@ export async function resolvePublicForm(
     }
   }
 
+  let whitelistEntryId: string | undefined;
   let whitelist: OpenSubmissionForm["whitelist"];
   if (access !== "public" && !requiresRegistration) {
     const { field, entries } = access;
@@ -510,15 +512,20 @@ export async function resolvePublicForm(
         label: { th: question?.label.th[0]?.label ?? "", en: question?.label.en[0]?.label ?? "" },
       };
     }
+    whitelistEntryId = permitted.id;
     if (kind === "registration") {
       whitelist = { id: permitted.id, uniqueId: permitted.uniqueId, name: permitted.name, fieldId: field.id, fieldType: field.type };
     }
   }
+  // Web Storage is already tab-scoped. Bind the draft to server-verified identities as well.
+  const draftScope = createHash("sha256")
+    .update(JSON.stringify([event.id, kind, row.id, whitelistEntryId, registrationId]))
+    .digest("hex");
   const definition = { head: form.head, type: form.type, questions: form.questions };
   if (availability === "scheduled") {
-    return { status: "scheduled", form: definition, opensAt: beforeOpening && opensAt !== null ? new Date(opensAt).toISOString() : null };
+    return { status: "scheduled", form: definition, draftScope, opensAt: beforeOpening && opensAt !== null ? new Date(opensAt).toISOString() : null };
   }
-  return { status: "open", form: definition,
+  return { status: "open", form: definition, draftScope,
     formId: row.id, capacity, registrationId, whitelist,
     receiptClosesAt: kind === "registration" ? registrationReceiptClosesAt(event, setup, rows) : undefined };
 }

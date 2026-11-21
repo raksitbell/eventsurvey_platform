@@ -96,7 +96,9 @@ export default function ParticipantFormLayout({
         ) : <div className="flex min-w-0 items-center gap-3">{identity}</div>}
         {readOnly ? (
           <span className="rounded-full bg-white px-3 py-2 text-theme-xs font-semibold text-participant-text">{locale.toUpperCase()}</span>
-         ) : languages && languages.length > 1 && <EventDisplayLanguage locale={locale} languages={languages} />}
+        ) : languages && languages.length > 1 && (
+          <EventDisplayLanguage locale={locale} languages={languages} />
+        )}
       </header>
       <div className="relative isolate grow" style={{ backgroundImage }}>
         {branding.backgroundMode === "blur" && banner && (
