@@ -14,6 +14,7 @@ interface EventDisplayInformationProps {
   };
   event?: EventDisplayProps["event"];
   published: boolean;
+  displayOnly?: boolean;
 }
 
 function socialIcon(platform: string) {
@@ -35,6 +36,7 @@ export default function EventDisplayInformation({
   labels,
   event,
   published,
+  displayOnly,
 }: EventDisplayInformationProps) {
   const Title = event && !published ? "h2" : "h1";
   const Heading = published ? "h2" : event ? "h3" : "strong";
@@ -56,7 +58,7 @@ export default function EventDisplayInformation({
       className="participant-card participant-information"
       aria-label={data.title}
     >
-      {published ? (
+      {published && !displayOnly ? (
         <div className="participant-title-row">
           {title}
           {event && event.languages.length > 1 && <EventDisplayLanguage locale={event.contentLocale} languages={event.languages} />}

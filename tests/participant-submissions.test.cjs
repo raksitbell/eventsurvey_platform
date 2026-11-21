@@ -209,3 +209,39 @@ test("A legacy snapshot with display orders saves the owning field and option ID
   assert.equal(db.submission_answers[0].field_id, ids.topic);
   assert.equal(db.answer_option_selections[0].option_id, ids.no);
 });
+
+test("an admin cancellation closes all form links and rejects new submissions even before a failed form write is retried", async (t) => {
+  const { db, ids, slug, read, submit, input, failures } = fixture(t, { privateEvent: false, surveyAccess: "public" });
+  const load = loadSource();
+  const { updateAdminEventStatus, runEventLifecycleCron } = load("src/services/admin/events.ts");
+  const { getPublicEventBySlug } = load("src/services/event/public-event.ts");
+  const event = db.events[0];
+  event.status = "closed";
+  event.end_at = "2021-01-01T12:00:00.000Z";
+  assert.equal((await read("survey")).status, "open");
+  const failure = "PATCH /forms/" + ids.survey;
+  failures.set(failure, "temporary failure");
+  await assert.rejects(updateAdminEventStatus(event.id, "cancel", "admin"));
+  assert.ok(event.cancelled_at);
+  for (const kind of ["registration", "survey"]) {
+    assert.deepEqual(await read(kind), { status: "closed" });
+    assert.deepEqual(await submit(kind, input(kind, {})), { status: "closed" });
+  }
+  assert.deepEqual((await getPublicEventBySlug(slug, "en")).formLinks, {});
+  assert.equal(db.form_submissions.length, 0);
+  failures.delete(failure);
+  assert.deepEqual((await runEventLifecycleCron("admin")).formsClosed, [ids.survey]);
+  await updateAdminEventStatus(event.id, "cancel", "admin");
+  assert.ok(db.forms.every(form => form.status === "closed"));
+});
+
+test("manual close with active forms requires confirmation and immediately closes both forms", async (t) => {
+  const { db } = fixture(t, { privateEvent: false, surveyAccess: "public" });
+  const { updateAdminEventStatus } = loadSource()("src/services/admin/events.ts");
+  const event = db.events[0];
+  await assert.rejects(updateAdminEventStatus(event.id, "close", "admin"), { code: "CLOSE_HAS_ACTIVE_FORMS" });
+  assert.ok(!event.cancelled_at);
+  await updateAdminEventStatus(event.id, "close", "admin", "en", { force: true });
+  assert.ok(event.cancelled_at);
+  assert.ok(db.forms.every(form => form.status === "closed"));
+});

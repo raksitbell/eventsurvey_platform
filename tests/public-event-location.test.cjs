@@ -27,8 +27,11 @@ function fixture(translations) {
         }
       },
       mockApi: {
+        async getFresh(path) {
+          assert.ok(path.startsWith("/events?"));
+          return [event];
+        },
         async get(path) {
-          if (path.startsWith("/events?")) return [event];
           if (path.startsWith("/event_translations?")) return translations;
           if (path.startsWith("/event_banners?")) return [];
           if (path.startsWith("/forms?")) return [];

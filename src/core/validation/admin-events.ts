@@ -52,7 +52,7 @@ export const updateAdminEventBodySchema = z
   .superRefine(requireAtLeastOneTitle);
 
 export const adminEventStatusBodySchema = z.object({
-  action: z.enum(["start", "close"]),
+  action: z.enum(["start", "close", "cancel"]),
   /** Required to close when active/post-event forms still have time left */
   force: z.boolean().optional(),
 });

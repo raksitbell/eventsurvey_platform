@@ -9,6 +9,7 @@ interface EventDisplayQrProps {
   survey: string;
   placeholder: string;
   vertical: boolean;
+  displayOnly?: boolean;
   forms?: readonly ParticipantFormKind[];
   formLinks?: PublicEvent["formLinks"];
 }
@@ -20,6 +21,7 @@ export default function EventDisplayQr({
   survey,
   placeholder,
   vertical,
+  displayOnly,
   forms,
   formLinks,
 }: EventDisplayQrProps) {
@@ -36,13 +38,8 @@ export default function EventDisplayQr({
           const link = formLinks[kind];
           if (!link) return null;
           const label = t(kind);
-          return (
-            <Link
-              key={kind}
-              href={link.href}
-              className="participant-qr-item participant-qr-link"
-              aria-label={label}
-            >
+          const content = (
+            <>
               <h2>{label}</h2>
               {link.qrDataUrl && (
                 <Image
@@ -54,6 +51,13 @@ export default function EventDisplayQr({
                   unoptimized
                 />
               )}
+            </>
+          );
+          return displayOnly ? (
+            <div className="participant-qr-item" key={kind}>{content}</div>
+          ) : (
+            <Link key={kind} href={link.href} className="participant-qr-item participant-qr-link" aria-label={label}>
+              {content}
             </Link>
           );
         }

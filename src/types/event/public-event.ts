@@ -14,6 +14,7 @@ export interface EventShareLinks {
 
 export interface EventShareResponse {
   links: EventShareLinks;
+  displayUrl: string;
   windows: Record<
     ParticipantFormKind,
     {

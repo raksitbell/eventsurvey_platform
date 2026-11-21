@@ -17,6 +17,7 @@ import type { PublicEvent } from "@/types/event/public-event";
 import type { CSSProperties } from "react";
 
 interface ParticipantEventScreenProps extends ParticipantEventData {
+  displayOnly?: boolean;
   contentLocale?: string | null;
   formLinks?: PublicEvent["formLinks"];
 }
@@ -52,7 +53,7 @@ function displayChannels(
 }
 
 export default function ParticipantEventScreen({
-  draft, branding, bannerUrl, contentLocale, formLinks,
+  draft, branding, bannerUrl, contentLocale, formLinks, displayOnly,
 }: ParticipantEventScreenProps) {
   const locale = useLocale();
   const t = useTranslations("participantDisplay");
@@ -123,6 +124,7 @@ export default function ParticipantEventScreen({
         bannerPlaceholder: t("bannerPlaceholder"),
         qrPlaceholder: t("qrPlaceholder"),
       }}
+      displayOnly={displayOnly}
       formLinks={formLinks}
       event={{
         contentLocale: translation.localeCode,

@@ -82,6 +82,7 @@ const substitutions = {
     }),
   },
 };
+substitutions["@/core/api/mock-client"].mockApi.getFresh = substitutions["@/core/api/mock-client"].mockApi.get;
 function load(importPath) {
   if (Object.hasOwn(substitutions, importPath))
     return substitutions[importPath];
@@ -444,20 +445,19 @@ test("public forms show the localized published event and its banner for both fo
     publishedBranding: { en: english },
     branding: { en: { ...english, primary: "#ABCDEF" } },
   };
+  const readMock = async (resource) => {
+    if (resource.startsWith("/events?")) return [{ ...event, status: "scheduled" }];
+    if (resource.startsWith("/forms?")) return [];
+    if (resource.startsWith("/event_banners?")) return [{ event_id: event.id, banner_url: bannerUrl }];
+    if (resource.startsWith("/event_translations?")) {
+      assert.equal(setup.publication, null);
+      return [{ event_id: event.id, locale_code: "th", title: th.title, location_name: th.locationName }];
+    }
+    throw new Error("Unexpected resource " + resource);
+  };
   const read = loadSource({
     ...substitutions,
-    "@/core/api/mock-client": {
-      mockApi: { get: async (resource) => {
-        if (resource.startsWith("/events?")) return [{ ...event, status: "scheduled" }];
-        if (resource.startsWith("/forms?")) return [];
-        if (resource.startsWith("/event_banners?")) return [{ event_id: event.id, banner_url: bannerUrl }];
-        if (resource.startsWith("/event_translations?")) {
-          assert.equal(setup.publication, null);
-          return [{ event_id: event.id, locale_code: "th", title: th.title, location_name: th.locationName }];
-        }
-        throw new Error("Unexpected resource " + resource);
-      } },
-    },
+    "@/core/api/mock-client": { mockApi: { get: readMock, getFresh: readMock } },
     "@/core/event/setup-storage": { readSetupRecord: () => setup },
   });
   const { getPublicFormPageBySlug } = read("src/services/event/public-event.ts");
@@ -571,4 +571,34 @@ test("private participant forms disclose questions only after a matching publish
   snapshots.registration.eventId = event.id;
   whitelist.fieldId = "wrong-question";
   assert.deepEqual(await enter("person@example.com"), { status: "restricted" });
+});
+
+test("LCD QR windows include opening, exclude closing and hide paused or cancelled forms", async (t) => {
+  t.mock.method(Date, "now", () => Date.parse("2035-01-01T00:00:00Z"));
+  const now = Date.now();
+  const previousOrigin = process.env.APP_URL;
+  process.env.APP_URL = origin;
+  const original = { ...forms[1] };
+  t.after(() => {
+    if (previousOrigin === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previousOrigin;
+    Object.assign(forms[1], original);
+    delete event.cancelled_at;
+  });
+  const links = async () => (await getPublicEventBySlug(event.slug, "en", undefined, true)).formLinks;
+  const iso = offset => new Date(now + offset).toISOString();
+  forms[1].opens_at = iso(1);
+  assert.equal((await links()).survey, undefined);
+  forms[1].opens_at = iso(0);
+  forms[1].closes_at = iso(1);
+  assert.ok((await links()).survey.qrDataUrl);
+  forms[1].closes_at = iso(0);
+  assert.equal((await links()).survey, undefined);
+  forms[1].closes_at = iso(-1);
+  assert.equal((await links()).survey, undefined);
+  forms[1].closes_at = iso(1);
+  forms[1].status = "paused";
+  assert.equal((await links()).survey, undefined);
+  event.cancelled_at = iso(0);
+  assert.deepEqual(await links(), {});
 });
