@@ -70,8 +70,8 @@ test("legacy public event uses floor_zone for locationDetail, not address_text",
   ]);
 
   const th = await env.getPublicEventBySlug("legacy-expo", "th");
-  const en = await env.getPublicEventBySlug("legacy-expo", "en");
-  const missing = await env.getPublicEventBySlug("legacy-expo", "ja");
+  const en = await env.getPublicEventBySlug("legacy-expo", "th", "en");
+  const missing = await env.getPublicEventBySlug("legacy-expo", "en", "ja");
 
   assert.equal(th.draft.locationDetail, "ชั้น 3 โซน A");
   assert.equal(en.draft.locationDetail, "Floor 3 Zone A");
