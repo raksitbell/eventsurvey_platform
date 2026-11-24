@@ -3,6 +3,7 @@ import { ServiceError } from "@/core/api/service-error";
 import { writeAuditLog } from "@/core/audit/write";
 import { maskEmail, maskName, mayViewPii, type PiiViewer } from "@/core/auth/pii";
 import { writeSerially } from "@/core/event/serial-write";
+import { isTrashableEventStatus } from "@/core/event/trash";
 import { withPublishedFormSchedule } from "@/core/forms/published-schedule";
 import { sendSetupPasswordInvite } from "@/core/mail/send-invite";
 import { resolveEventTitle } from "@/core/mock/event-title";
@@ -166,7 +167,7 @@ async function loadEventBundle(trash = false) {
   ]);
   return {
     events: events.filter((event) =>
-      event && (trash ? event.status === "draft" && event.deleted_at : !event.deleted_at),
+      event && (trash ? event.deleted_at && isTrashableEventStatus(event.status) : !event.deleted_at),
     ),
     translations,
     users,
@@ -690,7 +691,7 @@ async function editDraftEvent(
 export async function deleteAdminEvent(eventId: string, actorUserId: string) {
   return writeSerially(eventId, async () => {
     const event = await loadLiveEvent(eventId);
-    if (event.status !== "draft") throw new ServiceError("EVENT_NOT_DELETABLE", 409);
+    if (!isTrashableEventStatus(event.status)) throw new ServiceError("EVENT_NOT_DELETABLE", 409);
 
     const now = nowIso();
     const saved = await mockApi.patch<MockEvent>(`/events/${encodeURIComponent(eventId)}`, {
@@ -708,8 +709,8 @@ export async function deleteAdminEvent(eventId: string, actorUserId: string) {
       resourceType: "event",
       resourceId: eventId,
       module: "event_management",
-      descriptionTh: "ลบอีเวนต์ฉบับร่าง",
-      descriptionEn: "Deleted draft event",
+      descriptionTh: "ย้ายอีเวนต์ไปถังขยะ",
+      descriptionEn: "Moved event to Trash",
       metadata: { slug: event.slug },
     });
     return { ok: true };
@@ -720,7 +721,7 @@ export async function restoreAdminEvent(eventId: string, actorUserId: string) {
   return writeSerially(eventId, async () => {
     const event = await readEventRecord(eventId);
     if (!event || event.id !== eventId) throw new ServiceError("EVENT_NOT_FOUND", 404);
-    if (!event.deleted_at || event.status !== "draft") {
+    if (!event.deleted_at || !isTrashableEventStatus(event.status)) {
       throw new ServiceError("EVENT_NOT_RESTORABLE", 409);
     }
     await assertSlugAvailable(event.slug, eventId);
@@ -730,7 +731,7 @@ export async function restoreAdminEvent(eventId: string, actorUserId: string) {
       updated_at: nowIso(),
       updated_by: actorUserId,
     });
-    if (saved?.id !== eventId || saved.deleted_at !== null || saved.status !== "draft") {
+    if (saved?.id !== eventId || saved.deleted_at !== null || saved.status !== event.status) {
       throw new ServiceError("EVENT_RESTORE_FAILED", 502);
     }
     await writeAuditLog({
@@ -740,8 +741,8 @@ export async function restoreAdminEvent(eventId: string, actorUserId: string) {
       resourceType: "event",
       resourceId: eventId,
       module: "event_management",
-      descriptionTh: "กู้คืนอีเวนต์ฉบับร่างจากถังขยะ",
-      descriptionEn: "Restored draft event from Trash",
+      descriptionTh: "กู้คืนอีเวนต์จากถังขยะ",
+      descriptionEn: "Restored event from Trash",
       metadata: { slug: event.slug },
     });
     return { ok: true };

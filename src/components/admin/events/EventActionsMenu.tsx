@@ -1,5 +1,6 @@
 "use client";
 
+import { isTrashableEventStatus } from "@/core/event/trash";
 import RowActionsMenu, { type RowAction } from "@/components/ui/dropdown/RowActionsMenu";
 import type {
   AdminEventListItem,
@@ -91,18 +92,16 @@ export default function EventActionsMenu({
       danger: true, reason: permissionReason,
     });
   }
-  const deleteReasons = {
-    draft: undefined,
-    scheduled: draftReason,
-    open: t("menu.deleteActiveReason"),
-    closed: t("menu.deleteClosedReason"),
-  };
+  let deleteReason = permissionReason;
+  if (!deleteReason && !isTrashableEventStatus(event.status)) {
+    deleteReason = t(event.status === "open" ? "menu.deleteActiveReason" : "menu.trashableStatuses");
+  }
   actions.push({
     label: t("menu.deleteEvent"),
     icon: TrashIcon,
     run: onDelete,
     danger: true,
-    reason: permissionReason ?? deleteReasons[event.status],
+    reason: deleteReason,
   });
 
   return (

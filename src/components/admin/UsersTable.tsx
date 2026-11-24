@@ -148,6 +148,7 @@ export default function UsersTable() {
   const pageSize = 10;
 
   // Modals & Action Pending
+  const [isDeleting, setIsDeleting] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [platformUser, setPlatformUser] = useState<AdminUserListItem | null>(
@@ -327,12 +328,15 @@ export default function UsersTable() {
     });
     if (!confirmed) return;
 
+    setIsDeleting(true);
     try {
       await api.delete(`/admin/users/${encodeURIComponent(target.id)}`);
       showToast({ title: t("form.deleteSuccess"), variant: "success" });
       await fetchUsers();
     } catch {
       showToast({ title: t("form.deleteError"), variant: "error" });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -377,7 +381,11 @@ export default function UsersTable() {
   return (
     <div ref={containerRef} className="space-y-4">
       {/* Main Figma Card */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-theme-xs sm:p-8 dark:border-gray-800 dark:bg-gray-900">
+      <div
+        inert={isDeleting}
+        aria-busy={isLoading || isDeleting}
+        className="rounded-2xl border border-gray-100 bg-white p-6 shadow-theme-xs sm:p-8 dark:border-gray-800 dark:bg-gray-900"
+      >
         {/* Card Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -486,7 +494,7 @@ export default function UsersTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800/60">
-              {isLoading ? (
+              {isLoading || isDeleting ? (
                 <TableBodySkeleton rows={5} columns={5} />
               ) : error ? (
                 <tr>
