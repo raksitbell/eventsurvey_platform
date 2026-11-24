@@ -2,6 +2,7 @@
 
 import EventActionsMenu from "./EventActionsMenu";
 import EventStatusBadge from "./EventStatusBadge";
+import { isTrashableEventStatus } from "@/core/event/trash";
 import DateRangePicker, {
   type DateRangeValue,
 } from "@/components/form/DateRangePicker";
@@ -223,7 +224,7 @@ export default function EventsTable({ showTrash = false }: { showTrash?: boolean
       if (err instanceof ApiError) {
         switch (err.code) {
           case "EVENT_NOT_DELETABLE":
-            message = t("menu.noLongerDraft");
+            message = t("menu.trashableStatuses");
             break;
           case "EVENT_NOT_RESTORABLE":
             message = t("trash.noLongerRestorable");
@@ -560,8 +561,8 @@ function RestoreEventAction({
   const t = useTranslations("adminEvents");
   const reason = !canManage
     ? t("menu.managePermission")
-    : event.status !== "draft"
-      ? t("trash.onlyDrafts")
+    : !isTrashableEventStatus(event.status)
+      ? t("trash.noLongerRestorable")
       : undefined;
   const reasonId = `restore-reason-${event.id}`;
   return (

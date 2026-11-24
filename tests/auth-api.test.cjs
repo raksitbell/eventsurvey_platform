@@ -1036,22 +1036,23 @@ test("setup-password requires a current invitation and masks preview details", a
   assert.equal(calls.filter(({ method }) => method === "PATCH").length, 1);
 });
 
-test("draft deletion requires current management access and rechecks the event lifecycle", async (t) => {
-  const { admin, reviewer, collections } = setupMockData(t, { eventWrites: true });
+test("event deletion requires current platform event-management access and rechecks the lifecycle", async (t) => {
+  const { admin, reviewer, owner, collections } = setupMockData(t, { eventWrites: true });
   const { DELETE: remove } = load("src/app/api/admin/events/[id]/route.ts");
   const event = collections.events[0];
-  event.status = "draft";
+  event.status = "closed";
   const path = `/api/admin/events/${event.id}`;
   const params = context("id", event.id);
   const deleteWith = (cookie) => remove(request(path, { method: "DELETE", cookie }), params);
   await assertDenied(await deleteWith(), 401);
+  await assertDenied(await deleteWith((await signIn(owner)).cookie), 403);
   const viewOnly = await signIn(reviewer);
   await assertDenied(await deleteWith(viewOnly.cookie), 403);
 
   const { cookie } = await signIn(admin);
   const details = await getAdminEvent(request(path, { cookie }), params);
-  assert.equal((await details.json()).status, "draft");
-  for (const status of ["scheduled", "open", "closed"]) {
+  assert.equal((await details.json()).status, "closed");
+  for (const status of ["scheduled", "open"]) {
     event.status = status;
     const response = await deleteWith(cookie);
     assert.equal(response.status, 409);
@@ -1178,6 +1179,34 @@ test("Trash lists deleted drafts and restores only with current event-management
   assert.equal((await again.json()).error, "EVENT_NOT_RESTORABLE");
 });
 
+test("a platform event manager can trash and restore a closed event without reopening it", async (t) => {
+  const { admin, collections } = setupMockData(t, { eventWrites: true });
+  const { DELETE: remove } = load("src/app/api/admin/events/[id]/route.ts");
+  const { POST: restore } = load("src/app/api/admin/events/[id]/restore/route.ts");
+  const { cookie } = await signIn(admin);
+  const event = collections.events[0];
+  const closedAt = "2026-11-01T00:00:00.000Z";
+  Object.assign(event, { status: "closed", closes_at: closedAt });
+  const path = `/api/admin/events/${event.id}`;
+  const params = context("id", event.id);
+  const listClosed = async (trash) => {
+    const response = await getAdminEvents(request(`/api/admin/events?status=closed&trash=${trash}`, { cookie }));
+    assert.equal(response.status, 200);
+    return (await response.json()).events.map(({ id, status }) => ({ id, status }));
+  };
+  const expected = [{ id: event.id, status: "closed" }];
+
+  assert.equal((await remove(request(path, { method: "DELETE", cookie }), params)).status, 200);
+  assert.deepEqual(await listClosed(false), []);
+  assert.deepEqual(await listClosed(true), expected);
+  assert.equal((await getAdminEvent(request(path, { cookie }), params)).status, 404);
+
+  assert.equal((await restore(request(path + "/restore", { method: "POST", cookie }), params)).status, 200);
+  assert.deepEqual(await listClosed(true), []);
+  assert.deepEqual(await listClosed(false), expected);
+  assert.equal(event.closes_at, closedAt);
+});
+
 test("restoring a draft preserves its content and the current assignments of moved users", async (t) => {
   const { admin, owner, collections } = setupMockData(t, { eventWrites: true });
   const { POST: restore } = load("src/app/api/admin/events/[id]/restore/route.ts");
@@ -1191,7 +1220,7 @@ test("restoring a draft preserves its content and the current assignments of mov
   }), context("id", id));
   assert.equal((await restoreById("absent-event")).status, 404);
   event.deleted_at = "2026-11-01T00:00:00.000Z";
-  assert.equal((await restoreById(event.id)).status, 409, "post-publication records cannot be restored");
+  assert.equal((await restoreById(event.id)).status, 409, "open events cannot be restored");
   event.status = "draft";
   event.setup = "existing-draft-data";
   collections.forms.push({ id: "existing-form", event_id: event.id, status: "draft" });
