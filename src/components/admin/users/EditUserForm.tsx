@@ -147,7 +147,9 @@ export default function EditUserForm({ userId, fromTrialAccounts }: Props) {
             ? t("form.eventRequired")
             : code === "INVALID_PASSWORD"
               ? t("form.passwordTooShort")
-              : t("form.updateError");
+              : code === "PLATFORM_ADMIN_PRIVATE_PASSWORD_REQUIRED"
+                ? t("form.platformAdminPrivatePasswordRequired")
+                : t("form.updateError");
       showToast({ title: message, variant: "error" });
     } finally {
       setIsSubmitting(false);

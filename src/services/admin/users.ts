@@ -8,10 +8,10 @@ import {
 } from "@/core/auth/event-permissions";
 import { getPlatformAccessRow, normalizePlatformMatrix } from "@/core/mock/access";
 import { resolveEventTitle } from "@/core/mock/event-title";
-import { mapMockUserToUser } from "@/core/mock/map-user";
+import { isActiveMockUser, mapMockUserToUser, resolveAppRole } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import { isTrialAccount } from "@/core/mock/trial-accounts";
-import { canCreatePublicDemoTrial } from "@/services/auth/public-demo";
+import { canCreatePublicDemoTrial, isPublicDemoLoginBlocked } from "@/services/auth/public-demo";
 import { getActivePortalAccount } from "@/services/auth/session";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
@@ -230,6 +230,71 @@ async function findLiveEvent(eventId: string): Promise<MockEvent | null> {
   }
 }
 
+function canAddExistingTrialAccount(user: MockUser, hasLiveEvent: boolean) {
+  return isActiveMockUser(user) &&
+    !!resolveAppRole(user) &&
+    !!user.email && user.email === user.email.trim() &&
+    !!user.password && !isPublicDemoLoginBlocked(user) &&
+    (user.password !== PUBLISHED_DEMO_PASSWORD ||
+      (user.system_role === "event_user" && canCreatePublicDemoTrial())) &&
+    (user.system_role === "platform_admin" || hasLiveEvent);
+}
+
+export async function listExistingTrialCandidates() {
+  const [users, events] = await Promise.all([
+    mockApi.getFresh<MockUser[]>("/users?_sort=created_at&_order=desc"),
+    mockApi.getFresh<MockEvent[]>("/events"),
+  ]);
+  const liveEvents = new Set(events.filter((event) => !event.deleted_at).map((event) => event.id));
+  return users
+    .filter((user) => !isTrialAccount(user) && canAddExistingTrialAccount(user, liveEvents.has(user.event_id ?? "")))
+    .map((user) => ({
+      id: user.id,
+      name: user.display_name ?? "",
+      email: user.email,
+      ...(user.password === PUBLISHED_DEMO_PASSWORD ? { usesPublishedPassword: true } : {}),
+    }));
+}
+
+export async function setExistingTrialAccount(
+  targetUserId: string,
+  isTrial: boolean,
+  actorUserId: string,
+): Promise<{ success: true }> {
+  const user = await readManagedUser(targetUserId, false);
+  if (isTrialAccount(user) === isTrial && user.trial_added_from_existing === isTrial) {
+    return { success: true };
+  }
+
+  if (isTrial) {
+    const hasLiveEvent = user.system_role === "event_user" &&
+      !!user.event_id && !!await findLiveEvent(user.event_id);
+    if (isTrialAccount(user) || !canAddExistingTrialAccount(user, hasLiveEvent)) {
+      throw new ServiceError("TRIAL_USER_INELIGIBLE", 409);
+    }
+  } else if (!user.trial_added_from_existing) {
+    throw new ServiceError("TRIAL_USER_INELIGIBLE", 409);
+  }
+
+  await mockApi.patch(`/users/${encodeURIComponent(user.id)}`, {
+    is_trial: isTrial,
+    trial_added_from_existing: isTrial,
+    ...(user.password === PUBLISHED_DEMO_PASSWORD ? { uses_published_trial_password: isTrial } : {}),
+    updated_at: new Date().toISOString(),
+  });
+  await writeAuditLog({
+    actorUserId,
+    eventId: user.event_id,
+    action: "update",
+    resourceType: "user",
+    resourceId: user.id,
+    module: "user_management",
+    descriptionTh: isTrial ? "เพิ่มบัญชีเดิมในรายการบัญชีเดโม" : "นำบัญชีเดิมออกจากรายการบัญชีเดโม",
+    descriptionEn: isTrial ? "Added existing user to demo accounts" : "Removed existing user from demo accounts",
+  });
+  return { success: true };
+}
+
 /** Bind users + events + event_translations + event_access for the admin users table */
 export async function getBoundAdminUsers(
   role?: string,
@@ -333,6 +398,7 @@ export async function getBoundAdminUsers(
       eventId,
       eventName,
       customRoleName,
+      ...(trialOnly && mock?.trial_added_from_existing ? { trialAddedFromExisting: true } : {}),
       lastActiveAt: mock?.updated_at ?? mock?.joined_at ?? user.updatedAt,
       ...(platformAccess
         ? {
@@ -576,6 +642,13 @@ export async function updateUserRoleOrEvent(
   const password = typeof updates.password === "string" && updates.password.length > 0
     ? validatePassword(updates.password)
     : undefined;
+  if (
+    nextRole === "super_admin" &&
+    current.system_role !== "platform_admin" &&
+    (password ?? current.password) === PUBLISHED_DEMO_PASSWORD
+  ) {
+    throw new ServiceError("PLATFORM_ADMIN_PRIVATE_PASSWORD_REQUIRED", 400);
+  }
   if (password && current.status === "invited") {
     patchBody.status = "active";
     patchBody.joined_at = current.joined_at ?? new Date().toISOString();
@@ -644,7 +717,10 @@ export async function deleteAdminUser(
     throw new ServiceError("CANNOT_DELETE_SELF", 400, "Cannot delete yourself");
   }
 
-  await readManagedUser(targetUserId, trialOnly);
+  const user = await readManagedUser(targetUserId, trialOnly);
+  if (trialOnly && user.trial_added_from_existing) {
+    throw new ServiceError("TRIAL_USER_INELIGIBLE", 409);
+  }
 
   const now = new Date().toISOString();
   await mockApi.patch(`/users/${encodeURIComponent(targetUserId)}`, {
