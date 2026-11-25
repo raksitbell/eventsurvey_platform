@@ -642,6 +642,13 @@ export async function updateUserRoleOrEvent(
   const password = typeof updates.password === "string" && updates.password.length > 0
     ? validatePassword(updates.password)
     : undefined;
+  if (
+    nextRole === "super_admin" &&
+    current.system_role !== "platform_admin" &&
+    (password ?? current.password) === PUBLISHED_DEMO_PASSWORD
+  ) {
+    throw new ServiceError("PLATFORM_ADMIN_PRIVATE_PASSWORD_REQUIRED", 400);
+  }
   if (password && current.status === "invited") {
     patchBody.status = "active";
     patchBody.joined_at = current.joined_at ?? new Date().toISOString();

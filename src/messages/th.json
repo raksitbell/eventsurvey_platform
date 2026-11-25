@@ -291,6 +291,7 @@
       "confirmPassword": "ยืนยันรหัสผ่าน",
       "confirmPasswordPlaceholder": "กรอกรหัสผ่านอีกครั้ง",
       "passwordTooShort": "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร",
+      "platformAdminPrivatePasswordRequired": "ตั้งรหัสผ่านเฉพาะบัญชีที่ต่างจากรหัสผ่านเดโมสาธารณะก่อนเปลี่ยนเป็นผู้ดูแลระบบ",
       "passwordMismatch": "รหัสผ่านไม่ตรงกัน",
       "saving": "กำลังบันทึก…",
       "cancel": "ยกเลิก",

@@ -833,6 +833,43 @@ test("existing event users can keep the published password only on the designate
   assert.equal(owner.uses_published_trial_password, false);
 });
 
+test("promoting a demo event user to Platform Admin requires a private password", async (t) => {
+  const { admin, owner, collections } = setupMockData(t, { eventWrites: true });
+  useTrialDemoBackend(t, origin);
+  const { PUBLISHED_DEMO_PASSWORD } = load("src/core/auth/demo-preset.ts");
+  const { cookie } = await signIn(admin);
+  const path = `/api/admin/users/${owner.id}`;
+  const patch = (target, body) => patchAdminUser(request(target, {
+    method: "PATCH", cookie, body,
+  }), context("id", owner.id));
+  owner.password = PUBLISHED_DEMO_PASSWORD;
+  assert.equal((await patch(`${path}?trial=true`, { isTrial: true })).status, 200);
+  const originalEvent = owner.event_id;
+  const originalAccess = structuredClone(collections.event_access);
+  const originalPlatformAccess = structuredClone(collections.platform_access);
+
+  for (const [target, body] of [
+    [path, { role: "super_admin" }],
+    [`${path}?trial=true`, { role: "super_admin", password: PUBLISHED_DEMO_PASSWORD }],
+  ]) {
+    const denied = await patch(target, body);
+    assert.equal(denied.status, 400);
+    assert.equal((await denied.json()).error, "PLATFORM_ADMIN_PRIVATE_PASSWORD_REQUIRED");
+    assert.equal(owner.system_role, "event_user");
+    assert.equal(owner.event_id, originalEvent);
+    assert.deepEqual(collections.event_access, originalAccess);
+    assert.deepEqual(collections.platform_access, originalPlatformAccess);
+  }
+
+  const newPassword = "fixture-private-admin-password";
+  assert.equal((await patch(`${path}?trial=true`, { role: "super_admin", password: newPassword })).status, 200);
+  assert.equal(owner.system_role, "platform_admin");
+  assert.equal(owner.password, newPassword);
+  assert.equal(owner.uses_published_trial_password, false);
+  const accounts = (await (await getLoginTrialAccounts()).json()).accounts;
+  assert.deepEqual(accounts.find((account) => account.email === owner.email), { email: owner.email, role: "super_admin" });
+});
+
 test("a user manager can create, edit and remove a trial account while ordinary accounts stay outside trial deletion", async (t) => {
   const { admin, reviewer, owner, collections } = setupMockData(t, { eventWrites: true });
   const manager = (await signIn(admin)).cookie;

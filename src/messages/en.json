@@ -291,6 +291,7 @@
       "confirmPassword": "Confirm password",
       "confirmPasswordPlaceholder": "Re-enter password",
       "passwordTooShort": "Password must be at least 8 characters",
+      "platformAdminPrivatePasswordRequired": "Set a password for this account that differs from the public demo password before switching to Platform Admin.",
       "passwordMismatch": "Passwords do not match",
       "saving": "Saving…",
       "cancel": "Cancel",
