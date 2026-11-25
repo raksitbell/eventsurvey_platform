@@ -281,8 +281,8 @@ export async function setExistingTrialAccount(
     resourceType: "user",
     resourceId: user.id,
     module: "user_management",
-    descriptionTh: isTrial ? "เพิ่มบัญชีเดิมในรายการบัญชีทดลอง" : "นำบัญชีเดิมออกจากรายการบัญชีทดลอง",
-    descriptionEn: isTrial ? "Added existing user to trial accounts" : "Removed existing user from trial accounts",
+    descriptionTh: isTrial ? "เพิ่มบัญชีเดิมในรายการบัญชีเดโม" : "นำบัญชีเดิมออกจากรายการบัญชีเดโม",
+    descriptionEn: isTrial ? "Added existing user to demo accounts" : "Removed existing user from demo accounts",
   });
   return { success: true };
 }
