@@ -198,6 +198,7 @@
     "existingTrialUser": "Existing user",
     "selectExistingTrialUser": "Select a user",
     "existingTrialNotice": "Adding this user shows their email and role on the public sign-in page. Their current password still applies.",
+    "existingPublicDemoNotice": "Adding this user lets anyone select and sign in to the account with the public demo password and the account’s current permissions.",
     "loadingExistingTrialUsers": "Loading eligible users…",
     "noExistingTrialUsers": "No users are available to add. This list shows only existing users who can sign in and are not already demo accounts.",
     "loadExistingTrialUsersError": "Could not load eligible users.",

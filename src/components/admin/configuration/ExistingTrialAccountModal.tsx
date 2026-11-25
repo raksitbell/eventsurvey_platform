@@ -8,7 +8,9 @@ import type { AdminUserListItem } from "@/types/admin/users";
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 
-type Candidate = Pick<AdminUserListItem, "id" | "name" | "email">;
+type Candidate = Pick<AdminUserListItem, "id" | "name" | "email"> & {
+  usesPublishedPassword?: boolean;
+};
 
 export default function ExistingTrialAccountModal({
   onClose,
@@ -28,6 +30,7 @@ export default function ExistingTrialAccountModal({
   >("loading");
   const [attempt, setAttempt] = useState(0);
   const [selected, setSelected] = useState("");
+  const selectedUser = Array.isArray(candidates) ? candidates.find((user) => user.id === selected) : undefined;
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<
     "trialUserIneligible" | "addExistingTrialError" | null
@@ -133,7 +136,9 @@ export default function ExistingTrialAccountModal({
                   </option>
                 ))}
               </SelectField>
-              <p id={noticeId}>{t("existingTrialNotice")}</p>
+              <p id={noticeId} aria-live="polite">
+                {t(selectedUser?.usesPublishedPassword ? "existingPublicDemoNotice" : "existingTrialNotice")}
+              </p>
             </>
           )}
           {candidates === "loading" && (

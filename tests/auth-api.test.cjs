@@ -801,6 +801,38 @@ test("a user manager can add and remove an existing trial account without changi
   await signIn(owner);
 });
 
+test("existing event users can keep the published password only on the designated demo backend", async (t) => {
+  const { admin, owner, reviewer } = setupMockData(t, { eventWrites: true });
+  const { PUBLISHED_DEMO_PASSWORD } = load("src/core/auth/demo-preset.ts");
+  owner.password = PUBLISHED_DEMO_PASSWORD;
+  reviewer.password = PUBLISHED_DEMO_PASSWORD;
+  const { cookie } = await signIn(admin);
+  const list = async () => (await (await getAdminUsers(request("/api/admin/users?trial=eligible", { cookie }))).json()).users;
+  const change = (user, isTrial) => patchAdminUser(request(`/api/admin/users/${user.id}?trial=true`, {
+    method: "PATCH", cookie, body: { isTrial },
+  }), context("id", user.id));
+  const picker = async () => (await (await getLoginTrialAccounts()).json()).accounts;
+
+  useTrialDemoBackend(t, "");
+  assert.equal((await list()).some((user) => user.id === owner.id), false);
+  assert.equal((await change(owner, true)).status, 409);
+
+  process.env.TRIAL_DEMO_API_BASE_URL = origin;
+  assert.ok((await list()).some((user) => user.id === owner.id && user.usesPublishedPassword));
+  assert.equal((await change(reviewer, true)).status, 409);
+  assert.equal((await change(owner, true)).status, 200);
+  assert.deepEqual(await picker(), [{ email: owner.email, role: "event_owner", usesPublishedPassword: true }]);
+  assert.equal(owner.password, PUBLISHED_DEMO_PASSWORD);
+
+  process.env.TRIAL_DEMO_API_BASE_URL = "";
+  assert.deepEqual(await picker(), []);
+  process.env.TRIAL_DEMO_API_BASE_URL = origin;
+  assert.equal((await change(owner, false)).status, 200);
+  assert.deepEqual(await picker(), []);
+  assert.equal(owner.password, PUBLISHED_DEMO_PASSWORD);
+  assert.equal(owner.uses_published_trial_password, false);
+});
+
 test("a user manager can create, edit and remove a trial account while ordinary accounts stay outside trial deletion", async (t) => {
   const { admin, reviewer, owner, collections } = setupMockData(t, { eventWrites: true });
   const manager = (await signIn(admin)).cookie;

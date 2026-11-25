@@ -11,7 +11,7 @@ import { resolveEventTitle } from "@/core/mock/event-title";
 import { isActiveMockUser, mapMockUserToUser, resolveAppRole } from "@/core/mock/map-user";
 import { getRolePermissions } from "@/core/mock/role-permissions";
 import { isTrialAccount } from "@/core/mock/trial-accounts";
-import { canCreatePublicDemoTrial } from "@/services/auth/public-demo";
+import { canCreatePublicDemoTrial, isPublicDemoLoginBlocked } from "@/services/auth/public-demo";
 import { getActivePortalAccount } from "@/services/auth/session";
 import { routing, type Locale } from "@/i18n/routing";
 import type {
@@ -234,7 +234,9 @@ function canAddExistingTrialAccount(user: MockUser, hasLiveEvent: boolean) {
   return isActiveMockUser(user) &&
     !!resolveAppRole(user) &&
     !!user.email && user.email === user.email.trim() &&
-    !!user.password && user.password !== PUBLISHED_DEMO_PASSWORD &&
+    !!user.password && !isPublicDemoLoginBlocked(user) &&
+    (user.password !== PUBLISHED_DEMO_PASSWORD ||
+      (user.system_role === "event_user" && canCreatePublicDemoTrial())) &&
     (user.system_role === "platform_admin" || hasLiveEvent);
 }
 
@@ -246,7 +248,12 @@ export async function listExistingTrialCandidates() {
   const liveEvents = new Set(events.filter((event) => !event.deleted_at).map((event) => event.id));
   return users
     .filter((user) => !isTrialAccount(user) && canAddExistingTrialAccount(user, liveEvents.has(user.event_id ?? "")))
-    .map((user) => ({ id: user.id, name: user.display_name ?? "", email: user.email }));
+    .map((user) => ({
+      id: user.id,
+      name: user.display_name ?? "",
+      email: user.email,
+      ...(user.password === PUBLISHED_DEMO_PASSWORD ? { usesPublishedPassword: true } : {}),
+    }));
 }
 
 export async function setExistingTrialAccount(
@@ -272,6 +279,7 @@ export async function setExistingTrialAccount(
   await mockApi.patch(`/users/${encodeURIComponent(user.id)}`, {
     is_trial: isTrial,
     trial_added_from_existing: isTrial,
+    ...(user.password === PUBLISHED_DEMO_PASSWORD ? { uses_published_trial_password: isTrial } : {}),
     updated_at: new Date().toISOString(),
   });
   await writeAuditLog({
