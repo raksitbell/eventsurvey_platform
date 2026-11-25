@@ -110,31 +110,32 @@ export default function ExistingTrialAccountModal({
           {t("addExistingTrialAccount")}
         </h2>
         <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-          <label htmlFor={fieldId} className="block font-medium">
-            {t("existingTrialUser")}
-          </label>
-          <SelectField
-            id={fieldId}
-            value={selected}
-            required
-            aria-describedby={noticeId}
-            disabled={
-              saving || !Array.isArray(candidates) || candidates.length === 0
-            }
-            onChange={(event) => {
-              setSelected(event.target.value);
-              setSaveError(null);
-            }}
-          >
-            <option value="">{t("selectExistingTrialUser")}</option>
-            {Array.isArray(candidates) &&
-              candidates.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name ? `${user.name} (${user.email})` : user.email}
-                </option>
-              ))}
-          </SelectField>
-          <p id={noticeId}>{t("existingTrialNotice")}</p>
+          {Array.isArray(candidates) && candidates.length > 0 && (
+            <>
+              <label htmlFor={fieldId} className="block font-medium">
+                {t("existingTrialUser")}
+              </label>
+              <SelectField
+                id={fieldId}
+                value={selected}
+                required
+                aria-describedby={noticeId}
+                disabled={saving}
+                onChange={(event) => {
+                  setSelected(event.target.value);
+                  setSaveError(null);
+                }}
+              >
+                <option value="">{t("selectExistingTrialUser")}</option>
+                {candidates.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name ? `${user.name} (${user.email})` : user.email}
+                  </option>
+                ))}
+              </SelectField>
+              <p id={noticeId}>{t("existingTrialNotice")}</p>
+            </>
+          )}
           {candidates === "loading" && (
             <p role="status">{t("loadingExistingTrialUsers")}</p>
           )}
@@ -171,9 +172,11 @@ export default function ExistingTrialAccountModal({
           >
             {common("cancel")}
           </Button>
-          <Button size="sm" type="submit" disabled={!selected || saving}>
-            {t("addTrialAccount")}
-          </Button>
+          {Array.isArray(candidates) && candidates.length > 0 && (
+            <Button size="sm" type="submit" disabled={!selected || saving}>
+              {t("addTrialAccount")}
+            </Button>
+          )}
         </div>
       </form>
     </Modal>

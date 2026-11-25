@@ -14,7 +14,6 @@ import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useModal } from "@/hooks/useModal";
-import { Link } from "@/i18n/navigation";
 import type {
   AdminUserListItem,
   AdminUsersResponse,
@@ -23,7 +22,6 @@ import { showProgress, showToast } from "@/utils/alert";
 import {
   MinusCircleIcon,
   PencilSquareIcon,
-  PlusIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
@@ -109,17 +107,10 @@ export default function TrialAccountsTable() {
   return (
     <div className="space-y-4">
       {canManageUsers && (
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={openModal} disabled={deleting}>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={openModal} disabled={deleting}>
             {t("addExistingTrialAccount")}
           </Button>
-          <Link
-            href="/admin/users/new?from=trial-accounts"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus-visible:outline-brand-500"
-          >
-            <PlusIcon aria-hidden="true" className="size-4" />
-            {t("createTrialAccount")}
-          </Link>
         </div>
       )}
       {canManageUsers && isOpen && (
