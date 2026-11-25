@@ -6,6 +6,7 @@ import { routing, type Locale } from "@/i18n/routing";
 import {
   deleteAdminUser,
   getAdminUserById,
+  setExistingTrialAccount,
   updateUserRoleOrEvent,
 } from "@/services/admin/users";
 import type { UserRole } from "@/types/user";
@@ -66,6 +67,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = await context.params;
     const body = await readJsonObject(request);
     if (!body) return authJson({ error: "INVALID_BODY" }, 400);
+    const trialOnly = readTrialScope(request);
+    if ("isTrial" in body) {
+      if (!trialOnly || typeof body.isTrial !== "boolean" || Object.keys(body).length !== 1) {
+        return authJson({ error: "INVALID_TRIAL_FLAG" }, 400);
+      }
+      return authJson(await setExistingTrialAccount(id, body.isTrial, session.realUserId));
+    }
 
     const eventId =
       "eventId" in body
@@ -88,7 +96,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       id,
       { eventId, role, name, email, password },
       session.realUserId,
-      readTrialScope(request),
+      trialOnly,
     );
     return authJson(result);
   } catch (error) {

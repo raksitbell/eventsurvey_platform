@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/core/api";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useModal } from "@/hooks/useModal";
 import { Link } from "@/i18n/navigation";
 import type {
   AdminUserListItem,
@@ -20,12 +21,14 @@ import type {
 } from "@/types/admin/users";
 import { showProgress, showToast } from "@/utils/alert";
 import {
+  MinusCircleIcon,
   PencilSquareIcon,
   PlusIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import ExistingTrialAccountModal from "./ExistingTrialAccountModal";
 
 export default function TrialAccountsTable() {
   const t = useTranslations("platformConfiguration");
@@ -34,6 +37,7 @@ export default function TrialAccountsTable() {
   const locale = useLocale();
   const { canManageUsers, realUser } = useAuth();
   const { confirm } = useConfirm();
+  const { isOpen, openModal, closeModal } = useModal();
   const [rows, setRows] = useState<AdminUserListItem[] | "loading" | "error">(
     "loading",
   );
@@ -59,32 +63,32 @@ export default function TrialAccountsTable() {
     return () => request.abort();
   }, [attempt, locale]);
 
-  async function deleteAccount(user: AdminUserListItem) {
+  async function removeAccount(user: AdminUserListItem) {
+    const adopted = user.trialAddedFromExisting;
+    const name = user.name ? `${user.name} (${user.email})` : user.email;
     const confirmed = await confirm({
-      title: t("deleteTrialAccount"),
-      message: users("form.deleteConfirm", {
-        name: user.name ? `${user.name} (${user.email})` : user.email,
-      }),
-      confirmLabel: users("form.deleteSubmit"),
+      title: t(adopted ? "removeExistingTrialAccount" : "deleteTrialAccount"),
+      message: adopted ? t("removeExistingTrialConfirm", { name }) : users("form.deleteConfirm", { name }),
+      confirmLabel: adopted ? t("removeExistingTrialSubmit") : users("form.deleteSubmit"),
       variant: "danger",
     });
     if (!confirmed) return;
 
     setDeleting(true);
-    showProgress(t("deletingTrialAccount"), user.email);
+    showProgress(t(adopted ? "removingExistingTrialAccount" : "deletingTrialAccount"), user.email);
     try {
-      await api.delete(
-        `/admin/users/${encodeURIComponent(user.id)}?trial=true`,
-      );
+      const path = `/admin/users/${encodeURIComponent(user.id)}?trial=true`;
+      if (adopted) await api.patch(path, { isTrial: false });
+      else await api.delete(path);
       setRows((current) =>
         Array.isArray(current)
           ? current.filter((row) => row.id !== user.id)
           : current,
       );
-      showToast({ title: users("form.deleteSuccess"), variant: "success" });
+      showToast({ title: adopted ? t("existingTrialRemoved") : users("form.deleteSuccess"), variant: "success" });
     } catch (error) {
-      let message = users("form.deleteError");
-      if (error instanceof ApiError && error.code === "USER_NOT_FOUND") {
+      let message = adopted ? t("removeExistingTrialError") : users("form.deleteError");
+      if (error instanceof ApiError && (error.code === "USER_NOT_FOUND" || error.code === "TRIAL_USER_INELIGIBLE")) {
         message = t("trialAccountUnavailable");
         setAttempt((count) => count + 1);
       } else if (
@@ -105,15 +109,25 @@ export default function TrialAccountsTable() {
   return (
     <div className="space-y-4">
       {canManageUsers && (
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={openModal} disabled={deleting}>
+            {t("addExistingTrialAccount")}
+          </Button>
           <Link
             href="/admin/users/new?from=trial-accounts"
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus-visible:outline-brand-500"
           >
             <PlusIcon aria-hidden="true" className="size-4" />
-            {t("addTrialAccount")}
+            {t("createTrialAccount")}
           </Link>
         </div>
+      )}
+      {canManageUsers && isOpen && (
+        <ExistingTrialAccountModal onClose={closeModal} onAdded={() => {
+          closeModal();
+          setAttempt((count) => count + 1);
+          showToast({ title: t("existingTrialAdded"), variant: "success" });
+        }} />
       )}
       <div
         aria-busy={rows === "loading" || deleting}
@@ -194,14 +208,14 @@ export default function TrialAccountsTable() {
                             href: `/admin/users/${encodeURIComponent(user.id)}/edit?from=trial-accounts`,
                           },
                           {
-                            label: users("actions.delete"),
-                            icon: TrashIcon,
+                            label: user.trialAddedFromExisting ? t("removeExistingTrialSubmit") : users("actions.delete"),
+                            icon: user.trialAddedFromExisting ? MinusCircleIcon : TrashIcon,
                             danger: true,
                             reason:
-                              user.id === realUser?.id
+                              !user.trialAddedFromExisting && user.id === realUser?.id
                                 ? users("form.cannotDeleteSelf")
                                 : undefined,
-                            run: () => void deleteAccount(user),
+                            run: () => void removeAccount(user),
                           },
                         ]}
                       />

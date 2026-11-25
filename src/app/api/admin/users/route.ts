@@ -6,6 +6,7 @@ import { routing, type Locale } from "@/i18n/routing";
 import {
   createAdminUser,
   getBoundAdminUsers,
+  listExistingTrialCandidates,
 } from "@/services/admin/users";
 import type { UserRole } from "@/types/user";
 import type { NextRequest } from "next/server";
@@ -23,13 +24,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const trial = request.nextUrl.searchParams.get("trial");
+    if (trial === "eligible") {
+      if (!(await hasPlatformPermission(session.realUserId, "manage_platform_users"))) {
+        return authJson({ error: "FORBIDDEN" }, 403);
+      }
+      return authJson({ users: await listExistingTrialCandidates() });
+    }
     const role = request.nextUrl.searchParams.get("role") ?? undefined;
     const requestedLocale = request.nextUrl.searchParams.get("locale");
     const locale = routing.locales.includes(requestedLocale as Locale)
       ? (requestedLocale as Locale)
       : routing.defaultLocale;
-    const trialOnly = request.nextUrl.searchParams.get("trial") === "true";
-    const data = await getBoundAdminUsers(role, locale, trialOnly);
+    const data = await getBoundAdminUsers(role, locale, trial === "true");
     return authJson(data);
   } catch {
     return authJson({ error: "Failed to load users" }, 502);

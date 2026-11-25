@@ -55,6 +55,7 @@ export interface AdminUserListItem {
   /** Convenience mirrors of platformAccess toggles (super_admin). */
   canViewActivity?: boolean;
   canInspection?: boolean;
+  trialAddedFromExisting?: boolean;
   createdAt: string;
   updatedAt: string;
 }

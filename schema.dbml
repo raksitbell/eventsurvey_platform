@@ -163,6 +163,7 @@ Table users [headercolor: #2563EB] {
   id uuid [pk]
   email varchar(320) [unique]
   is_trial boolean [default: false, note: 'Identifies accounts listed in Platform Configuration under Manage trial accounts.']
+  trial_added_from_existing boolean [default: false, note: 'Trial listing was added to an existing account and can be removed without deleting the user.']
   uses_published_trial_password boolean [note: 'Explicitly provisioned with the public demo password. Legacy records may omit this flag.']
   password varchar(255) [not null]
   display_name varchar(160) [not null]
