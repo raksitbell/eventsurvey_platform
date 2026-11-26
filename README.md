@@ -2,6 +2,13 @@
 
 ระบบจัดอีเวนต์และแบบสอบถาม ผู้จัดตั้งค่าหน้างาน เปิดรับลงทะเบียน จัดการรายชื่อผู้มีสิทธิ์ และดูผลผ่านแดชบอร์ดหรือรายงาน ผู้เข้าร่วมเปิดหน้าอีเวนต์และแบบฟอร์มจากลิงก์หรือ QR โดยตรง
 
+<p align="center">
+  <a href="https://github.com/raksitbell/eventsurvey_platform/actions/workflows/codeql.yml"><img src="https://github.com/raksitbell/eventsurvey_platform/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs" alt="Next.js 16">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19">
+  <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+</p>
+
 ## ทดลองใช้งาน
 
 | สภาพแวดล้อม | สาขา | ลิงก์ |
@@ -59,6 +66,27 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 | `npm run lint` | ตรวจด้วย ESLint |
 | `npm test` | รันชุดทดสอบ Node.js สำหรับ auth, Event Setup, ฟอร์มและการตอบฟอร์ม รายงาน และการปกปิดข้อมูลส่วนบุคคล |
 
+## เทคโนโลยี
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://skillicons.dev/icons?i=nextjs%2Creact%2Cts%2Ctailwind%2Cnodejs%2Cvercel&theme=dark&perline=8">
+    <source media="(prefers-color-scheme: light)" srcset="https://skillicons.dev/icons?i=nextjs%2Creact%2Cts%2Ctailwind%2Cnodejs%2Cvercel&theme=light&perline=8">
+    <img src="https://skillicons.dev/icons?i=nextjs,react,ts,tailwind,nodejs,vercel&perline=8" alt="Next.js, React, TypeScript, Tailwind CSS, Node.js, Vercel">
+  </picture>
+</p>
+
+| ส่วน | ใช้ | หมายเหตุ |
+|---|---|---|
+| Framework | **Next.js 16** (App Router) | ตั้งค่าไว้ทั้ง Turbopack และ webpack |
+| UI | **React 19** · **TypeScript** (strict) | — |
+| Styling | **Tailwind CSS v4** | ธีมอยู่ใน `src/app/globals.css` ไม่มี `tailwind.config` |
+| หลายภาษา | **next-intl v4** | ไทย (ค่าเริ่มต้น) / อังกฤษ — ไม่มี `/th` `/en` ใน URL |
+| Graph | **ApexCharts** | ต้อง import แบบ dynamic เท่านั้น |
+| Drag & Drop | **react-dnd** | เตรียมไว้ให้ตัวสร้างแบบฟอร์ม |
+| Confirmation | **SweetAlert2** | ใช้ผ่าน `useConfirm()` |
+| Development | mock API ภายนอก | <https://eventmockapi.vercel.app> |
+
 ## เอกสารโครงการ
 
 - **คู่มือและการโฮสต์** รวมตัวแปรสภาพแวดล้อม SMTP, Private Blob, การใช้งานบัญชีเดโม และรายละเอียดฟีเจอร์ [GitHub Wiki](https://github.com/raksitbell/eventsurvey_platform/wiki)
@@ -66,4 +94,4 @@ npm exec -- json-server --watch db.json --host 127.0.0.1 --port 3001
 - **แนวทางพัฒนาและดีไซน์** โครงสร้างโค้ด การแปลภาษา ข้อกำหนดการทำงานใน repo และการออกแบบจอผู้เข้าร่วม [AGENTS.md](AGENTS.md) · [DESIGN.md](DESIGN.md)
 - **แบบจำลองข้อมูลเชิงตรรกะ** สำหรับออกแบบฐานข้อมูล สัญญาที่แอปใช้กับ Mock API อ้างอิงจาก types และ services ใน `src/` [schema.dbml](schema.dbml) · [Schema Guide](https://github.com/raksitbell/eventsurvey_platform/wiki/Schema-DBML) · [Database Diagram](https://dbdiagram.io/d/eventsurvey_platform-system-diagram-6ad97841f65bbc60f6fafa5d)
 
-แอปใช้ Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS v4 และ next-intl v4 สำหรับภาษาไทยและอังกฤษ เบราว์เซอร์เรียก `/api/*` ของ Next.js แล้วบริการฝั่งเซิร์ฟเวอร์จึงเรียก Mock API [CodeQL](https://github.com/raksitbell/eventsurvey_platform/actions/workflows/codeql.yml) · [Deployments](https://github.com/raksitbell/eventsurvey_platform/deployments)
+เบราว์เซอร์เรียก `/api/*` ของ Next.js แล้วบริการฝั่งเซิร์ฟเวอร์จึงเรียก Mock API [Deployments](https://github.com/raksitbell/eventsurvey_platform/deployments)
